@@ -675,3 +675,55 @@ async fn verified_and_imported_keys_win() {
     e.set_key_verified(&fb, true).unwrap();
     assert_eq!(pick(), fb);
 }
+
+#[tokio::test]
+async fn encrypted_message_files_open_decrypted() {
+    let f = Fixture::new(&[("Alex Morgan", "alex@envelope.test")]);
+    let e = &f.engine;
+    let (alex, _) = f.account("alex@envelope.test");
+    e.generate_key("alex@envelope.test", "Alex Morgan", None)
+        .await
+        .unwrap();
+    let file = f.dir.join("notes.txt");
+    std::fs::write(&file, "secret notes\n").unwrap();
+    let mut d = draft(
+        alex,
+        &["alex@envelope.test"],
+        "Saved secret",
+        "<p>Only for me.</p>",
+    );
+    d.encrypt = Some(true);
+    d.attachments.push(DraftAttachment {
+        filename: "notes.txt".into(),
+        mime_type: "text/plain".into(),
+        size: 13,
+        path: Some(file.to_string_lossy().into_owned()),
+        attachment_id: None,
+        content_id: None,
+        inline: false,
+    });
+    let raw = f.render(&d, false).await;
+    let saved = f.dir.join("secret.eml");
+    std::fs::write(&saved, &raw).unwrap();
+
+    let crate::files::OpenedFile::Message(m) = e.open_file(&saved).await.unwrap() else {
+        panic!("not a message");
+    };
+    assert!(m.encrypted);
+    assert_eq!(
+        m.subject, "Saved secret",
+        "the protected subject, not \"...\""
+    );
+    assert!(
+        m.html
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Only for me.")
+    );
+    assert_eq!(m.attachments.len(), 1);
+    let part = e
+        .file_part(&saved, &m.attachments[0].part_id)
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read_to_string(part).unwrap(), "secret notes\n");
+}

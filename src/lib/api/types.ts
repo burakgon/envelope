@@ -643,6 +643,8 @@ export interface FileMessage {
   html: string | null;
   text: string | null;
   attachments: { partId: string; filename: string; mimeType: string; size: number }[];
+  /** The message was encrypted and is shown decrypted. */
+  encrypted: boolean;
 }
 
 export interface FileEvent {

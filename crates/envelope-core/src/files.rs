@@ -46,6 +46,8 @@ pub struct FileMessage {
     pub html: Option<String>,
     pub text: Option<String>,
     pub attachments: Vec<FileAttachment>,
+    /// The message was encrypted and is shown decrypted.
+    pub encrypted: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -201,15 +203,26 @@ impl Engine {
         let display = path.to_string_lossy().into_owned();
         match kind_of(path, &data) {
             Some(Kind::Message) => {
-                let (meta, body) = mime::parse_full(&data)
+                let (meta, _) = mime::parse_full(&data)
+                    .ok_or_else(|| Error::Invalid("This file is not a readable message.".into()))?;
+                // Encrypted mail is shown from its decrypted content, whose
+                // protected headers carry the real subject.
+                let decrypted = self.decrypt_file_message(&data).await?;
+                let content = decrypted.as_deref().unwrap_or(&data);
+                let (inner, body) = mime::parse_full(content)
                     .ok_or_else(|| Error::Invalid("This file is not a readable message.".into()))?;
                 let html = body
                     .html
                     .as_deref()
-                    .map(|h| embed_inline_parts(h, &data, &body.attachments));
+                    .map(|h| embed_inline_parts(h, content, &body.attachments));
+                let subject = if decrypted.is_some() && !inner.subject.is_empty() {
+                    inner.subject
+                } else {
+                    meta.subject
+                };
                 Ok(OpenedFile::Message(FileMessage {
                     path: display,
-                    subject: meta.subject,
+                    subject,
                     from: meta.from,
                     to: meta.to,
                     cc: meta.cc,
@@ -228,6 +241,7 @@ impl Engine {
                             size: a.size,
                         })
                         .collect(),
+                    encrypted: decrypted.is_some(),
                 }))
             }
             Some(Kind::Calendar) => {
@@ -320,7 +334,10 @@ impl Engine {
     /// Writes an attachment of a message file to the cache and returns its
     /// path, for opening or saving it.
     pub async fn file_part(&self, path: &Path, part_id: &str) -> Result<PathBuf> {
-        let data = read(path).await?;
+        let mut data = read(path).await?;
+        if let Some(decrypted) = self.decrypt_file_message(&data).await? {
+            data = decrypted;
+        }
         let (_, body) = mime::parse_full(&data)
             .ok_or_else(|| Error::Invalid("This file is not a readable message.".into()))?;
         let part = body

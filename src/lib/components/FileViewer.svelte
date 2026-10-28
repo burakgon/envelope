@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '../api';
   import type { FileEvent, FileMessage, MessageView, OpenedFile } from '../api';
-  import { Calendar, Download, File, Mail, Reply, Spinner, X } from '../icons';
+  import { Calendar, Download, File, Lock, Mail, Reply, Spinner, X } from '../icons';
   import { cal } from '../stores/calendar.svelte';
   import { compose } from '../stores/compose.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
@@ -164,7 +164,10 @@
       {@const m = file}
       <div class="message">
         <div class="head">
-          <h2>{m.subject || '(no subject)'}</h2>
+          <h2>
+            {m.subject || '(no subject)'}
+            {#if m.encrypted}<span class="locked" title="This message was encrypted"><Lock size={12} />Encrypted</span>{/if}
+          </h2>
           <div class="meta">
             <div>
               <b>{displayName(m.from)}</b>
@@ -324,6 +327,19 @@
     font-size: var(--text-xl);
     font-weight: 650;
     line-height: 1.3;
+  }
+  .locked {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    vertical-align: middle;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--green);
+    background: color-mix(in oklab, var(--green) 14%, transparent);
   }
   .meta {
     display: flex;

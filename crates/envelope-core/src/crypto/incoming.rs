@@ -270,6 +270,24 @@ enum Failure {
 }
 
 impl Engine {
+    /// The decrypted content (a MIME entity) of a PGP/MIME message read from
+    /// a file, or `None` when it is not encrypted.
+    pub(crate) async fn decrypt_file_message(&self, raw: &[u8]) -> Result<Option<Vec<u8>>> {
+        let Some(payload) = pgpmime::encrypted_payload(raw) else {
+            return Ok(None);
+        };
+        match self.decrypt_payload(&payload).await {
+            Ok(d) => Ok(Some(d.data)),
+            Err(Failure::NoKey) => Err(Error::Invalid(
+                "This message is encrypted to a key that is not on this computer.".into(),
+            )),
+            Err(Failure::Locked(..)) => Err(Error::Invalid(
+                "Your key is locked. Open an encrypted message in Envelope to enter its passphrase, then open this file again.".into(),
+            )),
+            Err(Failure::Error(e)) => Err(Error::Invalid(e)),
+        }
+    }
+
     /// Decrypts and/or verifies a message (kept for the session; with the
     /// "remember decrypted messages" setting, also stored for search).
     pub async fn open_message(&self, message_id: i64) -> Result<OpenedMessage> {
