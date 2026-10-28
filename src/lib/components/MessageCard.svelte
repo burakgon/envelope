@@ -5,7 +5,8 @@
   import { mail } from '../stores/mail.svelte';
   import { ui } from '../stores/ui.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
-  import { displayName, longDate, messageDate } from '../utils/format';
+  import { t } from '../i18n';
+  import { dateFormat, displayName, longDate, messageDate, timeOf } from '../utils/format';
   import Avatar from './Avatar.svelte';
   import MailFrame from './MailFrame.svelte';
   import AttachmentTile from './AttachmentTile.svelte';
@@ -37,12 +38,12 @@
   async function addToCalendar() {
     const at = menu ?? { x: innerWidth / 2, y: innerHeight / 3 };
     menu = null;
-    const progress = toasts.show('Looking for events…', { kind: 'progress', duration: 0 });
+    const progress = toasts.show(t('message.lookingForEvents'), { kind: 'progress', duration: 0 });
     try {
       const text = await api.ai.run({ kind: 'extractEvents', messageId: message.id }).promise;
       const events: ExtractedEvent[] = JSON.parse(text);
       toasts.dismiss(progress);
-      if (!events.length) toasts.show('No dates or events found in this message');
+      if (!events.length) toasts.show(t('message.noEventsFound'));
       else if (events.length === 1) cal.fromExtracted(events[0]);
       else found = { x: at.x, y: at.y, events };
     } catch (e) {
@@ -53,8 +54,8 @@
 
   function foundWhen(e: ExtractedEvent): string {
     const d = new Date(e.all_day ? `${e.start.slice(0, 10)}T00:00:00` : e.start);
-    const day = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-    return e.all_day ? day : `${day}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+    const day = dateFormat({ weekday: 'short', month: 'short', day: 'numeric' }).format(d);
+    return e.all_day ? day : t('time.dateAt', { date: day, time: timeOf(d) });
   }
 
   const sender = $derived(message.from);
@@ -83,14 +84,14 @@
   const images = $derived(files.filter((a) => fileIconKind(a.mimeType, a.filename) === 'image'));
 
   function nameOrMe(a: Address) {
-    return mail.meEmails.has(a.email.toLowerCase()) ? 'me' : displayName(a);
+    return mail.meEmails.has(a.email.toLowerCase()) ? t('message.recipientMe') : displayName(a);
   }
 
   const recipientLine = $derived.by(() => {
     const all = [...message.to, ...message.cc];
     if (all.length === 0) return '';
-    const names = all.slice(0, 3).map(nameOrMe);
-    return `to ${names.join(', ')}${all.length > 3 ? ` +${all.length - 3}` : ''}`;
+    const names = all.slice(0, 3).map(nameOrMe).join(', ');
+    return all.length > 3 ? t('message.recipientsMore', { names, count: all.length - 3 }) : t('message.recipients', { names });
   });
 
   function trustSender() {
@@ -117,7 +118,7 @@
   async function unsubscribe() {
     try {
       const done = await api.unsubscribe(message.id);
-      toasts.show(done ? 'Unsubscribed' : 'Opened unsubscribe page', { kind: 'success' });
+      toasts.show(done ? t('message.unsubscribed') : t('message.unsubscribePageOpened'), { kind: 'success' });
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -127,19 +128,19 @@
 {#if !expanded}
   <button class="collapsed" onclick={ontoggle}>
     <Avatar person={sender} size={28} />
-    <span class="c-name" class:unread={!message.flags.seen}>{fromMe ? 'Me' : displayName(sender)}</span>
+    <span class="c-name" class:unread={!message.flags.seen}>{fromMe ? t('message.senderMe') : displayName(sender)}</span>
     <span class="c-snippet truncate">{message.snippet}</span>
     <time class="c-date">{messageDate(message.date)}</time>
   </button>
 {:else}
   <article class="card">
     <header>
-      <button class="who" onclick={ontoggle} title="Collapse">
+      <button class="who" onclick={ontoggle} title={t('message.collapse')}>
         <Avatar person={sender} size={36} />
       </button>
       <div class="info">
         <div class="row1">
-          <span class="name selectable">{fromMe ? 'Me' : displayName(sender)}</span>
+          <span class="name selectable">{fromMe ? t('message.senderMe') : displayName(sender)}</span>
           {#if sender && !fromMe && displayName(sender) !== sender.email}
             <span class="addr selectable">{sender.email}</span>
           {/if}
@@ -148,24 +149,24 @@
         {#if message.crypto}<CryptoStatus {message} {opened} />{/if}
         {#if showRecipients}
           <div class="recips selectable">
-            <div><span>From</span>{sender ? `${displayName(sender)} <${sender.email}>` : ''}</div>
-            {#if message.to.length}<div><span>To</span>{message.to.map((a) => `${displayName(a)} <${a.email}>`).join(', ')}</div>{/if}
-            {#if message.cc.length}<div><span>Cc</span>{message.cc.map((a) => `${displayName(a)} <${a.email}>`).join(', ')}</div>{/if}
-            {#if message.replyTo.length}<div><span>Reply-To</span>{message.replyTo.map((a) => a.email).join(', ')}</div>{/if}
-            <div><span>Date</span>{longDate(message.date)}</div>
+            <div><span>{t('message.headerFrom')}</span>{sender ? `${displayName(sender)} <${sender.email}>` : ''}</div>
+            {#if message.to.length}<div><span>{t('message.headerTo')}</span>{message.to.map((a) => `${displayName(a)} <${a.email}>`).join(', ')}</div>{/if}
+            {#if message.cc.length}<div><span>{t('message.headerCc')}</span>{message.cc.map((a) => `${displayName(a)} <${a.email}>`).join(', ')}</div>{/if}
+            {#if message.replyTo.length}<div><span>{t('message.headerReplyTo')}</span>{message.replyTo.map((a) => a.email).join(', ')}</div>{/if}
+            <div><span>{t('message.headerDate')}</span>{longDate(message.date)}</div>
           </div>
         {/if}
       </div>
       <div class="side">
         {#if message.unsubscribe}
-          <button class="unsub" onclick={unsubscribe}>Unsubscribe</button>
+          <button class="unsub" onclick={unsubscribe}>{t('message.unsubscribe')}</button>
         {/if}
         <time title={longDate(message.date)}>{messageDate(message.date)}</time>
-        <button class="icon-btn sm" class:starred={message.flags.flagged} title="Star" onclick={() => { message.flags.flagged = !message.flags.flagged; api.setFlags([], [message.id], { flagged: message.flags.flagged }); }}>
+        <button class="icon-btn sm" class:starred={message.flags.flagged} title={t('message.star')} onclick={() => { message.flags.flagged = !message.flags.flagged; api.setFlags([], [message.id], { flagged: message.flags.flagged }); }}>
           <Star size={15} fill={message.flags.flagged ? 'currentColor' : 'none'} />
         </button>
-        <button class="icon-btn sm" title="Reply" onclick={() => compose.reply(message.id, ui.settings.defaultReply)}><Reply size={16} /></button>
-        <button class="icon-btn sm" title="More" onclick={openMenu}><More size={16} /></button>
+        <button class="icon-btn sm" title={t('reader.reply')} onclick={() => compose.reply(message.id, ui.settings.defaultReply)}><Reply size={16} /></button>
+        <button class="icon-btn sm" title={t('common.more')} onclick={openMenu}><More size={16} /></button>
       </div>
     </header>
 
@@ -176,9 +177,9 @@
     {#if stats.blocked > 0 && !remote}
       <div class="privacy">
         <Image size={15} />
-        <span>Remote images are hidden to protect your privacy.</span>
-        <button class="link" onclick={() => (allowRemote = true)}>Load images</button>
-        {#if sender}<button class="link" onclick={trustSender}>Always from {sender.email.split('@')[1]}</button>{/if}
+        <span>{t('message.remoteImagesHidden')}</span>
+        <button class="link" onclick={() => (allowRemote = true)}>{t('message.loadImages')}</button>
+        {#if sender}<button class="link" onclick={trustSender}>{t('message.alwaysFromSender', { email: sender.email })}</button>{/if}
       </div>
     {/if}
 
@@ -205,14 +206,14 @@
     {/if}
 
     {#if stats.trackers > 0}
-      <div class="trackers"><ShieldCheck size={13} /> Blocked {stats.trackers} {stats.trackers === 1 ? 'tracker' : 'trackers'}</div>
+      <div class="trackers"><ShieldCheck size={13} /> {t('message.trackersBlocked', { count: stats.trackers })}</div>
     {/if}
   </article>
 {/if}
 
 {#if found}
   <Popover x={found.x} y={found.y} align="end" onclose={() => (found = null)} width={300}>
-    <div class="menu-label">Add to calendar</div>
+    <div class="menu-label">{t('message.addToCalendar')}</div>
     {#each found.events as e, i (i)}
       <button class="menu-item found" onclick={() => { found = null; cal.fromExtracted(e); }}>
         <CalendarPlus size={15} />
@@ -231,17 +232,17 @@
 
 {#if menu}
   <Popover x={menu.x} y={menu.y} align="end" onclose={() => (menu = null)} width={230}>
-    <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'reply'); }}><Reply size={15} />Reply</button>
-    <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'replyAll'); }}><ReplyAll size={15} />Reply all</button>
-    <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'forward', false); }}><Forward size={15} />Forward</button>
+    <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'reply'); }}><Reply size={15} />{t('reader.reply')}</button>
+    <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'replyAll'); }}><ReplyAll size={15} />{t('reader.replyAll')}</button>
+    <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'forward', false); }}><Forward size={15} />{t('reader.forward')}</button>
     <div class="divider"></div>
     <button class="menu-item" onclick={() => { menu = null; mail.markMessageRead(message, !message.flags.seen); }}>
-      <Mail size={15} />{message.flags.seen ? 'Mark as unread' : 'Mark as read'}
+      <Mail size={15} />{message.flags.seen ? t('message.markUnread') : t('message.markRead')}
     </button>
-    <button class="menu-item" onclick={() => { menu = null; allowRemote = true; }}><Eye size={15} />Load remote content</button>
-    <button class="menu-item" onclick={() => { menu = null; navigator.clipboard.writeText(sender?.email ?? ''); toasts.show('Address copied'); }}><Copy size={15} />Copy sender address</button>
+    <button class="menu-item" onclick={() => { menu = null; allowRemote = true; }}><Eye size={15} />{t('message.loadRemoteContent')}</button>
+    <button class="menu-item" onclick={() => { menu = null; navigator.clipboard.writeText(sender?.email ?? ''); toasts.show(t('message.addressCopied')); }}><Copy size={15} />{t('message.copySenderAddress')}</button>
     {#if ai.ready}
-      <button class="menu-item" onclick={addToCalendar}><CalendarPlus size={15} />Add to calendar</button>
+      <button class="menu-item" onclick={addToCalendar}><CalendarPlus size={15} />{t('message.addToCalendar')}</button>
     {/if}
     {#if sender && !fromMe}
       <button
@@ -253,23 +254,30 @@
             conditions: [{ field: 'from', op: 'contains', value: sender!.email }], actions: [{ kind: 'archive' }], stop: false,
           };
           ui.open('settings', 'rules');
-        }}><Filter size={15} />Create rule…</button>
+        }}><Filter size={15} />{t('message.createRule')}</button>
     {/if}
-    <button class="menu-item" onclick={() => { menu = null; printMessage(shown ?? message, remote); }}><Printer size={15} />Print…</button>
-    <button class="menu-item" onclick={viewSource}><Code size={15} />View source</button>
+    <button class="menu-item" onclick={() => { menu = null; printMessage(shown ?? message, remote); }}><Printer size={15} />{t('message.print')}</button>
+    <button class="menu-item" onclick={viewSource}><Code size={15} />{t('message.viewSource')}</button>
   </Popover>
 {/if}
 
 {#if source !== null}
   <div class="source-backdrop" role="presentation" onclick={() => (source = null)}>
-    <div class="source" role="dialog" aria-label="Message source" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (source = null)}>
-      <header><strong>Message source</strong><button class="btn sm" onclick={() => { navigator.clipboard.writeText(source ?? ''); toasts.show('Copied'); }}>Copy</button><button class="btn sm" onclick={() => (source = null)}>Close</button></header>
+    <div class="source" role="dialog" aria-label={t('message.source')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (source = null)}>
+      <header><strong>{t('message.source')}</strong><button class="btn sm" onclick={() => { navigator.clipboard.writeText(source ?? ''); toasts.show(t('common.copied')); }}>{t('common.copy')}</button><button class="btn sm" onclick={() => (source = null)}>{t('common.close')}</button></header>
       <pre class="selectable">{source}</pre>
     </div>
   </div>
 {/if}
 
 <style>
+  /* Long translations wrap onto a second line instead of spilling out of the fixed-width menu. */
+  .menu-item {
+    height: auto;
+    min-height: 32px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
   .found {
     height: auto;
     padding-top: 6px;
@@ -385,7 +393,8 @@
   }
   .recips span {
     display: inline-block;
-    width: 64px;
+    min-width: 64px;
+    padding-right: 8px;
     color: var(--text-3);
   }
   .side {

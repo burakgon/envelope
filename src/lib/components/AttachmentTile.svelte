@@ -3,6 +3,7 @@
   import type { AttachmentInfo } from '../api';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
   import { fileIconKind, fileSize } from '../utils/format';
+  import { t } from '../i18n';
   import { Download, File, FileArchive, FileSheet, FileSlides, FileText, Image, Music, Video, Calendar, Code, Spinner } from '../icons';
 
   let { att, onpreview }: { att: AttachmentInfo; onpreview?: (att: AttachmentInfo) => void } = $props();
@@ -34,7 +35,7 @@
     busy = true;
     try {
       await api.attachmentSave(att.id, target);
-      toasts.show(`Saved ${att.filename}`, { kind: 'success', action: { label: 'Show', run: () => api.attachmentReveal(att.id) } });
+      toasts.show(t('attachment.saved', { file: att.filename }), { kind: 'success', action: { label: t('attachment.showInFolder'), run: () => api.attachmentReveal(att.id) } });
     } catch (e) {
       toasts.error(errorMessage(e));
     } finally {
@@ -56,7 +57,7 @@
     <span class="name truncate">{att.filename}</span>
     <span class="size">{fileSize(att.size)}</span>
   </span>
-  <button class="dl" title="Save as…" onclick={save}>
+  <button class="dl" title={t('attachment.saveAs')} onclick={save}>
     {#if busy}<span class="spin"><Spinner size={15} /></span>{:else}<Download size={15} />{/if}
   </button>
 </div>

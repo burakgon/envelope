@@ -1,5 +1,6 @@
 import { api } from '../api';
 import type { Address, MessageView } from '../api';
+import { intlLocale, t } from '../i18n';
 import { prepareHtml, textToHtml } from './html';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -16,15 +17,15 @@ export function printMessage(message: MessageView, allowRemote: boolean) {
     darkenDesigned: false,
     collapseQuotes: false,
   });
-  const date = new Date(message.date).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' });
+  const date = new Date(message.date).toLocaleString(intlLocale(), { dateStyle: 'full', timeStyle: 'short' });
   const rows = [
-    ['From', message.from ? people([message.from]) : ''],
-    ['To', people(message.to)],
-    ['Cc', people(message.cc)],
-    ['Date', esc(date)],
+    [t('message.headerFrom'), message.from ? people([message.from]) : ''],
+    [t('message.headerTo'), people(message.to)],
+    [t('message.headerCc'), people(message.cc)],
+    [t('message.headerDate'), esc(date)],
   ].filter(([, v]) => v);
-  const header = `<div class="env-print-head"><h1>${esc(message.subject || '(no subject)')}</h1><table>${rows
-    .map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`)
+  const header = `<div class="env-print-head"><h1>${esc(message.subject || t('common.noSubject'))}</h1><table>${rows
+    .map(([k, v]) => `<tr><th>${esc(k)}</th><td>${v}</td></tr>`)
     .join('')}</table></div>`;
   const style = `<style>
     @page { margin: 16mm; }

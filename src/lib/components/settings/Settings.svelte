@@ -18,15 +18,17 @@
   import { cal } from '../../stores/calendar.svelte';
   import type { Template } from '../../stores/ui.svelte';
   import { htmlToText } from '../../utils/html';
+  import { dateFormat } from '../../utils/format';
   import Editor from '../Editor.svelte';
+  import { languages, resolveLanguage, t, type LanguageSetting } from '../../i18n';
 
   let tpl = $state<Template | null>(null);
 
   function saveTemplate() {
     if (!tpl || !tpl.name.trim()) return;
-    const t = { ...tpl, id: tpl.id || crypto.randomUUID(), name: tpl.name.trim() };
+    const tmpl = { ...tpl, id: tpl.id || crypto.randomUUID(), name: tpl.name.trim() };
     const list = ui.settings.templates;
-    ui.set('templates', list.some((x) => x.id === t.id) ? list.map((x) => (x.id === t.id ? t : x)) : [...list, t]);
+    ui.set('templates', list.some((x) => x.id === tmpl.id) ? list.map((x) => (x.id === tmpl.id ? tmpl : x)) : [...list, tmpl]);
     tpl = null;
   }
 
@@ -37,22 +39,22 @@
     tpl = null;
   }
 
-  const tabs = [
-    { id: 'general', label: 'General', icon: Gear },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
-    { id: 'accounts', label: 'Accounts', icon: Users },
-    { id: 'signatures', label: 'Signatures', icon: Pen },
-    { id: 'templates', label: 'Templates', icon: FileText },
-    { id: 'rules', label: 'Rules', icon: Filter },
-    { id: 'calendar', label: 'Calendar', icon: Calendar },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'privacy', label: 'Privacy', icon: ShieldCheck },
-    { id: 'encryption', label: 'Encryption', icon: Lock },
-    { id: 'ai', label: 'AI', icon: Sparkles },
-    { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
-    { id: 'advanced', label: 'Advanced', icon: Code },
-    { id: 'about', label: 'About', icon: Info },
-  ];
+  const tabs = $derived([
+    { id: 'general', label: t('settings.tab.general'), icon: Gear },
+    { id: 'appearance', label: t('settings.tab.appearance'), icon: Palette },
+    { id: 'accounts', label: t('settings.tab.accounts'), icon: Users },
+    { id: 'signatures', label: t('settings.tab.signatures'), icon: Pen },
+    { id: 'templates', label: t('settings.tab.templates'), icon: FileText },
+    { id: 'rules', label: t('settings.tab.rules'), icon: Filter },
+    { id: 'calendar', label: t('settings.tab.calendar'), icon: Calendar },
+    { id: 'notifications', label: t('settings.tab.notifications'), icon: Bell },
+    { id: 'privacy', label: t('settings.tab.privacy'), icon: ShieldCheck },
+    { id: 'encryption', label: t('settings.tab.encryption'), icon: Lock },
+    { id: 'ai', label: t('settings.tab.ai'), icon: Sparkles },
+    { id: 'shortcuts', label: t('settings.tab.shortcuts'), icon: Keyboard },
+    { id: 'advanced', label: t('settings.tab.advanced'), icon: Code },
+    { id: 'about', label: t('settings.tab.about'), icon: Info },
+  ]);
 
   let info = $state<AppInfo | null>(null);
   let google = $state<OAuthClient>({ clientId: '', clientSecret: '' });
@@ -97,13 +99,13 @@
   }
 
   async function removeAccount(a: Account) {
-    if (!confirm(`Remove ${a.email}? Local copies of its mail will be deleted. Nothing is deleted on the server.`)) return;
+    if (!confirm(t('settings.accounts.removeConfirm', { email: a.email }))) return;
     try {
       await api.removeAccount(a.id);
       await mail.loadAccounts();
       await mail.loadFolders();
       mail.refresh();
-      toasts.show(`Removed ${a.email}`);
+      toasts.show(t('settings.accounts.removed', { email: a.email }));
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -112,13 +114,13 @@
   async function reauth(a: Account) {
     try {
       if (a.config.auth === 'password') {
-        const pw = prompt(`New password for ${a.email}`);
+        const pw = prompt(t('settings.accounts.newPassword', { email: a.email }));
         if (!pw) return;
         await api.updateAccount(a.id, { password: pw });
       } else {
         await api.addOAuthAccount(a.config.auth === 'oAuthGoogle' ? 'google' : 'microsoft', a.email);
       }
-      toasts.show('Signed in again', { kind: 'success' });
+      toasts.show(t('settings.accounts.signedInAgain'), { kind: 'success' });
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -130,7 +132,7 @@
       await api.saveIdentity($state.snapshot(editing) as Identity);
       await mail.loadAccounts();
       editing = null;
-      toasts.show('Saved', { kind: 'success' });
+      toasts.show(t('common.saved'), { kind: 'success' });
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -140,78 +142,87 @@
     try {
       await api.setOAuthClient('google', $state.snapshot(google));
       await api.setOAuthClient('microsoft', $state.snapshot(microsoft));
-      toasts.show('Sign-in clients saved', { kind: 'success' });
+      toasts.show(t('settings.advanced.oauthSaved'), { kind: 'success' });
     } catch (e) {
       toasts.error(errorMessage(e));
     }
   }
 
-  const shortcutList = [
-    ['C', 'Compose'], ['R / A / F', 'Reply / Reply all / Forward'], ['E', 'Archive'], ['#', 'Delete'], ['S', 'Star'], ['U', 'Read / unread'],
-    ['H', 'Snooze'], ['V', 'Move'], ['L', 'Label'], ['J / K', 'Next / previous'], ['/', 'Search'], ['Ctrl K', 'Command palette'], ['Z', 'Undo'], ['G I', 'Go to inbox'],
-  ];
+  const shortcutList = $derived([
+    ['C', t('settings.shortcuts.compose')], ['R / A / F', t('settings.shortcuts.reply')], ['E', t('settings.shortcuts.archive')], ['#', t('common.delete')], ['S', t('settings.shortcuts.star')], ['U', t('settings.shortcuts.readUnread')],
+    ['H', t('settings.shortcuts.snooze')], ['V', t('settings.shortcuts.move')], ['L', t('settings.shortcuts.label')], ['J / K', t('settings.shortcuts.nextPrevious')], ['/', t('common.search')], [`${t('keys.ctrl')} K`, t('settings.shortcuts.commandPalette')], ['Z', t('common.undo')], ['G I', t('settings.shortcuts.goToInbox')],
+  ]);
 </script>
 
 <div class="backdrop" role="presentation" onclick={() => ui.close()}>
-  <div class="window" role="dialog" aria-label="Settings" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && ui.close()}>
+  <div class="window" role="dialog" aria-label={t('settings.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && ui.close()}>
     <nav>
-      <div class="nav-title">Settings</div>
-      {#each tabs as t (t.id)}
-        <button class="tab" class:on={ui.settingsTab === t.id} onclick={() => (ui.settingsTab = t.id)}>
-          <t.icon size={16} />{t.label}
+      <div class="nav-title">{t('settings.title')}</div>
+      {#each tabs as tab (tab.id)}
+        <button class="tab" class:on={ui.settingsTab === tab.id} title={tab.label} onclick={() => (ui.settingsTab = tab.id)}>
+          <tab.icon size={16} /><span class="truncate">{tab.label}</span>
         </button>
       {/each}
     </nav>
     <section class="content">
-      <button class="icon-btn close" aria-label="Close settings" onclick={() => ui.close()}><X size={18} /></button>
+      <button class="icon-btn close" aria-label={t('settings.close')} onclick={() => ui.close()}><X size={18} /></button>
 
       {#if ui.settingsTab === 'general'}
-        <h2>General</h2>
+        <h2>{t('settings.tab.general')}</h2>
         <div class="group">
           <div class="row">
-            <div class="txt"><b>Split inbox</b><span>Separate people from newsletters and notifications.</span></div>
+            <div class="txt"><b>{t('settings.language')}</b><span>{t('settings.languageDesc')}</span></div>
+            <select class="input sel" value={ui.settings.language} onchange={(e) => ui.set('language', (e.currentTarget as HTMLSelectElement).value as LanguageSetting)}>
+              <option value="system">{t('settings.languageSystem', { language: languages.find((l) => l.code === resolveLanguage('system').lang)?.name ?? 'English' })}</option>
+              {#each languages as l (l.code)}
+                <option value={l.code} lang={l.code}>{l.name}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="row">
+            <div class="txt"><b>{t('settings.general.splitInbox')}</b><span>{t('settings.general.splitInboxDesc')}</span></div>
             <Toggle checked={ui.settings.splitInbox} onchange={(v) => { ui.set('splitInbox', v); mail.refresh(); }} />
           </div>
           <div class="row">
-            <div class="txt"><b>Mark as read</b><span>When to mark a conversation read after opening it.</span></div>
+            <div class="txt"><b>{t('settings.general.markRead')}</b><span>{t('settings.general.markReadDesc')}</span></div>
             <select class="input sel" value={String(ui.settings.markReadDelayMs)} onchange={(e) => ui.set('markReadDelayMs', Number((e.currentTarget as HTMLSelectElement).value))}>
-              <option value="0">Immediately</option>
-              <option value="600">After a moment</option>
-              <option value="3000">After 3 seconds</option>
-              <option value="-1">Never automatically</option>
+              <option value="0">{t('settings.general.markReadImmediately')}</option>
+              <option value="600">{t('settings.general.markReadAfterMoment')}</option>
+              <option value="3000">{t('settings.general.markReadAfterSeconds', { count: 3 })}</option>
+              <option value="-1">{t('settings.general.markReadNever')}</option>
             </select>
           </div>
           <div class="row">
-            <div class="txt"><b>Undo send</b><span>How long you can cancel a message after sending.</span></div>
+            <div class="txt"><b>{t('settings.general.undoSend')}</b><span>{t('settings.general.undoSendDesc')}</span></div>
             <select class="input sel" value={String(ui.settings.undoSendSeconds)} onchange={(e) => ui.set('undoSendSeconds', Number((e.currentTarget as HTMLSelectElement).value))}>
-              <option value="0">Off</option>
-              <option value="5">5 seconds</option>
-              <option value="10">10 seconds</option>
-              <option value="20">20 seconds</option>
-              <option value="30">30 seconds</option>
+              <option value="0">{t('common.off')}</option>
+              <option value="5">{t('settings.general.undoSendSeconds', { count: 5 })}</option>
+              <option value="10">{t('settings.general.undoSendSeconds', { count: 10 })}</option>
+              <option value="20">{t('settings.general.undoSendSeconds', { count: 20 })}</option>
+              <option value="30">{t('settings.general.undoSendSeconds', { count: 30 })}</option>
             </select>
           </div>
           <div class="row">
-            <div class="txt"><b>Default reply</b><span>What R and the reply button do.</span></div>
+            <div class="txt"><b>{t('settings.general.defaultReply')}</b><span>{t('settings.general.defaultReplyDesc', { key: 'R' })}</span></div>
             <select class="input sel" value={ui.settings.defaultReply} onchange={(e) => ui.set('defaultReply', (e.currentTarget as HTMLSelectElement).value as 'reply' | 'replyAll')}>
-              <option value="reply">Reply</option>
-              <option value="replyAll">Reply all</option>
+              <option value="reply">{t('settings.general.reply')}</option>
+              <option value="replyAll">{t('settings.general.replyAll')}</option>
             </select>
           </div>
           <div class="row">
-            <div class="txt"><b>Send and archive</b><span>Archive the conversation when you reply.</span></div>
+            <div class="txt"><b>{t('settings.general.sendAndArchive')}</b><span>{t('settings.general.sendAndArchiveDesc')}</span></div>
             <Toggle checked={ui.settings.sendAndArchive} onchange={(v) => ui.set('sendAndArchive', v)} />
           </div>
         </div>
         <div class="group">
           {#if info?.trayAvailable}
             <div class="row">
-              <div class="txt"><b>Keep running in the background</b><span>Closing the window leaves Envelope in the tray, so new mail and reminders still arrive.</span></div>
+              <div class="txt"><b>{t('settings.general.closeToTray')}</b><span>{t('settings.general.closeToTrayDesc')}</span></div>
               <Toggle checked={ui.settings.closeToTray} onchange={(v) => ui.set('closeToTray', v)} />
             </div>
           {/if}
           <div class="row">
-            <div class="txt"><b>Start when you log in</b><span>{info?.trayAvailable ? 'Envelope starts quietly in the tray.' : 'Envelope opens when your desktop session starts.'}</span></div>
+            <div class="txt"><b>{t('settings.general.autostart')}</b><span>{info?.trayAvailable ? t('settings.general.autostartTrayDesc') : t('settings.general.autostartDesc')}</span></div>
             <Toggle
               checked={autostart}
               onchange={async (v) => {
@@ -229,279 +240,279 @@
       {:else if ui.settingsTab === 'rules'}
         <RulesSettings />
       {:else if ui.settingsTab === 'templates'}
-        <h2>Templates</h2>
-        <p class="desc">Messages you write once and insert from the composer with a click — for answers you send often.</p>
+        <h2>{t('settings.tab.templates')}</h2>
+        <p class="desc">{t('settings.templates.desc')}</p>
         <div class="accounts">
-          {#each ui.settings.templates as t (t.id)}
+          {#each ui.settings.templates as tmpl (tmpl.id)}
             <div class="acct">
               <div class="acct-info">
-                <b>{t.name}</b>
-                <span class="acct-sub truncate">{t.subject || htmlToText(t.html).slice(0, 90)}</span>
+                <b>{tmpl.name}</b>
+                <span class="acct-sub truncate">{tmpl.subject || htmlToText(tmpl.html).slice(0, 90)}</span>
               </div>
-              <button class="btn sm" onclick={() => (tpl = { ...t })}>Edit</button>
+              <button class="btn sm" onclick={() => (tpl = { ...tmpl })}>{t('common.edit')}</button>
             </div>
           {/each}
         </div>
-        <button class="btn" onclick={() => (tpl = { id: '', name: '', subject: '', html: '' })}><Plus size={15} />New template</button>
+        <button class="btn" onclick={() => (tpl = { id: '', name: '', subject: '', html: '' })}><Plus size={15} />{t('settings.templates.new')}</button>
         {#if tpl}
           <div class="editor-card">
             <div class="two">
-              <div><label class="label" for="tpl-name">Name</label><input id="tpl-name" class="input" bind:value={tpl.name} placeholder="e.g. Meeting follow-up" /></div>
-              <div><label class="label" for="tpl-subject">Subject (optional)</label><input id="tpl-subject" class="input" bind:value={tpl.subject} /></div>
+              <div><label class="label" for="tpl-name">{t('settings.templates.name')}</label><input id="tpl-name" class="input" bind:value={tpl.name} placeholder={t('settings.templates.namePlaceholder')} /></div>
+              <div><label class="label" for="tpl-subject">{t('settings.templates.subject')}</label><input id="tpl-subject" class="input" bind:value={tpl.subject} /></div>
             </div>
             <div>
-              <span class="label">Message</span>
+              <span class="label">{t('settings.templates.message')}</span>
               {#key tpl.id}
-                <div class="rich"><Editor html={tpl.html} onupdate={(h) => (tpl!.html = h)} showToolbar placeholder="Write the template…" /></div>
+                <div class="rich"><Editor html={tpl.html} onupdate={(h) => (tpl!.html = h)} showToolbar placeholder={t('settings.templates.messagePlaceholder')} /></div>
               {/key}
             </div>
             <div class="btns">
-              {#if tpl.id}<button class="btn danger" onclick={deleteTemplate}>Delete</button>{/if}
+              {#if tpl.id}<button class="btn danger" onclick={deleteTemplate}>{t('common.delete')}</button>{/if}
               <span class="grow"></span>
-              <button class="btn" onclick={() => (tpl = null)}>Cancel</button>
-              <button class="btn primary" disabled={!tpl.name.trim()} onclick={saveTemplate}>Save</button>
+              <button class="btn" onclick={() => (tpl = null)}>{t('common.cancel')}</button>
+              <button class="btn primary" disabled={!tpl.name.trim()} onclick={saveTemplate}>{t('common.save')}</button>
             </div>
           </div>
         {/if}
       {:else if ui.settingsTab === 'calendar'}
-        <h2>Calendar</h2>
+        <h2>{t('settings.tab.calendar')}</h2>
         <div class="group">
           <div class="row">
-            <div class="txt"><b>Week starts on</b></div>
+            <div class="txt"><b>{t('settings.calendar.weekStart')}</b></div>
             <select class="input sel" value={String(ui.settings.weekStart)} onchange={(e) => { ui.set('weekStart', Number((e.currentTarget as HTMLSelectElement).value)); cal.load(); }}>
-              <option value="1">Monday</option>
-              <option value="0">Sunday</option>
-              <option value="6">Saturday</option>
+              {#each [1, 0, 6] as day (day)}
+                <!-- 2 January 2000 was a Sunday. -->
+                <option value={String(day)}>{dateFormat({ weekday: 'long' }).format(new Date(2000, 0, 2 + day))}</option>
+              {/each}
             </select>
           </div>
           <div class="row">
-            <div class="txt"><b>Default calendar</b><span>Where new events go.</span></div>
+            <div class="txt"><b>{t('settings.calendar.defaultCalendar')}</b><span>{t('settings.calendar.defaultCalendarDesc')}</span></div>
             <select
               class="input sel"
               value={String(cal.defaultCalendar()?.id ?? '')}
               onchange={(e) => ui.set('defaultCalendarId', Number((e.currentTarget as HTMLSelectElement).value) || null)}
             >
-              {#each cal.writable as c (c.id)}<option value={String(c.id)}>{c.name}</option>{:else}<option value="">No calendars</option>{/each}
+              {#each cal.writable as c (c.id)}<option value={String(c.id)}>{c.name}</option>{:else}<option value="">{t('settings.calendar.noCalendars')}</option>{/each}
             </select>
           </div>
           <div class="row">
-            <div class="txt"><b>Default event length</b></div>
+            <div class="txt"><b>{t('settings.calendar.eventLength')}</b></div>
             <select class="input sel" value={String(ui.settings.defaultEventMinutes)} onchange={(e) => ui.set('defaultEventMinutes', Number((e.currentTarget as HTMLSelectElement).value))}>
-              <option value="15">15 minutes</option>
-              <option value="30">30 minutes</option>
-              <option value="45">45 minutes</option>
-              <option value="60">1 hour</option>
-              <option value="90">1.5 hours</option>
-              <option value="120">2 hours</option>
+              <option value="15">{t('settings.calendar.lengthMinutes', { count: 15 })}</option>
+              <option value="30">{t('settings.calendar.lengthMinutes', { count: 30 })}</option>
+              <option value="45">{t('settings.calendar.lengthMinutes', { count: 45 })}</option>
+              <option value="60">{t('settings.calendar.lengthHours', { count: 1 })}</option>
+              <option value="90">{t('settings.calendar.lengthHours', { count: 1.5 })}</option>
+              <option value="120">{t('settings.calendar.lengthHours', { count: 2 })}</option>
             </select>
           </div>
           <div class="row">
-            <div class="txt"><b>Default reminder</b><span>Added to new events.</span></div>
+            <div class="txt"><b>{t('settings.calendar.reminder')}</b><span>{t('settings.calendar.reminderDesc')}</span></div>
             <select class="input sel" value={String(ui.settings.defaultAlarm)} onchange={(e) => ui.set('defaultAlarm', Number((e.currentTarget as HTMLSelectElement).value))}>
-              <option value="-1">None</option>
-              <option value="0">At start</option>
-              <option value="5">5 minutes before</option>
-              <option value="10">10 minutes before</option>
-              <option value="15">15 minutes before</option>
-              <option value="30">30 minutes before</option>
-              <option value="60">1 hour before</option>
-              <option value="1440">1 day before</option>
+              <option value="-1">{t('common.none')}</option>
+              <option value="0">{t('settings.calendar.reminderAtStart')}</option>
+              <option value="5">{t('settings.calendar.reminderMinutes', { count: 5 })}</option>
+              <option value="10">{t('settings.calendar.reminderMinutes', { count: 10 })}</option>
+              <option value="15">{t('settings.calendar.reminderMinutes', { count: 15 })}</option>
+              <option value="30">{t('settings.calendar.reminderMinutes', { count: 30 })}</option>
+              <option value="60">{t('settings.calendar.reminderHours', { count: 1 })}</option>
+              <option value="1440">{t('settings.calendar.reminderDays', { count: 1 })}</option>
             </select>
           </div>
           <div class="row">
-            <div class="txt"><b>Show declined events</b></div>
+            <div class="txt"><b>{t('settings.calendar.showDeclined')}</b></div>
             <Toggle checked={ui.settings.showDeclined} onchange={(v) => { ui.set('showDeclined', v); cal.load(); }} />
           </div>
           <div class="row">
-            <div class="txt"><b>Event reminders</b><span>Notify before calendar events start.</span></div>
+            <div class="txt"><b>{t('settings.calendar.eventReminders')}</b><span>{t('settings.calendar.eventRemindersDesc')}</span></div>
             <Toggle checked={ui.settings.calendarNotifications} onchange={(v) => ui.set('calendarNotifications', v)} />
           </div>
         </div>
       {:else if ui.settingsTab === 'appearance'}
-        <h2>Appearance</h2>
+        <h2>{t('settings.tab.appearance')}</h2>
         <div class="group">
           <div class="row">
-            <div class="txt"><b>Theme</b></div>
+            <div class="txt"><b>{t('settings.appearance.theme')}</b></div>
             <div class="seg">
-              <button class:on={ui.settings.theme === 'light'} onclick={() => ui.set('theme', 'light')}><Sun size={15} />Light</button>
-              <button class:on={ui.settings.theme === 'dark'} onclick={() => ui.set('theme', 'dark')}><Moon size={15} />Dark</button>
-              <button class:on={ui.settings.theme === 'system'} onclick={() => ui.set('theme', 'system')}>System</button>
+              <button class:on={ui.settings.theme === 'light'} onclick={() => ui.set('theme', 'light')}><Sun size={15} />{t('settings.appearance.themeLight')}</button>
+              <button class:on={ui.settings.theme === 'dark'} onclick={() => ui.set('theme', 'dark')}><Moon size={15} />{t('settings.appearance.themeDark')}</button>
+              <button class:on={ui.settings.theme === 'system'} onclick={() => ui.set('theme', 'system')}>{t('settings.appearance.themeSystem')}</button>
             </div>
           </div>
           <div class="row">
-            <div class="txt"><b>Accent color</b></div>
+            <div class="txt"><b>{t('settings.appearance.accentColor')}</b></div>
             <div class="swatches">
               {#each hues as h (h)}
-                <button class="sw" class:on={ui.settings.accentHue === h} style:background="oklch(0.6 0.2 {h})" aria-label="Accent {h}" onclick={() => ui.set('accentHue', h)}></button>
+                <button class="sw" class:on={ui.settings.accentHue === h} style:background="oklch(0.6 0.2 {h})" aria-label={t('settings.appearance.accentSwatch', { hue: h })} onclick={() => ui.set('accentHue', h)}></button>
               {/each}
             </div>
           </div>
           <div class="row">
-            <div class="txt"><b>Density</b><span>Compact shows more conversations at once.</span></div>
+            <div class="txt"><b>{t('settings.appearance.density')}</b><span>{t('settings.appearance.densityDesc')}</span></div>
             <div class="seg">
-              <button class:on={ui.settings.density === 'comfortable'} onclick={() => ui.set('density', 'comfortable')}>Comfortable</button>
-              <button class:on={ui.settings.density === 'compact'} onclick={() => ui.set('density', 'compact')}>Compact</button>
+              <button class:on={ui.settings.density === 'comfortable'} onclick={() => ui.set('density', 'comfortable')}>{t('settings.appearance.densityComfortable')}</button>
+              <button class:on={ui.settings.density === 'compact'} onclick={() => ui.set('density', 'compact')}>{t('settings.appearance.densityCompact')}</button>
             </div>
           </div>
           <div class="row">
-            <div class="txt"><b>Show avatars</b></div>
+            <div class="txt"><b>{t('settings.appearance.showAvatars')}</b></div>
             <Toggle checked={ui.settings.showAvatars} onchange={(v) => ui.set('showAvatars', v)} />
           </div>
           <div class="row">
-            <div class="txt"><b>Dark mode for designed emails</b><span>Invert newsletters and receipts in dark mode instead of showing them on white.</span></div>
+            <div class="txt"><b>{t('settings.appearance.darkEmails')}</b><span>{t('settings.appearance.darkEmailsDesc')}</span></div>
             <Toggle checked={ui.settings.darkEmails} onchange={(v) => ui.set('darkEmails', v)} />
           </div>
           {#if !api.isDemo}
             <div class="row">
-              <div class="txt"><b>Use system title bar</b><span>Show your desktop's window decorations instead of Envelope's.</span></div>
+              <div class="txt"><b>{t('settings.appearance.systemTitlebar')}</b><span>{t('settings.appearance.systemTitlebarDesc')}</span></div>
               <Toggle checked={ui.settings.nativeTitlebar} onchange={(v) => ui.set('nativeTitlebar', v)} />
             </div>
           {/if}
         </div>
       {:else if ui.settingsTab === 'accounts'}
-        <h2>Accounts</h2>
+        <h2>{t('settings.tab.accounts')}</h2>
         <div class="accounts">
           {#each mail.accounts as a (a.id)}
             <div class="acct">
-              <input type="color" class="color" value={a.color} onchange={(e) => saveAccount(a, { color: (e.currentTarget as HTMLInputElement).value })} title="Account color" />
+              <input type="color" class="color" value={a.color} onchange={(e) => saveAccount(a, { color: (e.currentTarget as HTMLInputElement).value })} title={t('settings.accounts.color')} />
               <div class="acct-info">
                 <input class="name-input" value={a.label ?? ''} placeholder={a.email} onchange={(e) => saveAccount(a, { label: (e.currentTarget as HTMLInputElement).value })} />
-                <span class="acct-sub" title={a.config.exchange?.ewsUrl ?? undefined}>{a.email} · {accountKindLabel(a)} {a.sync.state === 'authError' ? '· sign-in needed' : ''}{autoReplies.on[a.id] ? ' · automatic replies on' : ''}</span>
+                <span class="acct-sub" title={a.config.exchange?.ewsUrl ?? undefined}>{a.email} · {accountKindLabel(a)} {a.sync.state === 'authError' ? `· ${t('settings.accounts.signInNeeded')}` : ''}{autoReplies.on[a.id] ? ` · ${t('settings.accounts.autoRepliesOn')}` : ''}</span>
               </div>
               <Toggle checked={a.enabled} onchange={(v) => saveAccount(a, { enabled: v })} />
-              <button class="icon-btn" class:active={autoReplies.on[a.id]} title="Automatic replies" aria-label="Automatic replies" onclick={() => (autoReplyFor = a)}><Away size={16} /></button>
-              <button class="btn sm" onclick={() => reauth(a)}><Lock size={13} />Sign in again</button>
-              <button class="icon-btn" title="Remove account" onclick={() => removeAccount(a)}><Trash size={16} /></button>
+              <button class="icon-btn" class:active={autoReplies.on[a.id]} title={t('autoReply.title')} aria-label={t('autoReply.title')} onclick={() => (autoReplyFor = a)}><Away size={16} /></button>
+              <button class="btn sm" onclick={() => reauth(a)}><Lock size={13} />{t('settings.accounts.signInAgain')}</button>
+              <button class="icon-btn" title={t('settings.accounts.remove')} onclick={() => removeAccount(a)}><Trash size={16} /></button>
             </div>
           {/each}
         </div>
-        <button class="btn" onclick={() => ui.open('addAccount')}><Plus size={15} />Add account</button>
+        <button class="btn" onclick={() => ui.open('addAccount')}><Plus size={15} />{t('settings.accounts.add')}</button>
       {:else if ui.settingsTab === 'signatures'}
-        <h2>Identities & signatures</h2>
-        <p class="desc">Each address you send from can have its own name, reply-to and signature.</p>
+        <h2>{t('settings.signatures.title')}</h2>
+        <p class="desc">{t('settings.signatures.desc')}</p>
         <div class="accounts">
           {#each mail.identities as i (i.id)}
             <div class="acct">
               <div class="acct-info">
                 <b>{i.name} &lt;{i.email}&gt;</b>
-                <span class="acct-sub">{i.signature ? 'Has a signature' : 'No signature'}{i.isDefault ? ' · default' : ''}</span>
+                <span class="acct-sub">{i.signature ? t('settings.signatures.hasSignature') : t('settings.signatures.noSignature')}{i.isDefault ? ` · ${t('settings.signatures.default')}` : ''}</span>
               </div>
-              <button class="btn sm" onclick={() => (editing = { ...i })}>Edit</button>
+              <button class="btn sm" onclick={() => (editing = { ...i })}>{t('common.edit')}</button>
             </div>
           {/each}
         </div>
         <button class="btn" onclick={() => (editing = { id: 0, accountId: mail.accounts[0]?.id ?? 0, name: mail.accounts[0]?.name ?? '', email: '', replyTo: null, signature: '', isDefault: false })}>
-          <Plus size={15} />Add alias
+          <Plus size={15} />{t('settings.signatures.addAlias')}
         </button>
         {#if editing}
           <div class="editor-card">
             <div class="two">
-              <div><label class="label" for="id-name">Name</label><input id="id-name" class="input" bind:value={editing.name} /></div>
-              <div><label class="label" for="id-email">E-mail</label><input id="id-email" class="input" bind:value={editing.email} disabled={editing.isDefault} /></div>
+              <div><label class="label" for="id-name">{t('settings.signatures.name')}</label><input id="id-name" class="input" bind:value={editing.name} /></div>
+              <div><label class="label" for="id-email">{t('settings.signatures.email')}</label><input id="id-email" class="input" bind:value={editing.email} disabled={editing.isDefault} /></div>
             </div>
             {#if editing.id === 0}
               <div>
-                <label class="label" for="id-acct">Account</label>
+                <label class="label" for="id-acct">{t('settings.signatures.account')}</label>
                 <select id="id-acct" class="input" bind:value={editing.accountId}>
                   {#each mail.accounts as a (a.id)}<option value={a.id}>{a.email}</option>{/each}
                 </select>
               </div>
             {/if}
-            <div><label class="label" for="id-rt">Reply-to (optional)</label><input id="id-rt" class="input" bind:value={editing.replyTo} /></div>
+            <div><label class="label" for="id-rt">{t('settings.signatures.replyTo')}</label><input id="id-rt" class="input" bind:value={editing.replyTo} /></div>
             <div>
-              <span class="label">Signature</span>
+              <span class="label">{t('settings.signatures.signature')}</span>
               {#key editing.id}
-                <div class="rich"><Editor html={editing.signature ?? ''} onupdate={(h) => (editing!.signature = h)} showToolbar placeholder="Your signature" /></div>
+                <div class="rich"><Editor html={editing.signature ?? ''} onupdate={(h) => (editing!.signature = h)} showToolbar placeholder={t('settings.signatures.signaturePlaceholder')} /></div>
               {/key}
             </div>
             <div class="btns">
               {#if editing.id > 0 && !editing.isDefault}
-                <button class="btn danger" onclick={async () => { await api.deleteIdentity(editing!.id); await mail.loadAccounts(); editing = null; }}>Delete</button>
+                <button class="btn danger" onclick={async () => { await api.deleteIdentity(editing!.id); await mail.loadAccounts(); editing = null; }}>{t('common.delete')}</button>
               {/if}
               <span class="grow"></span>
-              <button class="btn" onclick={() => (editing = null)}>Cancel</button>
-              <button class="btn primary" onclick={saveIdentity}>Save</button>
+              <button class="btn" onclick={() => (editing = null)}>{t('common.cancel')}</button>
+              <button class="btn primary" onclick={saveIdentity}>{t('common.save')}</button>
             </div>
           </div>
         {/if}
       {:else if ui.settingsTab === 'notifications'}
-        <h2>Notifications</h2>
+        <h2>{t('settings.tab.notifications')}</h2>
         <div class="group">
           <div class="row">
-            <div class="txt"><b>New mail</b><span>Show a desktop notification when new mail arrives in an inbox.</span></div>
+            <div class="txt"><b>{t('settings.notifications.newMail')}</b><span>{t('settings.notifications.newMailDesc')}</span></div>
             <Toggle checked={ui.settings.notifications} onchange={(v) => ui.set('notifications', v)} />
           </div>
           <div class="row">
-            <div class="txt"><b>Event reminders</b><span>Notify before calendar events start.</span></div>
+            <div class="txt"><b>{t('settings.calendar.eventReminders')}</b><span>{t('settings.calendar.eventRemindersDesc')}</span></div>
             <Toggle checked={ui.settings.calendarNotifications} onchange={(v) => ui.set('calendarNotifications', v)} />
           </div>
         </div>
       {:else if ui.settingsTab === 'privacy'}
-        <h2>Privacy</h2>
+        <h2>{t('settings.tab.privacy')}</h2>
         <div class="group">
           <div class="row">
-            <div class="txt"><b>Remote images</b><span>Images loaded from the internet can tell senders when and where you read their mail.</span></div>
+            <div class="txt"><b>{t('settings.privacy.remoteImages')}</b><span>{t('settings.privacy.remoteImagesDesc')}</span></div>
             <select class="input sel" value={ui.settings.loadRemoteImages} onchange={(e) => ui.set('loadRemoteImages', (e.currentTarget as HTMLSelectElement).value as 'ask' | 'always' | 'never')}>
-              <option value="ask">Ask first</option>
-              <option value="always">Always load</option>
+              <option value="ask">{t('settings.privacy.askFirst')}</option>
+              <option value="always">{t('settings.privacy.alwaysLoad')}</option>
             </select>
           </div>
           <div class="row">
-            <div class="txt"><b>Tracking pixels</b><span>Invisible tracking images are always removed.</span></div>
-            <span class="pill-ok"><ShieldCheck size={14} />Always on</span>
+            <div class="txt"><b>{t('settings.privacy.trackingPixels')}</b><span>{t('settings.privacy.trackingPixelsDesc')}</span></div>
+            <span class="pill-ok"><ShieldCheck size={14} />{t('settings.privacy.alwaysOn')}</span>
           </div>
           <div class="row">
-            <div class="txt"><b>Trusted senders</b><span>{ui.settings.trustedSenders.length} senders can load remote images.</span></div>
-            <button class="btn sm" disabled={!ui.settings.trustedSenders.length} onclick={() => ui.set('trustedSenders', [])}>Clear</button>
+            <div class="txt"><b>{t('settings.privacy.trustedSenders')}</b><span>{t('settings.privacy.trustedSendersDesc', { count: ui.settings.trustedSenders.length })}</span></div>
+            <button class="btn sm" disabled={!ui.settings.trustedSenders.length} onclick={() => ui.set('trustedSenders', [])}>{t('common.clear')}</button>
           </div>
         </div>
-        <p class="desc">Envelope has no telemetry. Mail is stored only on this computer and your mail servers. AI features send only what you ask about to the provider you configure.</p>
+        <p class="desc">{t('settings.privacy.noTelemetry')}</p>
       {:else if ui.settingsTab === 'encryption'}
         <EncryptionSettings />
       {:else if ui.settingsTab === 'ai'}
         <AiSettings />
       {:else if ui.settingsTab === 'shortcuts'}
-        <h2>Keyboard shortcuts</h2>
+        <h2>{t('settings.shortcuts.title')}</h2>
         <div class="group">
           {#each shortcutList as [k, l] (k)}
             <div class="row"><div class="txt"><b>{l}</b></div><span class="kbd">{k}</span></div>
           {/each}
         </div>
-        <button class="btn" onclick={() => ui.open('shortcuts')}><Keyboard size={15} />All shortcuts</button>
+        <button class="btn" onclick={() => ui.open('shortcuts')}><Keyboard size={15} />{t('settings.shortcuts.all')}</button>
       {:else if ui.settingsTab === 'advanced'}
-        <h2>Advanced</h2>
-        <h3>Sign-in clients</h3>
+        <h2>{t('settings.tab.advanced')}</h2>
+        <h3>{t('settings.advanced.signInClients')}</h3>
         <p class="desc">
-          Google and Microsoft sign-in need an OAuth client registered for your installation. Official builds ship with one; if yours doesn't,
-          register a free “Desktop app” client and paste its details here.
-          <button class="inline-link" onclick={() => api.openUrl('https://github.com/burakgon/envelope/blob/main/docs/OAUTH.md')}>How to <ExternalLink size={12} /></button>
+          {t('settings.advanced.signInClientsDesc')}
+          <button class="inline-link" onclick={() => api.openUrl('https://github.com/burakgon/envelope/blob/main/docs/OAUTH.md')}>{t('settings.advanced.howTo')} <ExternalLink size={12} /></button>
         </p>
         <div class="editor-card">
           <b>Google</b>
           <div class="two">
-            <div><label class="label" for="g-id">Client ID</label><input id="g-id" class="input" bind:value={google.clientId} spellcheck="false" /></div>
-            <div><label class="label" for="g-secret">Client secret</label><input id="g-secret" class="input" bind:value={google.clientSecret} spellcheck="false" /></div>
+            <div><label class="label" for="g-id">{t('settings.advanced.clientId')}</label><input id="g-id" class="input" bind:value={google.clientId} spellcheck="false" /></div>
+            <div><label class="label" for="g-secret">{t('settings.advanced.clientSecret')}</label><input id="g-secret" class="input" bind:value={google.clientSecret} spellcheck="false" /></div>
           </div>
           <b>Microsoft</b>
           <div class="two">
-            <div><label class="label" for="m-id">Application (client) ID</label><input id="m-id" class="input" bind:value={microsoft.clientId} spellcheck="false" /></div>
-            <div><label class="label" for="m-tenant">Tenant</label><input id="m-tenant" class="input" bind:value={microsoft.tenant} placeholder="common" spellcheck="false" /></div>
+            <div><label class="label" for="m-id">{t('settings.advanced.applicationId')}</label><input id="m-id" class="input" bind:value={microsoft.clientId} spellcheck="false" /></div>
+            <div><label class="label" for="m-tenant">{t('settings.advanced.tenant')}</label><input id="m-tenant" class="input" bind:value={microsoft.tenant} placeholder="common" spellcheck="false" /></div>
           </div>
-          <div class="btns"><span class="grow"></span><button class="btn primary" onclick={saveOAuth}>Save</button></div>
+          <div class="btns"><span class="grow"></span><button class="btn primary" onclick={saveOAuth}>{t('common.save')}</button></div>
         </div>
         {#if info}
-          <h3>Storage</h3>
-          <p class="desc">Data folder: <code class="selectable">{info.dataDir}</code></p>
+          <h3>{t('settings.advanced.storage')}</h3>
+          <p class="desc">{t('settings.advanced.dataFolder')} <code class="selectable">{info.dataDir}</code></p>
         {/if}
       {:else}
         <div class="about">
           <Logo size={72} />
           <h2>Envelope</h2>
-          <p class="desc">Version {info?.version ?? '0.1.0'}</p>
-          <p class="desc">A fast, beautiful mail and calendar client for Linux. Free and open source under the GPL-3.0 license.</p>
+          <p class="desc">{t('settings.about.version', { version: info?.version ?? '0.1.0' })}</p>
+          <p class="desc">{t('settings.about.desc')}</p>
           <div class="btns center">
             <button class="btn" onclick={() => api.openUrl('https://github.com/burakgon/envelope')}><ExternalLink size={14} />GitHub</button>
-            <button class="btn" onclick={() => api.openUrl('https://github.com/burakgon/envelope/issues/new')}><Mail size={14} />Report a problem</button>
+            <button class="btn" onclick={() => api.openUrl('https://github.com/burakgon/envelope/issues/new')}><Mail size={14} />{t('settings.about.reportProblem')}</button>
           </div>
         </div>
       {/if}
@@ -652,6 +663,7 @@
     border-radius: 8px;
     color: var(--text-2);
     font-weight: 500;
+    white-space: nowrap;
   }
   .seg button.on {
     background: var(--bg-elevated);

@@ -1,8 +1,11 @@
+import { t } from '../i18n';
+
 export interface Toast {
   id: number;
   message: string;
   kind: 'info' | 'success' | 'error' | 'progress';
-  action?: { label: string; run: () => void; key?: string };
+  /** `undo` marks the action that the `z` shortcut repeats. */
+  action?: { label: string; run: () => void; key?: string; undo?: boolean };
   /** Milliseconds until the toast disappears (0 = sticky). */
   duration: number;
   createdAt: number;
@@ -27,7 +30,7 @@ class Toasts {
     // Keep the stack short: newest wins.
     this.items = [...this.items.slice(-2), toast];
     if (toast.duration > 0) setTimeout(() => this.dismiss(toast.id), toast.duration);
-    if (opts.action && opts.action.label === 'Undo') this.lastUndo = opts.action.run;
+    if (opts.action?.undo) this.lastUndo = opts.action.run;
     return toast.id;
   }
 
@@ -39,7 +42,7 @@ class Toasts {
       this.dismiss(id);
       undo();
     };
-    const id = this.show(message, { action: { label: 'Undo', run, key: 'Z' }, duration });
+    const id = this.show(message, { action: { label: t('common.undo'), run, key: 'Z', undo: true }, duration });
     this.lastUndo = run;
     return id;
   }
@@ -69,5 +72,5 @@ export const toasts = new Toasts();
 export function errorMessage(e: unknown): string {
   if (typeof e === 'string') return e;
   if (e && typeof e === 'object' && 'message' in e) return String((e as { message: unknown }).message);
-  return 'Something went wrong';
+  return t('common.somethingWentWrong');
 }

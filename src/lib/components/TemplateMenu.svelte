@@ -4,6 +4,7 @@
   import { htmlToText } from '../utils/html';
   import Popover from './Popover.svelte';
   import { FileText, Plus, Settings } from '../icons';
+  import { t } from '../i18n';
 
   let {
     x,
@@ -19,7 +20,7 @@
     subject: string;
     body: string;
     onclose: () => void;
-    oninsert: (t: Template) => void;
+    oninsert: (tpl: Template) => void;
   } = $props();
 
   let q = $state('');
@@ -27,7 +28,7 @@
   let name = $state('');
 
   const list = $derived(
-    ui.settings.templates.filter((t) => !q.trim() || `${t.name} ${t.subject}`.toLowerCase().includes(q.trim().toLowerCase())),
+    ui.settings.templates.filter((tpl) => !q.trim() || `${tpl.name} ${tpl.subject}`.toLowerCase().includes(q.trim().toLowerCase())),
   );
 
   function save() {
@@ -35,9 +36,9 @@
     if (!n) return;
     const sig = body.indexOf('<div class="envelope-signature">');
     const html = sig >= 0 ? body.slice(0, sig) : body;
-    const t: Template = { id: crypto.randomUUID(), name: n, subject, html };
-    ui.set('templates', [...ui.settings.templates, t]);
-    toasts.show(`Saved template “${n}”`, { kind: 'success' });
+    const tpl: Template = { id: crypto.randomUUID(), name: n, subject, html };
+    ui.set('templates', [...ui.settings.templates, tpl]);
+    toasts.show(t('templates.saved', { name: n }), { kind: 'success' });
     onclose();
   }
 </script>
@@ -45,11 +46,11 @@
 <Popover {x} {y} {onclose} width={300}>
   {#if naming}
     <div class="naming">
-      <div class="menu-label">Save as template</div>
+      <div class="menu-label">{t('templates.saveAsTemplate')}</div>
       <!-- svelte-ignore a11y_autofocus -->
       <input
         class="input"
-        placeholder="Template name"
+        placeholder={t('templates.namePlaceholder')}
         bind:value={name}
         autofocus
         onkeydown={(e) => {
@@ -61,36 +62,36 @@
         }}
       />
       <div class="btns">
-        <button class="btn sm" onclick={() => (naming = false)}>Cancel</button>
-        <button class="btn sm primary" disabled={!name.trim()} onclick={save}>Save</button>
+        <button class="btn sm" onclick={() => (naming = false)}>{t('common.cancel')}</button>
+        <button class="btn sm primary" disabled={!name.trim()} onclick={save}>{t('common.save')}</button>
       </div>
     </div>
   {:else}
     {#if ui.settings.templates.length > 6}
       <!-- svelte-ignore a11y_autofocus -->
-      <input class="input find" placeholder="Find a template" bind:value={q} autofocus />
+      <input class="input find" placeholder={t('templates.findPlaceholder')} bind:value={q} autofocus />
     {/if}
     {#if ui.settings.templates.length}
-      <div class="menu-label">Insert template</div>
+      <div class="menu-label">{t('templates.insert')}</div>
       <div class="list">
-        {#each list as t (t.id)}
-          <button class="menu-item tpl" onclick={() => oninsert(t)}>
+        {#each list as tpl (tpl.id)}
+          <button class="menu-item tpl" onclick={() => oninsert(tpl)}>
             <FileText size={15} />
             <span class="txt">
-              <b class="truncate">{t.name}</b>
-              <span class="truncate">{t.subject || htmlToText(t.html).slice(0, 80)}</span>
+              <b class="truncate">{tpl.name}</b>
+              <span class="truncate">{tpl.subject || htmlToText(tpl.html).slice(0, 80)}</span>
             </span>
           </button>
         {:else}
-          <div class="none">No matching templates</div>
+          <div class="none">{t('templates.noMatches')}</div>
         {/each}
       </div>
       <div class="divider"></div>
     {:else}
-      <div class="empty">Templates are messages you write once and reuse — save this draft to create your first one.</div>
+      <div class="empty">{t('templates.empty')}</div>
     {/if}
-    <button class="menu-item" disabled={!htmlToText(body).trim()} onclick={() => (naming = true)}><Plus size={15} />Save draft as template</button>
-    <button class="menu-item" onclick={() => { onclose(); ui.open('settings', 'templates'); }}><Settings size={15} />Manage templates</button>
+    <button class="menu-item act" disabled={!htmlToText(body).trim()} onclick={() => (naming = true)}><Plus size={15} />{t('templates.saveDraftAsTemplate')}</button>
+    <button class="menu-item act" onclick={() => { onclose(); ui.open('settings', 'templates'); }}><Settings size={15} />{t('templates.manage')}</button>
   {/if}
 </Popover>
 
@@ -111,6 +112,13 @@
   }
   .tpl :global(svg) {
     margin-top: 2px;
+  }
+  /* Room for a second line when a translation is long. */
+  .act {
+    height: auto;
+    min-height: 32px;
+    padding-top: 6px;
+    padding-bottom: 6px;
   }
   .txt {
     flex: 1;

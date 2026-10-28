@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { api } from './lib/api';
+  import { rawMessages } from './lib/i18n';
   import { compose } from './lib/stores/compose.svelte';
   import { mail } from './lib/stores/mail.svelte';
   import { toasts } from './lib/stores/toasts.svelte';
@@ -47,6 +48,12 @@
 
   $effect(() => {
     api.setBadge(mail.inboxUnread);
+  });
+
+  // Notifications and the tray menu are drawn by the desktop shell: hand it their
+  // texts in the interface language, again whenever the language changes.
+  $effect(() => {
+    api.setNativeStrings(rawMessages('native.')).catch(() => {});
   });
 
   onMount(() => {

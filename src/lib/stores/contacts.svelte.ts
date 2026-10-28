@@ -1,6 +1,26 @@
 import { api } from '../api';
 import type { Contact, ContactBook, ContactInput, ContactSummary } from '../api';
+import { intlLocale, t, type MessageKey } from '../i18n';
 import { errorMessage, toasts } from './toasts.svelte';
+
+// Field labels the address books use. They are stored in English ("home", "mobile"…) and named in the interface language.
+const fieldLabels = new Map<string, MessageKey>([
+  ['home', 'contacts.labelHome'],
+  ['work', 'contacts.labelWork'],
+  ['mobile', 'contacts.labelMobile'],
+  ['other', 'contacts.labelOther'],
+  ['fax', 'contacts.labelFax'],
+  ['pager', 'contacts.labelPager'],
+  ['main', 'contacts.labelMain'],
+  ['assistant', 'contacts.labelAssistant'],
+]);
+
+/** The interface name of an e-mail, phone or address label ("home" → "Home"); custom labels keep their wording, capitalized. */
+export function fieldLabel(label: string | null): string {
+  if (!label) return '';
+  const key = fieldLabels.get(label.toLowerCase());
+  return key ? t(key) : label.charAt(0).toLocaleUpperCase(intlLocale()) + label.slice(1);
+}
 
 class People {
   books = $state<ContactBook[]>([]);
@@ -93,7 +113,7 @@ class People {
   newContact(prefill: Partial<ContactInput> = {}) {
     const book = this.writable.find((b) => b.id === this.bookId) ?? this.writable[0];
     if (!book) {
-      toasts.error('There is no address book you can add contacts to.');
+      toasts.error(t('contacts.noWritableBook'));
       return;
     }
     this.editing = {
@@ -125,7 +145,7 @@ class People {
     const clean = (list: { value: string; label: string | null }[]) => list.filter((x) => x.value.trim());
     const name = [c.givenName, c.familyName].filter((x) => x?.trim()).join(' ').trim() || c.name.trim() || c.organization?.trim() || c.emails[0]?.value.trim() || '';
     if (!name) {
-      toasts.error('Add a name or an e-mail address.');
+      toasts.error(t('contacts.nameRequired'));
       return;
     }
     const input: ContactInput = {
@@ -139,7 +159,7 @@ class People {
     try {
       const id = await api.contacts.save(input);
       this.editing = null;
-      toasts.show(c.id == null ? 'Contact added' : 'Contact saved', { kind: 'success' });
+      toasts.show(c.id == null ? t('contacts.added') : t('contacts.saved'), { kind: 'success' });
       await this.load();
       await this.select(id);
     } catch (e) {
@@ -153,7 +173,7 @@ class People {
     const i = this.items.findIndex((x) => x.id === c.id);
     try {
       await api.contacts.remove(c.id);
-      toasts.show(`Deleted ${c.name}`);
+      toasts.show(t('contacts.deleted', { name: c.name }));
       await this.load();
       const next = this.items[Math.min(i, this.items.length - 1)];
       this.select(next?.id ?? null);

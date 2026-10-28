@@ -1,8 +1,9 @@
 <script lang="ts">
   import { api } from '../../api';
   import type { Address, Availability } from '../../api';
+  import { t } from '../../i18n';
   import { Spinner } from '../../icons';
-  import { displayName } from '../../utils/format';
+  import { dateFormat, displayName, timeOf } from '../../utils/format';
 
   /**
    * When the guests (and the organizer) are busy on the meeting's day, with
@@ -72,7 +73,7 @@
   });
 
   function label(email: string): string {
-    if (email === organizer?.toLowerCase()) return 'You';
+    if (email === organizer?.toLowerCase()) return t('calendar.availability.you');
     const a = attendees.find((x) => x.email.toLowerCase() === email);
     return a ? displayName(a) : email;
   }
@@ -91,18 +92,18 @@
       const answers = await api.calendar.freeBusy(calendarId, people, start, windowEnd);
       const busy = answers.flatMap((a) => a.busy ?? []);
       const step = 15 * 60_000;
-      let t = Math.ceil((start + step) / step) * step;
-      while (t + length <= windowEnd) {
-        const d = new Date(t);
+      let at = Math.ceil((start + step) / step) * step;
+      while (at + length <= windowEnd) {
+        const d = new Date(at);
         const weekday = d.getDay();
         const minutes = d.getHours() * 60 + d.getMinutes();
         const endMinutes = minutes + length / 60_000;
         const working = weekday !== 0 && weekday !== 6 && minutes >= 8 * 60 && endMinutes <= 18 * 60;
-        if (working && !busy.some((b) => b.start < t + length && b.end > t)) {
-          onpick(t);
+        if (working && !busy.some((b) => b.start < at + length && b.end > at)) {
+          onpick(at);
           return;
         }
-        t += step;
+        at += step;
       }
       notFound = true;
     } catch {
@@ -120,7 +121,7 @@
       <div class="track">
         {#each hours as h, i (h)}
           {#if i % 2 === 0 && i < hours.length - 1}
-            <span class="tick" style:left="{pct(h)}%">{new Date(h).toLocaleTimeString(undefined, { hour: 'numeric' })}</span>
+            <span class="tick" style:left="{pct(h)}%">{dateFormat({ hour: 'numeric' }).format(h)}</span>
           {/if}
         {/each}
       </div>
@@ -132,19 +133,19 @@
         <div class="track lane">
           {#each hours as h (h)}<span class="grid" style:left="{pct(h)}%"></span>{/each}
           {#if row?.busy}
-            {#each row.busy as b (b.start)}
+            {#each row.busy as b}
               {#if b.end > from && b.start < to}
                 <span
                   class="busy"
                   class:tentative={b.tentative}
                   style:left="{pct(b.start)}%"
                   style:width="{pct(b.end) - pct(b.start)}%"
-                  title={`${new Date(b.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} – ${new Date(b.end).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}${b.tentative ? ' (tentative)' : ''}`}
+                  title={t(b.tentative ? 'calendar.availability.tentativeRange' : 'calendar.event.timeRange', { start: timeOf(b.start), end: timeOf(b.end) })}
                 ></span>
               {/if}
             {/each}
           {:else if row && !loading}
-            <span class="unknown">Calendar not shared</span>
+            <span class="unknown" title={t('calendar.availability.notShared')}>{t('calendar.availability.notShared')}</span>
           {/if}
           <span class="slot" style:left="{pct(start)}%" style:width="{pct(end) - pct(start)}%"></span>
         </div>
@@ -152,10 +153,10 @@
     {/each}
     <div class="actions">
       {#if loading}<span class="spin"><Spinner size={13} /></span>{/if}
-      {#if notFound}<span class="note">No time when everyone is free in the next two weeks.</span>{/if}
+      {#if notFound}<span class="note">{t('calendar.availability.noFreeTime')}</span>{/if}
       <span class="grow"></span>
       <button class="btn sm" disabled={searching || loading} onclick={nextFree}>
-        {#if searching}<span class="spin"><Spinner size={13} /></span>{/if}Next time everyone is free
+        {#if searching}<span class="spin"><Spinner size={13} /></span>{/if}{t('calendar.availability.nextFreeTime')}
       </button>
     </div>
   </div>
@@ -238,9 +239,11 @@
   .unknown {
     position: absolute;
     inset: 0;
-    display: flex;
-    align-items: center;
-    padding-left: 8px;
+    padding: 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 22px;
     font-size: var(--text-xs);
     color: var(--text-3);
     font-style: italic;

@@ -5,6 +5,7 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Api } from './index';
 import type * as T from './types';
+import { t } from '../i18n';
 
 function subscribe<P>(event: string, cb: (payload: P) => void): () => void {
   let unlisten: (() => void) | null = null;
@@ -83,7 +84,7 @@ export function createTauriApi(): Api {
     fileInfo: (paths) => invoke('file_info', { paths }),
     stashFile: (filename, data) => invoke('stash_file', { filename, data: Array.from(data) }),
     pickFiles: async () => {
-      const r = await openDialog({ multiple: true, directory: false, title: 'Attach files' });
+      const r = await openDialog({ multiple: true, directory: false, title: t('composer.attachFiles') });
       if (!r) return [];
       return Array.isArray(r) ? r : [r];
     },

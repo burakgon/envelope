@@ -5,7 +5,8 @@
   import { compose, type ComposerState } from '../stores/compose.svelte';
   import { mail } from '../stores/mail.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
-  import { displayName, fileSize } from '../utils/format';
+  import { dateFormat, displayName, fileSize } from '../utils/format';
+  import { t } from '../i18n';
   import RecipientInput from './RecipientInput.svelte';
   import Editor from './Editor.svelte';
   import Popover from './Popover.svelte';
@@ -40,12 +41,12 @@
   let editorRef = $state<TipTap | null>(null);
   let tplMenu = $state<{ x: number; y: number } | null>(null);
 
-  function insertTemplate(t: Template) {
+  function insertTemplate(tpl: Template) {
     tplMenu = null;
-    if (t.subject && !c.data.subject.trim()) c.data.subject = t.subject;
-    if (editorRef) editorRef.chain().focus().insertContent(t.html).run();
+    if (tpl.subject && !c.data.subject.trim()) c.data.subject = tpl.subject;
+    if (editorRef) editorRef.chain().focus().insertContent(tpl.html).run();
     else {
-      body = t.html + body;
+      body = tpl.html + body;
       editorKey++;
     }
     changed();
@@ -57,7 +58,7 @@
     identities.find((i) => i.id === c.data.identityId) ?? identities.find((i) => i.accountId === c.data.accountId && i.isDefault),
   );
   const title = $derived(
-    c.data.mode === 'forward' ? 'Forward' : c.data.mode === 'reply' || c.data.mode === 'replyAll' ? 'Reply' : c.data.subject || 'New message',
+    c.data.mode === 'forward' ? t('composer.titleForward') : c.data.mode === 'reply' || c.data.mode === 'replyAll' ? t('composer.titleReply') : c.data.subject || t('composer.titleNewMessage'),
   );
 
   function changed() {
@@ -87,7 +88,7 @@
   async function addFiles(files: File[]) {
     for (const f of files) {
       if (f.size > 35 * 1024 * 1024) {
-        toasts.error(`${f.name} is larger than 35 MB`);
+        toasts.error(t('composer.fileTooLarge', { name: f.name }));
         continue;
       }
       const bytes = new Uint8Array(await f.arrayBuffer());
@@ -133,9 +134,9 @@
     };
     const nextMonday = d(((8 - new Date().getDay()) % 7) || 7, 8);
     return [
-      { label: 'Tomorrow morning', when: d(1, 8) },
-      { label: 'Tomorrow afternoon', when: d(1, 13) },
-      { label: 'Monday morning', when: nextMonday },
+      { label: t('composer.tomorrowMorning'), when: d(1, 8) },
+      { label: t('composer.tomorrowAfternoon'), when: d(1, 13) },
+      { label: t('composer.mondayMorning'), when: nextMonday },
     ];
   }
 
@@ -187,12 +188,12 @@
   {#if !c.inline}
     <header class="bar" role="presentation" ondblclick={() => (c.maximized = !c.maximized)}>
       <button class="title truncate" onclick={() => (c.minimized = !c.minimized)}>{title}</button>
-      {#if c.saving}<span class="saved">Saving…</span>{:else if c.savedAt}<span class="saved">Saved</span>{/if}
-      <button class="icon-btn sm" title="Minimize" onclick={() => (c.minimized = !c.minimized)}><Minus size={15} /></button>
-      <button class="icon-btn sm" title={c.maximized ? 'Restore' : 'Maximize'} onclick={() => { c.maximized = !c.maximized; c.minimized = false; }}>
+      {#if c.saving}<span class="saved">{t('common.saving')}</span>{:else if c.savedAt}<span class="saved">{t('common.saved')}</span>{/if}
+      <button class="icon-btn sm" title={t('composer.minimize')} onclick={() => (c.minimized = !c.minimized)}><Minus size={15} /></button>
+      <button class="icon-btn sm" title={c.maximized ? t('composer.restore') : t('composer.maximize')} onclick={() => { c.maximized = !c.maximized; c.minimized = false; }}>
         {#if c.maximized}<Minimize size={14} />{:else}<Maximize size={14} />{/if}
       </button>
-      <button class="icon-btn sm" title="Close (Esc)" onclick={() => compose.close(c.key)}><X size={15} /></button>
+      <button class="icon-btn sm" title={t('composer.closeShortcut', { shortcut: t('keys.esc') })} onclick={() => compose.close(c.key)}><X size={15} /></button>
     </header>
   {/if}
 
@@ -200,7 +201,7 @@
     <div class="fields">
       {#if identities.length > 1}
         <div class="from">
-          <span class="lbl">From</span>
+          <span class="lbl">{t('composer.from')}</span>
           <select
             value={identity?.id}
             onchange={(e) => {
@@ -219,17 +220,17 @@
           </select>
         </div>
       {/if}
-      <RecipientInput label="To" bind:value={c.data.to} onchange={changed} autofocus={c.data.to.length === 0 && c.data.mode !== 'reply'}>
+      <RecipientInput label={t('composer.to')} bind:value={c.data.to} onchange={changed} autofocus={c.data.to.length === 0 && c.data.mode !== 'reply'}>
         <span class="ccbcc">
-          {#if !c.showCc}<button onclick={() => (c.showCc = true)}>Cc</button>{/if}
-          {#if !c.showBcc}<button onclick={() => (c.showBcc = true)}>Bcc</button>{/if}
+          {#if !c.showCc}<button onclick={() => (c.showCc = true)}>{t('composer.cc')}</button>{/if}
+          {#if !c.showBcc}<button onclick={() => (c.showBcc = true)}>{t('composer.bcc')}</button>{/if}
         </span>
       </RecipientInput>
-      {#if c.showCc}<RecipientInput label="Cc" bind:value={c.data.cc} onchange={changed} />{/if}
-      {#if c.showBcc}<RecipientInput label="Bcc" bind:value={c.data.bcc} onchange={changed} />{/if}
+      {#if c.showCc}<RecipientInput label={t('composer.cc')} bind:value={c.data.cc} onchange={changed} />{/if}
+      {#if c.showBcc}<RecipientInput label={t('composer.bcc')} bind:value={c.data.bcc} onchange={changed} />{/if}
       {#if !c.inline || c.data.mode === 'forward'}
         <div class="subject">
-          <input placeholder="Subject" bind:value={c.data.subject} oninput={changed} spellcheck="true" />
+          <input placeholder={t('composer.subject')} bind:value={c.data.subject} oninput={changed} spellcheck="true" />
         </div>
       {/if}
     </div>
@@ -244,11 +245,11 @@
           onkeysend={() => send()}
           onpastefiles={addFiles}
           bind:editorRef
-          placeholder={c.data.mode === 'new' ? 'Write your message…' : 'Write your reply…'}
+          placeholder={c.data.mode === 'new' ? t('composer.messagePlaceholder') : t('composer.replyPlaceholder')}
         />
       {/key}
       {#if quoted}
-        <button class="quote-toggle" title="Show quoted text" onclick={() => (showQuote = !showQuote)}>•••</button>
+        <button class="quote-toggle" title={t('composer.showQuotedText')} onclick={() => (showQuote = !showQuote)}>•••</button>
         {#if showQuote}
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
           <div
@@ -270,7 +271,7 @@
               <FileIcon size={14} />
               <span class="truncate">{a.filename}</span>
               <span class="sz">{fileSize(a.size)}</span>
-              <button aria-label="Remove attachment" onclick={() => removeAttachment(i)}><X size={12} /></button>
+              <button aria-label={t('composer.removeAttachment')} onclick={() => removeAttachment(i)}><X size={12} /></button>
             </span>
           {/each}
         </div>
@@ -279,50 +280,51 @@
 
     <footer>
       <div class="send">
-        <button class="btn primary send-main" onclick={() => send()} title="Send (Ctrl+Enter)">
-          <Send size={15} /> Send
+        <button class="btn primary send-main" onclick={() => send()} title={t('composer.sendShortcut', { shortcut: `${t('keys.ctrl')}+${t('keys.enter')}` })}>
+          <Send size={15} /> {t('common.send')}
         </button>
-        <button class="btn primary send-more" aria-label="Send later" onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); sendMenu = { x: r.left, y: r.top }; }}>
+        <button class="btn primary send-more" aria-label={t('composer.sendLater')} onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); sendMenu = { x: r.left, y: r.top }; }}>
           <ChevronDown size={14} />
         </button>
       </div>
-      <button class="icon-btn" title="Attach files" onclick={attach}><Paperclip size={17} /></button>
-      <button class="icon-btn" class:active={showFormat} title="Formatting" onclick={() => (showFormat = !showFormat)}><Type size={17} /></button>
-      <button class="icon-btn" title="Templates" onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); tplMenu = { x: r.left, y: r.top - 8 }; }}><FileText size={17} /></button>
-      <button class="icon-btn ai" title="Write with AI" onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); aiMenu = { x: r.left, y: r.top }; }}><Sparkles size={17} /></button>
+      <button class="icon-btn" title={t('composer.attachFiles')} onclick={attach}><Paperclip size={17} /></button>
+      <button class="icon-btn" class:active={showFormat} title={t('composer.formatting')} onclick={() => (showFormat = !showFormat)}><Type size={17} /></button>
+      <button class="icon-btn" title={t('composer.templates')} onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); tplMenu = { x: r.left, y: r.top - 8 }; }}><FileText size={17} /></button>
+      <button class="icon-btn ai" title={t('composer.writeWithAi')} onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); aiMenu = { x: r.left, y: r.top }; }}><Sparkles size={17} /></button>
       <ComposerCrypto state={c} onchange={changed} bind:this={cryptoBar} />
+
       <span class="grow"></span>
       {#if c.inline}
-        {#if c.saving}<span class="saved">Saving…</span>{:else if c.savedAt}<span class="saved">Draft saved</span>{/if}
-        <button class="icon-btn" title="Pop out" onclick={() => { c.inline = false; }}><More size={17} /></button>
+        {#if c.saving}<span class="saved">{t('common.saving')}</span>{:else if c.savedAt}<span class="saved">{t('compose.draftSaved')}</span>{/if}
+        <button class="icon-btn" title={t('composer.popOut')} onclick={() => { c.inline = false; }}><More size={17} /></button>
       {/if}
-      <button class="icon-btn" title="Discard draft" onclick={() => compose.discard(c.key)}><Trash size={17} /></button>
+      <button class="icon-btn" title={t('composer.discardDraft')} onclick={() => compose.discard(c.key)}><Trash size={17} /></button>
     </footer>
   {/if}
 
   {#if dragging}
-    <div class="drop"><Paperclip size={22} /> Drop files to attach</div>
+    <div class="drop"><Paperclip size={22} /> {t('composer.dropFiles')}</div>
   {/if}
 </div>
 
 {#if sendMenu}
   <Popover x={sendMenu.x} y={sendMenu.y - 8} onclose={() => (sendMenu = null)} width={320}>
-    <div class="menu-label">Schedule send</div>
+    <div class="menu-label">{t('composer.scheduleSend')}</div>
     {#each laterOptions() as o (o.label)}
       <button class="menu-item" onclick={() => send(o.when.getTime())}>
         <Clock size={15} />{o.label}
-        <span class="hint">{o.when.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</span>
+        <span class="hint">{dateFormat({ weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(o.when)}</span>
       </button>
     {/each}
     <div class="divider"></div>
     <div class="custom">
       <input class="input" type="datetime-local" bind:value={customAt} />
-      <button class="btn sm primary" disabled={!customAt} onclick={() => send(new Date(customAt).getTime())}>Schedule</button>
+      <button class="btn sm primary" disabled={!customAt} onclick={() => send(new Date(customAt).getTime())}>{t('composer.schedule')}</button>
     </div>
     <div class="divider"></div>
-    <div class="menu-label">Remind me if no reply</div>
+    <div class="menu-label">{t('composer.remindIfNoReply')}</div>
     <div class="followup">
-      {#each [[null, 'Off'], [1, '1 day'], [3, '3 days'], [7, '1 week']] as [days, label] (label)}
+      {#each [[null, t('common.off')], [1, t('composer.followUpDays', { count: 1 })], [3, t('composer.followUpDays', { count: 3 })], [7, t('composer.followUpWeeks', { count: 1 })]] as [days, label] (label)}
         <button
           class:on={(c.data.followUpDays ?? null) === days}
           onclick={() => { c.data.followUpDays = days as number | null; changed(); }}>{label}</button>
@@ -331,7 +333,7 @@
     <div class="divider"></div>
     <label class="menu-item receipt">
       <input type="checkbox" checked={!!c.data.requestReadReceipt} onchange={(e) => { c.data.requestReadReceipt = (e.currentTarget as HTMLInputElement).checked; changed(); }} />
-      Request a read receipt
+      {t('composer.requestReadReceipt')}
     </label>
   </Popover>
 {/if}
@@ -405,6 +407,10 @@
     font-size: 11.5px;
     color: var(--text-3);
     margin-right: 6px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .fields {
     padding: 0 16px;
@@ -421,7 +427,7 @@
     border-bottom: 1px solid var(--border);
   }
   .from .lbl {
-    width: 54px;
+    min-width: 54px;
     color: var(--text-3);
   }
   .from select {
@@ -480,12 +486,15 @@
   }
   .followup {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
     padding: 2px 8px 6px;
   }
   .followup button {
     flex: 1;
     height: 28px;
+    padding: 0 6px;
+    white-space: nowrap;
     border-radius: 7px;
     font-size: var(--text-sm);
     font-weight: 500;

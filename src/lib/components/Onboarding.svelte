@@ -5,6 +5,7 @@
   import { mail } from '../stores/mail.svelte';
   import { ui } from '../stores/ui.svelte';
   import { errorMessage } from '../stores/toasts.svelte';
+  import { t, tParts, type MessageKey } from '../i18n';
   import Logo from './Logo.svelte';
   import WindowControls from './WindowControls.svelte';
   import { ArrowLeft, ArrowRight, Check, ChevronDown, ExternalLink, Lock, Moon, Spinner, Sun, X, ShieldCheck, Sparkles, Zap } from '../icons';
@@ -30,20 +31,22 @@
   let ewsUrl = $state('');
   let ewsUser = $state('');
   let added = $state<string | null>(null);
+  /** The password step was reached through "Use an app password" for Google (its hint is ours, not discovery's). */
+  let googleAppPassword = $state(false);
 
   onMount(async () => {
     info = await api.info().catch(() => null);
   });
 
-  const providers = [
+  const providers = $derived([
     { id: 'gmail', name: 'Google', sub: 'Gmail & Workspace', mark: 'G', bg: 'linear-gradient(135deg,#4285f4,#34a853 55%,#fbbc05 80%,#ea4335)' },
     { id: 'outlook', name: 'Microsoft', sub: 'Outlook & Microsoft 365', mark: 'M', bg: 'linear-gradient(135deg,#0078d4,#28a8ea)' },
-    { id: 'exchange', name: 'Exchange', sub: 'On-premises server', mark: 'E', bg: 'linear-gradient(135deg,#123a73,#1c9bd6)' },
+    { id: 'exchange', name: 'Exchange', sub: t('onboarding.providerExchangeSub'), mark: 'E', bg: 'linear-gradient(135deg,#123a73,#1c9bd6)' },
     { id: 'icloud', name: 'iCloud', sub: 'iCloud Mail', mark: '☁', bg: 'linear-gradient(135deg,#5ac8fa,#007aff)' },
     { id: 'yahoo', name: 'Yahoo', sub: 'Yahoo & AOL', mark: 'Y!', bg: 'linear-gradient(135deg,#7e1fff,#6001d2)' },
     { id: 'fastmail', name: 'Fastmail', sub: 'Fastmail', mark: 'F', bg: 'linear-gradient(135deg,#2268c5,#0b4ea2)' },
-    { id: 'generic', name: 'Other', sub: 'IMAP / SMTP', mark: '@', bg: 'linear-gradient(135deg,#6b7280,#374151)' },
-  ];
+    { id: 'generic', name: t('onboarding.providerOther'), sub: 'IMAP / SMTP', mark: '@', bg: 'linear-gradient(135deg,#6b7280,#374151)' },
+  ]);
 
   function close() {
     if (mail.accounts.length === 0 && !api.isDemo) return;
@@ -61,6 +64,7 @@
     } else {
       step = 'password';
       discovery = null;
+      googleAppPassword = false;
     }
   }
 
@@ -71,6 +75,7 @@
     try {
       const d = await api.discover(email.trim());
       discovery = d;
+      googleAppPassword = false;
       if (d.kind === 'gmail' && provider !== 'generic') return pick('gmail');
       if (d.kind === 'microsoft') return pick('outlook');
       if (d.kind === 'exchange') return pick('exchange');
@@ -105,13 +110,14 @@
     provider = provider === 'outlook' ? 'outlook' : 'gmail';
     imap = provider === 'gmail' ? { host: 'imap.gmail.com', port: 993, security: 'tls', username: '' } : { host: 'outlook.office365.com', port: 993, security: 'tls', username: '' };
     smtp = provider === 'gmail' ? { host: 'smtp.gmail.com', port: 465, security: 'tls', username: '' } : { host: 'smtp.office365.com', port: 587, security: 'startTls', username: '' };
-    discovery = { email, provider, providerName: provider === 'gmail' ? 'Gmail' : 'Outlook', kind: 'imap', auth: 'password', imap, smtp, caldavUrl: null, carddavUrl: null, passwordHint: provider === 'gmail' ? 'Use an app password from your Google Account (2-Step Verification required).' : null, passwordHelpUrl: provider === 'gmail' ? 'https://myaccount.google.com/apppasswords' : null };
+    discovery = { email, provider, providerName: provider === 'gmail' ? 'Gmail' : 'Outlook', kind: 'imap', auth: 'password', imap, smtp, caldavUrl: null, carddavUrl: null, passwordHint: null, passwordHelpUrl: provider === 'gmail' ? 'https://myaccount.google.com/apppasswords' : null };
+    googleAppPassword = provider === 'gmail';
     step = 'password';
   }
 
   async function submitPassword() {
     if (!email.includes('@') || !password) {
-      error = 'Enter your e-mail address and password.';
+      error = t('onboarding.errorMissingCredentials');
       return;
     }
     busy = true;
@@ -120,6 +126,7 @@
       if (!imap.host) {
         const d = await api.discover(email.trim());
         discovery = d;
+        googleAppPassword = false;
         if (d.imap) imap = { ...d.imap };
         if (d.smtp) smtp = { ...d.smtp };
         caldav = caldav || d.caldavUrl || '';
@@ -148,7 +155,7 @@
 
   async function submitExchange() {
     if (!email.includes('@') || !password) {
-      error = 'Enter your e-mail address and password.';
+      error = t('onboarding.errorMissingCredentials');
       return;
     }
     busy = true;
@@ -184,11 +191,18 @@
     }
   }
 
-  const hint = $derived(
-    discovery?.passwordHint ??
-      ({ icloud: 'iCloud needs an app-specific password. Create one at account.apple.com → Sign-In and Security.', yahoo: 'Yahoo needs an app password from Account security → App passwords.', fastmail: 'Create an app password in Fastmail Settings → Privacy & Security.' } as Record<string, string>)[provider] ??
-      null,
-  );
+  // Where to get an app password, for providers that need one when discovery brings no hint.
+  const providerHints: Record<string, MessageKey> = {
+    icloud: 'onboarding.hintIcloud',
+    yahoo: 'onboarding.hintYahoo',
+    fastmail: 'onboarding.hintFastmail',
+  };
+  const hint = $derived.by(() => {
+    if (discovery?.passwordHint != null) return discovery.passwordHint;
+    if (googleAppPassword) return t('onboarding.hintGoogleAppPassword');
+    const key: MessageKey | undefined = providerHints[provider];
+    return key ? t(key) : null;
+  });
   const providerName = $derived(providers.find((p) => p.id === provider)?.name ?? discovery?.providerName ?? 'IMAP');
   const oauthConfigured = $derived(oauthProvider === 'google' ? info?.googleConfigured : info?.microsoftConfigured);
 </script>
@@ -197,7 +211,7 @@
   <div class="drag" data-tauri-drag-region>
     <span class="grow" data-tauri-drag-region></span>
     {#if !first || mail.accounts.length}
-      <button class="icon-btn" aria-label="Close" onclick={close}><X size={18} /></button>
+      <button class="icon-btn" aria-label={t('common.close')} onclick={close}><X size={18} /></button>
     {/if}
     <WindowControls />
   </div>
@@ -206,22 +220,22 @@
     {#if step === 'welcome'}
       <div class="welcome">
         <div class="logo-wrap"><Logo size={84} /></div>
-        <h1>Welcome to Envelope</h1>
-        <p class="lead">Mail and calendar that keep up with you. Fast, private and beautifully simple.</p>
+        <h1>{t('onboarding.welcomeTitle')}</h1>
+        <p class="lead">{t('onboarding.welcomeLead')}</p>
         <div class="features">
-          <div><Zap size={18} /><span><b>Instant</b>Everything is stored locally, so search and navigation never wait.</span></div>
-          <div><ShieldCheck size={18} /><span><b>Private</b>Trackers and remote images are blocked. Your mail stays on your machine.</span></div>
-          <div><Sparkles size={18} /><span><b>Smart</b>Optional AI with the provider you choose — summaries, replies, answers.</span></div>
+          <div><Zap size={18} /><span><b>{t('onboarding.featureInstant')}</b>{t('onboarding.featureInstantDesc')}</span></div>
+          <div><ShieldCheck size={18} /><span><b>{t('onboarding.featurePrivate')}</b>{t('onboarding.featurePrivateDesc')}</span></div>
+          <div><Sparkles size={18} /><span><b>{t('onboarding.featureSmart')}</b>{t('onboarding.featureSmartDesc')}</span></div>
         </div>
-        <button class="btn primary lg" onclick={() => (step = 'providers')}>Get started <ArrowRight size={16} /></button>
+        <button class="btn primary lg" onclick={() => (step = 'providers')}>{t('onboarding.getStarted')} <ArrowRight size={16} /></button>
       </div>
     {:else if step === 'providers'}
-      <h2>Add an account</h2>
-      <p class="sub">Choose your provider, or type your address and we'll figure out the rest.</p>
+      <h2>{t('onboarding.addAccountTitle')}</h2>
+      <p class="sub">{t('onboarding.addAccountSub')}</p>
       <form class="detect" onsubmit={(e) => { e.preventDefault(); detect(); }}>
-        <input class="input lg" type="email" placeholder="you@example.com" bind:value={email} autocomplete="email" spellcheck="false" />
+        <input class="input lg" type="email" placeholder={t('onboarding.emailPlaceholder')} bind:value={email} autocomplete="email" spellcheck="false" />
         <button class="btn primary" type="submit" disabled={busy || !email.includes('@')}>
-          {#if busy}<span class="spin"><Spinner size={15} /></span>{:else}Continue{/if}
+          {#if busy}<span class="spin"><Spinner size={15} /></span>{:else}{t('common.continue')}{/if}
         </button>
       </form>
       <div class="grid">
@@ -235,154 +249,150 @@
       </div>
       {#if error}<p class="error">{error}</p>{/if}
     {:else if step === 'oauth'}
-      <button class="back" onclick={() => (step = 'providers')}><ArrowLeft size={15} /> Back</button>
-      <h2>Sign in with {oauthProvider === 'google' ? 'Google' : 'Microsoft'}</h2>
-      <p class="sub">
-        Your browser will open to sign in securely. Envelope never sees your password — it receives a token that only allows access to mail, calendar and contacts.
-      </p>
-      <label class="label" for="ob-email">E-mail (optional)</label>
-      <input id="ob-email" class="input" type="email" placeholder={oauthProvider === 'google' ? 'you@gmail.com' : 'you@outlook.com'} bind:value={email} />
+      <button class="back" onclick={() => (step = 'providers')}><ArrowLeft size={15} /> {t('common.back')}</button>
+      <h2>{t('onboarding.oauthTitle', { provider: oauthProvider === 'google' ? 'Google' : 'Microsoft' })}</h2>
+      <p class="sub">{t('onboarding.oauthIntro')}</p>
+      <label class="label" for="ob-email">{t('onboarding.oauthEmailLabel')}</label>
+      <input id="ob-email" class="input" type="email" placeholder={oauthProvider === 'google' ? t('onboarding.oauthEmailPlaceholderGoogle') : t('onboarding.oauthEmailPlaceholderMicrosoft')} bind:value={email} />
       {#if oauthConfigured === false}
         <div class="note">
           <Lock size={15} />
           <span>
-            This build has no {oauthProvider === 'google' ? 'Google' : 'Microsoft'} sign-in client configured. Add your own in
-            <button class="inline-link" onclick={() => ui.open('settings', 'advanced')}>Settings → Advanced</button>
-            {#if oauthProvider === 'google'}or use an app password instead.{/if}
+            {#each tParts(oauthProvider === 'google' ? 'onboarding.oauthNoClientGoogle' : 'onboarding.oauthNoClientMicrosoft') as part, i (i)}{#if typeof part === 'string'}{part}{:else}<button class="inline-link" onclick={() => ui.open('settings', 'advanced')}>{t('settings.title')} → {t('settings.tab.advanced')}</button>{/if}{/each}
           </span>
         </div>
       {/if}
       <div class="actions">
         <button class="btn primary lg" disabled={busy} onclick={startOAuth}>
-          {#if busy}<span class="spin"><Spinner size={16} /></span> Waiting for your browser…{:else}Continue in browser <ExternalLink size={15} />{/if}
+          {#if busy}<span class="spin"><Spinner size={16} /></span> {t('onboarding.oauthWaiting')}{:else}{t('onboarding.oauthContinue')} <ExternalLink size={15} />{/if}
         </button>
         {#if oauthProvider === 'google'}
-          <button class="btn ghost" onclick={useAppPassword}>Use an app password</button>
+          <button class="btn ghost" onclick={useAppPassword}>{t('onboarding.useAppPassword')}</button>
         {/if}
       </div>
       {#if error}<p class="error">{error}</p>{/if}
     {:else if step === 'password'}
-      <button class="back" onclick={() => (step = 'providers')}><ArrowLeft size={15} /> Back</button>
-      <h2>{provider === 'generic' ? 'Add your mail account' : `Add your ${providerName} account`}</h2>
+      <button class="back" onclick={() => (step = 'providers')}><ArrowLeft size={15} /> {t('common.back')}</button>
+      <h2>{provider === 'generic' ? t('onboarding.passwordTitleGeneric') : t('onboarding.passwordTitle', { provider: providerName })}</h2>
       {#if hint}
         <div class="note">
           <Lock size={15} />
           <span>{hint}
-            {#if discovery?.passwordHelpUrl}<button class="inline-link" onclick={() => api.openUrl(discovery!.passwordHelpUrl!)}>Open</button>{/if}
+            {#if discovery?.passwordHelpUrl}<button class="inline-link" onclick={() => api.openUrl(discovery!.passwordHelpUrl!)}>{t('common.open')}</button>{/if}
           </span>
         </div>
       {/if}
       <form class="form" onsubmit={(e) => { e.preventDefault(); submitPassword(); }}>
         <div>
-          <label class="label" for="pw-name">Your name</label>
-          <input id="pw-name" class="input" bind:value={name} placeholder="Alex Morgan" autocomplete="name" />
+          <label class="label" for="pw-name">{t('onboarding.yourName')}</label>
+          <input id="pw-name" class="input" bind:value={name} placeholder={t('onboarding.namePlaceholder')} autocomplete="name" />
         </div>
         <div>
-          <label class="label" for="pw-email">E-mail</label>
-          <input id="pw-email" class="input" type="email" bind:value={email} placeholder="you@example.com" onblur={() => !imap.host && email.includes('@') && detect()} spellcheck="false" />
+          <label class="label" for="pw-email">{t('onboarding.emailLabel')}</label>
+          <input id="pw-email" class="input" type="email" bind:value={email} placeholder={t('onboarding.emailPlaceholder')} onblur={() => !imap.host && email.includes('@') && detect()} spellcheck="false" />
         </div>
         <div>
-          <label class="label" for="pw-pass">{provider === 'generic' ? 'Password' : 'App password'}</label>
+          <label class="label" for="pw-pass">{provider === 'generic' ? t('onboarding.passwordLabel') : t('onboarding.appPasswordLabel')}</label>
           <input id="pw-pass" class="input" type="password" bind:value={password} autocomplete="current-password" />
         </div>
 
         <button type="button" class="adv-toggle" onclick={() => (advanced = !advanced)}>
-          <span class="chev" class:open={advanced}><ChevronDown size={14} /></span> Server settings
+          <span class="chev" class:open={advanced}><ChevronDown size={14} /></span> {t('onboarding.serverSettings')}
         </button>
         {#if advanced}
           <div class="adv">
             <div class="srv">
-              <span class="srv-title">Incoming (IMAP)</span>
+              <span class="srv-title">{t('onboarding.incomingServer')}</span>
               <input class="input" placeholder="imap.example.com" bind:value={imap.host} />
               <input class="input port" type="number" bind:value={imap.port} />
               <select class="input sec" bind:value={imap.security} onchange={() => securityPort('imap', imap.security)}>
-                <option value="tls">SSL/TLS</option><option value="startTls">STARTTLS</option><option value="none">None</option>
+                <option value="tls">SSL/TLS</option><option value="startTls">STARTTLS</option><option value="none">{t('onboarding.securityNone')}</option>
               </select>
-              <input class="input" placeholder="Username (defaults to e-mail)" bind:value={imap.username} />
+              <input class="input" placeholder={t('onboarding.usernamePlaceholder')} bind:value={imap.username} />
             </div>
             <div class="srv">
-              <span class="srv-title">Outgoing (SMTP)</span>
+              <span class="srv-title">{t('onboarding.outgoingServer')}</span>
               <input class="input" placeholder="smtp.example.com" bind:value={smtp.host} />
               <input class="input port" type="number" bind:value={smtp.port} />
               <select class="input sec" bind:value={smtp.security} onchange={() => securityPort('smtp', smtp.security)}>
-                <option value="tls">SSL/TLS</option><option value="startTls">STARTTLS</option><option value="none">None</option>
+                <option value="tls">SSL/TLS</option><option value="startTls">STARTTLS</option><option value="none">{t('onboarding.securityNone')}</option>
               </select>
-              <input class="input" placeholder="Username (defaults to e-mail)" bind:value={smtp.username} />
+              <input class="input" placeholder={t('onboarding.usernamePlaceholder')} bind:value={smtp.username} />
             </div>
             <div>
-              <label class="label" for="pw-caldav">Calendar (CalDAV) URL — optional</label>
+              <label class="label" for="pw-caldav">{t('onboarding.caldavLabel')}</label>
               <input id="pw-caldav" class="input" bind:value={caldav} placeholder="https://caldav.example.com" />
             </div>
-            <label class="check"><input type="checkbox" bind:checked={insecure} /> Accept self-signed certificates</label>
+            <label class="check"><input type="checkbox" bind:checked={insecure} /> {t('onboarding.acceptSelfSigned')}</label>
           </div>
         {/if}
 
         {#if error}<p class="error">{error}</p>{/if}
         <div class="actions">
           <button class="btn primary lg" type="submit" disabled={busy}>
-            {#if busy}<span class="spin"><Spinner size={16} /></span> Connecting…{:else}Add account{/if}
+            {#if busy}<span class="spin"><Spinner size={16} /></span> {t('onboarding.connecting')}{:else}{t('onboarding.addAccount')}{/if}
           </button>
         </div>
       </form>
     {:else if step === 'exchange'}
-      <button class="back" onclick={() => (step = 'providers')}><ArrowLeft size={15} /> Back</button>
-      <h2>Add Exchange account</h2>
+      <button class="back" onclick={() => (step = 'providers')}><ArrowLeft size={15} /> {t('common.back')}</button>
+      <h2>{t('onboarding.exchangeTitle')}</h2>
       <div class="note">
         <Lock size={15} />
-        <span>Sign in with the password you use for Outlook or your work computer. Envelope finds your organization's Exchange server on its own; if it can't, enter the server under Advanced.</span>
+        <span>{t('onboarding.exchangeNote')}</span>
       </div>
       <form class="form" onsubmit={(e) => { e.preventDefault(); submitExchange(); }}>
         <div>
-          <label class="label" for="ex-name">Your name</label>
-          <input id="ex-name" class="input" bind:value={name} placeholder="Alex Morgan" autocomplete="name" />
+          <label class="label" for="ex-name">{t('onboarding.yourName')}</label>
+          <input id="ex-name" class="input" bind:value={name} placeholder={t('onboarding.namePlaceholder')} autocomplete="name" />
         </div>
         <div>
-          <label class="label" for="ex-email">Work e-mail</label>
-          <input id="ex-email" class="input" type="email" bind:value={email} placeholder="you@company.com" autocomplete="email" spellcheck="false" />
+          <label class="label" for="ex-email">{t('onboarding.workEmailLabel')}</label>
+          <input id="ex-email" class="input" type="email" bind:value={email} placeholder={t('onboarding.workEmailPlaceholder')} autocomplete="email" spellcheck="false" />
         </div>
         <div>
-          <label class="label" for="ex-pass">Password</label>
+          <label class="label" for="ex-pass">{t('onboarding.passwordLabel')}</label>
           <input id="ex-pass" class="input" type="password" bind:value={password} autocomplete="current-password" />
         </div>
 
         <button type="button" class="adv-toggle" onclick={() => (advanced = !advanced)}>
-          <span class="chev" class:open={advanced}><ChevronDown size={14} /></span> Advanced
+          <span class="chev" class:open={advanced}><ChevronDown size={14} /></span> {t('onboarding.advanced')}
         </button>
         {#if advanced}
           <div class="adv">
             <div>
-              <label class="label" for="ex-url">Server</label>
+              <label class="label" for="ex-url">{t('onboarding.serverLabel')}</label>
               <input id="ex-url" class="input" bind:value={ewsUrl} placeholder="mail.company.com" spellcheck="false" />
-              <span class="field-hint">Leave empty to find it automatically. A server name or the full address ending in /EWS/Exchange.asmx both work.</span>
+              <span class="field-hint">{t('onboarding.serverHint')}</span>
             </div>
             <div>
-              <label class="label" for="ex-user">User name</label>
-              <input id="ex-user" class="input" bind:value={ewsUser} placeholder="DOMAIN\user (defaults to your e-mail)" autocomplete="username" spellcheck="false" />
+              <label class="label" for="ex-user">{t('onboarding.userNameLabel')}</label>
+              <input id="ex-user" class="input" bind:value={ewsUser} placeholder={t('onboarding.userNamePlaceholder')} autocomplete="username" spellcheck="false" />
             </div>
-            <label class="check"><input type="checkbox" bind:checked={insecure} /> Accept self-signed certificates</label>
+            <label class="check"><input type="checkbox" bind:checked={insecure} /> {t('onboarding.acceptSelfSigned')}</label>
           </div>
         {/if}
 
         {#if error}<p class="error">{error}</p>{/if}
         <div class="actions">
           <button class="btn primary lg" type="submit" disabled={busy}>
-            {#if busy}<span class="spin"><Spinner size={16} /></span> {ewsUrl.trim() ? 'Signing in…' : 'Finding your server…'}{:else}Add account{/if}
+            {#if busy}<span class="spin"><Spinner size={16} /></span> {ewsUrl.trim() ? t('onboarding.signingIn') : t('onboarding.findingServer')}{:else}{t('onboarding.addAccount')}{/if}
           </button>
         </div>
       </form>
     {:else}
       <div class="welcome">
         <div class="success"><Check size={34} strokeWidth={3} /></div>
-        <h1>You're all set</h1>
-        <p class="lead">{added} is syncing. Recent mail appears in seconds; older history keeps downloading in the background.</p>
+        <h1>{t('onboarding.doneTitle')}</h1>
+        <p class="lead">{t('onboarding.doneLead', { email: added ?? '' })}</p>
         <div class="themes">
-          <button class:on={ui.settings.theme === 'light'} onclick={() => ui.set('theme', 'light')}><Sun size={16} /> Light</button>
-          <button class:on={ui.settings.theme === 'dark'} onclick={() => ui.set('theme', 'dark')}><Moon size={16} /> Dark</button>
-          <button class:on={ui.settings.theme === 'system'} onclick={() => ui.set('theme', 'system')}>Auto</button>
+          <button class:on={ui.settings.theme === 'light'} onclick={() => ui.set('theme', 'light')}><Sun size={16} /> {t('onboarding.themeLight')}</button>
+          <button class:on={ui.settings.theme === 'dark'} onclick={() => ui.set('theme', 'dark')}><Moon size={16} /> {t('onboarding.themeDark')}</button>
+          <button class:on={ui.settings.theme === 'system'} onclick={() => ui.set('theme', 'system')}>{t('onboarding.themeAuto')}</button>
         </div>
         <div class="actions center">
-          <button class="btn ghost" onclick={() => { step = 'providers'; email = ''; password = ''; error = null; }}>Add another account</button>
-          <button class="btn primary lg" onclick={() => ui.close()}>Open Envelope <ArrowRight size={16} /></button>
+          <button class="btn ghost" onclick={() => { step = 'providers'; email = ''; password = ''; error = null; }}>{t('onboarding.addAnotherAccount')}</button>
+          <button class="btn primary lg" onclick={() => ui.close()}>{t('onboarding.openEnvelope')} <ArrowRight size={16} /></button>
         </div>
       </div>
     {/if}
@@ -519,6 +529,9 @@
     background: var(--bg-sunken);
     box-shadow: inset 0 0 0 1px var(--border);
     transition: transform var(--dur) var(--ease-out), box-shadow var(--dur-fast), background var(--dur-fast);
+    /* Translated names and descriptions wrap inside the tile instead of overflowing it. */
+    text-align: center;
+    overflow-wrap: anywhere;
   }
   .prov:hover {
     transform: translateY(-2px);
@@ -638,6 +651,7 @@
   }
   .actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     align-items: center;
     margin-top: 18px;

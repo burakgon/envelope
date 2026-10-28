@@ -4,6 +4,7 @@
   import type { AttachmentInfo } from '../api';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
   import { fileSize } from '../utils/format';
+  import { t } from '../i18n';
   import { ChevronLeft, ChevronRight, Download, ExternalLink, X } from '../icons';
 
   type Item = AttachmentInfo | { id?: undefined; src: string; filename: string; size?: undefined };
@@ -34,7 +35,7 @@
     if (!target) return;
     try {
       await api.attachmentSave(id, target);
-      toasts.show(`Saved ${current.filename}`, { kind: 'success', action: { label: 'Show', run: () => api.attachmentReveal(id) } });
+      toasts.show(t('attachment.saved', { file: current.filename }), { kind: 'success', action: { label: t('attachment.showInFolder'), run: () => api.attachmentReveal(id) } });
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -56,27 +57,27 @@
   <header>
     <div class="name">
       <b class="truncate">{current?.filename}</b>
-      <span>{[current?.size != null ? fileSize(current.size) : '', items.length > 1 ? `${index + 1} of ${items.length}` : ''].filter(Boolean).join(' · ')}</span>
+      <span>{[current?.size != null ? fileSize(current.size) : '', items.length > 1 ? t('imageViewer.position', { current: index + 1, total: items.length }) : ''].filter(Boolean).join(' · ')}</span>
     </div>
     {#if current?.id != null}
       {@const id = current.id}
-      <button class="tool" title="Save as…" onclick={save}><Download size={18} /></button>
-      <button class="tool" title="Open with another app" onclick={() => api.attachmentOpen(id).catch((e) => toasts.error(errorMessage(e)))}><ExternalLink size={18} /></button>
+      <button class="tool" title={t('attachment.saveAs')} onclick={save}><Download size={18} /></button>
+      <button class="tool" title={t('imageViewer.openWith')} onclick={() => api.attachmentOpen(id).catch((e) => toasts.error(errorMessage(e)))}><ExternalLink size={18} /></button>
     {/if}
-    <button class="tool" title="Close (Esc)" onclick={onclose}><X size={20} /></button>
+    <button class="tool" title={t('imageViewer.close', { key: t('keys.esc') })} onclick={onclose}><X size={20} /></button>
   </header>
 
   <div class="stage" class:zoomed role="presentation" onclick={(e) => e.target === e.currentTarget && onclose()}>
     {#key current ? src(current) : ''}
-      <button class="zoom" aria-label={zoomed ? 'Fit to window' : 'Actual size'} onclick={() => (zoomed = !zoomed)}>
+      <button class="zoom" aria-label={zoomed ? t('imageViewer.fitToWindow') : t('imageViewer.actualSize')} onclick={() => (zoomed = !zoomed)}>
         <img src={src(current)} alt={current.filename} draggable="false" />
       </button>
     {/key}
   </div>
 
   {#if items.length > 1}
-    <button class="nav prev" aria-label="Previous image" onclick={() => go(-1)}><ChevronLeft size={26} /></button>
-    <button class="nav next" aria-label="Next image" onclick={() => go(1)}><ChevronRight size={26} /></button>
+    <button class="nav prev" aria-label={t('imageViewer.previous')} onclick={() => go(-1)}><ChevronLeft size={26} /></button>
+    <button class="nav next" aria-label={t('imageViewer.next')} onclick={() => go(1)}><ChevronRight size={26} /></button>
   {/if}
 </div>
 

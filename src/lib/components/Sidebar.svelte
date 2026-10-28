@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Account, Folder, FolderRole, Mailbox } from '../api';
   import { compose } from '../stores/compose.svelte';
-  import { mail, roleOrder } from '../stores/mail.svelte';
+  import { mail, roleLabel, roleOrder } from '../stores/mail.svelte';
   import { ui } from '../stores/ui.svelte';
   import { toasts } from '../stores/toasts.svelte';
   import {
@@ -16,6 +16,7 @@
   import CalendarSidebar from './calendar/CalendarSidebar.svelte';
   import { cal } from '../stores/calendar.svelte';
   import { people } from '../stores/contacts.svelte';
+  import { intlLocale, t } from '../i18n';
 
   const roleIcon: Record<FolderRole, typeof Inbox> = {
     inbox: Inbox, sent: Send, drafts: File, trash: Trash, junk: ShieldAlert, archive: Archive, all: Mails, starred: Star, important: Flag,
@@ -45,7 +46,7 @@
       const ry = y.role ? roleOrder.indexOf(y.role) : 99;
       if (rx !== ry) return rx - ry;
       if (x.kind !== y.kind) return x.kind === 'folder' ? -1 : 1;
-      return x.name.localeCompare(y.name);
+      return x.name.localeCompare(y.name, intlLocale());
     };
     const out: { folder: Folder; depth: number }[] = [];
     const walk = (parent: number | null, depth: number) => {
@@ -91,7 +92,7 @@
       : f.role === 'archive' || f.role === 'all' ? { kind: 'archive' as const }
       : { kind: 'folder' as const, id: f.id };
     if (f.kind === 'label') mail.toggleLabel(f.id, ids);
-    else mail.moveTo(target, ids, `Moved to ${f.name}`);
+    else mail.moveTo(target, ids, f.role ? roleLabel(f.role) : f.name);
   }
 
   function startResize(e: PointerEvent) {
@@ -114,24 +115,24 @@
   function syncLabel(a: Account): string {
     switch (a.sync.state) {
       case 'connecting':
-        return 'Connecting…';
+        return t('sidebar.syncConnecting');
       case 'syncing':
-        return a.sync.progress != null ? `Syncing ${Math.round(a.sync.progress * 100)}%` : 'Syncing…';
+        return a.sync.progress != null ? t('sidebar.syncPercent', { percent: Math.round(a.sync.progress * 100) }) : t('sidebar.syncRunning');
       case 'offline':
-        return 'Offline — will retry';
+        return t('sidebar.syncOffline');
       case 'authError':
-        return 'Sign-in needed';
+        return t('sidebar.syncSignInNeeded');
       case 'error':
         return a.sync.message;
       default:
-        return 'Up to date';
+        return t('sidebar.syncUpToDate');
     }
   }
 
   function accountAlert(a: Account) {
     if (a.sync.state === 'authError') {
       ui.open('settings', 'accounts');
-      toasts.show(`Sign in to ${a.email} again to keep syncing.`);
+      toasts.show(t('sidebar.signInAgain', { email: a.email }));
     }
   }
 </script>
@@ -142,37 +143,37 @@
       <Logo size={22} />
       <span class="wordmark" data-tauri-drag-region>Envelope</span>
     </div>
-    <button class="icon-btn sm" title="Hide sidebar" onclick={() => (ui.sidebarCollapsed = true)}><PanelLeft size={16} /></button>
+    <button class="icon-btn sm" title={t('sidebar.hideSidebar')} onclick={() => (ui.sidebarCollapsed = true)}><PanelLeft size={16} /></button>
   </header>
 
   <div class="top">
     {#if ui.view === 'contacts'}
-      <button class="compose" onclick={() => people.newContact()}>
+      <button class="compose" title={t('sidebar.newContact')} onclick={() => people.newContact()}>
         <UserPlus size={16} strokeWidth={2.2} />
-        <span>New contact</span>
+        <span>{t('sidebar.newContact')}</span>
         <span class="kbd-hint">C</span>
       </button>
     {:else if ui.view === 'calendar'}
-      <button class="compose" onclick={() => cal.newEvent()}>
+      <button class="compose" title={t('sidebar.newEvent')} onclick={() => cal.newEvent()}>
         <Plus size={16} strokeWidth={2.4} />
-        <span>New event</span>
+        <span>{t('sidebar.newEvent')}</span>
         <span class="kbd-hint">C</span>
       </button>
     {:else}
-      <button class="compose" onclick={() => compose.new()}>
+      <button class="compose" title={t('sidebar.newMessage')} onclick={() => compose.new()}>
         <Compose size={16} strokeWidth={2.2} />
-        <span>New message</span>
+        <span>{t('sidebar.newMessage')}</span>
         <span class="kbd-hint">C</span>
       </button>
     {/if}
     <div class="modes" role="tablist">
-      <button role="tab" aria-selected={ui.view === 'mail'} class:on={ui.view === 'mail'} onclick={(e) => { ui.view = 'mail'; e.currentTarget.blur(); }}>
-        <Mail size={15} /> Mail
+      <button role="tab" aria-selected={ui.view === 'mail'} class:on={ui.view === 'mail'} title={t('sidebar.modeMail')} onclick={(e) => { ui.view = 'mail'; e.currentTarget.blur(); }}>
+        <Mail size={15} /><span class="mode-label">{t('sidebar.modeMail')}</span>
       </button>
-      <button role="tab" aria-selected={ui.view === 'calendar'} class:on={ui.view === 'calendar'} onclick={(e) => { ui.view = 'calendar'; e.currentTarget.blur(); }}>
-        <Calendar size={15} /> Calendar
+      <button role="tab" aria-selected={ui.view === 'calendar'} class:on={ui.view === 'calendar'} title={t('sidebar.modeCalendar')} onclick={(e) => { ui.view = 'calendar'; e.currentTarget.blur(); }}>
+        <Calendar size={15} /><span class="mode-label">{t('sidebar.modeCalendar')}</span>
       </button>
-      <button role="tab" aria-selected={ui.view === 'contacts'} class:on={ui.view === 'contacts'} title="Contacts" aria-label="Contacts" onclick={(e) => { ui.view = 'contacts'; e.currentTarget.blur(); }}>
+      <button role="tab" aria-selected={ui.view === 'contacts'} class:on={ui.view === 'contacts'} title={t('sidebar.modeContacts')} aria-label={t('sidebar.modeContacts')} onclick={(e) => { ui.view = 'contacts'; e.currentTarget.blur(); }}>
         <BookUser size={15} />
       </button>
     </div>
@@ -186,7 +187,7 @@
   <nav class="scroll">
     <div class="group">
       <button class="item" class:active={people.bookId == null} onclick={() => people.setBook(null)}>
-        <Users size={16} /><span class="name">All contacts</span>
+        <Users size={16} /><span class="name">{t('sidebar.allContacts')}</span>
       </button>
       {#each people.books as b (b.id)}
         <button class="item" class:active={people.bookId === b.id} onclick={() => people.setBook(b.id)}>
@@ -200,27 +201,27 @@
     <div class="group">
       <button class="item" class:active={ui.view === 'mail' && mail.isMailbox({ kind: 'unified', role: 'inbox' })} onclick={() => go({ kind: 'unified', role: 'inbox' })}>
         <Inbox size={16} />
-        <span class="name">{mail.multiAccount ? 'All Inboxes' : 'Inbox'}</span>
+        <span class="name">{mail.multiAccount ? t('mailbox.allInboxes') : t('mailbox.inbox')}</span>
         {#if unified.inbox > 0}<span class="count unread">{unified.inbox}</span>{/if}
       </button>
       <button class="item" class:active={mail.isMailbox({ kind: 'starred' })} onclick={() => go({ kind: 'starred' })}>
-        <Star size={16} /><span class="name">Starred</span>
+        <Star size={16} /><span class="name">{t('mailbox.starred')}</span>
       </button>
       <button class="item" class:active={mail.isMailbox({ kind: 'snoozed' })} onclick={() => go({ kind: 'snoozed' })}>
-        <Clock size={16} /><span class="name">Snoozed</span>
+        <Clock size={16} /><span class="name">{t('mailbox.snoozed')}</span>
       </button>
       {#if mail.followUpCount > 0 || mail.isMailbox({ kind: 'followUp' })}
         <button class="item" class:active={mail.isMailbox({ kind: 'followUp' })} onclick={() => go({ kind: 'followUp' })}>
-          <BellRing size={16} /><span class="name">Follow up</span>
+          <BellRing size={16} /><span class="name">{t('mailbox.followUp')}</span>
           {#if mail.followUpCount > 0}<span class="count unread">{mail.followUpCount}</span>{/if}
         </button>
       {/if}
       <button class="item" class:active={mail.isMailbox({ kind: 'unified', role: 'drafts' })} onclick={() => go({ kind: 'unified', role: 'drafts' })}>
-        <File size={16} /><span class="name">Drafts</span>
+        <File size={16} /><span class="name">{t('mailbox.drafts')}</span>
         {#if unified.drafts > 0}<span class="count">{unified.drafts}</span>{/if}
       </button>
       <button class="item" class:active={mail.isMailbox({ kind: 'unified', role: 'sent' })} onclick={() => go({ kind: 'unified', role: 'sent' })}>
-        <Send size={16} /><span class="name">Sent</span>
+        <Send size={16} /><span class="name">{t('mailbox.sent')}</span>
       </button>
       {#if pending.length}
         <button
@@ -232,7 +233,7 @@
           }}
         >
           {#if pending.some((i) => i.state === 'failed')}<AlertCircle size={16} />{:else}<Clock size={16} />{/if}
-          <span class="name">{pending.every((i) => i.state === 'queued' && i.sendAt > Date.now() + 60_000) ? 'Scheduled' : 'Outbox'}</span>
+          <span class="name">{pending.every((i) => i.state === 'queued' && i.sendAt > Date.now() + 60_000) ? t('mailbox.scheduled') : t('mailbox.outbox')}</span>
           <span class="count">{pending.length}</span>
         </button>
       {/if}
@@ -248,13 +249,13 @@
             ondragleave={() => (dragOver = null)}
             ondrop={(e) => onDrop(e, f)}
           >
-            <Icon size={16} /><span class="name">{f.role === 'junk' ? 'Spam' : f.role === 'all' ? 'All Mail' : f.name}</span>
+            <Icon size={16} /><span class="name">{f.role ? roleLabel(f.role) : f.name}</span>
             {#if f.role === 'junk' && f.unreadCount > 0}<span class="count">{f.unreadCount}</span>{/if}
           </button>
         {/each}
       {:else}
         <button class="item" class:active={mail.isMailbox({ kind: 'everything' })} onclick={() => go({ kind: 'everything' })}>
-          <Mails size={16} /><span class="name">All Mail</span>
+          <Mails size={16} /><span class="name">{t('mailbox.all')}</span>
         </button>
       {/if}
     </div>
@@ -267,7 +268,7 @@
         <div class="account-head">
           <button class="account-title" onclick={() => (collapsedAccounts[account.id] = open)}>
             {#if single}
-              <span class="label truncate">Folders</span>
+              <span class="label truncate">{t('sidebar.folders')}</span>
             {:else}
               <span class="dot" style:background={account.color}></span>
               <span class="label truncate" class:email={!account.label} title={account.email}>{account.label ?? account.email}</span>
@@ -303,7 +304,7 @@
                 {:else}
                   <Icon size={16} />
                 {/if}
-                <span class="name truncate">{folder.role === 'junk' ? 'Spam' : folder.name}</span>
+                <span class="name truncate">{folder.role ? roleLabel(folder.role) : folder.name}</span>
                 {#if folder.role === 'drafts' && folder.totalCount > 0}
                   <span class="count">{folder.totalCount}</span>
                 {:else if folder.unreadCount > 0 && folder.role !== 'trash' && folder.role !== 'sent' && folder.role !== 'all'}
@@ -318,7 +319,7 @@
     {/each}
 
     <button class="item add" onclick={() => ui.open('addAccount')}>
-      <Plus size={16} /><span class="name">Add account</span>
+      <Plus size={16} /><span class="name">{t('sidebar.addAccount')}</span>
     </button>
   </nav>
   {/if}
@@ -327,7 +328,7 @@
   {#if api.isDemo}<DemoBanner />{/if}
   <footer>
     <button class="item" onclick={() => ui.open('settings')}>
-      <Settings size={16} /><span class="name">Settings</span>
+      <Settings size={16} /><span class="name">{t('sidebar.settings')}</span>
       <span class="kbd">,</span>
     </button>
   </footer>
@@ -395,9 +396,17 @@
   }
   .compose span:first-of-type {
     flex: 1;
+    min-width: 0;
     text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .compose :global(svg) {
+    flex-shrink: 0;
   }
   .kbd-hint {
+    flex-shrink: 0;
     font-size: 11px;
     font-weight: 600;
     padding: 1px 6px;
@@ -406,7 +415,8 @@
   }
   .modes {
     display: grid;
-    grid-template-columns: 1fr 1fr 36px;
+    /* Equal halves when the labels fit; a longer label ("Calendrier", "カレンダー") takes what it needs. */
+    grid-template-columns: minmax(min-content, 1fr) minmax(min-content, 1fr) 36px;
     padding: 3px;
     gap: 2px;
     border-radius: 10px;
@@ -417,11 +427,21 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
+    min-width: 0;
     height: 28px;
     border-radius: 8px;
     font-weight: 500;
     color: var(--text-2);
     transition: background var(--dur), color var(--dur), box-shadow var(--dur);
+  }
+  .modes button :global(svg) {
+    flex-shrink: 0;
+  }
+  .mode-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .modes button.on {
     background: var(--bg-elevated);
@@ -478,6 +498,9 @@
   .name {
     flex: 1;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .count {
     font-size: var(--text-sm);

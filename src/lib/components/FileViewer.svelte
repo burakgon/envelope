@@ -2,12 +2,13 @@
   import { onMount } from 'svelte';
   import { api } from '../api';
   import type { FileEvent, FileMessage, MessageView, OpenedFile } from '../api';
+  import { t } from '../i18n';
   import { Calendar, Download, File, Lock, Mail, Reply, Spinner, Users, X } from '../icons';
   import { cal } from '../stores/calendar.svelte';
   import { people } from '../stores/contacts.svelte';
   import { compose } from '../stores/compose.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
-  import { displayName, fileSize, longDate } from '../utils/format';
+  import { dateFormat, displayName, fileSize, longDate, timeOf } from '../utils/format';
   import MailFrame from './MailFrame.svelte';
 
   /** A saved message or calendar file opened with Envelope. */
@@ -95,7 +96,7 @@
     if (!target) return;
     try {
       await api.files.savePart(path, partId, target);
-      toasts.show(`Saved ${filename}`, { kind: 'success' });
+      toasts.show(t('attachment.saved', { file: filename }), { kind: 'success' });
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -107,15 +108,16 @@
       const last = new Date(e.end - 1);
       const first = new Date(e.start);
       const one = first.toDateString() === last.toDateString();
-      return one ? first.toLocaleDateString(undefined, day) : `${first.toLocaleDateString(undefined, day)} – ${last.toLocaleDateString(undefined, day)}`;
+      return one ? dateFormat(day).format(first) : t('calendar.popover.dateRange', { start: dateFormat(day).format(first), end: dateFormat(day).format(last) });
     }
     const start = new Date(e.start);
-    const time: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
     const end = new Date(e.end);
     const sameDay = start.toDateString() === end.toDateString();
-    return `${start.toLocaleDateString(undefined, day)}, ${start.toLocaleTimeString(undefined, time)} – ${
-      sameDay ? end.toLocaleTimeString(undefined, time) : end.toLocaleString(undefined, { ...day, ...time })
-    }`;
+    return t('fileViewer.timeRange', {
+      date: dateFormat(day).format(start),
+      start: timeOf(start),
+      end: sameDay ? timeOf(end) : dateFormat({ ...day, hour: 'numeric', minute: '2-digit' }).format(end),
+    });
   }
 
   function toggle(uid: string, on: boolean) {
@@ -127,8 +129,12 @@
     adding = true;
     try {
       const result = await api.files.importEvents(path, calendarId, chosen);
-      const added = result.added === 1 ? '1 event' : `${result.added} events`;
-      toasts.show(result.skipped ? `Added ${added}; ${result.skipped} already on your calendar` : `Added ${added}`, { kind: 'success' });
+      toasts.show(
+        result.skipped
+          ? t('fileViewer.addedEventsSomeSkipped', { count: result.added, skipped: result.skipped })
+          : t('fileViewer.addedEvents', { count: result.added }),
+        { kind: 'success' },
+      );
       cal.load();
       onclose();
     } catch (e) {
@@ -143,8 +149,12 @@
     adding = true;
     try {
       const result = await api.files.importContacts(path, bookId, picked);
-      const added = result.added === 1 ? '1 contact' : `${result.added} contacts`;
-      toasts.show(result.skipped ? `Added ${added}; ${result.skipped} already in your contacts` : `Added ${added}`, { kind: 'success' });
+      toasts.show(
+        result.skipped
+          ? t('fileViewer.addedContactsSomeSkipped', { count: result.added, skipped: result.skipped })
+          : t('fileViewer.addedContacts', { count: result.added }),
+        { kind: 'success' },
+      );
       people.load();
       onclose();
     } catch (e) {
@@ -177,11 +187,11 @@
         {#if file?.kind === 'calendar'}<Calendar size={16} />{:else if file?.kind === 'contacts'}<Users size={16} />{:else}<Mail size={16} />{/if}
       </span>
       <span class="name" title={path}>{name}</span>
-      <button class="icon-btn" aria-label="Close" onclick={onclose}><X size={16} /></button>
+      <button class="icon-btn" aria-label={t('common.close')} onclick={onclose}><X size={16} /></button>
     </header>
 
     {#if failure}
-      <p class="failure">{failure}</p>
+      <p class="failure">{t('fileViewer.openFailed', { error: failure })}</p>
     {:else if !file}
       <div class="loading"><span class="spin"><Spinner size={18} /></span></div>
     {:else if file.kind === 'message'}
@@ -189,24 +199,24 @@
       <div class="message">
         <div class="head">
           <h2>
-            {m.subject || '(no subject)'}
-            {#if m.encrypted}<span class="locked" title="This message was encrypted"><Lock size={12} />Encrypted</span>{/if}
+            {m.subject || t('common.noSubject')}
+            {#if m.encrypted}<span class="locked" title={t('fileViewer.encryptedTitle')}><Lock size={12} />{t('crypto.status.encrypted')}</span>{/if}
           </h2>
           <div class="meta">
             <div>
               <b>{displayName(m.from)}</b>
               {#if m.from}<span class="addr">&lt;{m.from.email}&gt;</span>{/if}
             </div>
-            {#if m.to.length}<div class="line">To {m.to.map(displayName).join(', ')}</div>{/if}
-            {#if m.cc.length}<div class="line">Cc {m.cc.map(displayName).join(', ')}</div>{/if}
+            {#if m.to.length}<div class="line">{t('fileViewer.toLine', { names: m.to.map(displayName).join(', ') })}</div>{/if}
+            {#if m.cc.length}<div class="line">{t('fileViewer.ccLine', { names: m.cc.map(displayName).join(', ') })}</div>{/if}
             {#if m.date}<div class="line">{longDate(m.date)}</div>{/if}
           </div>
-          <button class="btn sm" disabled={!m.from && !m.replyTo.length} onclick={() => reply(m)}><Reply size={14} />Reply</button>
+          <button class="btn sm" disabled={!m.from && !m.replyTo.length} onclick={() => reply(m)}><Reply size={14} />{t('reader.reply')}</button>
         </div>
         {#if blocked && !allowRemote}
           <div class="remote">
-            Pictures from the internet are hidden.
-            <button class="link" onclick={() => (allowRemote = true)}>Show them</button>
+            {t('fileViewer.picturesHidden')}
+            <button class="link" onclick={() => (allowRemote = true)}>{t('fileViewer.showPictures')}</button>
           </div>
         {/if}
         <div class="body">
@@ -216,12 +226,12 @@
           <div class="parts">
             {#each m.attachments as a (a.partId)}
               <div class="part">
-                <button class="open" onclick={() => openPart(a.partId)} title="Open">
+                <button class="open" onclick={() => openPart(a.partId)} title={t('common.open')}>
                   <File size={15} />
                   <span class="fname">{a.filename}</span>
                   <span class="size">{fileSize(a.size)}</span>
                 </button>
-                <button class="icon-btn sm" aria-label="Save" title="Save" onclick={() => savePart(a.partId, a.filename)}><Download size={14} /></button>
+                <button class="icon-btn sm" aria-label={t('common.save')} title={t('common.save')} onclick={() => savePart(a.partId, a.filename)}><Download size={14} /></button>
               </div>
             {/each}
           </div>
@@ -230,7 +240,7 @@
     {:else if file.kind === 'contacts'}
       {@const list = file.contacts}
       <div class="calendar">
-        <h2>{list.length === 1 ? list[0].name : `${list.length} contacts`}</h2>
+        <h2>{list.length === 1 ? list[0].name : t('fileViewer.contactCount', { count: list.length })}</h2>
         <ul>
           {#each list as p (p.index)}
             <li class:exists={p.exists}>
@@ -247,7 +257,7 @@
                 <span class="ev">
                   <b>{p.name}</b>
                   {#if p.email || p.organization}<span>{[p.email, p.organization].filter(Boolean).join(' · ')}</span>{/if}
-                  {#if p.exists}<span class="note">Already in your contacts</span>{/if}
+                  {#if p.exists}<span class="note">{t('fileViewer.alreadyInContacts')}</span>{/if}
                 </span>
               </label>
             </li>
@@ -255,22 +265,22 @@
         </ul>
         <footer>
           {#if list.every((p) => p.exists)}
-            <span class="all-there">Everyone here is already in your contacts.</span>
+            <span class="all-there">{t('fileViewer.allAlreadyInContacts')}</span>
             <span class="grow"></span>
-            <button class="btn primary" onclick={onclose}>Close</button>
+            <button class="btn primary" onclick={onclose}>{t('common.close')}</button>
           {:else}
             {#if people.writable.length > 1}
-              <select class="input sel" bind:value={bookId} aria-label="Address book">
+              <select class="input sel" bind:value={bookId} aria-label={t('contacts.addressBook')}>
                 {#each people.writable as b (b.id)}
                   <option value={b.id}>{b.name}</option>
                 {/each}
               </select>
             {/if}
             <span class="grow"></span>
-            <button class="btn" onclick={onclose}>Cancel</button>
+            <button class="btn" onclick={onclose}>{t('common.cancel')}</button>
             <button class="btn primary" disabled={!picked.length || bookId == null || adding} onclick={addContacts}>
               {#if adding}<span class="spin"><Spinner size={14} /></span>{/if}
-              {picked.length === 1 ? 'Add 1 contact' : `Add ${picked.length} contacts`}
+              {t('fileViewer.addContacts', { count: picked.length })}
             </button>
           {/if}
         </footer>
@@ -278,7 +288,7 @@
     {:else}
       {@const c = file}
       <div class="calendar">
-        <h2>{c.name ?? (c.events.length === 1 ? c.events[0].summary || 'Event' : `${c.events.length} events`)}</h2>
+        <h2>{c.name ?? (c.events.length === 1 ? c.events[0].summary || t('fileViewer.untitledEvent') : t('fileViewer.eventCount', { count: c.events.length }))}</h2>
         <ul>
           {#each c.events as e (e.uid)}
             <li class:exists={e.exists}>
@@ -290,10 +300,10 @@
                   onchange={(ev) => toggle(e.uid, (ev.currentTarget as HTMLInputElement).checked)}
                 />
                 <span class="ev">
-                  <b>{e.summary || '(no title)'}</b>
-                  <span>{when(e)}{e.recurring ? ' · repeats' : ''}</span>
+                  <b>{e.summary || t('fileViewer.noTitle')}</b>
+                  <span>{e.recurring ? t('fileViewer.whenRepeats', { when: when(e) }) : when(e)}</span>
                   {#if e.location}<span>{e.location}</span>{/if}
-                  {#if e.exists}<span class="note">Already on your calendar</span>{/if}
+                  {#if e.exists}<span class="note">{t('fileViewer.alreadyOnCalendar')}</span>{/if}
                 </span>
               </label>
             </li>
@@ -301,22 +311,22 @@
         </ul>
         <footer>
           {#if c.events.every((e) => e.exists)}
-            <span class="all-there">Everything here is already on your calendar.</span>
+            <span class="all-there">{t('fileViewer.allAlreadyOnCalendar')}</span>
             <span class="grow"></span>
-            <button class="btn primary" onclick={onclose}>Close</button>
+            <button class="btn primary" onclick={onclose}>{t('common.close')}</button>
           {:else}
             {#if writable.length}
-              <select class="input sel" bind:value={calendarId} aria-label="Calendar">
+              <select class="input sel" bind:value={calendarId} aria-label={t('fileViewer.targetCalendar')}>
                 {#each writable as w (w.id)}
                   <option value={w.id}>{w.name}</option>
                 {/each}
               </select>
             {/if}
             <span class="grow"></span>
-            <button class="btn" onclick={onclose}>Cancel</button>
+            <button class="btn" onclick={onclose}>{t('common.cancel')}</button>
             <button class="btn primary" disabled={!chosen.length || calendarId == null || adding} onclick={addEvents}>
               {#if adding}<span class="spin"><Spinner size={14} /></span>{/if}
-              {chosen.length === 1 ? 'Add 1 event' : `Add ${chosen.length} events`}
+              {t('fileViewer.addEvents', { count: chosen.length })}
             </button>
           {/if}
         </footer>
@@ -479,6 +489,7 @@
   .size {
     color: var(--text-3);
     font-size: var(--text-xs);
+    white-space: nowrap;
   }
   .calendar {
     display: flex;
@@ -548,6 +559,7 @@
     font-size: var(--text-sm);
   }
   .sel {
+    min-width: 0;
     max-width: 220px;
   }
   .spin {

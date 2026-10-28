@@ -1,5 +1,7 @@
 import { api } from '../api';
 import type { CalendarInfo, EditScope, EventInput, ExtractedEvent, Occurrence } from '../api';
+import { t } from '../i18n';
+import { dateFormat } from '../utils/format';
 import { errorMessage, toasts } from './toasts.svelte';
 import { ui } from './ui.svelte';
 
@@ -7,18 +9,18 @@ export type CalView = 'day' | 'week' | 'month' | 'agenda';
 
 export const DAY = 86_400_000;
 
-export function startOfDay(t: number | Date): Date {
-  const d = new Date(t);
+export function startOfDay(at: number | Date): Date {
+  const d = new Date(at);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-export function addDays(t: number | Date, n: number): Date {
-  const d = new Date(t);
+export function addDays(at: number | Date, n: number): Date {
+  const d = new Date(at);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, d.getHours(), d.getMinutes());
 }
 
-export function startOfWeek(t: number | Date, weekStart: number): Date {
-  const d = startOfDay(t);
+export function startOfWeek(at: number | Date, weekStart: number): Date {
+  const d = startOfDay(at);
   const diff = (d.getDay() - weekStart + 7) % 7;
   return addDays(d, -diff);
 }
@@ -86,16 +88,15 @@ class Cal {
 
   title = $derived.by(() => {
     const f = new Date(this.focus);
-    if (this.view === 'month') return f.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-    if (this.view === 'day') return f.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    if (this.view === 'month') return dateFormat({ month: 'long', year: 'numeric' }).format(f);
+    if (this.view === 'day') return dateFormat({ weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(f);
     const [a, b] = this.range;
     const s = new Date(a);
     const e = new Date(b - DAY);
-    if (this.view === 'agenda') return 'Upcoming';
-    if (s.getMonth() === e.getMonth()) return s.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-    if (s.getFullYear() === e.getFullYear())
-      return `${s.toLocaleDateString(undefined, { month: 'short' })} – ${e.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`;
-    return `${s.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })} – ${e.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`;
+    if (this.view === 'agenda') return t('calendar.header.upcoming');
+    if (s.getMonth() === e.getMonth()) return dateFormat({ month: 'long', year: 'numeric' }).format(s);
+    // A week across two months: "Oct – Nov 2026", "Dec 2026 – Jan 2027", in the interface language.
+    return dateFormat({ month: 'short', year: 'numeric' }).formatRange(s, e);
   });
 
   calendarById = $derived(new Map(this.calendars.map((c) => [c.id, c])));
@@ -141,8 +142,8 @@ class Cal {
     this.load();
   }
 
-  goto(t: number) {
-    this.focus = startOfDay(t).getTime();
+  goto(at: number) {
+    this.focus = startOfDay(at).getTime();
     this.load();
   }
 
@@ -183,7 +184,7 @@ class Cal {
     if (!this.calendars.length) await this.loadCalendars();
     const cal = this.defaultCalendar();
     if (!cal) {
-      toasts.error('There is no calendar you can add events to.');
+      toasts.error(t('calendar.toast.noWritableCalendar'));
       return;
     }
     const s = start ?? (() => {
@@ -220,7 +221,7 @@ class Cal {
     if (!this.calendars.length) await this.loadCalendars();
     const c = this.defaultCalendar();
     if (!c) {
-      toasts.error('There is no calendar you can add events to.');
+      toasts.error(t('calendar.toast.noWritableCalendar'));
       return;
     }
     let start: number;
@@ -239,7 +240,7 @@ class Cal {
       if (!(end > start)) end = start + ui.settings.defaultEventMinutes * 60_000;
     }
     if (Number.isNaN(start)) {
-      toasts.error('The event has a date I could not read.');
+      toasts.error(t('calendar.toast.unreadableDate'));
       return;
     }
     this.editor = {
@@ -330,7 +331,7 @@ class Cal {
     this.occurrences = prev.map((x) => (x.key === o.key ? shift(x) : x));
     let scope: EditScope = 'all';
     if (o.isRecurring) {
-      const s = await this.askScope('Move recurring event');
+      const s = await this.askScope(t('calendar.scope.moveTitle'));
       if (!s) {
         this.occurrences = prev;
         return;
@@ -347,14 +348,14 @@ class Cal {
       this.load();
     } catch (e) {
       this.occurrences = prev;
-      toasts.error(`Couldn't move “${o.title}”: ${errorMessage(e)}`);
+      toasts.error(t('calendar.toast.moveFailed', { title: o.title, error: errorMessage(e) }));
     }
   }
 
   async remove(o: Occurrence) {
     let scope: EditScope = 'all';
     if (o.isRecurring) {
-      const s = await this.askScope('Delete recurring event');
+      const s = await this.askScope(t('calendar.scope.deleteTitle'));
       if (!s) return;
       scope = s;
     }
@@ -364,7 +365,7 @@ class Cal {
     );
     try {
       await api.calendar.remove(o.eventId, o.recurrenceId, scope);
-      toasts.show('Event deleted');
+      toasts.show(t('calendar.toast.deleted'));
       this.load();
     } catch (e) {
       this.occurrences = prev;
@@ -376,10 +377,10 @@ class Cal {
     try {
       if (state.eventId == null) {
         await api.calendar.create($state.snapshot(state.input) as EventInput);
-        toasts.show('Event created', { kind: 'success' });
+        toasts.show(t('calendar.toast.created'), { kind: 'success' });
       } else {
         await api.calendar.update(state.eventId, state.recurrenceId, scope, $state.snapshot(state.input) as EventInput);
-        toasts.show('Event saved', { kind: 'success' });
+        toasts.show(t('calendar.toast.saved'), { kind: 'success' });
       }
       this.editor = null;
       this.load();

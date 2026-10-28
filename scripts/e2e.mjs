@@ -89,6 +89,17 @@ await step('settings open and close', async () => {
   await page.locator('.window[role="dialog"]').waitFor({ state: 'detached', timeout: 5000 });
 });
 
+await step('the interface switches language and back', async () => {
+  await page.keyboard.press('Control+,');
+  await visible('.window[role="dialog"]');
+  // The first select on the General tab is the language; German loads as its own chunk.
+  await page.locator('.window select').first().selectOption('de');
+  await page.locator('.window .tab', { hasText: 'Allgemein' }).waitFor({ timeout: 5000 });
+  await page.locator('.window select').first().selectOption('en');
+  await page.locator('.window .tab', { hasText: 'General' }).waitFor({ timeout: 5000 });
+  await page.keyboard.press('Escape');
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

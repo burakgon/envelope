@@ -1,5 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { t } from '../../i18n';
+  import { timeOf } from '../../utils/format';
   import Popover from '../Popover.svelte';
 
   let {
@@ -20,18 +22,21 @@
     return h * 60 + m;
   };
   const fromMin = (m: number) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`;
-  const fmt = (m: number) => new Date(2000, 0, 1, Math.floor(m / 60), m % 60).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const fmt = (m: number) => (Number.isFinite(m) ? timeOf(new Date(2000, 0, 1, Math.floor(m / 60), m % 60)) : '');
 
   function duration(mins: number): string {
-    if (mins < 60) return `${mins} min`;
-    const h = mins / 60;
-    return `${Number.isInteger(h) ? h : h.toFixed(1)} ${h === 1 ? 'hr' : 'hrs'}`;
+    if (mins < 60) return t('calendar.picker.durationMinutes', { count: mins });
+    return t('calendar.picker.durationHours', { count: mins / 60 });
   }
 
-  /** Accepts "9", "930", "9:30", "9.30pm", "21:30", "9 am", ... */
+  /** Accepts "9", "930", "9:30", "9.30pm", "21:30", "9 am", "9 a.m.", ... */
   function parse(text: string): number | null {
-    const t = text.trim().toLowerCase().replace(/\s+/g, '');
-    const m = t.match(/^(\d{1,2})(?:[:.h]?(\d{2}))?(a|am|p|pm)?$/);
+    const s = text
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '')
+      .replace(/([ap])\.m\.?$/, '$1m');
+    const m = s.match(/^(\d{1,2})(?:[:.h]?(\d{2}))?(a|am|p|pm)?$/);
     if (!m) return null;
     let h = Number(m[1]);
     const min = Number(m[2] ?? 0);
@@ -103,7 +108,8 @@
     } else if (e.key === 'Enter') {
       e.preventDefault();
       e.stopPropagation();
-      if (open && active >= 0 && parse(text) === toMin(value)) choose(options[active].m);
+      // Untouched text (in whatever format the language uses) picks the highlighted option.
+      if (open && active >= 0 && (text === fmt(toMin(value)) || parse(text) === toMin(value))) choose(options[active].m);
       else {
         commit();
         open = null;
@@ -128,7 +134,7 @@
   onblur={commit}
   onkeydown={key}
   spellcheck="false"
-  aria-label="Time"
+  aria-label={t('calendar.picker.time')}
 />
 
 {#if open}

@@ -1,7 +1,8 @@
 <script lang="ts">
   import Popover from './Popover.svelte';
-  import { mail, roleLabels } from '../stores/mail.svelte';
+  import { mail, roleLabel } from '../stores/mail.svelte';
   import { Check, Folder, Search, Tag } from '../icons';
+  import { t } from '../i18n';
 
   let { x, y, ids, labels = false, onclose }: { x: number; y: number; ids: number[]; labels?: boolean; onclose: () => void } = $props();
 
@@ -9,12 +10,12 @@
   let input: HTMLInputElement | undefined = $state();
   let hi = $state(0);
 
-  const accountIds = $derived(new Set(mail.items.filter((t) => ids.includes(t.id)).map((t) => t.accountId)));
+  const accountIds = $derived(new Set(mail.items.filter((th) => ids.includes(th.id)).map((th) => th.accountId)));
   const options = $derived(
     mail.folders
       .filter((f) => accountIds.size === 0 || accountIds.has(f.accountId))
       .filter((f) => (labels ? f.kind === 'label' : f.selectable && f.role !== 'drafts' && f.role !== 'sent' && f.role !== 'starred' && f.role !== 'important'))
-      .filter((f) => !q || f.path.toLowerCase().includes(q.toLowerCase()) || (f.role && roleLabels[f.role].toLowerCase().includes(q.toLowerCase())))
+      .filter((f) => !q || f.path.toLowerCase().includes(q.toLowerCase()) || (f.role && roleLabel(f.role).toLowerCase().includes(q.toLowerCase())))
       .slice(0, 40),
   );
 
@@ -33,7 +34,7 @@
       : f.role === 'junk' ? { kind: 'junk' as const }
       : f.role === 'archive' || f.role === 'all' ? { kind: 'archive' as const }
       : { kind: 'folder' as const, id: f.id };
-    mail.moveTo(target, ids, `Moved to ${f.role ? roleLabels[f.role] : f.name}`);
+    mail.moveTo(target, ids, f.role ? roleLabel(f.role) : f.name);
   }
 
   function key(e: KeyboardEvent) {
@@ -53,23 +54,23 @@
 <Popover {x} {y} {onclose} width={260}>
   <div class="search">
     <Search size={14} />
-    <input bind:this={input} bind:value={q} oninput={() => (hi = 0)} onkeydown={key} placeholder={labels ? 'Label as…' : 'Move to…'} />
+    <input bind:this={input} bind:value={q} oninput={() => (hi = 0)} onkeydown={key} placeholder={labels ? t('moveMenu.labelAs') : t('moveMenu.moveTo')} />
   </div>
   <div class="items">
     {#each options as f, i (f.id)}
-      {@const has = labels && mail.items.filter((t) => ids.includes(t.id)).every((t) => t.folderIds.includes(f.id))}
+      {@const has = labels && mail.items.filter((th) => ids.includes(th.id)).every((th) => th.folderIds.includes(f.id))}
       <button class="menu-item" class:highlighted={i === hi} onmouseenter={() => (hi = i)} onclick={() => pick(i)}>
         {#if f.kind === 'label'}
           <span class="sw" style:background={f.color ?? 'var(--text-3)'}></span>
         {:else}
           <Folder size={15} />
         {/if}
-        <span class="truncate">{f.role ? roleLabels[f.role] : f.path}</span>
+        <span class="truncate">{f.role ? roleLabel(f.role) : f.path}</span>
         {#if mail.multiAccount}<span class="hint truncate">{mail.accountById.get(f.accountId)?.label ?? ''}</span>{/if}
         {#if has}<Check size={14} />{/if}
       </button>
     {:else}
-      <div class="empty"><Tag size={14} /> Nothing matches</div>
+      <div class="empty"><Tag size={14} /> {t('moveMenu.noMatches')}</div>
     {/each}
   </div>
 </Popover>

@@ -1,14 +1,15 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
   import { Editor } from '@tiptap/core';
   import StarterKit from '@tiptap/starter-kit';
   import Image from '@tiptap/extension-image';
   import { Placeholder } from '@tiptap/extensions';
   import { Bold, Code, Italic, Link, List, ListOrdered, Quote, Strikethrough, Underline, Undo, Redo, Type } from '../icons';
+  import { t } from '../i18n';
 
   let {
     html,
-    placeholder = 'Write your message…',
+    placeholder,
     onupdate,
     focus = 0,
     showToolbar = false,
@@ -29,6 +30,7 @@
   let el: HTMLDivElement | undefined = $state();
   let editor: Editor | null = null;
   let tick = $state(0);
+  const placeholderText = $derived(placeholder ?? t('editor.placeholder'));
 
   onMount(() => {
     editor = new Editor({
@@ -40,7 +42,7 @@
           heading: { levels: [1, 2, 3] },
         }),
         Image.configure({ inline: true, allowBase64: true }),
-        Placeholder.configure({ placeholder }),
+        Placeholder.configure({ placeholder: () => placeholderText }),
       ],
       editorProps: {
         attributes: { class: 'prose', spellcheck: 'true' },
@@ -81,6 +83,15 @@
 
   onDestroy(() => editor?.destroy());
 
+  // Redraw the placeholder when its text (or the interface language) changes.
+  // Untracked: the transaction bumps `tick`, which must not re-run this effect.
+  $effect(() => {
+    void placeholderText;
+    untrack(() => {
+      if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr);
+    });
+  });
+
   $effect(() => {
     if (focus && editor) {
       // Put the caret at the start, above any signature or quote.
@@ -91,7 +102,7 @@
   function setLink() {
     if (!editor) return;
     const prev = editor.getAttributes('link').href as string | undefined;
-    const url = prompt('Link URL', prev ?? 'https://');
+    const url = prompt(t('editor.linkUrl'), prev ?? 'https://');
     if (url === null) return;
     if (url === '' || url === 'https://') editor.chain().focus().extendMarkRange('link').unsetLink().run();
     else editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
@@ -102,30 +113,33 @@
     return editor?.isActive(name, attrs) ?? false;
   };
 
-  const tools = [
-    { icon: Bold, title: 'Bold (Ctrl+B)', active: () => is('bold'), run: () => editor?.chain().focus().toggleBold().run() },
-    { icon: Italic, title: 'Italic (Ctrl+I)', active: () => is('italic'), run: () => editor?.chain().focus().toggleItalic().run() },
-    { icon: Underline, title: 'Underline (Ctrl+U)', active: () => is('underline'), run: () => editor?.chain().focus().toggleUnderline().run() },
-    { icon: Strikethrough, title: 'Strikethrough', active: () => is('strike'), run: () => editor?.chain().focus().toggleStrike().run() },
-    { icon: Type, title: 'Heading', active: () => is('heading'), run: () => editor?.chain().focus().toggleHeading({ level: 2 }).run() },
-    { icon: Link, title: 'Link (Ctrl+K)', active: () => is('link'), run: setLink },
-    { icon: List, title: 'Bulleted list', active: () => is('bulletList'), run: () => editor?.chain().focus().toggleBulletList().run() },
-    { icon: ListOrdered, title: 'Numbered list', active: () => is('orderedList'), run: () => editor?.chain().focus().toggleOrderedList().run() },
-    { icon: Quote, title: 'Quote', active: () => is('blockquote'), run: () => editor?.chain().focus().toggleBlockquote().run() },
-    { icon: Code, title: 'Code', active: () => is('code'), run: () => editor?.chain().focus().toggleCode().run() },
-  ];
+  /** "Ctrl+B" */
+  const ctrl = (key: string) => `${t('keys.ctrl')}+${key}`;
+
+  const tools = $derived([
+    { icon: Bold, title: t('editor.bold', { shortcut: ctrl('B') }), active: () => is('bold'), run: () => editor?.chain().focus().toggleBold().run() },
+    { icon: Italic, title: t('editor.italic', { shortcut: ctrl('I') }), active: () => is('italic'), run: () => editor?.chain().focus().toggleItalic().run() },
+    { icon: Underline, title: t('editor.underline', { shortcut: ctrl('U') }), active: () => is('underline'), run: () => editor?.chain().focus().toggleUnderline().run() },
+    { icon: Strikethrough, title: t('editor.strikethrough'), active: () => is('strike'), run: () => editor?.chain().focus().toggleStrike().run() },
+    { icon: Type, title: t('editor.heading'), active: () => is('heading'), run: () => editor?.chain().focus().toggleHeading({ level: 2 }).run() },
+    { icon: Link, title: t('editor.link', { shortcut: ctrl('K') }), active: () => is('link'), run: setLink },
+    { icon: List, title: t('editor.bulletedList'), active: () => is('bulletList'), run: () => editor?.chain().focus().toggleBulletList().run() },
+    { icon: ListOrdered, title: t('editor.numberedList'), active: () => is('orderedList'), run: () => editor?.chain().focus().toggleOrderedList().run() },
+    { icon: Quote, title: t('editor.quote'), active: () => is('blockquote'), run: () => editor?.chain().focus().toggleBlockquote().run() },
+    { icon: Code, title: t('editor.code'), active: () => is('code'), run: () => editor?.chain().focus().toggleCode().run() },
+  ]);
 </script>
 
 {#if showToolbar}
   <div class="toolbar" role="toolbar">
-    {#each tools as t (t.title)}
-      <button class="icon-btn sm" class:active={t.active()} title={t.title} onmousedown={(e) => e.preventDefault()} onclick={t.run}>
-        <t.icon size={15} />
+    {#each tools as tool (tool.icon)}
+      <button class="icon-btn sm" class:active={tool.active()} title={tool.title} onmousedown={(e) => e.preventDefault()} onclick={tool.run}>
+        <tool.icon size={15} />
       </button>
     {/each}
     <span class="sep"></span>
-    <button class="icon-btn sm" title="Undo" onmousedown={(e) => e.preventDefault()} onclick={() => editor?.chain().focus().undo().run()}><Undo size={15} /></button>
-    <button class="icon-btn sm" title="Redo" onmousedown={(e) => e.preventDefault()} onclick={() => editor?.chain().focus().redo().run()}><Redo size={15} /></button>
+    <button class="icon-btn sm" title={t('common.undo')} onmousedown={(e) => e.preventDefault()} onclick={() => editor?.chain().focus().undo().run()}><Undo size={15} /></button>
+    <button class="icon-btn sm" title={t('editor.redo')} onmousedown={(e) => e.preventDefault()} onclick={() => editor?.chain().focus().redo().run()}><Redo size={15} /></button>
   </div>
 {/if}
 <div class="editor" bind:this={el}></div>

@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import type { EditScope } from '../../api';
   import { cal, ymd } from '../../stores/calendar.svelte';
+  import { t } from '../../i18n';
+  import { dateFormat } from '../../utils/format';
   import RecipientInput from '../RecipientInput.svelte';
   import Toggle from '../settings/Toggle.svelte';
   import DatePicker from './DatePicker.svelte';
@@ -31,22 +33,29 @@
   let prevStart = input.start;
   let prevStartDate = input.allDay ? (input.startDate ?? dateOf(input.start)) : dateOf(input.start);
 
-  const weekday = $derived(new Date(`${startDate}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long' }));
+  const weekday = $derived(dateFormat({ weekday: 'long' }).format(new Date(`${startDate}T00:00:00`)));
   const dayCode = $derived(['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date(`${startDate}T00:00:00`).getDay()]);
   const repeatOptions = $derived([
-    { value: '', label: 'Does not repeat' },
-    { value: 'FREQ=DAILY', label: 'Every day' },
-    { value: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', label: 'Every weekday' },
-    { value: `FREQ=WEEKLY;BYDAY=${dayCode}`, label: `Weekly on ${weekday}` },
-    { value: `FREQ=WEEKLY;INTERVAL=2;BYDAY=${dayCode}`, label: `Every 2 weeks on ${weekday}` },
-    { value: 'FREQ=MONTHLY', label: `Monthly on day ${new Date(`${startDate}T00:00:00`).getDate()}` },
-    { value: 'FREQ=YEARLY', label: 'Every year' },
+    { value: '', label: t('calendar.recurrence.none') },
+    { value: 'FREQ=DAILY', label: t('calendar.recurrence.everyDay') },
+    { value: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', label: t('calendar.recurrence.everyWeekday') },
+    { value: `FREQ=WEEKLY;BYDAY=${dayCode}`, label: t('calendar.recurrence.weeklyOn', { count: 1, days: weekday }) },
+    { value: `FREQ=WEEKLY;INTERVAL=2;BYDAY=${dayCode}`, label: t('calendar.recurrence.weeklyOn', { count: 2, days: weekday }) },
+    { value: 'FREQ=MONTHLY', label: t('calendar.recurrence.monthlyOnDay', { day: new Date(`${startDate}T00:00:00`).getDate() }) },
+    { value: 'FREQ=YEARLY', label: t('calendar.recurrence.everyYear') },
   ]);
   let repeat = $state(input.rrule ?? '');
   const customRepeat = $derived(!!repeat && !repeatOptions.some((o) => o.value === repeat));
 
   const alarmChoices = [0, 5, 10, 15, 30, 60, 120, 1440];
-  const alarmLabel = (m: number) => (m === 0 ? 'At start' : m < 60 ? `${m} min before` : m < 1440 ? `${m / 60} h before` : `${m / 1440} day before`);
+  const alarmLabel = (m: number) =>
+    m === 0
+      ? t('calendar.reminder.atStart')
+      : m < 60
+        ? t('calendar.reminder.minutesBefore', { count: m })
+        : m < 1440
+          ? t('calendar.reminder.hoursBefore', { count: m / 60 })
+          : t('calendar.reminder.daysBefore', { count: m / 1440 });
 
   // Moving the start keeps the event's length.
   function onStartChange() {
@@ -94,7 +103,7 @@
     }
     let scope: EditScope = 'all';
     if (st.eventId != null && st.isRecurring) {
-      const s = await cal.askScope('Save recurring event');
+      const s = await cal.askScope(t('calendar.scope.saveTitle'));
       if (!s) return;
       scope = s;
     }
@@ -120,23 +129,23 @@
     return mail.accounts.find((a) => a.id === accountId)?.email ?? mail.accounts[0]?.email ?? null;
   });
 
-  /** Moves the meeting to `t`, keeping its length. */
-  function moveTo(t: number) {
+  /** Moves the meeting to `at`, keeping its length. */
+  function moveTo(at: number) {
     const length = slotEnd - slotStart;
-    startDate = dateOf(t);
-    startTime = timeOf(t);
-    endDate = dateOf(t + length);
-    endTime = timeOf(t + length);
+    startDate = dateOf(at);
+    startTime = timeOf(at);
+    endDate = dateOf(at + length);
+    endTime = timeOf(at + length);
     prevStartDate = startDate;
   }
 </script>
 
 <div class="backdrop" role="presentation" onclick={() => (cal.editor = null)}>
-  <div class="editor" role="dialog" aria-label="Event" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key} style:--c={calendarColor}>
+  <div class="editor" role="dialog" aria-label={t('calendar.editor.dialogLabel')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key} style:--c={calendarColor}>
     <header>
       <span class="sw"></span>
-      <input bind:this={title} class="title" placeholder="Add title" bind:value={input.summary} />
-      <button class="icon-btn" aria-label="Close" onclick={() => (cal.editor = null)}><X size={18} /></button>
+      <input bind:this={title} class="title" placeholder={t('calendar.editor.titlePlaceholder')} bind:value={input.summary} />
+      <button class="icon-btn" aria-label={t('common.close')} onclick={() => (cal.editor = null)}><X size={18} /></button>
     </header>
 
     <div class="rows">
@@ -150,15 +159,15 @@
             {#if !input.allDay}<TimePicker bind:value={endTime} after={endDate === startDate ? startTime : null} />{/if}
             <DatePicker bind:value={endDate} onchange={onEndChange} />
           </div>
-          <label class="inline"><Toggle checked={input.allDay} onchange={(v) => (input.allDay = v)} /> All day</label>
+          <label class="inline"><Toggle checked={input.allDay} onchange={(v) => (input.allDay = v)} /> {t('calendar.editor.allDay')}</label>
         </div>
       </div>
 
       <div class="row">
         <Repeat size={17} />
         <select class="input" bind:value={repeat}>
-          {#each repeatOptions as o (o.label)}<option value={o.value}>{o.label}</option>{/each}
-          {#if customRepeat}<option value={repeat}>Custom: {repeat}</option>{/if}
+          {#each repeatOptions as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+          {#if customRepeat}<option value={repeat}>{t('calendar.recurrence.custom', { rule: repeat })}</option>{/if}
         </select>
       </div>
 
@@ -171,7 +180,7 @@
 
       <div class="row">
         <MapPin size={17} />
-        <input class="input" placeholder="Add location" bind:value={input.location} />
+        <input class="input" placeholder={t('calendar.editor.locationPlaceholder')} bind:value={input.location} />
       </div>
 
       {#if st.eventId == null && ['google', 'graph'].includes(cal.calendarById.get(input.calendarId)?.kind ?? '')}
@@ -179,7 +188,7 @@
           <Video size={17} />
           <label class="inline">
             <Toggle checked={!!input.addConference} onchange={(v) => (input.addConference = v)} />
-            Add {cal.calendarById.get(input.calendarId)?.kind === 'google' ? 'Google Meet' : 'Microsoft Teams'} video call
+            {t('calendar.editor.addVideoCall', { service: cal.calendarById.get(input.calendarId)?.kind === 'google' ? 'Google Meet' : 'Microsoft Teams' })}
           </label>
         </div>
       {/if}
@@ -187,7 +196,7 @@
       <div class="row people">
         <Users size={17} />
         <div class="grow">
-          <RecipientInput label="Guests" bind:value={input.attendees} />
+          <RecipientInput label={t('calendar.editor.guests')} bind:value={input.attendees} />
           {#if !input.allDay && input.attendees.length && slotEnd > slotStart}
             <AvailabilityStrip
               calendarId={input.calendarId}
@@ -205,10 +214,10 @@
         <Bell size={17} />
         <div class="alarms">
           {#each input.alarms as m, i (i)}
-            <span class="alarm">{alarmLabel(m)}<button aria-label="Remove reminder" onclick={() => (input.alarms = input.alarms.filter((_, j) => j !== i))}><X size={11} /></button></span>
+            <span class="alarm">{alarmLabel(m)}<button aria-label={t('calendar.editor.removeReminder')} onclick={() => (input.alarms = input.alarms.filter((_, j) => j !== i))}><X size={11} /></button></span>
           {/each}
           <select class="input add" onchange={(e) => { const v = Number((e.currentTarget as HTMLSelectElement).value); if (!Number.isNaN(v) && !input.alarms.includes(v)) input.alarms = [...input.alarms, v]; (e.currentTarget as HTMLSelectElement).value = ''; }}>
-            <option value="">Add reminder…</option>
+            <option value="">{t('calendar.editor.addReminder')}</option>
             {#each alarmChoices as m (m)}<option value={m}>{alarmLabel(m)}</option>{/each}
           </select>
         </div>
@@ -216,15 +225,15 @@
 
       <div class="row">
         <AlignLeft size={17} />
-        <textarea class="input area" rows="4" placeholder="Add description" bind:value={input.description}></textarea>
+        <textarea class="input area" rows="4" placeholder={t('calendar.editor.descriptionPlaceholder')} bind:value={input.description}></textarea>
       </div>
     </div>
 
     <footer>
-      <label class="inline busy"><Toggle checked={!input.transparent} onchange={(v) => (input.transparent = !v)} /> Show as busy</label>
+      <label class="inline busy"><Toggle checked={!input.transparent} onchange={(v) => (input.transparent = !v)} /> {t('calendar.editor.showAsBusy')}</label>
       <span class="grow"></span>
-      <button class="btn" onclick={() => (cal.editor = null)}>Cancel</button>
-      <button class="btn primary" onclick={save}>{st.eventId == null ? 'Create event' : 'Save'}</button>
+      <button class="btn" onclick={() => (cal.editor = null)}>{t('common.cancel')}</button>
+      <button class="btn primary" onclick={save}>{st.eventId == null ? t('calendar.editor.create') : t('common.save')}</button>
     </footer>
   </div>
 </div>
@@ -360,6 +369,7 @@
   }
   footer {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     padding: 12px 18px 18px 22px;

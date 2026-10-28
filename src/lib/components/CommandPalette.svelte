@@ -4,20 +4,32 @@
   import type { ContactSummary, Occurrence, ThreadSummary } from '../api';
   import Avatar from './Avatar.svelte';
   import { compose } from '../stores/compose.svelte';
-  import { mail, roleLabels } from '../stores/mail.svelte';
+  import { mail, roleLabel } from '../stores/mail.svelte';
   import { ui } from '../stores/ui.svelte';
   import { cal } from '../stores/calendar.svelte';
   import { people } from '../stores/contacts.svelte';
   import type { CalView } from '../stores/calendar.svelte';
-  import { listDate, displayName } from '../utils/format';
+  import { listDate, displayName, dateFormat, timeOf } from '../utils/format';
+  import { intlLocale, t, tParts, type MessageKey } from '../i18n';
   import {
     Archive, BookUser, Calendar, CalendarPlus, Compose, UserPlus, Folder, Inbox, Keyboard, Mail, Moon, Refresh, Search, Settings, Sparkles, Star, Sun, Tag, Trash, Clock, Send, File, Mails,
   } from '../icons';
 
+  type Group = 'actions' | 'goTo' | 'help' | 'calendar' | 'conversation' | 'folders';
+
+  const groupLabels: Record<Group, MessageKey> = {
+    actions: 'palette.groupActions',
+    goTo: 'palette.groupGoTo',
+    help: 'palette.groupHelp',
+    calendar: 'palette.groupCalendar',
+    conversation: 'palette.groupConversation',
+    folders: 'palette.groupFolders',
+  };
+
   interface Command {
     id: string;
     label: string;
-    group: string;
+    group: Group;
     icon: typeof Inbox;
     hint?: string;
     keywords?: string;
@@ -32,44 +44,52 @@
   let threads = $state<ThreadSummary[]>([]);
   let listEl: HTMLDivElement | undefined = $state();
 
-  const base: Command[] = [
-    { id: 'compose', label: 'New message', group: 'Actions', icon: Compose, hint: 'C', run: () => compose.new() },
-    { id: 'search', label: 'Search mail', group: 'Actions', icon: Search, hint: '/', run: () => (ui.focusSearch++) },
-    { id: 'sync', label: 'Sync all accounts', group: 'Actions', icon: Refresh, run: () => api.syncNow(null) },
-    { id: 'read-all', label: 'Mark all as read', group: 'Actions', icon: Mail, run: () => mail.markAllRead() },
-    { id: 'theme', label: ui.isDark ? 'Switch to light theme' : 'Switch to dark theme', group: 'Actions', icon: ui.isDark ? Sun : Moon, keywords: 'dark light theme appearance', run: () => ui.set('theme', ui.isDark ? 'light' : 'dark') },
-    { id: 'calendar', label: 'Open calendar', group: 'Go to', icon: Calendar, hint: 'G C', run: () => (ui.view = 'calendar') },
-    { id: 'inbox', label: 'Inbox', group: 'Go to', icon: Inbox, hint: 'G I', run: () => mail.setMailbox({ kind: 'unified', role: 'inbox' }) },
-    { id: 'starred', label: 'Starred', group: 'Go to', icon: Star, hint: 'G S', run: () => mail.setMailbox({ kind: 'starred' }) },
-    { id: 'snoozed', label: 'Snoozed', group: 'Go to', icon: Clock, run: () => mail.setMailbox({ kind: 'snoozed' }) },
-    { id: 'drafts', label: 'Drafts', group: 'Go to', icon: File, hint: 'G D', run: () => mail.setMailbox({ kind: 'unified', role: 'drafts' }) },
-    { id: 'sent', label: 'Sent', group: 'Go to', icon: Send, hint: 'G T', run: () => mail.setMailbox({ kind: 'unified', role: 'sent' }) },
-    { id: 'all', label: 'All Mail', group: 'Go to', icon: Mails, hint: 'G A', run: () => mail.setMailbox({ kind: 'everything' }) },
-    { id: 'settings', label: 'Settings', group: 'Go to', icon: Settings, hint: 'Ctrl ,', run: () => ui.open('settings') },
-    { id: 'ai-settings', label: 'AI settings', group: 'Go to', icon: Sparkles, keywords: 'openrouter openai model key', run: () => ui.open('settings', 'ai') },
-    { id: 'shortcuts', label: 'Keyboard shortcuts', group: 'Help', icon: Keyboard, hint: '?', run: () => ui.open('shortcuts') },
-    { id: 'contacts', label: 'Contacts', group: 'Go to', icon: BookUser, hint: 'G P', keywords: 'people address book', run: () => (ui.view = 'contacts') },
-    { id: 'new-contact', label: 'New contact', group: 'Actions', icon: UserPlus, searchOnly: true, keywords: 'person add address book', run: () => { ui.view = 'contacts'; people.init().then(() => people.newContact()); } },
-    { id: 'new-event', label: 'New event', group: 'Calendar', icon: CalendarPlus, keywords: 'meeting appointment schedule', run: () => { ui.view = 'calendar'; cal.newEvent(); } },
-    { id: 'cal-today', label: 'Calendar: today', group: 'Calendar', icon: Calendar, searchOnly: true, run: () => { ui.view = 'calendar'; cal.today(); } },
-    ...(['day', 'week', 'month', 'agenda'] as CalView[]).map((v) => ({
+  const viewLabels: Record<CalView, MessageKey> = {
+    day: 'palette.calendarDayView',
+    week: 'palette.calendarWeekView',
+    month: 'palette.calendarMonthView',
+    agenda: 'palette.calendarAgendaView',
+  };
+
+  // Keywords: synonyms in the interface language, then the English ones so English searches work everywhere.
+  const base = $derived<Command[]>([
+    { id: 'compose', label: t('palette.newMessage'), group: 'actions', icon: Compose, hint: 'C', run: () => compose.new() },
+    { id: 'search', label: t('palette.searchMail'), group: 'actions', icon: Search, hint: '/', run: () => (ui.focusSearch++) },
+    { id: 'sync', label: t('palette.syncAll'), group: 'actions', icon: Refresh, run: () => api.syncNow(null) },
+    { id: 'read-all', label: t('palette.markAllRead'), group: 'actions', icon: Mail, run: () => mail.markAllRead() },
+    { id: 'theme', label: ui.isDark ? t('palette.lightTheme') : t('palette.darkTheme'), group: 'actions', icon: ui.isDark ? Sun : Moon, keywords: `${t('palette.kw.theme')} dark light theme appearance`, run: () => ui.set('theme', ui.isDark ? 'light' : 'dark') },
+    { id: 'calendar', label: t('palette.openCalendar'), group: 'goTo', icon: Calendar, hint: 'G C', run: () => (ui.view = 'calendar') },
+    { id: 'inbox', label: t('mailbox.inbox'), group: 'goTo', icon: Inbox, hint: 'G I', run: () => mail.setMailbox({ kind: 'unified', role: 'inbox' }) },
+    { id: 'starred', label: t('mailbox.starred'), group: 'goTo', icon: Star, hint: 'G S', run: () => mail.setMailbox({ kind: 'starred' }) },
+    { id: 'snoozed', label: t('mailbox.snoozed'), group: 'goTo', icon: Clock, run: () => mail.setMailbox({ kind: 'snoozed' }) },
+    { id: 'drafts', label: t('mailbox.drafts'), group: 'goTo', icon: File, hint: 'G D', run: () => mail.setMailbox({ kind: 'unified', role: 'drafts' }) },
+    { id: 'sent', label: t('mailbox.sent'), group: 'goTo', icon: Send, hint: 'G T', run: () => mail.setMailbox({ kind: 'unified', role: 'sent' }) },
+    { id: 'all', label: t('mailbox.all'), group: 'goTo', icon: Mails, hint: 'G A', run: () => mail.setMailbox({ kind: 'everything' }) },
+    { id: 'settings', label: t('palette.settings'), group: 'goTo', icon: Settings, hint: `${t('keys.ctrl')} ,`, run: () => ui.open('settings') },
+    { id: 'ai-settings', label: t('palette.aiSettings'), group: 'goTo', icon: Sparkles, keywords: `${t('palette.kw.aiSettings')} openrouter openai model key`, run: () => ui.open('settings', 'ai') },
+    { id: 'shortcuts', label: t('palette.shortcuts'), group: 'help', icon: Keyboard, hint: '?', run: () => ui.open('shortcuts') },
+    { id: 'contacts', label: t('palette.contacts'), group: 'goTo', icon: BookUser, hint: 'G P', keywords: `${t('palette.kw.contacts')} people address book`, run: () => (ui.view = 'contacts') },
+    { id: 'new-contact', label: t('palette.newContact'), group: 'actions', icon: UserPlus, searchOnly: true, keywords: `${t('palette.kw.newContact')} person add address book`, run: () => { ui.view = 'contacts'; people.init().then(() => people.newContact()); } },
+    { id: 'new-event', label: t('palette.newEvent'), group: 'calendar', icon: CalendarPlus, keywords: `${t('palette.kw.newEvent')} meeting appointment schedule`, run: () => { ui.view = 'calendar'; cal.newEvent(); } },
+    { id: 'cal-today', label: t('palette.calendarToday'), group: 'calendar', icon: Calendar, searchOnly: true, run: () => { ui.view = 'calendar'; cal.today(); } },
+    ...(['day', 'week', 'month', 'agenda'] as CalView[]).map((v): Command => ({
       id: `cal-${v}`,
-      label: `Calendar: ${v} view`,
-      group: 'Calendar',
+      label: t(viewLabels[v]),
+      group: 'calendar',
       icon: Calendar,
       searchOnly: true,
       run: () => { ui.view = 'calendar'; cal.setView(v); },
     })),
-    { id: 'cal-settings', label: 'Calendar settings', group: 'Go to', icon: Settings, keywords: 'week start reminder default', searchOnly: true, run: () => ui.open('settings', 'calendar') },
-  ];
+    { id: 'cal-settings', label: t('palette.calendarSettings'), group: 'goTo', icon: Settings, keywords: `${t('palette.kw.calendarSettings')} week start reminder default`, searchOnly: true, run: () => ui.open('settings', 'calendar') },
+  ]);
 
   const selectionCommands = $derived<Command[]>(
     mail.targets().length
       ? [
-          { id: 'archive', label: 'Archive conversation', group: 'Conversation', icon: Archive, hint: 'E', run: () => mail.archive() },
-          { id: 'trash', label: 'Delete conversation', group: 'Conversation', icon: Trash, hint: '#', run: () => mail.trash() },
-          { id: 'star', label: 'Star / unstar', group: 'Conversation', icon: Star, hint: 'S', run: () => mail.toggleStar() },
-          { id: 'unread', label: 'Mark as read / unread', group: 'Conversation', icon: Mail, hint: 'U', run: () => mail.toggleRead() },
+          { id: 'archive', label: t('palette.archiveConversation'), group: 'conversation', icon: Archive, hint: 'E', run: () => mail.archive() },
+          { id: 'trash', label: t('palette.deleteConversation'), group: 'conversation', icon: Trash, hint: '#', run: () => mail.trash() },
+          { id: 'star', label: t('palette.toggleStar'), group: 'conversation', icon: Star, hint: 'S', run: () => mail.toggleStar() },
+          { id: 'unread', label: t('palette.toggleRead'), group: 'conversation', icon: Mail, hint: 'U', run: () => mail.toggleRead() },
         ]
       : [],
   );
@@ -79,20 +99,30 @@
       .filter((f) => f.selectable || f.kind === 'label')
       .map((f) => {
         const a = mail.accountById.get(f.accountId);
-        const name = f.role ? roleLabels[f.role] : f.path;
+        const name = f.role ? roleLabel(f.role) : f.path;
         return {
           id: `folder-${f.id}`,
           label: mail.multiAccount ? `${name} — ${a?.label ?? a?.email ?? ''}` : name,
-          group: 'Folders',
+          group: 'folders',
           icon: f.kind === 'label' ? Tag : Folder,
           run: () => mail.setMailbox({ kind: 'folder', id: f.id }),
         };
       }),
   );
 
+  /** Lowercase without accents ("Ç" → "c", "ı" → "i", "ł" → "l"), so a search matches however it is typed. */
+  function fold(text: string): string {
+    return text
+      .toLocaleLowerCase(intlLocale())
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/ı/g, 'i')
+      .replace(/ł/g, 'l');
+  }
+
   function score(c: Command, query: string): number {
-    const hay = `${c.label} ${c.keywords ?? ''}`.toLowerCase();
-    const s = query.toLowerCase();
+    const hay = fold(`${c.label} ${c.keywords ?? ''}`);
+    const s = fold(query);
     if (hay.startsWith(s)) return 3;
     if (hay.split(/\s+/).some((w) => w.startsWith(s))) return 2;
     if (hay.includes(s)) return 1;
@@ -116,11 +146,11 @@
   // Upcoming (and recent) events, searchable by title and place.
   let upcoming = $state<Occurrence[]>([]);
   const events = $derived.by(() => {
-    const text = q.trim().toLowerCase();
+    const text = fold(q.trim());
     if (text.length < 2) return [];
     const now = Date.now();
     return upcoming
-      .filter((o) => o.title.toLowerCase().includes(text) || o.location?.toLowerCase().includes(text))
+      .filter((o) => fold(o.title).includes(text) || (o.location != null && fold(o.location).includes(text)))
       .sort((a, b) => Number(a.end < now) - Number(b.end < now) || Math.abs(a.start - now) - Math.abs(b.start - now))
       // One row per series: its nearest occurrence.
       .filter((o, i, list) => list.findIndex((x) => x.eventId === o.eventId) === i)
@@ -211,8 +241,8 @@
 
   function eventWhen(o: Occurrence): string {
     const d = new Date(o.allDay && o.startDate ? `${o.startDate}T00:00:00` : o.start);
-    const day = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-    return o.allDay ? day : `${day}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+    const day = dateFormat({ weekday: 'short', month: 'short', day: 'numeric' }).format(d);
+    return o.allDay ? day : t('time.dateAt', { date: day, time: timeOf(d) });
   }
 
   function key(e: KeyboardEvent) {
@@ -235,31 +265,31 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={() => ui.close()}>
-  <div class="palette" role="dialog" aria-label="Command palette" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
+  <div class="palette" role="dialog" aria-label={t('palette.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
     <div class="search">
       <Search size={18} />
-      <input bind:this={input} bind:value={q} placeholder="Type a command, folder or search…" spellcheck="false" />
-      <span class="kbd">Esc</span>
+      <input bind:this={input} bind:value={q} placeholder={t('palette.placeholder')} spellcheck="false" />
+      <span class="kbd">{t('keys.esc')}</span>
     </div>
     <div class="list" bind:this={listEl}>
       {#each rows as row, i (row.kind === 'cmd' ? row.cmd.id : row.kind === 'thread' ? `t${row.thread.id}` : row.kind === 'event' ? `e${row.event.key}` : row.kind === 'person' ? `p${row.person.id}` : 'ask')}
         {#if row.kind === 'cmd' && (i === 0 || rows[i - 1].kind !== 'cmd' || (rows[i - 1] as { cmd: Command }).cmd.group !== row.cmd.group)}
-          <div class="group">{row.cmd.group}</div>
+          <div class="group">{t(groupLabels[row.cmd.group])}</div>
         {:else if row.kind === 'person' && rows[i - 1]?.kind !== 'person'}
-          <div class="group">People</div>
+          <div class="group">{t('palette.groupPeople')}</div>
         {:else if row.kind === 'event' && rows[i - 1]?.kind !== 'event'}
-          <div class="group">Events</div>
+          <div class="group">{t('palette.groupEvents')}</div>
         {:else if row.kind === 'thread' && rows[i - 1]?.kind !== 'thread'}
-          <div class="group">Messages</div>
+          <div class="group">{t('palette.groupMessages')}</div>
         {/if}
         <button class="row" class:hi={i === hi} data-i={i} onmouseenter={() => (hi = i)} onclick={() => run(row)}>
           {#if row.kind === 'cmd'}
             <span class="ico"><row.cmd.icon size={16} /></span>
-            <span class="label">{row.cmd.label}</span>
+            <span class="label truncate">{row.cmd.label}</span>
             {#if row.cmd.hint}<span class="hint">{row.cmd.hint}</span>{/if}
           {:else if row.kind === 'person'}
             <span class="ico"><Avatar person={{ name: row.person.name, email: row.person.email ?? row.person.name }} size={22} /></span>
-            <span class="label truncate">{row.person.email ? `Write to ${row.person.name}` : row.person.name}{#if row.person.email}<span class="sub">&nbsp;· {row.person.email}</span>{/if}</span>
+            <span class="label truncate">{row.person.email ? t('palette.writeTo', { name: row.person.name }) : row.person.name}{#if row.person.email}<span class="sub">&nbsp;· {row.person.email}</span>{/if}</span>
             <span
               class="hint open-contact"
               role="button"
@@ -270,7 +300,7 @@
                 ui.close();
                 ui.view = 'contacts';
                 people.init().then(() => people.select(row.person.id));
-              }}>Open</span>
+              }}>{t('common.open')}</span>
           {:else if row.kind === 'event'}
             <span class="ico"><span class="dot" style:background={row.event.color}></span></span>
             <span class="label truncate">{row.event.title}{#if row.event.location}<span class="sub">&nbsp;· {row.event.location}</span>{/if}</span>
@@ -281,12 +311,12 @@
             <span class="hint">{listDate(row.thread.lastDate)}</span>
           {:else}
             <span class="ico ai"><Sparkles size={16} /></span>
-            <span class="label">Ask AI: <i>“{q.trim()}”</i></span>
-            <span class="hint">Enter</span>
+            <span class="label truncate">{#each tParts('palette.askAi') as part, j (j)}{#if typeof part === 'string'}{part}{:else}<i>{q.trim()}</i>{/if}{/each}</span>
+            <span class="hint">{t('keys.enter')}</span>
           {/if}
         </button>
       {:else}
-        <div class="none">No matches</div>
+        <div class="none">{t('palette.noMatches')}</div>
       {/each}
     </div>
   </div>

@@ -5,6 +5,7 @@
   import { listDate, participantSummary, displayName } from '../utils/format';
   import Avatar from './Avatar.svelte';
   import { Archive, Calendar, Check, Clock, File, MailOpen, Mail, Paperclip, Star, Trash } from '../icons';
+  import { t } from '../i18n';
 
   let {
     thread,
@@ -68,12 +69,12 @@
   <div class="lead">
     {#if unread}<span class="dot"></span>{/if}
     {#if ui.settings.showAvatars && !compact}
-      <button class="avatar-btn" class:on={checked} aria-label="Select" onclick={(e) => act(e, () => mail.toggleCheck(thread.id))}>
+      <button class="avatar-btn" class:on={checked} aria-label={t('threadRow.select')} onclick={(e) => act(e, () => mail.toggleCheck(thread.id))}>
         <span class="av"><Avatar person={lastSender} size={34} /></span>
         <span class="tick"><Check size={16} strokeWidth={3} /></span>
       </button>
     {:else}
-      <button class="checkbox" class:on={checked} aria-label="Select" onclick={(e) => act(e, () => mail.toggleCheck(thread.id))}>
+      <button class="checkbox" class:on={checked} aria-label={t('threadRow.select')} onclick={(e) => act(e, () => mail.toggleCheck(thread.id))}>
         {#if checked}<Check size={12} strokeWidth={3} />{/if}
       </button>
     {/if}
@@ -83,7 +84,7 @@
     <div class="line top">
       <span class="from truncate" title={lastSender ? `${displayName(lastSender)} <${lastSender.email}>` : ''}>{names}</span>
       {#if thread.messageCount > 1}<span class="n">{thread.messageCount}</span>{/if}
-      {#if thread.draftCount > 0}<span class="draft">Draft</span>{/if}
+      {#if thread.draftCount > 0}<span class="draft">{t('threadRow.draft')}</span>{/if}
       <span class="spacer"></span>
       <span class="meta">
         {#if thread.isInvite}<Calendar size={13} />{/if}
@@ -94,12 +95,12 @@
     </div>
     {#if compact}
       <div class="line">
-        <span class="subject truncate">{thread.subject || '(no subject)'}</span>
+        <span class="subject truncate">{thread.subject || t('common.noSubject')}</span>
         <span class="snippet truncate">{thread.snippet}</span>
       </div>
     {:else}
       <div class="line">
-        <span class="subject truncate">{thread.subject || '(no subject)'}</span>
+        <span class="subject truncate">{thread.subject || t('common.noSubject')}</span>
         {#each labels as l (l!.id)}
           <span class="label" style:--c={l!.color ?? 'var(--text-3)'}>{l!.name}</span>
         {/each}
@@ -112,13 +113,13 @@
   </div>
 
   <div class="actions" role="toolbar">
-    <button class="icon-btn sm" title="Archive (E)" onclick={(e) => act(e, () => mail.archive([thread.id]))}><Archive size={15} /></button>
-    <button class="icon-btn sm" title="Delete (#)" onclick={(e) => act(e, () => mail.trash([thread.id]))}><Trash size={15} /></button>
-    <button class="icon-btn sm" title={unread ? 'Mark as read (U)' : 'Mark as unread (U)'} onclick={(e) => act(e, () => mail.toggleRead([thread.id]))}>
+    <button class="icon-btn sm" title={t('threadRow.archive', { key: 'E' })} onclick={(e) => act(e, () => mail.archive([thread.id]))}><Archive size={15} /></button>
+    <button class="icon-btn sm" title={t('threadRow.delete', { key: '#' })} onclick={(e) => act(e, () => mail.trash([thread.id]))}><Trash size={15} /></button>
+    <button class="icon-btn sm" title={unread ? t('threadRow.markAsRead', { key: 'U' }) : t('threadRow.markAsUnread', { key: 'U' })} onclick={(e) => act(e, () => mail.toggleRead([thread.id]))}>
       {#if unread}<MailOpen size={15} />{:else}<Mail size={15} />{/if}
     </button>
-    <button class="icon-btn sm" title="Snooze (H)" onclick={(e) => act(e, () => onsnooze(e))}><Clock size={15} /></button>
-    <button class="icon-btn sm star-btn" class:on={thread.flagged} title="Star (S)" onclick={(e) => act(e, () => mail.toggleStar([thread.id]))}>
+    <button class="icon-btn sm" title={t('threadRow.snooze', { key: 'H' })} onclick={(e) => act(e, () => onsnooze(e))}><Clock size={15} /></button>
+    <button class="icon-btn sm star-btn" class:on={thread.flagged} title={t('threadRow.star', { key: 'S' })} onclick={(e) => act(e, () => mail.toggleStar([thread.id]))}>
       <Star size={15} fill={thread.flagged ? 'currentColor' : 'none'} />
     </button>
   </div>
@@ -266,9 +267,11 @@
     background: var(--bg-active);
   }
   .draft {
+    flex-shrink: 0;
     font-size: 11px;
     font-weight: 600;
     color: var(--red);
+    white-space: nowrap;
   }
   .spacer {
     flex: 1;

@@ -48,6 +48,7 @@ cargo fmt --all
 cargo clippy --workspace --all-targets
 cargo test --workspace
 npm run check                       # svelte-check / TypeScript
+npm run i18n:check                  # translation catalogs
 npm run build:demo && npm run e2e   # walks through the main screens of the demo in Chromium
 
 # end-to-end tests against the local server (resets .devserver state)
@@ -55,6 +56,15 @@ ENVELOPE_TEST_IMAP=1 cargo test -p envelope-core --test live_imap --test live_ca
 ```
 
 Please make sure all of these pass before opening a pull request. New protocol code should come with tests — the crates use recorded server responses and `wiremock` so they run offline.
+
+## Translations
+
+Interface text lives in `src/lib/i18n/locales/`: `en.json` is the source, and every other language has one catalog with the same keys (`tr.json`, `de.json`, …), loaded on demand. Missing messages fall back to English.
+
+- In code, show text with `t('area.key', { name })` from `src/lib/i18n` — never hard-code it. Messages take `{name}` placeholders and plurals such as `{count, plural, one {# message} other {# messages}}`. For dates and numbers pass `intlLocale()` to `Intl` and `toLocale…String`, or use the helpers in `src/lib/utils/format.ts`.
+- When you add or change a message in `en.json`, update the other catalogs too. `npm run i18n:check` lists missing and extra keys, placeholders that don't match English and plural forms a language needs.
+- Texts the desktop shell draws itself (notifications, the tray menu) are the `native.*` messages: the interface hands them to `src-tauri` whenever the language changes, and Rust only fills in `{name}` placeholders, so they take no plural forms. A new one needs its English text both in `en.json` and at the `strings::get` call.
+- To add a language, copy `en.json` to `<code>.json` (a BCP 47 tag such as `nl` or `pt-BR`), translate it and add the language, named in its own language, to `languages` in `src/lib/i18n/state.svelte.ts`.
 
 ## Project layout
 
@@ -71,7 +81,7 @@ For how the pieces fit together, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
 - **Fast paths stay fast.** Anything on the path from a keypress to pixels must not wait on the network. Write to the local database, update the UI optimistically and queue the server operation.
 - **No telemetry, no third-party services** beyond the user's own mail, calendar and (opt-in) AI providers.
 - Match the style of the code around you; keep comments for the *why*.
-- Interface text is plain, friendly English in sentence case. Keyboard shortcuts should work wherever a mouse action exists.
+- Interface text is plain, friendly English in sentence case, written to `en.json` and shown through `t()`. Keyboard shortcuts should work wherever a mouse action exists.
 - Commit messages: a short imperative summary line, then the details if needed.
 
 ## Reporting security issues

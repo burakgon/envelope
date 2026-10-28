@@ -98,6 +98,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 ### Design
 - Light and dark themes that follow the system, an accent color picker and compact/comfortable density.
 - Custom title bar (or native, if you prefer), subtle animations and virtualized lists that stay fluid in very large mailboxes.
+- In your language: English, Deutsch, Español, Français, Italiano, Polski, Português (Brasil), Türkçe, 日本語 and 简体中文, with dates and times to match.
 
 ## Performance
 

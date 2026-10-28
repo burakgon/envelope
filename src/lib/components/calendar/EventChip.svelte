@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Occurrence } from '../../api';
   import { Video, Repeat } from '../../icons';
+  import { t } from '../../i18n';
+  import { timeOf } from '../../utils/format';
 
   let {
     occurrence: o,
@@ -8,7 +10,6 @@
     onpointerdown,
   }: { occurrence: Occurrence; compact?: boolean; onpointerdown?: (e: PointerEvent) => void } = $props();
 
-  const time = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const pending = $derived(o.myStatus === 'needsAction' || o.myStatus === 'tentative');
   const declined = $derived(o.myStatus === 'declined' || o.status === 'cancelled');
 </script>
@@ -27,11 +28,11 @@
 >
   <div class="title">
     {o.title}
-    {#if compact}<span class="t">{time(o.start)}</span>{/if}
+    {#if compact}<span class="t">{timeOf(o.start)}</span>{/if}
   </div>
   {#if !compact}
     <div class="meta">
-      {time(o.start)} – {time(o.end)}
+      {t('calendar.event.timeRange', { start: timeOf(o.start), end: timeOf(o.end) })}
       {#if o.conferenceUrl}<Video size={11} />{/if}
       {#if o.isRecurring}<Repeat size={10} />{/if}
     </div>

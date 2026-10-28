@@ -3,34 +3,35 @@
   import { AlertCircle, CheckCircle, Spinner, X } from '../icons';
   import { fly } from 'svelte/transition';
   import { flip } from 'svelte/animate';
+  import { t } from '../i18n';
 </script>
 
 <div class="stack" aria-live="polite">
-  {#each toasts.items as t (t.id)}
+  {#each toasts.items as toast (toast.id)}
     <div
       class="toast"
-      class:error={t.kind === 'error'}
+      class:error={toast.kind === 'error'}
       in:fly={{ y: 16, duration: 220, opacity: 0 }}
       out:fly={{ y: 8, duration: 160 }}
       animate:flip={{ duration: 200 }}
     >
-      {#if t.kind === 'error'}
+      {#if toast.kind === 'error'}
         <AlertCircle size={16} />
-      {:else if t.kind === 'success'}
+      {:else if toast.kind === 'success'}
         <CheckCircle size={16} />
-      {:else if t.kind === 'progress'}
+      {:else if toast.kind === 'progress'}
         <span class="spin"><Spinner size={15} /></span>
       {/if}
-      <span class="msg">{t.message}</span>
-      {#if t.action}
-        <button class="action" onclick={() => t.action?.run()}>
-          {t.action.label}
-          {#if t.action.key}<span class="key">{t.action.key}</span>{/if}
+      <span class="msg">{toast.message}</span>
+      {#if toast.action}
+        <button class="action" onclick={() => toast.action?.run()}>
+          {toast.action.label}
+          {#if toast.action.key}<span class="key">{toast.action.key}</span>{/if}
         </button>
       {/if}
-      <button class="close" aria-label="Dismiss" onclick={() => toasts.dismiss(t.id)}><X size={13} /></button>
-      {#if t.duration > 0 && t.action}
-        <span class="timer" style:animation-duration="{t.duration}ms"></span>
+      <button class="close" aria-label={t('toasts.dismiss')} onclick={() => toasts.dismiss(toast.id)}><X size={13} /></button>
+      {#if toast.duration > 0 && toast.action}
+        <span class="timer" style:animation-duration="{toast.duration}ms"></span>
       {/if}
     </div>
   {/each}
@@ -80,12 +81,14 @@
   .action {
     display: inline-flex;
     align-items: center;
+    flex-shrink: 0;
     gap: 6px;
     height: 26px;
     padding: 0 10px;
     border-radius: 7px;
     color: #c9c1ff;
     font-weight: 600;
+    white-space: nowrap;
   }
   .action:hover {
     background: rgb(255 255 255 / 0.08);

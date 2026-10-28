@@ -2,11 +2,12 @@
   import { onMount } from 'svelte';
   import { api } from '../../api';
   import type { Contact, ThreadSummary } from '../../api';
-  import { people } from '../../stores/contacts.svelte';
+  import { fieldLabel, people } from '../../stores/contacts.svelte';
   import { compose } from '../../stores/compose.svelte';
   import { mail } from '../../stores/mail.svelte';
   import { ui } from '../../stores/ui.svelte';
-  import { listDate } from '../../utils/format';
+  import { dateFormat, listDate } from '../../utils/format';
+  import { t } from '../../i18n';
   import Avatar from '../Avatar.svelte';
   import { Cake, Globe, Mail, MapPin, Pen, Phone, StickyNote, Trash } from '../../icons';
 
@@ -32,24 +33,22 @@
     compose.new({ to: [{ name: c.name, email }] });
   }
 
-  function openThread(t: ThreadSummary) {
+  function openThread(th: ThreadSummary) {
     ui.view = 'mail';
     mail.setSearch(primary ?? '');
-    mail.select(t.id);
+    mail.select(th.id);
   }
-
-  const labelText = (l: string | null) => (l ? l.charAt(0).toUpperCase() + l.slice(1) : '');
 
   function birthday(b: string): string {
     const yearless = b.startsWith('--');
     const d = new Date(yearless ? `2000-${b.slice(2)}T00:00:00` : `${b}T00:00:00`);
     if (Number.isNaN(d.getTime())) return b;
-    const text = d.toLocaleDateString(undefined, yearless ? { month: 'long', day: 'numeric' } : { year: 'numeric', month: 'long', day: 'numeric' });
+    const text = dateFormat(yearless ? { month: 'long', day: 'numeric' } : { year: 'numeric', month: 'long', day: 'numeric' }).format(d);
     if (yearless) return text;
     const now = new Date();
     let age = now.getFullYear() - d.getFullYear();
     if (now.getMonth() < d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() < d.getDate())) age--;
-    return `${text} (${age})`;
+    return t('contacts.birthdayWithAge', { date: text, age });
   }
 </script>
 
@@ -66,15 +65,15 @@
         <p class="selectable">{[c.title, c.organization].filter(Boolean).join(' · ')}</p>
       {/if}
       <div class="actions">
-        {#if primary}<button class="btn primary sm" onclick={() => write(primary)}><Mail size={15} />Email</button>{/if}
-        {#if c.phones[0]}<button class="btn sm" onclick={() => api.openUrl(`tel:${c.phones[0].value.replace(/\s/g, '')}`)}><Phone size={15} />Call</button>{/if}
+        {#if primary}<button class="btn primary sm" onclick={() => write(primary)}><Mail size={15} />{t('contacts.sendEmail')}</button>{/if}
+        {#if c.phones[0]}<button class="btn sm" onclick={() => api.openUrl(`tel:${c.phones[0].value.replace(/\s/g, '')}`)}><Phone size={15} />{t('contacts.call')}</button>{/if}
         {#if !book?.readOnly}
-          <button class="btn sm" onclick={() => people.edit()}><Pen size={14} />Edit</button>
+          <button class="btn sm" onclick={() => people.edit()}><Pen size={14} />{t('common.edit')}</button>
           {#if confirmDelete}
-            <button class="btn danger sm" onclick={() => people.remove()}>Delete contact</button>
-            <button class="btn sm" onclick={() => (confirmDelete = false)}>Cancel</button>
+            <button class="btn danger sm" onclick={() => people.remove()}>{t('contacts.deleteContact')}</button>
+            <button class="btn sm" onclick={() => (confirmDelete = false)}>{t('common.cancel')}</button>
           {:else}
-            <button class="icon-btn sm" title="Delete" onclick={() => (confirmDelete = true)}><Trash size={15} /></button>
+            <button class="icon-btn sm" title={t('common.delete')} onclick={() => (confirmDelete = true)}><Trash size={15} /></button>
           {/if}
         {/if}
       </div>
@@ -88,7 +87,7 @@
           <Mail size={16} />
           <div class="val">
             <button class="link" onclick={() => write(e.value)}>{e.value}</button>
-            {#if e.label}<span class="lbl">{labelText(e.label)}</span>{/if}
+            {#if e.label}<span class="lbl">{fieldLabel(e.label)}</span>{/if}
           </div>
         </div>
       {/each}
@@ -97,7 +96,7 @@
           <Phone size={16} />
           <div class="val">
             <span class="selectable">{p.value}</span>
-            {#if p.label}<span class="lbl">{labelText(p.label)}</span>{/if}
+            {#if p.label}<span class="lbl">{fieldLabel(p.label)}</span>{/if}
           </div>
         </div>
       {/each}
@@ -106,12 +105,12 @@
           <MapPin size={16} />
           <div class="val">
             <button class="link addr" onclick={() => api.openUrl(`https://www.openstreetmap.org/search?query=${encodeURIComponent(a.value.replace(/\n/g, ', '))}`)}>{a.value}</button>
-            {#if a.label}<span class="lbl">{labelText(a.label)}</span>{/if}
+            {#if a.label}<span class="lbl">{fieldLabel(a.label)}</span>{/if}
           </div>
         </div>
       {/each}
       {#if c.birthday}
-        <div class="field"><Cake size={16} /><div class="val"><span>{birthday(c.birthday)}</span><span class="lbl">Birthday</span></div></div>
+        <div class="field"><Cake size={16} /><div class="val"><span>{birthday(c.birthday)}</span><span class="lbl">{t('contacts.birthday')}</span></div></div>
       {/if}
       {#each c.urls as u (u)}
         <div class="field"><Globe size={16} /><div class="val"><button class="link" onclick={() => api.openUrl(u)}>{u.replace(/^https?:\/\//, '')}</button></div></div>
@@ -120,24 +119,24 @@
         <div class="field"><StickyNote size={16} /><div class="val"><span class="notes selectable">{c.notes}</span></div></div>
       {/if}
       {#if !c.emails.length && !c.phones.length && !c.addresses.length && !c.birthday && !c.urls.length && !c.notes}
-        <div class="nothing">No details yet.</div>
+        <div class="nothing">{t('contacts.noDetails')}</div>
       {/if}
     </div>
 
     {#if threads.length}
       <div class="card">
-        <div class="head">Recent conversations</div>
-        {#each threads as t (t.id)}
-          <button class="thread" onclick={() => openThread(t)}>
-            <span class="subject truncate" class:unread={t.unreadCount > 0}>{t.subject || '(no subject)'}</span>
-            <span class="snippet truncate">{t.snippet}</span>
-            <span class="date">{listDate(t.lastDate)}</span>
+        <div class="head">{t('contacts.recentConversations')}</div>
+        {#each threads as th (th.id)}
+          <button class="thread" onclick={() => openThread(th)}>
+            <span class="subject truncate" class:unread={th.unreadCount > 0}>{th.subject || t('common.noSubject')}</span>
+            <span class="snippet truncate">{th.snippet}</span>
+            <span class="date">{listDate(th.lastDate)}</span>
           </button>
         {/each}
       </div>
     {/if}
 
-    {#if book}<div class="book">In {book.name}</div>{/if}
+    {#if book}<div class="book">{t('contacts.inBook', { book: book.name })}</div>{/if}
   </div>
 </div>
 

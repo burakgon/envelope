@@ -6,6 +6,7 @@
   import { cal } from '../stores/calendar.svelte';
   import { ui } from '../stores/ui.svelte';
   import { prepareHtml, textToHtml } from '../utils/html';
+  import { t } from '../i18n';
 
   let {
     message,
@@ -80,7 +81,7 @@
         if (img && onimage && img.naturalWidth >= 120 && img.naturalHeight >= 80) {
           const pics = [...doc.images].filter((i) => i.naturalWidth >= 120 && i.naturalHeight >= 80 && !i.closest('a'));
           onimage(
-            pics.map((i, n) => ({ src: i.currentSrc || i.src, filename: i.alt?.trim() || `Picture ${n + 1}` })),
+            pics.map((i, n) => ({ src: i.currentSrc || i.src, filename: i.alt?.trim() || t('mailFrame.picture', { number: n + 1 }) })),
             Math.max(0, pics.indexOf(img)),
           );
         }

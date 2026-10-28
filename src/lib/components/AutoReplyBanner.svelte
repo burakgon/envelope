@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Account } from '../api';
+  import { t } from '../i18n';
   import { Away } from '../icons';
   import { autoReplies } from '../stores/autoReplies.svelte';
   import { mail } from '../stores/mail.svelte';
@@ -11,11 +12,11 @@
 </script>
 
 {#if away.length}
-  <button class="banner" onclick={() => (editing = away[0])} title="Change or turn off automatic replies">
+  <button class="banner" onclick={() => (editing = away[0])} title={t('autoReply.bannerTooltip')}>
     <Away size={14} />
-    <span>
-      <b>Automatic replies are on</b>
-      <span class="who">{away.length === 1 ? away[0].email : `${away.length} accounts`}</span>
+    <span class="text">
+      <b>{t('autoReply.statusOn')}</b>
+      <span class="who">{away.length === 1 ? away[0].email : t('autoReply.accountCount', { count: away.length })}</span>
     </span>
   </button>
 {/if}
@@ -45,6 +46,9 @@
     flex-shrink: 0;
     color: var(--amber);
   }
+  .text {
+    min-width: 0;
+  }
   b {
     display: block;
     color: var(--text);
@@ -55,6 +59,5 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 170px;
   }
 </style>

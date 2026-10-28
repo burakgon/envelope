@@ -6,6 +6,7 @@
   import WindowControls from '../WindowControls.svelte';
   import ContactDetail from './ContactDetail.svelte';
   import ContactEditor from './ContactEditor.svelte';
+  import { intlLocale, t } from '../../i18n';
   import { PanelLeft, Plus, Search, Users } from '../../icons';
 
   let searchEl: HTMLInputElement | undefined = $state();
@@ -18,15 +19,18 @@
     if (ui.focusSearch && ui.view === 'contacts') searchEl?.focus();
   });
 
-  // Alphabetical sections.
+  // Alphabetical sections, with the letters upper-cased by the rules of the interface language.
   const sections = $derived.by(() => {
-    const out: { letter: string; items: typeof people.items }[] = [];
+    const out: { key: string; letter: string; items: typeof people.items }[] = [];
+    const locale = intlLocale();
     for (const c of people.items) {
-      const ch = c.name.trim().charAt(0).toLocaleUpperCase();
+      const ch = c.name.trim().charAt(0).toLocaleUpperCase(locale);
       const letter = /\p{L}/u.test(ch) ? ch : '#';
       const last = out[out.length - 1];
       if (last?.letter === letter) last.items.push(c);
-      else out.push({ letter, items: [c] });
+      // The list comes sorted by language-neutral case rules, so a letter can return after another
+      // (Turkish "ilker" is İ here but sorts with "Irmak"); a repeated section needs a key of its own.
+      else out.push({ key: out.some((s) => s.letter === letter) ? `${letter}${out.length}` : letter, letter, items: [c] });
     }
     return out;
   });
@@ -49,18 +53,18 @@
   <div class="list">
     <header data-tauri-drag-region>
       {#if ui.sidebarCollapsed}
-        <button class="icon-btn" title="Show sidebar" onclick={() => (ui.sidebarCollapsed = false)}><PanelLeft size={17} /></button>
+        <button class="icon-btn" title={t('contacts.showSidebar')} onclick={() => (ui.sidebarCollapsed = false)}><PanelLeft size={17} /></button>
       {/if}
-      <h1 data-tauri-drag-region>Contacts</h1>
+      <h1 data-tauri-drag-region>{t('contacts.title')}</h1>
       <span class="count" data-tauri-drag-region>{people.total}</span>
       <span class="grow" data-tauri-drag-region></span>
-      <button class="icon-btn" title="New contact (C)" onclick={() => people.newContact()}><Plus size={18} /></button>
+      <button class="icon-btn" title={t('contacts.newContactShortcut', { key: 'C' })} onclick={() => people.newContact()}><Plus size={18} /></button>
     </header>
     <div class="search">
       <Search size={15} />
       <input
         bind:this={searchEl}
-        placeholder="Search contacts"
+        placeholder={t('contacts.searchPlaceholder')}
         value={people.query}
         oninput={(e) => people.search((e.currentTarget as HTMLInputElement).value)}
         onkeydown={key}
@@ -68,7 +72,7 @@
       />
     </div>
     <div class="items">
-      {#each sections as s (s.letter)}
+      {#each sections as s (s.key)}
         <div class="section">
         <div class="letter">{s.letter}</div>
         {#each s.items as c (c.id)}
@@ -88,11 +92,11 @@
       {:else}
         <div class="empty">
           {#if people.query}
-            No contacts match “{people.query}”.
+            {t('contacts.noMatches', { query: people.query })}
           {:else if !people.loading}
             <Users size={28} />
-            <p>No contacts yet.</p>
-            <button class="btn" onclick={() => people.newContact()}><Plus size={15} />New contact</button>
+            <p>{t('contacts.empty')}</p>
+            <button class="btn" onclick={() => people.newContact()}><Plus size={15} />{t('contacts.newContact')}</button>
           {/if}
         </div>
       {/each}
@@ -112,7 +116,7 @@
     {:else}
       <div class="none">
         <Users size={40} strokeWidth={1.4} />
-        <p>Select a contact</p>
+        <p>{t('contacts.selectPrompt')}</p>
       </div>
     {/if}
   </div>

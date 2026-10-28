@@ -7,6 +7,7 @@
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import Toggle from './Toggle.svelte';
   import { CheckCircle, ExternalLink, Lock, Refresh, ShieldCheck, Spinner } from '../../icons';
+  import { intlLocale, t } from '../../i18n';
 
   let presets = $state<AiPreset[]>([]);
   let settings = $state<AiSettings>({ enabled: false, provider: 'openrouter', baseUrl: '', model: '', customInstructions: '', language: null });
@@ -73,34 +74,37 @@
       key = '';
       await ai.load();
       ui.set('aiEnabled', settings.enabled);
-      toasts.show('AI settings saved', { kind: 'success' });
+      toasts.show(t('settings.ai.saved'), { kind: 'success' });
     } catch (e) {
       toasts.error(errorMessage(e));
     }
   }
 
+  const usd = $derived(
+    new Intl.NumberFormat(intlLocale(), { style: 'currency', currency: 'USD', currencyDisplay: 'narrowSymbol', minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+  );
   const price = (m: AiModel) =>
-    m.inputPrice != null && m.inputPrice >= 0 ? `$${m.inputPrice.toFixed(2)} / $${(m.outputPrice ?? 0).toFixed(2)} per M` : '';
+    m.inputPrice != null && m.inputPrice >= 0 ? t('settings.ai.price', { input: usd.format(m.inputPrice), output: usd.format(m.outputPrice ?? 0) }) : '';
 </script>
 
-<h2>AI</h2>
+<h2>{t('settings.tab.ai')}</h2>
 <p class="desc">
-  Summaries, smart replies, writing help and answers from your mail — with the provider you choose. Nothing is sent until you ask for it.
+  {t('settings.ai.desc')}
 </p>
 
 <div class="group">
   <div class="row">
-    <div class="txt"><b>Enable AI features</b><span>Shows AI actions in conversations, the composer and the command palette.</span></div>
+    <div class="txt"><b>{t('settings.ai.enable')}</b><span>{t('settings.ai.enableDesc')}</span></div>
     <Toggle checked={settings.enabled} onchange={(v) => (settings.enabled = v)} />
   </div>
 </div>
 
-<h3>Provider</h3>
+<h3>{t('settings.ai.provider')}</h3>
 <div class="providers">
   {#each presets as p (p.id)}
     <button class="prov" class:on={settings.provider === p.id} onclick={() => choose(p.id)}>
       <span class="pname">{p.name}</span>
-      <span class="pkind">{p.local ? 'Runs on your computer' : p.kind}</span>
+      <span class="pkind">{p.local ? t('settings.ai.local') : p.kind}</span>
     </button>
   {/each}
 </div>
@@ -108,27 +112,27 @@
 <div class="form">
   {#if preset?.local || settings.provider === 'custom' || !preset}
     <div>
-      <label class="label" for="ai-url">Base URL</label>
+      <label class="label" for="ai-url">{t('settings.ai.baseUrl')}</label>
       <input id="ai-url" class="input" bind:value={settings.baseUrl} placeholder="http://localhost:11434/v1" spellcheck="false" />
     </div>
   {/if}
   {#if preset?.requiresKey !== false}
     <div>
-      <label class="label" for="ai-key">API key {#if hasKey}<span class="saved"><Lock size={11} /> saved in your keyring</span>{/if}</label>
+      <label class="label" for="ai-key">{t('settings.ai.apiKey')} {#if hasKey}<span class="saved"><Lock size={11} /> {t('settings.ai.keySaved')}</span>{/if}</label>
       <div class="inline">
-        <input id="ai-key" class="input" type="password" bind:value={key} placeholder={hasKey ? '••••••••••••••••' : 'Paste your API key'} spellcheck="false" />
+        <input id="ai-key" class="input" type="password" bind:value={key} placeholder={hasKey ? '••••••••••••••••' : t('settings.ai.apiKeyPlaceholder')} spellcheck="false" />
         {#if preset?.keyUrl}
-          <button class="btn" onclick={() => api.openUrl(preset!.keyUrl!)}>Get a key <ExternalLink size={13} /></button>
+          <button class="btn" onclick={() => api.openUrl(preset!.keyUrl!)}>{t('settings.ai.getKey')} <ExternalLink size={13} /></button>
         {/if}
       </div>
     </div>
   {/if}
   <div>
-    <label class="label" for="ai-model">Model</label>
+    <label class="label" for="ai-model">{t('settings.ai.model')}</label>
     <div class="inline">
-      <input id="ai-model" class="input" bind:value={settings.model} placeholder="Choose or type a model id" spellcheck="false" list="ai-models" oninput={() => (filter = settings.model)} />
+      <input id="ai-model" class="input" bind:value={settings.model} placeholder={t('settings.ai.modelPlaceholder')} spellcheck="false" list="ai-models" oninput={() => (filter = settings.model)} />
       <button class="btn" onclick={loadModels} disabled={loadingModels}>
-        {#if loadingModels}<span class="spin"><Spinner size={14} /></span>{:else}<Refresh size={14} />{/if} Load models
+        {#if loadingModels}<span class="spin"><Spinner size={14} /></span>{:else}<Refresh size={14} />{/if} {t('settings.ai.loadModels')}
       </button>
     </div>
     {#if models.length}
@@ -144,13 +148,13 @@
     {/if}
   </div>
   <div>
-    <label class="label" for="ai-style">Your writing style (optional)</label>
-    <textarea id="ai-style" class="input area" rows="3" bind:value={settings.customInstructions} placeholder="e.g. Short and friendly. Sign emails with just my first name. No exclamation marks."></textarea>
+    <label class="label" for="ai-style">{t('settings.ai.style')}</label>
+    <textarea id="ai-style" class="input area" rows="3" bind:value={settings.customInstructions} placeholder={t('settings.ai.stylePlaceholder')}></textarea>
   </div>
   <div>
-    <label class="label" for="ai-lang">Answer language</label>
+    <label class="label" for="ai-lang">{t('settings.ai.language')}</label>
     <select id="ai-lang" class="input" bind:value={settings.language}>
-      <option value={null}>Same as the email</option>
+      <option value={null}>{t('settings.ai.languageSame')}</option>
       {#each ['English', 'Türkçe', 'Deutsch', 'Español', 'Français', 'Italiano', 'Português', 'Nederlands', 'Polski', '日本語', '中文', '한국어', 'Русский'] as l (l)}
         <option value={l}>{l}</option>
       {/each}
@@ -163,12 +167,12 @@
 {/if}
 
 <div class="btns">
-  <button class="btn" onclick={test} disabled={testing}>{#if testing}<span class="spin"><Spinner size={14} /></span>{/if}Test connection</button>
+  <button class="btn" onclick={test} disabled={testing}>{#if testing}<span class="spin"><Spinner size={14} /></span>{/if}{t('settings.ai.test')}</button>
   <span class="grow"></span>
-  <button class="btn primary" onclick={save}>Save</button>
+  <button class="btn primary" onclick={save}>{t('common.save')}</button>
 </div>
 
-<p class="privacy"><ShieldCheck size={14} /> Your API key is stored in the system keyring. For complete privacy, use Ollama or LM Studio — your mail never leaves your computer.</p>
+<p class="privacy"><ShieldCheck size={14} /> {t('settings.ai.privacy')}</p>
 
 <style>
   h2 {

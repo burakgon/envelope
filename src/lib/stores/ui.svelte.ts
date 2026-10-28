@@ -1,4 +1,5 @@
 import { api } from '../api';
+import { setLanguage, type LanguageSetting } from '../i18n';
 
 export type Theme = 'system' | 'light' | 'dark';
 export type Density = 'comfortable' | 'compact';
@@ -44,6 +45,8 @@ export interface MailRule {
 
 /** User preferences persisted through the backend settings store. */
 export interface Settings {
+  /** Interface language; 'system' follows the desktop's preferred languages. */
+  language: LanguageSetting;
   theme: Theme;
   accentHue: number;
   density: Density;
@@ -76,6 +79,7 @@ export interface Settings {
 }
 
 export const defaultSettings: Settings = {
+  language: 'system',
   theme: 'system',
   accentHue: 280,
   density: 'comfortable',
@@ -131,6 +135,7 @@ class Ui {
     } catch {
       /* first run */
     }
+    await setLanguage(this.settings.language);
     if (typeof matchMedia !== 'undefined') {
       matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => (this.systemDark = e.matches));
     }
@@ -142,6 +147,7 @@ class Ui {
     if (key === 'theme') localStorage.setItem('envelope.theme', String(value));
     if (key === 'accentHue') localStorage.setItem('envelope.accent', String(value));
     if (key === 'nativeTitlebar') api.setDecorations(Boolean(value));
+    if (key === 'language') setLanguage(value as LanguageSetting);
   }
 
   open(overlay: Overlay, tab?: string) {

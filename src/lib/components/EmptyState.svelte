@@ -1,7 +1,10 @@
 <script lang="ts">
   import { mail } from '../stores/mail.svelte';
+  import { t, type MessageKey, type Params } from '../i18n';
 
-  const kind = $derived.by(() => {
+  type Kind = 'zero' | 'search' | 'snoozed' | 'starred' | 'empty';
+
+  const kind = $derived.by((): Kind => {
     if (mail.search) return 'search';
     if (mail.isInboxView) return 'zero';
     if (mail.mailbox.kind === 'snoozed') return 'snoozed';
@@ -9,12 +12,13 @@
     return 'empty';
   });
 
-  const copy: Record<string, { title: string; body: string }> = {
-    zero: { title: 'You’re all caught up', body: 'Nothing new here. Enjoy the quiet.' },
-    search: { title: 'No results', body: 'Try fewer words or operators like from:, has:attachment, after:2026-01-01.' },
-    snoozed: { title: 'Nothing snoozed', body: 'Snooze a conversation with H and it will come back when you need it.' },
-    starred: { title: 'No starred conversations', body: 'Press S to star the ones that matter.' },
-    empty: { title: 'Nothing here', body: 'This folder is empty.' },
+  // Search operators and shortcut keys stay as they are in every language.
+  const copy: Record<Kind, { title: MessageKey; body: MessageKey; params?: Params }> = {
+    zero: { title: 'emptyState.inboxZeroTitle', body: 'emptyState.inboxZeroBody' },
+    search: { title: 'emptyState.searchTitle', body: 'emptyState.searchBody', params: { operators: 'from:, has:attachment, after:2026-01-01' } },
+    snoozed: { title: 'emptyState.snoozedTitle', body: 'emptyState.snoozedBody', params: { key: 'H' } },
+    starred: { title: 'emptyState.starredTitle', body: 'emptyState.starredBody', params: { key: 'S' } },
+    empty: { title: 'emptyState.folderEmptyTitle', body: 'emptyState.folderEmptyBody' },
   };
 </script>
 
@@ -42,8 +46,8 @@
       <path d="M30 28 L60 50 L90 28" fill="none" stroke="var(--text-4)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
   {/if}
-  <h2>{copy[kind].title}</h2>
-  <p>{copy[kind].body}</p>
+  <h2>{t(copy[kind].title)}</h2>
+  <p>{t(copy[kind].body, copy[kind].params)}</p>
 </div>
 
 <style>

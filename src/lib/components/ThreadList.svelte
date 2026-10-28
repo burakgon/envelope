@@ -15,6 +15,7 @@
     Archive, Check, CheckCircle, Clock, Filter, Folder, Forward, Mail, MailOpen, More, Newspaper, PanelLeft, Paperclip,
     Bell, Reply, ReplyAll, Search, ShieldAlert, Star, Tag, Trash, Users, X, Refresh, Sparkles,
   } from '../icons';
+  import { t } from '../i18n';
 
   let viewport: HTMLDivElement | undefined = $state();
   let scrollTop = $state(0);
@@ -36,10 +37,16 @@
   const filterActive = $derived(!!(mail.filter.unread || mail.filter.starred || mail.filter.attachments));
 
   const tabs = [
-    { id: 'people', label: 'People', icon: Users },
-    { id: 'newsletters', label: 'Newsletters', icon: Newspaper },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: null, label: 'All', icon: Mail },
+    { id: 'people', label: 'threadList.tabPeople', icon: Users },
+    { id: 'newsletters', label: 'threadList.tabNewsletters', icon: Newspaper },
+    { id: 'notifications', label: 'threadList.tabNotifications', icon: Bell },
+    { id: null, label: 'threadList.tabAll', icon: Mail },
+  ] as const;
+
+  const filters = [
+    { k: 'unread', label: 'threadList.filterUnread', icon: Mail },
+    { k: 'starred', label: 'threadList.filterStarred', icon: Star },
+    { k: 'attachments', label: 'threadList.filterAttachments', icon: Paperclip },
   ] as const;
 
   $effect(() => {
@@ -51,7 +58,7 @@
     // Keep the selected row in view when navigating with the keyboard.
     const id = mail.selectedId;
     if (id == null || !viewport) return;
-    const i = mail.items.findIndex((t) => t.id === id);
+    const i = mail.items.findIndex((th) => th.id === id);
     if (i < 0) return;
     const top = i * rowH;
     const vp = viewport;
@@ -120,19 +127,19 @@
     }
   }
 
-  function open(e: MouseEvent, t: ThreadSummary) {
-    if (e.shiftKey) mail.checkRange(t.id);
-    else if (e.ctrlKey || e.metaKey) mail.toggleCheck(t.id);
+  function open(e: MouseEvent, th: ThreadSummary) {
+    if (e.shiftKey) mail.checkRange(th.id);
+    else if (e.ctrlKey || e.metaKey) mail.toggleCheck(th.id);
     else {
       if (mail.checked.size) mail.checked.clear();
-      mail.select(t.id);
+      mail.select(th.id);
     }
   }
 
-  function context(e: MouseEvent, t: ThreadSummary) {
+  function context(e: MouseEvent, th: ThreadSummary) {
     e.preventDefault();
-    if (!mail.checked.has(t.id) && mail.selectedId !== t.id) mail.select(t.id);
-    menu = { x: e.clientX, y: e.clientY, thread: t };
+    if (!mail.checked.has(th.id) && mail.selectedId !== th.id) mail.select(th.id);
+    menu = { x: e.clientX, y: e.clientY, thread: th };
   }
 
   function menuIds(): number[] {
@@ -141,11 +148,11 @@
   }
 
   async function replyTo(mode: 'reply' | 'replyAll' | 'forward') {
-    const t = menu?.thread;
+    const th = menu?.thread;
     menu = null;
-    if (!t) return;
-    mail.select(t.id);
-    const d = await api.thread(t.id);
+    if (!th) return;
+    mail.select(th.id);
+    const d = await api.thread(th.id);
     const last = d.messages[d.messages.length - 1];
     if (last) compose.reply(last.id, mode, mode !== 'forward');
   }
@@ -179,22 +186,22 @@
 <section class="list" class:resizing style:width="{ui.settings.listWidth}px">
   <header data-tauri-drag-region>
     {#if ui.sidebarCollapsed}
-      <button class="icon-btn" title="Show sidebar" onclick={() => (ui.sidebarCollapsed = false)}><PanelLeft size={17} /></button>
+      <button class="icon-btn" title={t('threadList.showSidebar')} onclick={() => (ui.sidebarCollapsed = false)}><PanelLeft size={17} /></button>
     {/if}
     <div class="title" data-tauri-drag-region>
       <h1 data-tauri-drag-region>{mail.mailboxTitle}</h1>
       {#if mail.search}
-        <span class="sub">{mail.total} {mail.total === 1 ? 'result' : 'results'}</span>
+        <span class="sub">{t('threadList.resultCount', { count: mail.total })}</span>
       {:else if mail.mailboxSubtitle}
         <span class="sub">{mail.mailboxSubtitle}</span>
       {/if}
     </div>
     <div class="tools">
       {#if ai.ready}
-        <button class="icon-btn ask" title="Ask your inbox" onclick={() => { ui.askAi = ''; ui.open('ask'); }}><Sparkles size={16} /></button>
+        <button class="icon-btn ask" title={t('threadList.askInbox')} onclick={() => { ui.askAi = ''; ui.open('ask'); }}><Sparkles size={16} /></button>
       {/if}
-      <button class="icon-btn" class:active={filterActive} title="Filter" onclick={(e) => (filterAt = bulkRect(e))}><Filter size={16} /></button>
-      <button class="icon-btn" title="Refresh" onclick={() => api.syncNow(null)}><Refresh size={16} /></button>
+      <button class="icon-btn" class:active={filterActive} title={t('threadList.filter')} onclick={(e) => (filterAt = bulkRect(e))}><Filter size={16} /></button>
+      <button class="icon-btn" title={t('threadList.refresh')} onclick={() => api.syncNow(null)}><Refresh size={16} /></button>
     </div>
   </header>
 
@@ -207,15 +214,15 @@
       onkeydown={onSearchKey}
       onfocus={() => (searchFocused = true)}
       onblur={() => (searchFocused = false)}
-      placeholder="Search mail"
+      placeholder={t('threadList.searchMail')}
       spellcheck="false"
-      aria-label="Search mail"
+      aria-label={t('threadList.searchMail')}
     />
     {#if query && ai.ready && /\s/.test(query.trim()) && !/\w+:/.test(query)}
-      <button class="ai-search" title="Turn into a search with AI" onclick={aiSearch} disabled={aiBusy}><Sparkles size={13} />{aiBusy ? '…' : 'AI'}</button>
+      <button class="ai-search" title={t('threadList.aiSearchTitle')} onclick={aiSearch} disabled={aiBusy}><Sparkles size={13} />{aiBusy ? '…' : t('threadList.aiSearchButton')}</button>
     {/if}
     {#if query}
-      <button class="clear" aria-label="Clear search" onclick={clearSearch}><X size={13} /></button>
+      <button class="clear" aria-label={t('threadList.clearSearch')} onclick={clearSearch}><X size={13} /></button>
     {:else}
       <span class="kbd">/</span>
     {/if}
@@ -223,10 +230,10 @@
 
   {#if mail.splitActive}
     <div class="tabs" role="tablist">
-      {#each tabs as t (t.label)}
-        <button role="tab" aria-selected={mail.category === t.id} class:on={mail.category === t.id} onclick={() => mail.setCategory(t.id)}>
-          {t.label}
-          {#if t.id && mail.categoryUnread[t.id]}<span class="badge">{mail.categoryUnread[t.id]}</span>{/if}
+      {#each tabs as tab (tab.label)}
+        <button role="tab" aria-selected={mail.category === tab.id} class:on={mail.category === tab.id} title={t(tab.label)} onclick={() => mail.setCategory(tab.id)}>
+          <span class="tab-label">{t(tab.label)}</span>
+          {#if tab.id && mail.categoryUnread[tab.id]}<span class="badge">{mail.categoryUnread[tab.id]}</span>{/if}
         </button>
       {/each}
     </div>
@@ -234,20 +241,23 @@
 
   {#if mail.checked.size > 0}
     <div class="bulk">
-      <button class="icon-btn sm" title="Clear selection" onclick={() => mail.checked.clear()}><X size={15} /></button>
-      <span class="sel">{mail.checked.size} selected</span>
-      <button class="link" onclick={() => mail.items.forEach((t) => mail.checked.add(t.id))}>Select all</button>
+      <button class="icon-btn sm" title={t('threadList.clearSelection')} onclick={() => mail.checked.clear()}><X size={15} /></button>
+      <!-- Side by side when they fit, stacked when a translation is longer. -->
+      <span class="sel-box">
+        <span class="sel">{t('threadList.selectedCount', { count: mail.checked.size })}</span>
+        <button class="link" title={t('threadList.selectAll')} onclick={() => mail.items.forEach((th) => mail.checked.add(th.id))}>{t('threadList.selectAll')}</button>
+      </span>
       <span class="spacer"></span>
-      <button class="icon-btn sm" title="Archive" onclick={() => mail.archive()}><Archive size={15} /></button>
-      <button class="icon-btn sm" title="Delete" onclick={() => mail.trash()}><Trash size={15} /></button>
-      <button class="icon-btn sm" title="Mark read" onclick={() => mail.setRead(mail.targets(), true)}><MailOpen size={15} /></button>
-      <button class="icon-btn sm" title="Star" onclick={() => mail.toggleStar()}><Star size={15} /></button>
-      <button class="icon-btn sm" title="Snooze" onclick={(e) => (snoozeAt = { ...bulkRect(e), ids: mail.targets() })}><Clock size={15} /></button>
-      <button class="icon-btn sm" title="Move" onclick={(e) => (moveAt = { ...bulkRect(e), ids: mail.targets(), labels: false })}><Folder size={15} /></button>
+      <button class="icon-btn sm" title={t('threadList.archive')} onclick={() => mail.archive()}><Archive size={15} /></button>
+      <button class="icon-btn sm" title={t('common.delete')} onclick={() => mail.trash()}><Trash size={15} /></button>
+      <button class="icon-btn sm" title={t('threadList.markRead')} onclick={() => mail.setRead(mail.targets(), true)}><MailOpen size={15} /></button>
+      <button class="icon-btn sm" title={t('threadList.star')} onclick={() => mail.toggleStar()}><Star size={15} /></button>
+      <button class="icon-btn sm" title={t('threadList.snooze')} onclick={(e) => (snoozeAt = { ...bulkRect(e), ids: mail.targets() })}><Clock size={15} /></button>
+      <button class="icon-btn sm" title={t('threadList.move')} onclick={(e) => (moveAt = { ...bulkRect(e), ids: mail.targets(), labels: false })}><Folder size={15} /></button>
     </div>
   {/if}
 
-  <div class="viewport" bind:this={viewport} onscroll={() => (scrollTop = viewport?.scrollTop ?? 0)} role="listbox" aria-label="Conversations" tabindex="0">
+  <div class="viewport" bind:this={viewport} onscroll={() => (scrollTop = viewport?.scrollTop ?? 0)} role="listbox" aria-label={t('threadList.conversations')} tabindex="0">
     {#if mail.loading && mail.items.length === 0}
       {#each Array(8) as _, i (i)}
         <div class="skel" style:height="{rowH}px">
@@ -264,16 +274,16 @@
     {:else}
       <div class="spacer-box" style:height="{mail.items.length * rowH + 12}px">
         <div class="rows" style:transform="translateY({start * rowH}px)">
-          {#each visible as t (t.id)}
+          {#each visible as th (th.id)}
             <ThreadRow
-              thread={t}
-              selected={mail.selectedId === t.id}
-              checked={mail.checked.has(t.id)}
-              onopen={(e) => open(e, t)}
-              oncontext={(e) => context(e, t)}
+              thread={th}
+              selected={mail.selectedId === th.id}
+              checked={mail.checked.has(th.id)}
+              onopen={(e) => open(e, th)}
+              oncontext={(e) => context(e, th)}
               onsnooze={(e) => {
                 const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                snoozeAt = { x: r.right, y: r.bottom + 4, ids: [t.id] };
+                snoozeAt = { x: r.right, y: r.bottom + 4, ids: [th.id] };
               }}
             />
           {/each}
@@ -288,27 +298,27 @@
   {@const ids = menuIds()}
   <Popover x={menu.x} y={menu.y} onclose={() => (menu = null)} width={232}>
     {#if ids.length === 1}
-      <button class="menu-item" onclick={() => replyTo('reply')}><Reply size={15} />Reply<span class="hint">R</span></button>
-      <button class="menu-item" onclick={() => replyTo('replyAll')}><ReplyAll size={15} />Reply all<span class="hint">A</span></button>
-      <button class="menu-item" onclick={() => replyTo('forward')}><Forward size={15} />Forward<span class="hint">F</span></button>
+      <button class="menu-item" onclick={() => replyTo('reply')}><Reply size={15} />{t('threadList.reply')}<span class="hint">R</span></button>
+      <button class="menu-item" onclick={() => replyTo('replyAll')}><ReplyAll size={15} />{t('threadList.replyAll')}<span class="hint">A</span></button>
+      <button class="menu-item" onclick={() => replyTo('forward')}><Forward size={15} />{t('threadList.forward')}<span class="hint">F</span></button>
       <div class="divider"></div>
     {/if}
     {#if inSnoozed}
-      <button class="menu-item" onclick={() => { mail.unsnooze(ids); menu = null; }}><Mail size={15} />Unsnooze</button>
+      <button class="menu-item" onclick={() => { mail.unsnooze(ids); menu = null; }}><Mail size={15} />{t('threadList.unsnooze')}</button>
     {/if}
-    <button class="menu-item" onclick={() => { mail.archive(ids); menu = null; }}><Archive size={15} />Archive<span class="hint">E</span></button>
-    <button class="menu-item" onclick={() => { mail.trash(ids); menu = null; }}><Trash size={15} />{inTrash ? 'Delete forever' : 'Delete'}<span class="hint">#</span></button>
+    <button class="menu-item" onclick={() => { mail.archive(ids); menu = null; }}><Archive size={15} />{t('threadList.archive')}<span class="hint">E</span></button>
+    <button class="menu-item" onclick={() => { mail.trash(ids); menu = null; }}><Trash size={15} />{inTrash ? t('threadList.deleteForever') : t('common.delete')}<span class="hint">#</span></button>
     <button class="menu-item" onclick={() => { mail.toggleRead(ids); menu = null; }}>
-      {#if menu.thread.unreadCount > 0}<MailOpen size={15} />Mark as read{:else}<Mail size={15} />Mark as unread{/if}<span class="hint">U</span>
+      {#if menu.thread.unreadCount > 0}<MailOpen size={15} />{t('threadList.markAsRead')}{:else}<Mail size={15} />{t('threadList.markAsUnread')}{/if}<span class="hint">U</span>
     </button>
-    <button class="menu-item" onclick={() => { mail.toggleStar(ids); menu = null; }}><Star size={15} />{menu.thread.flagged ? 'Unstar' : 'Star'}<span class="hint">S</span></button>
-    <button class="menu-item" onclick={() => { snoozeAt = { x: menu!.x, y: menu!.y, ids }; menu = null; }}><Clock size={15} />Snooze…<span class="hint">H</span></button>
+    <button class="menu-item" onclick={() => { mail.toggleStar(ids); menu = null; }}><Star size={15} />{menu.thread.flagged ? t('threadList.unstar') : t('threadList.star')}<span class="hint">S</span></button>
+    <button class="menu-item" onclick={() => { snoozeAt = { x: menu!.x, y: menu!.y, ids }; menu = null; }}><Clock size={15} />{t('threadList.snoozeMenu')}<span class="hint">H</span></button>
     <div class="divider"></div>
-    <button class="menu-item" onclick={() => { moveAt = { x: menu!.x, y: menu!.y, ids, labels: false }; menu = null; }}><Folder size={15} />Move to…<span class="hint">V</span></button>
+    <button class="menu-item" onclick={() => { moveAt = { x: menu!.x, y: menu!.y, ids, labels: false }; menu = null; }}><Folder size={15} />{t('threadList.moveTo')}<span class="hint">V</span></button>
     {#if ['gmail', 'microsoft', 'exchange'].includes(mail.accountById.get(menu.thread.accountId)?.kind ?? '')}
-      <button class="menu-item" onclick={() => { moveAt = { x: menu!.x, y: menu!.y, ids, labels: true }; menu = null; }}><Tag size={15} />{mail.accountById.get(menu.thread.accountId)?.kind === 'gmail' ? 'Label…' : 'Categorize…'}<span class="hint">L</span></button>
+      <button class="menu-item" onclick={() => { moveAt = { x: menu!.x, y: menu!.y, ids, labels: true }; menu = null; }}><Tag size={15} />{mail.accountById.get(menu.thread.accountId)?.kind === 'gmail' ? t('threadList.labelMenu') : t('threadList.categorizeMenu')}<span class="hint">L</span></button>
     {/if}
-    <button class="menu-item" onclick={() => { mail.moveTo({ kind: 'junk' }, ids); menu = null; }}><ShieldAlert size={15} />Report spam<span class="hint">!</span></button>
+    <button class="menu-item" onclick={() => { mail.moveTo({ kind: 'junk' }, ids); menu = null; }}><ShieldAlert size={15} />{t('threadList.reportSpam')}<span class="hint">!</span></button>
   </Popover>
 {/if}
 
@@ -323,18 +333,18 @@
 
 {#if filterAt}
   <Popover x={filterAt.x} y={filterAt.y} onclose={() => (filterAt = null)} width={220}>
-    <div class="menu-label">Show only</div>
-    {#each [{ k: 'unread', l: 'Unread', i: Mail }, { k: 'starred', l: 'Starred', i: Star }, { k: 'attachments', l: 'With attachments', i: Paperclip }] as f (f.k)}
-      {@const on = !!mail.filter[f.k as 'unread']}
+    <div class="menu-label">{t('threadList.showOnly')}</div>
+    {#each filters as f (f.k)}
+      {@const on = !!mail.filter[f.k]}
       <button class="menu-item" onclick={() => mail.setFilter({ ...mail.filter, [f.k]: !on })}>
-        <f.i size={15} />{f.l}
+        <f.icon size={15} />{t(f.label)}
         {#if on}<span class="hint"><Check size={14} /></span>{/if}
       </button>
     {/each}
     <div class="divider"></div>
-    <button class="menu-item" onclick={() => { mail.markAllRead(); filterAt = null; }}><CheckCircle size={15} />Mark all as read</button>
+    <button class="menu-item" onclick={() => { mail.markAllRead(); filterAt = null; }}><CheckCircle size={15} />{t('threadList.markAllRead')}</button>
     <button class="menu-item" onclick={() => { ui.set('density', ui.settings.density === 'compact' ? 'comfortable' : 'compact'); filterAt = null; }}>
-      <More size={15} />{ui.settings.density === 'compact' ? 'Comfortable rows' : 'Compact rows'}
+      <More size={15} />{ui.settings.density === 'compact' ? t('threadList.comfortableRows') : t('threadList.compactRows')}
     </button>
   </Popover>
 {/if}
@@ -367,10 +377,13 @@
   }
   h1 {
     margin: 0;
+    min-width: 0;
     font-size: 17px;
     font-weight: 650;
     letter-spacing: -0.015em;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .sub {
     color: var(--text-3);
@@ -444,19 +457,15 @@
     gap: 2px;
     padding: 0 12px 8px;
     flex-shrink: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .tabs::-webkit-scrollbar {
-    display: none;
   }
   .tabs button {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     height: 28px;
-    padding: 0 10px;
-    flex-shrink: 0;
+    padding: 0 8px;
+    /* Long translations shorten with an ellipsis (the full name is the tooltip) instead of wrapping. */
+    min-width: 0;
     white-space: nowrap;
     border-radius: 8px;
     color: var(--text-3);
@@ -472,7 +481,12 @@
     color: var(--accent-text);
     background: var(--accent-soft);
   }
+  .tab-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .badge {
+    flex-shrink: 0;
     font-size: 10.5px;
     font-weight: 700;
     min-width: 16px;
@@ -494,17 +508,32 @@
     background: var(--accent-soft);
     animation: slide-up var(--dur) var(--ease-out);
   }
+  .sel-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 8px;
+    min-width: 0;
+    margin-left: 2px;
+    line-height: 1.25;
+  }
   .sel {
+    max-width: 100%;
     font-weight: 600;
     color: var(--accent-text);
-    margin-left: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .link {
+    max-width: 100%;
     color: var(--accent-text);
     font-size: var(--text-sm);
-    margin-left: 6px;
     text-decoration: underline;
     text-underline-offset: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .bulk .spacer {
     flex: 1;

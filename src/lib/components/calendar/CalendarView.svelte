@@ -4,6 +4,7 @@
   import { cal, addDays, startOfDay } from '../../stores/calendar.svelte';
   import type { CalView } from '../../stores/calendar.svelte';
   import { ui } from '../../stores/ui.svelte';
+  import { t, type MessageKey } from '../../i18n';
   import WindowControls from '../WindowControls.svelte';
   import TimeGrid from './TimeGrid.svelte';
   import MonthGrid from './MonthGrid.svelte';
@@ -25,11 +26,11 @@
     return Array.from({ length: n }, (_, i) => addDays(startOfDay(from), i));
   });
 
-  const views: { id: CalView; label: string; key: string }[] = [
-    { id: 'day', label: 'Day', key: 'D' },
-    { id: 'week', label: 'Week', key: 'W' },
-    { id: 'month', label: 'Month', key: 'M' },
-    { id: 'agenda', label: 'Agenda', key: 'A' },
+  const views: { id: CalView; label: MessageKey; tooltip: MessageKey; key: string }[] = [
+    { id: 'day', label: 'calendar.view.day', tooltip: 'calendar.view.dayTooltip', key: 'D' },
+    { id: 'week', label: 'calendar.view.week', tooltip: 'calendar.view.weekTooltip', key: 'W' },
+    { id: 'month', label: 'calendar.view.month', tooltip: 'calendar.view.monthTooltip', key: 'M' },
+    { id: 'agenda', label: 'calendar.view.agenda', tooltip: 'calendar.view.agendaTooltip', key: 'A' },
   ];
 
   function open(o: Occurrence, rect: DOMRect) {
@@ -51,22 +52,22 @@
 <section class="calendar" onwheel={onWheel}>
   <header data-tauri-drag-region>
     {#if ui.sidebarCollapsed}
-      <button class="icon-btn" title="Show sidebar" onclick={() => (ui.sidebarCollapsed = false)}><PanelLeft size={17} /></button>
+      <button class="icon-btn" title={t('calendar.header.showSidebar')} onclick={() => (ui.sidebarCollapsed = false)}><PanelLeft size={17} /></button>
     {/if}
-    <button class="btn sm today" onclick={() => cal.today()} title="Today (T)">Today</button>
+    <button class="btn sm today" onclick={() => cal.today()} title={t('calendar.header.todayTooltip', { key: 'T' })}>{t('time.today')}</button>
     <div class="nav">
-      <button class="icon-btn" aria-label="Previous" title="Previous (K)" onclick={() => cal.step(-1)}><ChevronLeft size={18} /></button>
-      <button class="icon-btn" aria-label="Next" title="Next (J)" onclick={() => cal.step(1)}><ChevronRight size={18} /></button>
+      <button class="icon-btn" aria-label={t('calendar.header.previousPeriod')} title={t('calendar.header.previousPeriodTooltip', { key: 'K' })} onclick={() => cal.step(-1)}><ChevronLeft size={18} /></button>
+      <button class="icon-btn" aria-label={t('calendar.header.nextPeriod')} title={t('calendar.header.nextPeriodTooltip', { key: 'J' })} onclick={() => cal.step(1)}><ChevronRight size={18} /></button>
     </div>
-    <h1 data-tauri-drag-region>{cal.title}</h1>
+    <h1 data-tauri-drag-region title={cal.title}>{cal.title}</h1>
     {#if cal.loading}<span class="spin"><Spinner size={14} /></span>{/if}
     <span class="grow" data-tauri-drag-region></span>
     <div class="seg" role="tablist">
       {#each views as v (v.id)}
-        <button role="tab" aria-selected={cal.view === v.id} class:on={cal.view === v.id} title="{v.label} ({v.key})" onclick={() => cal.setView(v.id)}>{v.label}</button>
+        <button role="tab" aria-selected={cal.view === v.id} class:on={cal.view === v.id} title={t(v.tooltip, { key: v.key })} onclick={() => cal.setView(v.id)}>{t(v.label)}</button>
       {/each}
     </div>
-    <button class="btn primary sm new" onclick={() => cal.newEvent()} title="New event (C)"><Plus size={15} strokeWidth={2.4} />Event</button>
+    <button class="btn primary sm new" onclick={() => cal.newEvent()} title={t('calendar.header.newEventTooltip', { key: 'C' })}><Plus size={15} strokeWidth={2.4} />{t('calendar.header.newEventButton')}</button>
     <WindowControls />
   </header>
 
@@ -112,11 +113,14 @@
     display: flex;
   }
   h1 {
+    min-width: 0;
     margin: 0 0 0 4px;
     font-size: var(--text-xl);
     font-weight: 650;
     letter-spacing: -0.01em;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .spin {
     display: grid;
@@ -128,6 +132,7 @@
   }
   .seg {
     display: flex;
+    flex-shrink: 0;
     padding: 3px;
     gap: 2px;
     border-radius: 10px;
@@ -137,6 +142,7 @@
     height: 26px;
     padding: 0 12px;
     border-radius: 7px;
+    white-space: nowrap;
     font-weight: 500;
     font-size: var(--text-sm);
     color: var(--text-2);

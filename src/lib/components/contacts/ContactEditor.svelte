@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { people } from '../../stores/contacts.svelte';
+  import { fieldLabel, people } from '../../stores/contacts.svelte';
   import type { LabeledValue } from '../../api';
+  import { t } from '../../i18n';
   import Avatar from '../Avatar.svelte';
   import { Camera, Plus, X } from '../../icons';
 
@@ -12,10 +13,11 @@
   let file: HTMLInputElement | undefined = $state();
   onMount(() => first?.focus());
 
+  // Stored label values; the options show them translated.
   const emailLabels = ['work', 'home', 'other'];
   const phoneLabels = ['mobile', 'work', 'home', 'other'];
   const addressLabels = ['home', 'work', 'other'];
-  const name = $derived([c.givenName, c.familyName].filter((x) => x?.trim()).join(' ') || c.name || 'New contact');
+  const name = $derived([c.givenName, c.familyName].filter((x) => x?.trim()).join(' ') || c.name || t('contacts.newContact'));
 
   function add(list: LabeledValue[], label: string) {
     list.push({ value: '', label });
@@ -57,7 +59,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="editor" onkeydown={key}>
   <div class="top">
-    <button class="photo-btn" title="Change photo" onclick={() => file?.click()}>
+    <button class="photo-btn" title={t('contacts.changePhoto')} onclick={() => file?.click()}>
       {#if c.photo}
         <img src={c.photo} alt="" />
       {:else}
@@ -68,63 +70,63 @@
     <input bind:this={file} type="file" accept="image/*" hidden onchange={pickPhoto} />
     <div class="names">
       <div class="two">
-        <input bind:this={first} class="input" placeholder="First name" bind:value={c.givenName} />
-        <input class="input" placeholder="Last name" bind:value={c.familyName} />
+        <input bind:this={first} class="input" placeholder={t('contacts.firstName')} bind:value={c.givenName} />
+        <input class="input" placeholder={t('contacts.lastName')} bind:value={c.familyName} />
       </div>
       <div class="two">
-        <input class="input" placeholder="Company" bind:value={c.organization} />
-        <input class="input" placeholder="Job title" bind:value={c.title} />
+        <input class="input" placeholder={t('contacts.company')} bind:value={c.organization} />
+        <input class="input" placeholder={t('contacts.jobTitle')} bind:value={c.title} />
       </div>
-      {#if c.photo}<button class="text-btn" onclick={() => (c.photo = null)}>Remove photo</button>{/if}
+      {#if c.photo}<button class="text-btn" onclick={() => (c.photo = null)}>{t('contacts.removePhoto')}</button>{/if}
     </div>
   </div>
 
   <div class="group">
-    <div class="label">E-mail</div>
+    <div class="label">{t('contacts.email')}</div>
     {#each c.emails as e, i (i)}
       <div class="line">
-        <select class="input sel" bind:value={e.label}>{#each emailLabels as l (l)}<option value={l}>{l}</option>{/each}</select>
-        <input class="input" type="email" placeholder="name@example.com" bind:value={e.value} />
-        <button class="icon-btn sm" aria-label="Remove" onclick={() => remove(c.emails, i)}><X size={14} /></button>
+        <select class="input sel" bind:value={e.label}>{#each emailLabels as l (l)}<option value={l}>{fieldLabel(l)}</option>{/each}</select>
+        <input class="input" type="email" placeholder={t('contacts.emailPlaceholder')} bind:value={e.value} />
+        <button class="icon-btn sm" aria-label={t('common.remove')} onclick={() => remove(c.emails, i)}><X size={14} /></button>
       </div>
     {/each}
-    <button class="add" onclick={() => add(c.emails, c.emails.length ? 'home' : 'work')}><Plus size={14} />Add e-mail</button>
+    <button class="add" onclick={() => add(c.emails, c.emails.length ? 'home' : 'work')}><Plus size={14} />{t('contacts.addEmail')}</button>
   </div>
 
   <div class="group">
-    <div class="label">Phone</div>
+    <div class="label">{t('contacts.phone')}</div>
     {#each c.phones as p, i (i)}
       <div class="line">
-        <select class="input sel" bind:value={p.label}>{#each phoneLabels as l (l)}<option value={l}>{l}</option>{/each}</select>
-        <input class="input" type="tel" placeholder="+1 555 0100" bind:value={p.value} />
-        <button class="icon-btn sm" aria-label="Remove" onclick={() => remove(c.phones, i)}><X size={14} /></button>
+        <select class="input sel" bind:value={p.label}>{#each phoneLabels as l (l)}<option value={l}>{fieldLabel(l)}</option>{/each}</select>
+        <input class="input" type="tel" placeholder={t('contacts.phonePlaceholder')} bind:value={p.value} />
+        <button class="icon-btn sm" aria-label={t('common.remove')} onclick={() => remove(c.phones, i)}><X size={14} /></button>
       </div>
     {/each}
-    <button class="add" onclick={() => add(c.phones, 'mobile')}><Plus size={14} />Add phone</button>
+    <button class="add" onclick={() => add(c.phones, 'mobile')}><Plus size={14} />{t('contacts.addPhone')}</button>
   </div>
 
   {#if !limited}
     <div class="group">
-      <div class="label">Address</div>
+      <div class="label">{t('contacts.address')}</div>
       {#each c.addresses as a, i (i)}
         <div class="line top-align">
-          <select class="input sel" bind:value={a.label}>{#each addressLabels as l (l)}<option value={l}>{l}</option>{/each}</select>
-          <textarea class="input area" rows="3" placeholder="Street, city, postal code, country" bind:value={a.value}></textarea>
-          <button class="icon-btn sm" aria-label="Remove" onclick={() => remove(c.addresses, i)}><X size={14} /></button>
+          <select class="input sel" bind:value={a.label}>{#each addressLabels as l (l)}<option value={l}>{fieldLabel(l)}</option>{/each}</select>
+          <textarea class="input area" rows="3" placeholder={t('contacts.addressPlaceholder')} bind:value={a.value}></textarea>
+          <button class="icon-btn sm" aria-label={t('common.remove')} onclick={() => remove(c.addresses, i)}><X size={14} /></button>
         </div>
       {/each}
-      <button class="add" onclick={() => add(c.addresses, 'home')}><Plus size={14} />Add address</button>
+      <button class="add" onclick={() => add(c.addresses, 'home')}><Plus size={14} />{t('contacts.addAddress')}</button>
     </div>
   {/if}
 
   <div class="group two-col">
     <div>
-      <label class="label" for="ct-bday">Birthday</label>
-      <input id="ct-bday" class="input" placeholder="YYYY-MM-DD" bind:value={c.birthday} />
+      <label class="label" for="ct-bday">{t('contacts.birthday')}</label>
+      <input id="ct-bday" class="input" placeholder={t('contacts.birthdayPlaceholder')} bind:value={c.birthday} />
     </div>
     {#if !limited}
       <div>
-        <label class="label" for="ct-web">Website</label>
+        <label class="label" for="ct-web">{t('contacts.website')}</label>
         <input
           id="ct-web"
           class="input"
@@ -137,17 +139,17 @@
   </div>
 
   {#if limited}
-    <p class="hint">Exchange keeps names, e-mail addresses, phone numbers, company, job title and birthday for contacts.</p>
+    <p class="hint">{t('contacts.exchangeLimited')}</p>
   {:else}
     <div class="group">
-      <label class="label" for="ct-notes">Notes</label>
+      <label class="label" for="ct-notes">{t('contacts.notes')}</label>
       <textarea id="ct-notes" class="input area" rows="4" bind:value={c.notes}></textarea>
     </div>
   {/if}
 
   {#if c.id == null && people.writable.length > 1}
     <div class="group">
-      <label class="label" for="ct-book">Address book</label>
+      <label class="label" for="ct-book">{t('contacts.addressBook')}</label>
       <select id="ct-book" class="input" bind:value={c.bookId}>
         {#each people.writable as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
       </select>
@@ -155,8 +157,8 @@
   {/if}
 
   <footer>
-    <button class="btn" onclick={() => (people.editing = null)}>Cancel</button>
-    <button class="btn primary" onclick={() => people.save()}>{c.id == null ? 'Add contact' : 'Save'}</button>
+    <button class="btn" onclick={() => (people.editing = null)}>{t('common.cancel')}</button>
+    <button class="btn primary" onclick={() => people.save()}>{c.id == null ? t('contacts.addContact') : t('common.save')}</button>
   </footer>
 </div>
 
@@ -244,10 +246,12 @@
   .line.top-align {
     align-items: flex-start;
   }
+  /* As wide as the longest translated type, but no narrower than before. */
   .sel {
-    width: 118px;
+    width: auto;
+    min-width: 118px;
+    max-width: 45%;
     flex-shrink: 0;
-    text-transform: capitalize;
   }
   .area {
     height: auto;

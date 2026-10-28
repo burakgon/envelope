@@ -4,6 +4,7 @@
   import { cal, addDays, span } from '../../stores/calendar.svelte';
   import { mail } from '../../stores/mail.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
+  import { t } from '../../i18n';
   import Popover from '../Popover.svelte';
   import MiniMonth from './MiniMonth.svelte';
   import { Check, ChevronDown, Palette, Plus, Refresh, Trash } from '../../icons';
@@ -19,7 +20,7 @@
       const account = c.accountId != null ? mail.accounts.find((a) => a.id === c.accountId) : null;
       const subscribed = c.kind === 'subscription';
       const key = account ? String(account.id) : subscribed ? 'subscribed' : 'local';
-      const label = account ? (account.label ?? account.email) : subscribed ? 'Subscribed' : 'On this computer';
+      const label = account ? (account.label ?? account.email) : subscribed ? t('calendar.sidebar.subscribed') : t('calendar.sidebar.onThisComputer');
       if (!map.has(key)) map.set(key, { key, label, list: [] });
       map.get(key)!.list.push(c);
     }
@@ -30,7 +31,7 @@
     const set = new Set<number>();
     for (const o of cal.occurrences) {
       const s = span(o);
-      for (let t = new Date(s.start).setHours(0, 0, 0, 0); t < s.end; t = addDays(t, 1).getTime()) set.add(t);
+      for (let day = new Date(s.start).setHours(0, 0, 0, 0); day < s.end; day = addDays(day, 1).getTime()) set.add(day);
     }
     return set;
   });
@@ -41,7 +42,7 @@
     try {
       await api.calendar.refresh(c.id);
       cal.load();
-      toasts.show(`${c.name} is up to date`, { kind: 'success' });
+      toasts.show(t('calendar.sidebar.refreshed', { name: c.name }), { kind: 'success' });
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -53,7 +54,7 @@
       await api.calendar.unsubscribe(c.id);
       await cal.loadCalendars();
       cal.load();
-      toasts.show(`Unsubscribed from ${c.name}`);
+      toasts.show(t('calendar.sidebar.unsubscribed', { name: c.name }));
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -73,13 +74,13 @@
   }
 </script>
 
-<MiniMonth value={cal.focus} onpick={(t) => cal.goto(t)} from={range[0]} to={range[1]} marks={busy} />
+<MiniMonth value={cal.focus} onpick={(day) => cal.goto(day)} from={range[0]} to={range[1]} marks={busy} />
 
 {#each groups as g (g.key)}
   {@const open = !collapsed[g.key]}
   <div class="group">
     <button class="ghead" onclick={() => (collapsed[g.key] = open)}>
-      <span class="truncate">{groups.length > 1 || g.key === 'local' ? g.label : 'Calendars'}</span>
+      <span class="truncate">{groups.length > 1 || g.key === 'local' ? g.label : t('calendar.sidebar.calendars')}</span>
       <span class="chev" class:closed={!open}><ChevronDown size={13} /></span>
     </button>
     {#if open}
@@ -91,7 +92,7 @@
           </button>
           <button
             class="icon-btn sm color"
-            aria-label="Calendar color"
+            aria-label={t('calendar.sidebar.calendarColor')}
             onclick={(e) => {
               const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
               colorFor = { c, x: r.left, y: r.bottom + 4 };
@@ -101,10 +102,10 @@
     {/if}
   </div>
 {:else}
-  <div class="none">No calendars yet. Add an account with calendar access to see your events.</div>
+  <div class="none">{t('calendar.sidebar.empty')}</div>
 {/each}
 
-<button class="subscribe" onclick={() => (cal.subscribing = '')}><Plus size={13} />Subscribe to a calendar…</button>
+<button class="subscribe" onclick={() => (cal.subscribing = '')}><Plus size={13} />{t('calendar.sidebar.subscribe')}</button>
 
 {#if colorFor}
   {@const target = colorFor.c}
@@ -116,8 +117,8 @@
     </div>
     {#if target.kind === 'subscription'}
       <div class="menu-sep"></div>
-      <button class="menu-item" onclick={() => refresh(target)}><Refresh size={14} />Refresh now</button>
-      <button class="menu-item danger" onclick={() => unsubscribe(target)}><Trash size={14} />Unsubscribe</button>
+      <button class="menu-item" onclick={() => refresh(target)}><Refresh size={14} />{t('calendar.sidebar.refreshNow')}</button>
+      <button class="menu-item danger" onclick={() => unsubscribe(target)}><Trash size={14} />{t('calendar.sidebar.unsubscribe')}</button>
     {/if}
   </Popover>
 {/if}

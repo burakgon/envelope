@@ -1,8 +1,9 @@
 <script lang="ts">
   import { ui, type MailRule, type RuleAction, type RuleCondition } from '../../stores/ui.svelte';
-  import { mail, roleLabels } from '../../stores/mail.svelte';
+  import { mail, roleLabel } from '../../stores/mail.svelte';
   import Toggle from './Toggle.svelte';
   import { ArrowDown, ArrowUp, Plus, X } from '../../icons';
+  import { intlLocale, t, tParts } from '../../i18n';
 
   let editing = $state<MailRule | null>(ui.rulesDraft);
   $effect(() => {
@@ -13,36 +14,36 @@
     }
   });
 
-  const fields: { value: RuleCondition['field']; label: string }[] = [
-    { value: 'from', label: 'From' },
-    { value: 'to', label: 'To or Cc' },
-    { value: 'subject', label: 'Subject' },
-    { value: 'any', label: 'From, to or subject' },
-  ];
-  const ops: { value: RuleCondition['op']; label: string }[] = [
-    { value: 'contains', label: 'contains' },
-    { value: 'notContains', label: 'does not contain' },
-    { value: 'is', label: 'is' },
-    { value: 'endsWith', label: 'ends with' },
-  ];
-  const actionKinds: { value: RuleAction['kind']; label: string }[] = [
-    { value: 'move', label: 'Move to folder' },
-    { value: 'label', label: 'Apply label / category' },
-    { value: 'archive', label: 'Archive (skip the inbox)' },
-    { value: 'read', label: 'Mark as read' },
-    { value: 'star', label: 'Star' },
-    { value: 'mute', label: 'Don’t notify' },
-    { value: 'spam', label: 'Mark as spam' },
-    { value: 'trash', label: 'Delete' },
-  ];
+  const fields: { value: RuleCondition['field']; label: string }[] = $derived([
+    { value: 'from', label: t('settings.rules.fieldFrom') },
+    { value: 'to', label: t('settings.rules.fieldTo') },
+    { value: 'subject', label: t('settings.rules.fieldSubject') },
+    { value: 'any', label: t('settings.rules.fieldAny') },
+  ]);
+  const ops: { value: RuleCondition['op']; label: string }[] = $derived([
+    { value: 'contains', label: t('settings.rules.opContains') },
+    { value: 'notContains', label: t('settings.rules.opNotContains') },
+    { value: 'is', label: t('settings.rules.opIs') },
+    { value: 'endsWith', label: t('settings.rules.opEndsWith') },
+  ]);
+  const actionKinds: { value: RuleAction['kind']; label: string }[] = $derived([
+    { value: 'move', label: t('settings.rules.actionMove') },
+    { value: 'label', label: t('settings.rules.actionLabel') },
+    { value: 'archive', label: t('settings.rules.actionArchive') },
+    { value: 'read', label: t('settings.rules.actionRead') },
+    { value: 'star', label: t('settings.rules.actionStar') },
+    { value: 'mute', label: t('settings.rules.actionMute') },
+    { value: 'spam', label: t('settings.rules.actionSpam') },
+    { value: 'trash', label: t('common.delete') },
+  ]);
 
   const scopeFolders = $derived(
     mail.folders.filter((f) => editing && (editing.accountId == null || f.accountId === editing.accountId)),
   );
   const folderName = (id: number) => {
     const f = mail.folders.find((x) => x.id === id);
-    if (!f) return 'Missing folder';
-    const name = f.role ? roleLabels[f.role] : f.path;
+    if (!f) return t('settings.rules.missingFolder');
+    const name = f.role ? roleLabel(f.role) : f.path;
     const a = mail.multiAccount && !editing?.accountId ? mail.accountById.get(f.accountId) : null;
     return a ? `${name} — ${a.label ?? a.email}` : name;
   };
@@ -66,15 +67,19 @@
     editing.actions[i] = kind === 'move' ? { kind, folderId: firstFolder(false) } : kind === 'label' ? { kind, folderId: firstFolder(true) } : { kind };
   }
 
+  // Lists joined the way the interface language does it: "a and b", "a, b, or c".
+  const andList = $derived(new Intl.ListFormat(intlLocale(), { type: 'conjunction' }));
+  const orList = $derived(new Intl.ListFormat(intlLocale(), { type: 'disjunction' }));
+
   function summary(r: MailRule): string {
     const when = r.conditions
       .filter((c) => c.value.trim())
-      .map((c) => `${fields.find((f) => f.value === c.field)?.label.toLowerCase()} ${ops.find((o) => o.value === c.op)?.label} “${c.value}”`)
-      .join(r.match === 'all' ? ' and ' : ' or ');
-    const then = r.actions
-      .map((a) => ('folderId' in a ? `${a.kind === 'move' ? 'move to' : 'label'} ${folderName(a.folderId)}` : actionKinds.find((k) => k.value === a.kind)?.label.toLowerCase()))
-      .join(', ');
-    return `If ${when || 'any message'}: ${then}`;
+      .map((c) => t('settings.rules.summaryCondition', { field: c.field, op: c.op, value: c.value }));
+    const then = andList.format(
+      r.actions.map((a) => t('settings.rules.summaryAction', { kind: a.kind, folder: 'folderId' in a ? folderName(a.folderId) : null })),
+    );
+    if (!when.length) return t('settings.rules.summaryAlways', { actions: then });
+    return t('settings.rules.summary', { conditions: (r.match === 'all' ? andList : orList).format(when), actions: then });
   }
 
   function save() {
@@ -114,8 +119,8 @@
   const valid = $derived(!!editing && editing.conditions.some((c) => c.value.trim()) && editing.actions.length > 0);
 </script>
 
-<h2>Rules</h2>
-<p class="desc">Rules sort new mail as it arrives — move it, label it, mark it read or keep it quiet. They run in order, top to bottom.</p>
+<h2>{t('settings.tab.rules')}</h2>
+<p class="desc">{t('settings.rules.desc')}</p>
 
 <div class="accounts">
   {#each ui.settings.rules as r, i (r.id)}
@@ -125,24 +130,24 @@
         <span class="acct-sub">{summary(r)}</span>
       </div>
       <div class="order">
-        <button class="icon-btn sm" aria-label="Move up" disabled={i === 0} onclick={() => moveRule(i, -1)}><ArrowUp size={14} /></button>
-        <button class="icon-btn sm" aria-label="Move down" disabled={i === ui.settings.rules.length - 1} onclick={() => moveRule(i, 1)}><ArrowDown size={14} /></button>
+        <button class="icon-btn sm" aria-label={t('settings.rules.moveUp')} disabled={i === 0} onclick={() => moveRule(i, -1)}><ArrowUp size={14} /></button>
+        <button class="icon-btn sm" aria-label={t('settings.rules.moveDown')} disabled={i === ui.settings.rules.length - 1} onclick={() => moveRule(i, 1)}><ArrowDown size={14} /></button>
       </div>
-      <Toggle checked={r.enabled} label="Enabled" onchange={(v) => toggle(r, v)} />
-      <button class="btn sm" onclick={() => (editing = structuredClone($state.snapshot(r)))}>Edit</button>
+      <Toggle checked={r.enabled} label={t('settings.rules.enabled')} onchange={(v) => toggle(r, v)} />
+      <button class="btn sm" onclick={() => (editing = structuredClone($state.snapshot(r)))}>{t('common.edit')}</button>
     </div>
   {/each}
 </div>
-<button class="btn" onclick={() => (editing = blank())}><Plus size={15} />New rule</button>
+<button class="btn" onclick={() => (editing = blank())}><Plus size={15} />{t('settings.rules.new')}</button>
 
 {#if editing}
   <div class="editor-card">
     <div class="two">
-      <div><label class="label" for="rule-name">Name</label><input id="rule-name" class="input" placeholder="e.g. Receipts" bind:value={editing.name} /></div>
+      <div><label class="label" for="rule-name">{t('settings.rules.name')}</label><input id="rule-name" class="input" placeholder={t('settings.rules.namePlaceholder')} bind:value={editing.name} /></div>
       <div>
-        <label class="label" for="rule-acct">Account</label>
+        <label class="label" for="rule-acct">{t('settings.rules.account')}</label>
         <select id="rule-acct" class="input" value={String(editing.accountId ?? '')} onchange={(e) => (editing!.accountId = Number((e.currentTarget as HTMLSelectElement).value) || null)}>
-          <option value="">All accounts</option>
+          <option value="">{t('settings.rules.allAccounts')}</option>
           {#each mail.accounts as a (a.id)}<option value={String(a.id)}>{a.label ?? a.email}</option>{/each}
         </select>
       </div>
@@ -150,49 +155,49 @@
 
     <div class="sect">
       <div class="sect-head">
-        When a new message matches
-        <select class="input mini" bind:value={editing.match}><option value="all">all</option><option value="any">any</option></select>
-        of these
+        {#each tParts('settings.rules.matchSentence') as part}
+          {#if typeof part === 'string'}{part}{:else}<select class="input mini" bind:value={editing.match}><option value="all">{t('settings.rules.matchAll')}</option><option value="any">{t('settings.rules.matchAny')}</option></select>{/if}
+        {/each}
       </div>
       {#each editing.conditions as c, i (i)}
         <div class="line">
           <select class="input" bind:value={c.field}>{#each fields as f (f.value)}<option value={f.value}>{f.label}</option>{/each}</select>
           <select class="input" bind:value={c.op}>{#each ops as o (o.value)}<option value={o.value}>{o.label}</option>{/each}</select>
-          <input class="input grow" placeholder={c.field === 'subject' ? 'Invoice' : 'name@example.com'} bind:value={c.value} />
-          <button class="icon-btn sm" aria-label="Remove condition" disabled={editing.conditions.length === 1} onclick={() => editing!.conditions.splice(i, 1)}><X size={14} /></button>
+          <input class="input grow" placeholder={c.field === 'subject' ? t('settings.rules.subjectPlaceholder') : t('settings.rules.addressPlaceholder')} bind:value={c.value} />
+          <button class="icon-btn sm" aria-label={t('settings.rules.removeCondition')} disabled={editing.conditions.length === 1} onclick={() => editing!.conditions.splice(i, 1)}><X size={14} /></button>
         </div>
       {/each}
-      <button class="add" onclick={() => editing!.conditions.push({ field: 'subject', op: 'contains', value: '' })}><Plus size={14} />Add condition</button>
+      <button class="add" onclick={() => editing!.conditions.push({ field: 'subject', op: 'contains', value: '' })}><Plus size={14} />{t('settings.rules.addCondition')}</button>
     </div>
 
     <div class="sect">
-      <div class="sect-head">Then</div>
+      <div class="sect-head">{t('settings.rules.then')}</div>
       {#each editing.actions as a, i (i)}
         <div class="line">
-          <select class="input" value={a.kind} onchange={(e) => setAction(i, (e.currentTarget as HTMLSelectElement).value as RuleAction['kind'])}>
+          <select class="input act" value={a.kind} onchange={(e) => setAction(i, (e.currentTarget as HTMLSelectElement).value as RuleAction['kind'])}>
             {#each actionKinds as k (k.value)}<option value={k.value}>{k.label}</option>{/each}
           </select>
           {#if a.kind === 'move' || a.kind === 'label'}
             {@const options = scopeFolders.filter((f) => (a.kind === 'label' ? f.kind === 'label' : f.selectable && f.kind !== 'label'))}
             <select class="input grow" value={String(a.folderId)} onchange={(e) => ('folderId' in a) && (a.folderId = Number((e.currentTarget as HTMLSelectElement).value))}>
-              {#each options as f (f.id)}<option value={String(f.id)}>{folderName(f.id)}</option>{:else}<option value="0">{a.kind === 'label' ? 'No labels' : 'No folders'}</option>{/each}
+              {#each options as f (f.id)}<option value={String(f.id)}>{folderName(f.id)}</option>{:else}<option value="0">{a.kind === 'label' ? t('settings.rules.noLabels') : t('settings.rules.noFolders')}</option>{/each}
             </select>
           {:else}
             <span class="grow"></span>
           {/if}
-          <button class="icon-btn sm" aria-label="Remove action" disabled={editing.actions.length === 1} onclick={() => editing!.actions.splice(i, 1)}><X size={14} /></button>
+          <button class="icon-btn sm" aria-label={t('settings.rules.removeAction')} disabled={editing.actions.length === 1} onclick={() => editing!.actions.splice(i, 1)}><X size={14} /></button>
         </div>
       {/each}
-      <button class="add" onclick={() => editing!.actions.push({ kind: 'read' })}><Plus size={14} />Add action</button>
+      <button class="add" onclick={() => editing!.actions.push({ kind: 'read' })}><Plus size={14} />{t('settings.rules.addAction')}</button>
     </div>
 
-    <label class="stop"><Toggle checked={editing.stop} onchange={(v) => (editing!.stop = v)} /> Stop here — don’t run later rules on matching messages</label>
+    <label class="stop"><Toggle checked={editing.stop} onchange={(v) => (editing!.stop = v)} /> {t('settings.rules.stop')}</label>
 
     <div class="btns">
-      {#if editing.id}<button class="btn danger" onclick={remove}>Delete</button>{/if}
+      {#if editing.id}<button class="btn danger" onclick={remove}>{t('common.delete')}</button>{/if}
       <span class="grow"></span>
-      <button class="btn" onclick={() => (editing = null)}>Cancel</button>
-      <button class="btn primary" disabled={!valid} onclick={save}>Save rule</button>
+      <button class="btn" onclick={() => (editing = null)}>{t('common.cancel')}</button>
+      <button class="btn primary" disabled={!valid} onclick={save}>{t('settings.rules.save')}</button>
     </div>
   </div>
 {/if}
@@ -267,6 +272,7 @@
   }
   .sect-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     font-weight: 600;
@@ -281,9 +287,16 @@
     gap: 6px;
     align-items: center;
   }
-  .line > select {
-    width: 190px;
+  /* Fits the longest option (translations run longer), but leaves room for the value. */
+  .line > select:not(.grow) {
+    width: auto;
+    min-width: 190px;
+    max-width: 40%;
     flex-shrink: 0;
+  }
+  /* An action has at most a folder next to it, so it can take more room. */
+  .line > select.act {
+    max-width: 60%;
   }
   .grow {
     flex: 1;

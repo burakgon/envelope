@@ -16,28 +16,32 @@ import type {
 } from '../api';
 import { errorMessage, toasts } from './toasts.svelte';
 import { ui } from './ui.svelte';
+import { t, type MessageKey } from '../i18n';
+import { dateFormat } from '../utils/format';
 
 const PAGE = 150;
 
 export const roleOrder: FolderRole[] = ['inbox', 'starred', 'important', 'drafts', 'sent', 'archive', 'all', 'junk', 'trash'];
 
-export const roleLabels: Record<FolderRole, string> = {
-  inbox: 'Inbox',
-  sent: 'Sent',
-  drafts: 'Drafts',
-  trash: 'Trash',
-  junk: 'Spam',
-  archive: 'Archive',
-  all: 'All Mail',
-  starred: 'Starred',
-  important: 'Important',
+/** The interface name of a special folder ("Inbox", "Sent", …), whatever the server calls it. */
+export function roleLabel(role: FolderRole): string {
+  return t(`mailbox.${role}`);
+}
+
+/** Toasts after a move: [one conversation, several conversations]. */
+const movedMessages: Record<MoveTarget['kind'], [MessageKey, MessageKey]> = {
+  inbox: ['mail.movedToInbox', 'mail.movedToInboxCount'],
+  archive: ['mail.archived', 'mail.archivedCount'],
+  trash: ['mail.movedToTrash', 'mail.movedToTrashCount'],
+  junk: ['mail.markedAsSpam', 'mail.markedAsSpamCount'],
+  folder: ['mail.moved', 'mail.movedCount'],
 };
 
 function debounce(fn: () => void, ms: number) {
-  let t: ReturnType<typeof setTimeout> | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   return () => {
-    if (t) clearTimeout(t);
-    t = setTimeout(fn, ms);
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(fn, ms);
   };
 }
 
@@ -82,24 +86,24 @@ class Mail {
   splitActive = $derived(this.isInboxView && ui.settings.splitInbox);
 
   mailboxTitle = $derived.by(() => {
-    if (this.search) return 'Search';
+    if (this.search) return t('mailbox.search');
     const mb = this.mailbox;
     switch (mb.kind) {
       case 'unified':
-        return mb.role === 'inbox' && this.multiAccount ? 'All Inboxes' : roleLabels[mb.role];
+        return mb.role === 'inbox' && this.multiAccount ? t('mailbox.allInboxes') : roleLabel(mb.role);
       case 'folder': {
         const f = this.folderById.get(mb.id);
-        if (!f) return 'Folder';
-        return f.role ? roleLabels[f.role] : f.name;
+        if (!f) return t('mailbox.folder');
+        return f.role ? roleLabel(f.role) : f.name;
       }
       case 'starred':
-        return 'Starred';
+        return t('mailbox.starred');
       case 'snoozed':
-        return 'Snoozed';
+        return t('mailbox.snoozed');
       case 'followUp':
-        return 'Follow up';
+        return t('mailbox.followUp');
       case 'everything':
-        return 'All Mail';
+        return t('mailbox.all');
     }
   });
 
@@ -185,7 +189,7 @@ class Mail {
         if (this.isMailbox({ kind: 'followUp' })) this.refreshSoon();
         break;
       case 'sendFailed':
-        toasts.error(`Message not sent: ${e.error}`);
+        toasts.error(t('mail.sendFailed', { error: e.error }));
         break;
     }
   }
@@ -350,7 +354,7 @@ class Mail {
       const byId = new Map(updated.map((m) => [m.id, m]));
       this.detail = { ...this.detail, messages: this.detail.messages.map((m) => byId.get(m.id) ?? m) };
     } catch (e) {
-      toasts.error(`Could not download message: ${errorMessage(e)}`);
+      toasts.error(t('mail.downloadFailed', { error: errorMessage(e) }));
     }
   }
 
@@ -396,9 +400,10 @@ class Mail {
     }
   }
 
-  async moveTo(target: MoveTarget, ids = this.targets(), label?: string) {
+  /** Moves threads; `folderName` names the destination in the confirmation ("Moved to Work"). */
+  async moveTo(target: MoveTarget, ids = this.targets(), folderName?: string) {
     if (ids.length === 0) return;
-    const byThread = new Map(this.items.map((t) => [t.id, t]));
+    const byThread = new Map(this.items.map((th) => [th.id, th]));
     // Group by source folder (per account in unified views).
     const groups = new Map<number | null, number[]>();
     for (const id of ids) {
@@ -408,9 +413,13 @@ class Mail {
     this.removeLocally(ids);
     try {
       const tokens = await Promise.all([...groups].map(([source, tids]) => api.moveThreads(tids, source, target)));
-      const verb = label ?? { inbox: 'Moved to Inbox', archive: 'Archived', trash: 'Moved to Trash', junk: 'Marked as spam', folder: 'Moved' }[target.kind];
-      toasts.undoable(ids.length > 1 ? `${verb} · ${ids.length} conversations` : verb, async () => {
-        for (const t of tokens) await api.undo(t);
+      const count = ids.length;
+      const message =
+        folderName != null
+          ? t(count > 1 ? 'mail.movedToFolderCount' : 'mail.movedToFolder', { folder: folderName, count })
+          : t(movedMessages[target.kind][count > 1 ? 1 : 0], { count });
+      toasts.undoable(message, async () => {
+        for (const token of tokens) await api.undo(token);
         this.refresh();
       });
     } catch (e) {
@@ -434,7 +443,7 @@ class Mail {
     this.removeLocally(ids);
     try {
       await api.deleteForever(ids);
-      toasts.show(ids.length > 1 ? `Deleted ${ids.length} conversations` : 'Deleted forever');
+      toasts.show(ids.length > 1 ? t('mail.deletedCount', { count: ids.length }) : t('mail.deletedForever'));
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -442,14 +451,14 @@ class Mail {
 
   async setRead(ids: number[], seen: boolean, silent = false) {
     if (!ids.length) return;
-    for (const t of this.items) if (ids.includes(t.id)) t.unreadCount = seen ? 0 : Math.max(1, t.unreadCount);
+    for (const th of this.items) if (ids.includes(th.id)) th.unreadCount = seen ? 0 : Math.max(1, th.unreadCount);
     if (this.detail && ids.includes(this.detail.thread.id)) {
       this.detail.thread.unreadCount = seen ? 0 : 1;
       if (seen) for (const m of this.detail.messages) m.flags.seen = true;
     }
     try {
       await api.setFlags(ids, [], { seen });
-      if (!silent && ids.length > 1) toasts.show(seen ? 'Marked as read' : 'Marked as unread');
+      if (!silent && ids.length > 1) toasts.show(seen ? t('mail.markedRead') : t('mail.markedUnread'));
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -483,8 +492,8 @@ class Mail {
     this.removeLocally(ids);
     try {
       await api.snooze(ids, until);
-      const when = new Date(until).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
-      toasts.undoable(`Snoozed until ${when}`, async () => {
+      const when = dateFormat({ weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(until);
+      toasts.undoable(t('mail.snoozedUntil', { when }), async () => {
         await api.snooze(ids, null);
         this.refresh();
       });
@@ -496,15 +505,15 @@ class Mail {
   async unsnooze(ids = this.targets()) {
     this.removeLocally(ids);
     await api.snooze(ids, null);
-    toasts.show('Moved back to Inbox');
+    toasts.show(t('mail.movedBackToInbox'));
   }
 
   async toggleLabel(folderId: number, ids = this.targets()) {
-    const has = this.items.filter((t) => ids.includes(t.id)).every((t) => t.folderIds.includes(folderId));
+    const has = this.items.filter((th) => ids.includes(th.id)).every((th) => th.folderIds.includes(folderId));
     try {
       await api.setLabel(ids, folderId, !has);
-      const f = this.folderById.get(folderId);
-      toasts.show(`${has ? 'Removed' : 'Added'} label “${f?.name ?? ''}”`);
+      const name = this.folderById.get(folderId)?.name ?? '';
+      toasts.show(has ? t('mail.labelRemoved', { name }) : t('mail.labelAdded', { name }));
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -519,7 +528,7 @@ class Mail {
     const mb = this.mailbox;
     const ids = mb.kind === 'folder' ? [mb.id] : mb.kind === 'unified' ? this.folders.filter((f) => f.role === mb.role).map((f) => f.id) : [];
     for (const id of ids) await api.markFolderRead(id);
-    toasts.show('All marked as read');
+    toasts.show(t('mail.allMarkedRead'));
   }
 
   foldersOf(accountId: number): Folder[] {

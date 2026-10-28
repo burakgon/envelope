@@ -4,9 +4,10 @@
   import { compose } from '../stores/compose.svelte';
   import { mail } from '../stores/mail.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
-  import { displayName } from '../utils/format';
+  import { dateFormat, displayName, timeOf } from '../utils/format';
   import Popover from './Popover.svelte';
   import { AlertCircle, Clock, Pen, Send, Spinner } from '../icons';
+  import { t } from '../i18n';
 
   let { x, y, onclose }: { x: number; y: number; onclose: () => void } = $props();
 
@@ -15,9 +16,7 @@
   function when(i: OutboxItem): string {
     const d = new Date(i.sendAt);
     const sameDay = d.toDateString() === new Date().toDateString();
-    return sameDay
-      ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-      : d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return sameDay ? timeOf(d) : dateFormat({ weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(d);
   }
 
   async function edit(i: OutboxItem) {
@@ -25,7 +24,7 @@
       const draftId = await api.cancelSend(i.id);
       onclose();
       if (draftId != null) compose.openDraft(draftId);
-      else toasts.show('The message was already sent');
+      else toasts.show(t('outbox.alreadySent'));
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -34,7 +33,7 @@
   async function sendNow(i: OutboxItem) {
     try {
       await api.retrySend(i.id);
-      toasts.show(i.state === 'failed' ? 'Trying again…' : 'Sending now…');
+      toasts.show(i.state === 'failed' ? t('outbox.retrying') : t('outbox.sendingNow'));
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -42,28 +41,29 @@
 </script>
 
 <Popover {x} {y} {onclose} width={360}>
-  <div class="menu-label">Outbox</div>
+  <div class="menu-label">{t('mailbox.outbox')}</div>
   {#each items as i (i.id)}
+    {@const recipients = i.to.map((a) => displayName(a)).join(', ')}
     <div class="item" class:failed={i.state === 'failed'}>
       <span class="ico">
         {#if i.state === 'failed'}<AlertCircle size={16} />{:else if i.state === 'sending'}<span class="spin"><Spinner size={15} /></span>{:else}<Clock size={16} />{/if}
       </span>
       <div class="txt">
-        <b class="truncate">{i.subject || '(no subject)'}</b>
-        <span class="truncate">to {i.to.map((a) => displayName(a)).join(', ') || 'nobody'}</span>
+        <b class="truncate">{i.subject || t('common.noSubject')}</b>
+        <span class="truncate">{recipients ? t('outbox.toRecipients', { recipients }) : t('outbox.toNobody')}</span>
         <span class="state truncate">
-          {#if i.state === 'failed'}Not sent: {i.error ?? 'unknown error'}{:else if i.state === 'sending'}Sending…{:else}Scheduled for {when(i)}{/if}
+          {#if i.state === 'failed'}{i.error != null ? t('outbox.notSent', { error: i.error }) : t('outbox.notSentUnknown')}{:else if i.state === 'sending'}{t('outbox.sending')}{:else}{t('outbox.scheduledFor', { when: when(i) })}{/if}
         </span>
       </div>
       {#if i.state !== 'sending'}
         <div class="acts">
-          <button class="icon-btn sm" title={i.state === 'failed' ? 'Try again' : 'Send now'} onclick={() => sendNow(i)}><Send size={14} /></button>
-          <button class="icon-btn sm" title="Edit (moves it back to drafts)" onclick={() => edit(i)}><Pen size={14} /></button>
+          <button class="icon-btn sm" title={i.state === 'failed' ? t('outbox.tryAgain') : t('outbox.sendNow')} onclick={() => sendNow(i)}><Send size={14} /></button>
+          <button class="icon-btn sm" title={t('outbox.editBackToDrafts')} onclick={() => edit(i)}><Pen size={14} /></button>
         </div>
       {/if}
     </div>
   {:else}
-    <div class="none">Nothing waiting to be sent.</div>
+    <div class="none">{t('outbox.empty')}</div>
   {/each}
 </Popover>
 

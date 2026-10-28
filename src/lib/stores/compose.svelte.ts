@@ -3,6 +3,8 @@ import type { Address, DraftInput } from '../api';
 import { mail } from './mail.svelte';
 import { errorMessage, toasts } from './toasts.svelte';
 import { ui } from './ui.svelte';
+import { t } from '../i18n';
+import { dateFormat } from '../utils/format';
 import { isEncrypted, pgp } from './pgp.svelte';
 
 export interface ComposerState {
@@ -144,8 +146,8 @@ class Compose {
   }
 
   changed(key: number) {
-    const t = this.timers.get(key);
-    if (t) clearTimeout(t);
+    const timer = this.timers.get(key);
+    if (timer) clearTimeout(timer);
     this.timers.set(key, setTimeout(() => this.save(key, false), 1200));
   }
 
@@ -159,15 +161,15 @@ class Compose {
       c.draftId = await api.saveDraft(c.draftId, $state.snapshot(c.data) as DraftInput, upload);
       c.savedAt = Date.now();
     } catch (e) {
-      toasts.error(`Could not save draft: ${errorMessage(e)}`);
+      toasts.error(t('compose.saveFailed', { error: errorMessage(e) }));
     } finally {
       c.saving = false;
     }
   }
 
   private remove(key: number) {
-    const t = this.timers.get(key);
-    if (t) clearTimeout(t);
+    const timer = this.timers.get(key);
+    if (timer) clearTimeout(timer);
     this.timers.delete(key);
     this.list = this.list.filter((c) => c.key !== key);
   }
@@ -180,8 +182,8 @@ class Compose {
     if (c.draftId != null) {
       const draftId = c.draftId;
       await api.saveDraft(draftId, $state.snapshot(c.data) as DraftInput, true).catch(() => {});
-      toasts.show('Draft saved', {
-        action: { label: 'Open', run: () => this.openDraft(draftId) },
+      toasts.show(t('compose.draftSaved'), {
+        action: { label: t('common.open'), run: () => this.openDraft(draftId) },
       });
     }
   }
@@ -191,7 +193,7 @@ class Compose {
     if (!c) return;
     this.remove(key);
     if (c.draftId != null) await api.deleteDraft(c.draftId).catch(() => {});
-    toasts.show('Draft discarded');
+    toasts.show(t('compose.draftDiscarded'));
   }
 
   async send(key: number, sendAt: number | null = null) {
@@ -199,24 +201,24 @@ class Compose {
     if (!c) return;
     const data = $state.snapshot(c.data) as DraftInput;
     if (data.to.length + data.cc.length + data.bcc.length === 0) {
-      toasts.error('Add at least one recipient');
+      toasts.error(t('compose.noRecipients'));
       return;
     }
-    if (!data.subject.trim() && !confirm('Send this message without a subject?')) return;
+    if (!data.subject.trim() && !confirm(t('compose.confirmNoSubject'))) return;
     const replyThread = c.threadId;
     this.remove(key);
     try {
       const delay = sendAt ? 0 : ui.settings.undoSendSeconds * 1000;
       const outboxId = await api.send(c.draftId, data, delay, sendAt);
       const label = sendAt
-        ? `Scheduled for ${new Date(sendAt).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`
-        : 'Sending…';
+        ? t('compose.scheduledFor', { time: dateFormat({ weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(sendAt) })
+        : t('compose.sending');
       toasts.undoable(
         label,
         async () => {
           const draftId = await api.cancelSend(outboxId);
           this.open(data, { draftId, inline: c.inline, threadId: c.threadId });
-          toasts.show('Sending cancelled');
+          toasts.show(t('compose.sendingCancelled'));
         },
         sendAt ? 8000 : Math.max(3000, delay),
       );

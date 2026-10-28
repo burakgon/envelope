@@ -1,8 +1,9 @@
 <script lang="ts">
   import { api } from '../api';
-  import type { KeyInfo, MessageView, OpenedMessage, SignatureView } from '../api';
+  import type { KeyInfo, KeySource, MessageView, OpenedMessage, SignatureView } from '../api';
   import { formatFingerprint, isEncrypted, keyName, pgp } from '../stores/pgp.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
+  import { t, type MessageKey } from '../i18n';
   import { longDate } from '../utils/format';
   import Popover from './Popover.svelte';
   import { BadgeCheck, Lock, ShieldAlert, ShieldCheck, ShieldQuestion, ShieldX } from '../icons';
@@ -20,23 +21,30 @@
   type Tone = 'good' | 'warn' | 'bad' | 'plain';
   const signature = $derived.by((): { label: string; tone: Tone } | null => {
     if (!sig) return null;
-    const who = sig.signer ? keyName(sig.signer) : '';
-    if (sig.status === 'bad') return { label: 'Bad signature', tone: 'bad' };
-    if (sig.status === 'unknownKey') return { label: 'Signed — unknown key', tone: 'plain' };
-    if (!sig.senderMatches) return { label: `Signed by ${who} — not the sender's key`, tone: 'warn' };
-    if (sig.signer?.revoked || sig.signer?.expired) return { label: `Signed by ${who} — key ${sig.signer.revoked ? 'revoked' : 'expired'}`, tone: 'warn' };
-    if (sig.signer?.verified) return { label: `Signed by ${who} — verified`, tone: 'good' };
-    return { label: `Signed by ${who}`, tone: 'good' };
+    const name = sig.signer ? keyName(sig.signer) : '';
+    if (sig.status === 'bad') return { label: t('crypto.status.badSignature'), tone: 'bad' };
+    if (sig.status === 'unknownKey') return { label: t('crypto.status.signedUnknownKey'), tone: 'plain' };
+    if (!sig.senderMatches) return { label: t('crypto.status.signedByNotSender', { name }), tone: 'warn' };
+    if (sig.signer?.revoked) return { label: t('crypto.status.signedByKeyRevoked', { name }), tone: 'warn' };
+    if (sig.signer?.expired) return { label: t('crypto.status.signedByKeyExpired', { name }), tone: 'warn' };
+    if (sig.signer?.verified) return { label: t('crypto.status.signedByVerified', { name }), tone: 'good' };
+    return { label: t('crypto.status.signedBy', { name }), tone: 'good' };
   });
 
-  const sources: Record<string, string> = {
-    own: 'your key',
-    autocrypt: 'from their mail (Autocrypt)',
-    gossip: 'from a message to several people',
-    wkd: "from their domain's key directory",
-    keyserver: 'from keys.openpgp.org',
-    manual: 'imported by you',
+  /** Where the signer's key came from (the "Found" row of the details). */
+  const sources: Record<KeySource, MessageKey> = {
+    own: 'crypto.status.sourceOwn',
+    autocrypt: 'crypto.status.sourceAutocrypt',
+    gossip: 'crypto.status.sourceGossip',
+    wkd: 'crypto.status.sourceWkd',
+    keyserver: 'crypto.status.sourceKeyserver',
+    manual: 'crypto.status.sourceManual',
   };
+
+  function sourceLabel(source: KeySource): string {
+    const key: MessageKey | undefined = sources[source];
+    return key ? t(key) : source;
+  }
 
   function open(e: MouseEvent) {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -44,15 +52,13 @@
   }
 
   async function verify(key: KeyInfo) {
-    const ok = confirm(
-      `Mark this key of ${keyName(key)} as verified?\n\n${formatFingerprint(key.fingerprint)}\n\nOnly do this after comparing the fingerprint with ${keyName(key)} — in person, on a call, or through another channel you trust.`,
-    );
+    const ok = confirm(t('crypto.status.verifyConfirm', { name: keyName(key), fingerprint: formatFingerprint(key.fingerprint) }));
     if (!ok) return;
     try {
       await api.crypto.setVerified(key.fingerprint, true);
       pgp.forget();
       await pgp.open(message.id, true);
-      toasts.show('Key verified', { kind: 'success' });
+      toasts.show(t('crypto.keyVerified'), { kind: 'success' });
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -67,8 +73,8 @@
       if (found.length) {
         pgp.forget();
         await pgp.open(message.id, true);
-        toasts.show(`Found ${found.length === 1 ? 'a key' : `${found.length} keys`} for ${sender}`, { kind: 'success' });
-      } else toasts.show(`No key found for ${sender}`);
+        toasts.show(t('crypto.status.foundKeys', { count: found.length, email: sender }), { kind: 'success' });
+      } else toasts.show(t('crypto.noKeyFound', { email: sender }));
     } catch (e) {
       toasts.error(errorMessage(e));
     } finally {
@@ -80,18 +86,18 @@
 {#if decrypted || signature || (encrypted && opened && opened.status !== 'ok')}
   <div class="status">
     {#if decrypted}
-      <button class="pill enc" onclick={open} title="Encryption details"><Lock size={13} />Encrypted</button>
+      <button class="pill enc" onclick={open} title={t('crypto.status.encryptionDetails')}><Lock size={13} /><span class="truncate">{t('crypto.status.encrypted')}</span></button>
     {:else if encrypted && opened}
       <button
         class="pill warn"
         onclick={(e) => (opened.status === 'locked' && opened.lockedKey ? pgp.unlock(opened.lockedKey, opened.error) : open(e))}
         title={opened.error ?? ''}
       >
-        <Lock size={13} />{opened.status === 'locked' ? 'Encrypted — locked' : "Encrypted — can't decrypt"}
+        <Lock size={13} /><span class="truncate">{opened.status === 'locked' ? t('crypto.status.encryptedLocked') : t('crypto.status.encryptedCantDecrypt')}</span>
       </button>
     {/if}
     {#if signature}
-      <button class="pill {signature.tone}" onclick={open} title="Signature details">
+      <button class="pill {signature.tone}" onclick={open} title={t('crypto.status.signatureDetails')}>
         {#if signature.tone === 'good'}
           {#if sig?.signer?.verified}<BadgeCheck size={13} />{:else}<ShieldCheck size={13} />{/if}
         {:else if signature.tone === 'bad'}<ShieldX size={13} />
@@ -100,8 +106,8 @@
         <span class="truncate">{signature.label}</span>
       </button>
     {/if}
-    {#if opened?.partiallySigned}<span class="note">Only part of this message is signed</span>{/if}
-    {#if opened?.partiallyEncrypted}<span class="note">Only part of this message is encrypted</span>{/if}
+    {#if opened?.partiallySigned}<span class="note">{t('crypto.status.partlySigned')}</span>{/if}
+    {#if opened?.partiallyEncrypted}<span class="note">{t('crypto.status.partlyEncrypted')}</span>{/if}
   </div>
 {/if}
 
@@ -110,48 +116,48 @@
     <div class="details">
       {#if opened.encrypted}
         <section>
-          <h4><Lock size={14} />{opened.status === 'ok' ? 'Encrypted' : 'Encrypted — not decrypted'}</h4>
+          <h4><Lock size={14} />{opened.status === 'ok' ? t('crypto.status.encrypted') : t('crypto.status.encryptedNotDecrypted')}</h4>
           <p>
-            {#if opened.status === 'ok'}Only the recipients could read this message on its way to you. It is decrypted on this device.
-            {:else}{opened.error ?? 'This message could not be decrypted.'}{/if}
+            {#if opened.status === 'ok'}{t('crypto.status.encryptedExplain')}
+            {:else}{opened.error ?? t('crypto.messageNotDecrypted')}{/if}
           </p>
         </section>
       {/if}
       {#each opened.signatures as s, i (i)}
         <section>
           {#if s.status === 'good'}
-            <h4 class:warn={!s.senderMatches}><ShieldCheck size={14} />Good signature</h4>
+            <h4 class:warn={!s.senderMatches}><ShieldCheck size={14} />{t('crypto.status.goodSignature')}</h4>
             <p>
-              Made by {keyName(s.signer)}{s.created ? ` on ${longDate(s.created)}` : ''}.
-              {#if !s.senderMatches}The key does not belong to {sender}: someone else may have sent this.{/if}
+              {s.created ? t('crypto.status.madeByOn', { name: keyName(s.signer), date: longDate(s.created) }) : t('crypto.status.madeBy', { name: keyName(s.signer) })}
+              {#if !s.senderMatches}{t('crypto.status.notSendersKey', { email: sender })}{/if}
             </p>
           {:else if s.status === 'bad'}
-            <h4 class="bad"><ShieldX size={14} />Bad signature</h4>
-            <p>The message was changed after it was signed, or the signature is forged. Don't trust its content.</p>
+            <h4 class="bad"><ShieldX size={14} />{t('crypto.status.badSignature')}</h4>
+            <p>{t('crypto.status.badSignatureExplain')}</p>
           {:else}
-            <h4><ShieldQuestion size={14} />Unknown key</h4>
-            <p>Signed with a key Envelope doesn't have{s.issuer ? ` (${formatFingerprint(s.issuer)})` : ''}, so the signature can't be checked.</p>
-            <button class="btn sm" disabled={busy} onclick={findKey}>Look up the sender's key</button>
+            <h4><ShieldQuestion size={14} />{t('crypto.status.unknownKey')}</h4>
+            <p>{s.issuer ? t('crypto.status.unknownKeyExplainIssuer', { fingerprint: formatFingerprint(s.issuer) }) : t('crypto.status.unknownKeyExplain')}</p>
+            <button class="btn sm" disabled={busy} onclick={findKey}>{t('crypto.status.lookUpSenderKey')}</button>
           {/if}
           {#if s.signer}
             <div class="key">
-              <div class="row"><span>Key</span><b>{s.signer.userIds[0] ?? s.signer.emails[0]}</b></div>
-              <div class="row"><span>Fingerprint</span><code class="selectable">{formatFingerprint(s.signer.fingerprint)}</code></div>
-              <div class="row"><span>Found</span>{sources[s.signer.source] ?? s.signer.source}</div>
+              <div class="row"><span>{t('crypto.status.rowKey')}</span><b>{s.signer.userIds[0] ?? s.signer.emails[0]}</b></div>
+              <div class="row"><span>{t('crypto.status.rowFingerprint')}</span><code class="selectable">{formatFingerprint(s.signer.fingerprint)}</code></div>
+              <div class="row"><span>{t('crypto.status.rowFound')}</span>{sourceLabel(s.signer.source)}</div>
               <div class="row">
-                <span>Verified</span>
-                {#if s.signer.verified}<b class="ok"><BadgeCheck size={13} />You compared the fingerprint</b>
-                {:else}<button class="link" onclick={() => verify(s.signer!)}>Not yet — verify…</button>{/if}
+                <span>{t('crypto.status.rowVerified')}</span>
+                {#if s.signer.verified}<b class="ok"><BadgeCheck size={13} />{t('crypto.status.fingerprintCompared')}</b>
+                {:else}<button class="link" onclick={() => verify(s.signer!)}>{t('crypto.status.notVerifiedYet')}</button>{/if}
               </div>
             </div>
           {/if}
         </section>
       {/each}
       {#if opened.partiallySigned}
-        <p class="note">Only part of this message is signed: text added later (for example a mailing list footer) isn't covered.</p>
+        <p class="note">{t('crypto.status.partlySignedExplain')}</p>
       {/if}
       {#if opened.partiallyEncrypted}
-        <p class="note">This message also has unencrypted parts. Anyone could have added them; only the encrypted part is trustworthy.</p>
+        <p class="note">{t('crypto.status.partlyEncryptedExplain')}</p>
       {/if}
     </div>
   </Popover>
@@ -231,23 +237,22 @@
     font-size: var(--text-sm);
     line-height: 1.5;
   }
+  /* Label and value per row; the labels share a column as wide as the longest one. */
   .key {
     display: grid;
-    gap: 4px;
+    grid-template-columns: minmax(78px, max-content) minmax(0, 1fr);
+    align-items: baseline;
+    justify-items: start;
+    gap: 4px 8px;
     padding: 8px 10px;
     border-radius: 10px;
     background: var(--bg-sunken);
     font-size: var(--text-sm);
   }
   .row {
-    display: flex;
-    gap: 8px;
-    align-items: baseline;
-    min-width: 0;
+    display: contents;
   }
   .row > span {
-    width: 78px;
-    flex-shrink: 0;
     color: var(--text-3);
   }
   .row b {
@@ -264,6 +269,10 @@
     align-items: center;
     gap: 4px;
     color: var(--green);
+  }
+  /* A sentence: it wraps between words (user ids above break anywhere). */
+  .row b.ok {
+    word-break: normal;
   }
   .link {
     color: var(--accent-text);

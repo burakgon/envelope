@@ -4,6 +4,8 @@
   import type { CalAttendee, EventDetail, Occurrence, PartStat } from '../../api';
   import { cal, span } from '../../stores/calendar.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
+  import { intlLocale, t } from '../../i18n';
+  import { dateFormat, timeOf } from '../../utils/format';
   import Popover from '../Popover.svelte';
   import Avatar from '../Avatar.svelte';
   import { AlignLeft, Calendar, Check, Clock, HelpCircle, MapPin, Pen, Repeat, Trash, Users, Video, X, XCircle } from '../../icons';
@@ -30,37 +32,45 @@
 
   const when = $derived.by(() => {
     const s = span(o);
-    const day = new Date(s.start).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    const day = dateFormat({ weekday: 'long', month: 'long', day: 'numeric' }).format(s.start);
     if (o.allDay) {
       const days = Math.round((s.end - s.start) / 86_400_000);
-      if (days <= 1) return `${day} · All day`;
-      const last = new Date(s.end - 86_400_000).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-      return `${day} – ${last}`;
+      if (days <= 1) return t('calendar.popover.allDayOn', { date: day });
+      const last = dateFormat({ weekday: 'short', month: 'short', day: 'numeric' }).format(s.end - 86_400_000);
+      return t('calendar.popover.dateRange', { start: day, end: last });
     }
-    const t = (x: number) => new Date(x).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-    return `${day} · ${t(o.start)} – ${t(o.end)}`;
+    return t('calendar.popover.dateTimeRange', { date: day, start: timeOf(o.start), end: timeOf(o.end) });
   });
+
+  // RRULE day codes in `Date.getDay()` order; 2 January 2000 was a Sunday.
+  const DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+  function weekdayName(code: string): string {
+    const i = DAY_CODES.indexOf(code.slice(-2));
+    return i < 0 ? code : dateFormat({ weekday: 'long' }).format(new Date(2000, 0, 2 + i));
+  }
 
   function describeRule(rule: string | null): string | null {
     if (!rule) return null;
     const parts = Object.fromEntries(rule.split(';').map((p) => p.split('=')));
-    const days: Record<string, string> = { MO: 'Monday', TU: 'Tuesday', WE: 'Wednesday', TH: 'Thursday', FR: 'Friday', SA: 'Saturday', SU: 'Sunday' };
     const interval = Number(parts.INTERVAL ?? 1);
-    const every = (unit: string) => (interval > 1 ? `Every ${interval} ${unit}s` : `${unit[0].toUpperCase()}${unit.slice(1)}ly`.replace('Dayly', 'Daily'));
+    const count = interval > 1 ? interval : 1;
     switch (parts.FREQ) {
       case 'DAILY':
-        return every('day');
+        return t('calendar.recurrence.daily', { count });
       case 'WEEKLY': {
-        const by = (parts.BYDAY ?? '').split(',').filter(Boolean);
-        if (by.length === 5 && !by.includes('SA') && !by.includes('SU')) return 'Every weekday';
-        return `${every('week')}${by.length ? ` on ${by.map((d: string) => days[d.slice(-2)] ?? d).join(', ')}` : ''}`;
+        const by: string[] = (parts.BYDAY ?? '').split(',').filter(Boolean);
+        if (by.length === 5 && !by.includes('SA') && !by.includes('SU')) return t('calendar.recurrence.everyWeekday');
+        if (!by.length) return t('calendar.recurrence.weekly', { count });
+        // "Monday, Wednesday" in English, "Montag und Mittwoch" in German…
+        const days = new Intl.ListFormat(intlLocale(), { style: 'narrow', type: 'conjunction' }).format(by.map(weekdayName));
+        return t('calendar.recurrence.weeklyOn', { count, days });
       }
       case 'MONTHLY':
-        return every('month');
+        return t('calendar.recurrence.monthly', { count });
       case 'YEARLY':
-        return every('year');
+        return t('calendar.recurrence.yearly', { count });
       default:
-        return 'Repeats';
+        return t('calendar.recurrence.repeats');
     }
   }
 
@@ -68,7 +78,10 @@
     busy = true;
     try {
       await api.calendar.respond(o.eventId, status);
-      toasts.show(status === 'accepted' ? 'Accepted' : status === 'declined' ? 'Declined' : 'Marked as maybe', { kind: 'success' });
+      toasts.show(
+        status === 'accepted' ? t('calendar.toast.rsvpAccepted') : status === 'declined' ? t('calendar.toast.rsvpDeclined') : t('calendar.toast.rsvpTentative'),
+        { kind: 'success' },
+      );
       onclose();
       cal.load();
     } catch (e) {
@@ -98,10 +111,11 @@
       <span class="sw"></span>
       <h3 class="selectable">{o.title}</h3>
       {#if !o.readOnly}
-        <button class="icon-btn sm" title="Edit" onclick={() => { onclose(); cal.edit(o); }}><Pen size={14} /></button>
-        <button class="icon-btn sm" title="Delete" onclick={() => { onclose(); cal.remove(o); }}><Trash size={14} /></button>
+        <!-- Act before closing: closing clears the `occurrence` prop. -->
+        <button class="icon-btn sm" title={t('common.edit')} onclick={() => { cal.edit(o); onclose(); }}><Pen size={14} /></button>
+        <button class="icon-btn sm" title={t('common.delete')} onclick={() => { cal.remove(o); onclose(); }}><Trash size={14} /></button>
       {/if}
-      <button class="icon-btn sm" title="Close" onclick={onclose}><X size={15} /></button>
+      <button class="icon-btn sm" title={t('common.close')} onclick={onclose}><X size={15} /></button>
     </div>
     <div class="line"><Clock size={15} /><span>{when}</span></div>
     {#if detail?.event.rrule}
@@ -117,23 +131,23 @@
       </div>
     {/if}
     {#if o.conferenceUrl}
-      <button class="join" onclick={() => api.openUrl(o.conferenceUrl!)}><Video size={16} />Join meeting</button>
+      <button class="join" onclick={() => api.openUrl(o.conferenceUrl!)}><Video size={16} />{t('calendar.popover.joinMeeting')}</button>
     {/if}
     {#if detail}
       <div class="line"><Calendar size={15} /><span>{detail.calendar.name}</span></div>
       {#if guests.length}
         <div class="people">
-          <div class="label"><Users size={14} />{guests.length} {guests.length === 1 ? 'guest' : 'guests'}</div>
+          <div class="label"><Users size={14} />{t('calendar.popover.guestCount', { count: guests.length })}</div>
           {#each guests.slice(0, 8) as a (a.email)}
             {@const Icon = statusIcon[a.partstat] ?? Clock}
             <div class="person">
               <Avatar person={{ email: a.email, name: a.name }} size={24} />
-              <span class="pname truncate">{a.name ?? a.email}{a.email.toLowerCase() === me ? ' (you)' : ''}</span>
-              {#if detail.event.organizer?.email.toLowerCase() === a.email.toLowerCase()}<span class="org">Organizer</span>{/if}
+              <span class="pname truncate">{a.email.toLowerCase() === me ? t('calendar.popover.guestIsYou', { name: a.name ?? a.email }) : (a.name ?? a.email)}</span>
+              {#if detail.event.organizer?.email.toLowerCase() === a.email.toLowerCase()}<span class="org">{t('calendar.popover.organizer')}</span>{/if}
               <span class="st st-{a.partstat}"><Icon size={14} /></span>
             </div>
           {/each}
-          {#if guests.length > 8}<div class="more">+{guests.length - 8} more</div>{/if}
+          {#if guests.length > 8}<div class="more">{t('calendar.popover.moreGuests', { count: guests.length - 8 })}</div>{/if}
         </div>
       {/if}
       {#if detail.event.description}
@@ -142,10 +156,10 @@
     {/if}
     {#if canRespond}
       <div class="rsvp">
-        <span>Going?</span>
-        <button class:on={o.myStatus === 'accepted'} disabled={busy} onclick={() => respond('accepted')}>Yes</button>
-        <button class:on={o.myStatus === 'tentative'} disabled={busy} onclick={() => respond('tentative')}>Maybe</button>
-        <button class:on={o.myStatus === 'declined'} disabled={busy} onclick={() => respond('declined')}>No</button>
+        <span>{t('calendar.rsvp.going')}</span>
+        <button class:on={o.myStatus === 'accepted'} disabled={busy} onclick={() => respond('accepted')}>{t('calendar.rsvp.yes')}</button>
+        <button class:on={o.myStatus === 'tentative'} disabled={busy} onclick={() => respond('tentative')}>{t('calendar.rsvp.maybe')}</button>
+        <button class:on={o.myStatus === 'declined'} disabled={busy} onclick={() => respond('declined')}>{t('calendar.rsvp.no')}</button>
       </div>
     {/if}
   </div>
@@ -245,6 +259,8 @@
     min-width: 0;
   }
   .org {
+    flex-shrink: 0;
+    white-space: nowrap;
     font-size: 10.5px;
     font-weight: 600;
     color: var(--text-3);
@@ -277,10 +293,13 @@
   }
   .rsvp span {
     flex: 1;
+    min-width: 0;
     font-weight: 600;
     color: var(--text-2);
   }
   .rsvp button {
+    flex-shrink: 0;
+    white-space: nowrap;
     height: 28px;
     padding: 0 12px;
     border-radius: 8px;

@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import type { Occurrence } from '../../api';
   import { cal, DAY, addDays, sameDay, span, startOfDay } from '../../stores/calendar.svelte';
+  import { t } from '../../i18n';
+  import { dateFormat, timeOf } from '../../utils/format';
   import EventChip from './EventChip.svelte';
 
   let { days, onopen }: { days: Date[]; onopen: (o: Occurrence, rect: DOMRect) => void } = $props();
@@ -99,8 +101,8 @@
     const todayVisible = dayStarts.some((d) => sameDay(d, Date.now()));
     const h = todayVisible ? Math.max(0, new Date().getHours() - 2) : Math.min(8, ...first, 8);
     if (scroller) scroller.scrollTop = h * HOUR;
-    const t = setInterval(() => (now = Date.now()), 30_000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => (now = Date.now()), 30_000);
+    return () => clearInterval(timer);
   });
 
   // ----- pointer interactions -----------------------------------------------------
@@ -193,11 +195,8 @@
   }
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
-  const fmtHour = (h: number) => new Date(2000, 0, 1, h).toLocaleTimeString(undefined, { hour: 'numeric' });
-  const fmtTime = (m: number) => {
-    const d = new Date(2000, 0, 1, Math.floor(m / 60), m % 60);
-    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  };
+  const fmtHour = (h: number) => dateFormat({ hour: 'numeric' }).format(new Date(2000, 0, 1, h));
+  const fmtTime = (m: number) => timeOf(new Date(2000, 0, 1, Math.floor(m / 60), m % 60));
 </script>
 
 <div class="grid-wrap" style:--n={days.length}>
@@ -206,7 +205,7 @@
     {#each days as d, i (i)}
       {@const today = sameDay(d, now)}
       <button class="dayhead" class:today onclick={() => { cal.view = 'day'; cal.goto(d.getTime()); }}>
-        <span class="dow">{d.toLocaleDateString(undefined, { weekday: 'short' })}</span>
+        <span class="dow">{dateFormat({ weekday: 'short' }).format(d)}</span>
         <span class="num">{d.getDate()}</span>
       </button>
     {/each}
@@ -214,7 +213,7 @@
 
   {#if laneItems.rows > 0}
     <div class="lane" style:height="{Math.min(laneItems.rows, 4) * 26 + 6}px">
-      <div class="gutter lane-label">all-day</div>
+      <div class="gutter lane-label" title={t('calendar.timeGrid.allDay')}>{t('calendar.timeGrid.allDay')}</div>
       <div class="lane-body">
         {#each laneItems.placed.filter((p) => p.row < 4) as p (p.o.key)}
           <button
@@ -282,7 +281,7 @@
           {@const a = Math.min(drag.a, drag.b)}
           {@const b = Math.max(drag.a, drag.b)}
           <div class="selection" style:left="calc({drag.day} * 100% / var(--n) + 2px)" style:top="{a * pxPerMin}px" style:height="{Math.max(SNAP, b - a) * pxPerMin}px">
-            <span>{fmtTime(a)} – {fmtTime(Math.max(b, a + SNAP))}</span>
+            <span>{t('calendar.event.timeRange', { start: fmtTime(a), end: fmtTime(Math.max(b, a + SNAP)) })}</span>
           </div>
         {/if}
       </div>
@@ -317,11 +316,15 @@
     color: var(--text-2);
   }
   .dow {
+    max-width: 100%;
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .num {
     width: 32px;
@@ -352,9 +355,13 @@
   }
   .lane-label {
     font-size: 10.5px;
+    line-height: 1.2;
     color: var(--text-3);
     text-align: right;
     padding: 6px 8px 0 0;
+    overflow: hidden;
+    overflow-wrap: break-word;
+    hyphens: auto;
   }
   .lane-body {
     position: relative;

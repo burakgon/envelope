@@ -2,6 +2,7 @@
   import { api } from '../api';
   import type { Address, ContactSuggestion } from '../api';
   import { displayName } from '../utils/format';
+  import { t } from '../i18n';
   import Avatar from './Avatar.svelte';
   import { X } from '../icons';
 
@@ -18,6 +19,9 @@
     autofocus?: boolean;
     children?: import('svelte').Snippet;
   } = $props();
+
+  // The label is translated text, so it doesn't make a good element id.
+  const uid = $props.id();
 
   let text = $state('');
   let input: HTMLInputElement | undefined = $state();
@@ -125,9 +129,9 @@
   }
 
   function onPaste(e: ClipboardEvent) {
-    const t = e.clipboardData?.getData('text') ?? '';
-    const parsed = parse(t);
-    if (parsed.length > 1 || (parsed.length === 1 && t.includes('<'))) {
+    const pasted = e.clipboardData?.getData('text') ?? '';
+    const parsed = parse(pasted);
+    if (parsed.length > 1 || (parsed.length === 1 && pasted.includes('<'))) {
       e.preventDefault();
       add(parsed);
     }
@@ -143,16 +147,16 @@
 </script>
 
 <div class="field" class:focused>
-  <label class="lbl" for="rcpt-{label}">{label}</label>
+  <label class="lbl" for="rcpt-{uid}">{label}</label>
   <div class="chips" role="presentation" onclick={() => input?.focus()}>
     {#each value as a, i (a.email + i)}
       <span class="chip-addr" class:invalid={!EMAIL.test(a.email)} class:sel={selectedChip === i} title={a.email}>
         {displayName(a)}
-        <button aria-label="Remove {a.email}" onclick={(e) => { e.stopPropagation(); remove(i); }}><X size={11} strokeWidth={2.5} /></button>
+        <button aria-label={t('recipients.remove', { email: a.email })} onclick={(e) => { e.stopPropagation(); remove(i); }}><X size={11} strokeWidth={2.5} /></button>
       </span>
     {/each}
     <input
-      id="rcpt-{label}"
+      id="rcpt-{uid}"
       bind:this={input}
       bind:value={text}
       oninput={onInput}
@@ -192,7 +196,7 @@
   }
   .lbl {
     color: var(--text-3);
-    width: 54px;
+    min-width: 54px;
     flex-shrink: 0;
     font-size: var(--text-base);
   }

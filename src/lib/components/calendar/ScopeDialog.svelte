@@ -2,16 +2,17 @@
   import { onMount } from 'svelte';
   import type { EditScope } from '../../api';
   import { cal } from '../../stores/calendar.svelte';
+  import { t, type MessageKey } from '../../i18n';
 
   const ask = cal.scopeAsk!;
   let choice = $state<EditScope>('this');
   let first: HTMLInputElement | undefined = $state();
   onMount(() => first?.focus());
 
-  const options: { value: EditScope; label: string }[] = [
-    { value: 'this', label: 'This event' },
-    { value: 'following', label: 'This and following events' },
-    { value: 'all', label: 'All events' },
+  const options: { value: EditScope; label: MessageKey }[] = [
+    { value: 'this', label: 'calendar.scope.thisEvent' },
+    { value: 'following', label: 'calendar.scope.thisAndFollowing' },
+    { value: 'all', label: 'calendar.scope.allEvents' },
   ];
 
   function key(e: KeyboardEvent) {
@@ -31,15 +32,15 @@
     <div class="opts" role="radiogroup">
       {#each options as o, i (o.value)}
         {#if i === 0}
-          <label><input bind:this={first} type="radio" name="scope" value={o.value} bind:group={choice} />{o.label}</label>
+          <label><input bind:this={first} type="radio" name="scope" value={o.value} bind:group={choice} />{t(o.label)}</label>
         {:else}
-          <label><input type="radio" name="scope" value={o.value} bind:group={choice} />{o.label}</label>
+          <label><input type="radio" name="scope" value={o.value} bind:group={choice} />{t(o.label)}</label>
         {/if}
       {/each}
     </div>
     <footer>
-      <button class="btn" onclick={() => ask.resolve(null)}>Cancel</button>
-      <button class="btn primary" onclick={() => ask.resolve(choice)}>OK</button>
+      <button class="btn" onclick={() => ask.resolve(null)}>{t('common.cancel')}</button>
+      <button class="btn primary" onclick={() => ask.resolve(choice)}>{t('common.ok')}</button>
     </footer>
   </div>
 </div>
@@ -55,7 +56,8 @@
     animation: fade-in var(--dur-fast);
   }
   .dialog {
-    width: 340px;
+    min-width: 340px;
+    max-width: min(460px, 94vw);
     padding: 20px 20px 16px;
     border-radius: 16px;
     background: var(--bg-elevated);
@@ -76,8 +78,8 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    height: 34px;
-    padding: 0 8px;
+    min-height: 34px;
+    padding: 6px 8px;
     border-radius: 8px;
     font-weight: 500;
     cursor: pointer;
@@ -86,12 +88,14 @@
     background: var(--bg-hover);
   }
   input {
+    flex-shrink: 0;
     accent-color: var(--accent);
     width: 16px;
     height: 16px;
   }
   footer {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
     margin-top: 16px;

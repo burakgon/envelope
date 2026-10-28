@@ -1,22 +1,24 @@
 <script lang="ts">
   import type { Occurrence } from '../../api';
   import { cal, DAY, addDays, sameDay, span, startOfWeek } from '../../stores/calendar.svelte';
+  import { t } from '../../i18n';
+  import { dateFormat, timeOf } from '../../utils/format';
 
   let { onopen }: { onopen: (o: Occurrence, rect: DOMRect) => void } = $props();
 
   const first = $derived(startOfWeek(new Date(new Date(cal.focus).getFullYear(), new Date(cal.focus).getMonth(), 1), cal.weekStart));
   const days = $derived(Array.from({ length: 42 }, (_, i) => addDays(first, i)));
   const month = $derived(new Date(cal.focus).getMonth());
-  const weekdays = $derived(days.slice(0, 7).map((d) => d.toLocaleDateString(undefined, { weekday: 'short' })));
+  const weekdays = $derived(days.slice(0, 7).map((d) => dateFormat({ weekday: 'short' }).format(d)));
 
   const byDay = $derived.by(() => {
     const map = new Map<number, Occurrence[]>();
     for (const o of cal.occurrences) {
       const s = span(o);
-      for (let t = new Date(s.start).setHours(0, 0, 0, 0); t < s.end; t = addDays(t, 1).getTime()) {
-        const list = map.get(t) ?? [];
+      for (let day = new Date(s.start).setHours(0, 0, 0, 0); day < s.end; day = addDays(day, 1).getTime()) {
+        const list = map.get(day) ?? [];
         list.push(o);
-        map.set(t, list);
+        map.set(day, list);
       }
     }
     for (const list of map.values()) list.sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start);
@@ -37,13 +39,11 @@
     if (delta === 0) return;
     cal.move(o, addDays(o.allDay ? s.start : o.start, delta).getTime(), addDays(o.allDay ? s.end : o.end, delta).getTime());
   }
-
-  const time = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 </script>
 
 <div class="month">
   <div class="wd">
-    {#each weekdays as w (w)}<div>{w}</div>{/each}
+    {#each weekdays as w, i (i)}<div>{w}</div>{/each}
   </div>
   <div class="cells">
     {#each days as d (d.getTime())}
@@ -72,12 +72,13 @@
               ondragstart={() => (dragging = o)}
               onclick={(e) => onopen(o, (e.currentTarget as HTMLElement).getBoundingClientRect())}
             >
-              {#if !o.allDay}<span class="dot"></span><span class="t">{time(o.start)}</span>{/if}
+              {#if !o.allDay}<span class="dot"></span><span class="t">{timeOf(o.start)}</span>{/if}
               <span class="title">{o.title}</span>
             </button>
           {/each}
           {#if list.length > 4}
-            <button class="more" onclick={() => { cal.view = 'day'; cal.goto(d.getTime()); }}>+{list.length - 4} more</button>
+            {@const more = t('calendar.monthGrid.more', { count: list.length - 4 })}
+            <button class="more" title={more} onclick={() => { cal.view = 'day'; cal.goto(d.getTime()); }}>{more}</button>
           {/if}
         </div>
       </div>
@@ -99,12 +100,16 @@
     padding: 4px 0 6px;
   }
   .wd div {
+    min-width: 0;
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-3);
     padding-left: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .cells {
     flex: 1;
@@ -201,11 +206,15 @@
     white-space: nowrap;
   }
   .more {
+    min-width: 0;
     font-size: 11px;
     font-weight: 600;
     color: var(--text-3);
     text-align: left;
     padding: 0 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .more:hover {
     color: var(--text);

@@ -1,95 +1,121 @@
 <script lang="ts">
   import { ui } from '../stores/ui.svelte';
+  import { t, tParts, type MessageKey } from '../i18n';
   import { X } from '../icons';
 
-  const groups = [
+  // Combos are a notation, not display text: keys separated by spaces, "Ctrl K" (together),
+  // "J / K" (either), "G then I" (one after the other). Key names and "then" are translated when shown.
+  const groups = $derived([
     {
-      title: 'Navigation',
+      id: 'navigation',
+      title: t('shortcuts.groupNavigation'),
       keys: [
-        ['J / K', 'Next / previous conversation'],
-        ['Enter / O', 'Open conversation'],
-        ['Esc', 'Close / clear selection'],
-        ['/', 'Search'],
-        ['Ctrl K', 'Command palette'],
-        ['G then I', 'Go to Inbox'],
-        ['G then S', 'Go to Starred'],
-        ['G then D', 'Go to Drafts'],
-        ['G then T', 'Go to Sent'],
-        ['G then C', 'Open Calendar'],
-        ['G then P', 'Open Contacts'],
-        ['1 / 2 / 3', 'Split inbox tabs'],
+        ['J / K', t('shortcuts.nextPreviousConversation')],
+        ['Enter / O', t('shortcuts.openConversation')],
+        ['Esc', t('shortcuts.closeClearSelection')],
+        ['/', t('common.search')],
+        ['Ctrl K', t('shortcuts.commandPalette')],
+        ['G then I', t('shortcuts.goToInbox')],
+        ['G then S', t('shortcuts.goToStarred')],
+        ['G then D', t('shortcuts.goToDrafts')],
+        ['G then T', t('shortcuts.goToSent')],
+        ['G then C', t('shortcuts.openCalendar')],
+        ['G then P', t('shortcuts.openContacts')],
+        ['1 / 2 / 3', t('shortcuts.splitInboxTabs')],
       ],
     },
     {
-      title: 'Actions',
+      id: 'actions',
+      title: t('shortcuts.groupActions'),
       keys: [
-        ['E', 'Archive'],
-        ['# / Delete', 'Delete'],
-        ['S', 'Star'],
-        ['U', 'Mark read / unread'],
-        ['H', 'Snooze'],
-        ['V', 'Move to folder'],
-        ['L', 'Label (Gmail)'],
-        ['!', 'Report spam'],
-        ['X', 'Select conversation'],
-        ['Z', 'Undo'],
-        ['Ctrl A', 'Select all'],
+        ['E', t('shortcuts.archive')],
+        ['# / Delete', t('common.delete')],
+        ['S', t('shortcuts.star')],
+        ['U', t('shortcuts.markReadUnread')],
+        ['H', t('shortcuts.snooze')],
+        ['V', t('shortcuts.moveToFolder')],
+        ['L', t('shortcuts.labelGmail')],
+        ['!', t('shortcuts.reportSpam')],
+        ['X', t('shortcuts.selectConversation')],
+        ['Z', t('common.undo')],
+        ['Ctrl A', t('shortcuts.selectAll')],
       ],
     },
     {
-      title: 'Writing',
+      id: 'writing',
+      title: t('shortcuts.groupWriting'),
       keys: [
-        ['C', 'New message'],
-        ['R', 'Reply'],
-        ['A', 'Reply all'],
-        ['F', 'Forward'],
-        ['Ctrl Enter', 'Send'],
-        ['Ctrl K', 'Insert link (in editor)'],
-        ['Ctrl B / I / U', 'Bold / italic / underline'],
-        ['Esc', 'Close composer (keeps draft)'],
+        ['C', t('shortcuts.newMessage')],
+        ['R', t('shortcuts.reply')],
+        ['A', t('shortcuts.replyAll')],
+        ['F', t('shortcuts.forward')],
+        ['Ctrl Enter', t('common.send')],
+        ['Ctrl K', t('shortcuts.insertLink')],
+        ['Ctrl B / I / U', t('shortcuts.boldItalicUnderline')],
+        ['Esc', t('shortcuts.closeComposer')],
       ],
     },
     {
-      title: 'Calendar',
+      id: 'calendar',
+      title: t('shortcuts.groupCalendar'),
       keys: [
-        ['C', 'New event'],
-        ['T', 'Jump to today'],
-        ['D / W / M / A', 'Day / week / month / agenda'],
-        ['J / K', 'Next / previous period'],
-        ['G then M', 'Back to Mail'],
-        ['Ctrl Enter', 'Save event'],
+        ['C', t('shortcuts.newEvent')],
+        ['T', t('shortcuts.jumpToToday')],
+        ['D / W / M / A', t('shortcuts.calendarViews')],
+        ['J / K', t('shortcuts.nextPreviousPeriod')],
+        ['G then M', t('shortcuts.backToMail')],
+        ['Ctrl Enter', t('shortcuts.saveEvent')],
       ],
     },
     {
-      title: 'Contacts',
+      id: 'contacts',
+      title: t('shortcuts.groupContacts'),
       keys: [
-        ['C', 'New contact'],
-        ['/', 'Search contacts'],
-        ['J / K', 'Next / previous contact'],
-        ['E', 'Edit contact'],
-        ['Ctrl S', 'Save contact'],
+        ['C', t('shortcuts.newContact')],
+        ['/', t('shortcuts.searchContacts')],
+        ['J / K', t('shortcuts.nextPreviousContact')],
+        ['E', t('shortcuts.editContact')],
+        ['Ctrl S', t('shortcuts.saveContact')],
       ],
     },
-  ];
+  ]);
+
+  // Named keys are translated ("Strg", "Entrée"); letters and symbols stay as they are.
+  const keyNames: Record<string, MessageKey> = { Ctrl: 'keys.ctrl', Enter: 'keys.enter', Esc: 'keys.esc', Delete: 'keys.delete' };
+  function keyLabel(key: string): string {
+    const name: MessageKey | undefined = keyNames[key];
+    return name ? t(name) : key;
+  }
 </script>
 
+{#snippet combo(keys: string)}
+  {#each keys.split(' ') as part, i (i)}
+    {#if part === '/' && keys.includes(' / ')}<span class="or">/</span>{:else}<span class="kbd">{keyLabel(part)}</span>{/if}
+  {/each}
+{/snippet}
+
 <div class="backdrop" role="presentation" onclick={() => ui.close()}>
-  <div class="sheet" role="dialog" aria-label="Keyboard shortcuts" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && ui.close()}>
+  <div class="sheet" role="dialog" aria-label={t('shortcuts.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && ui.close()}>
     <header>
-      <h2>Keyboard shortcuts</h2>
-      <button class="icon-btn" aria-label="Close" onclick={() => ui.close()}><X size={17} /></button>
+      <h2>{t('shortcuts.title')}</h2>
+      <button class="icon-btn" aria-label={t('common.close')} onclick={() => ui.close()}><X size={17} /></button>
     </header>
     <div class="grid">
-      {#each groups as g (g.title)}
+      {#each groups as g (g.id)}
         <section>
           <h3>{g.title}</h3>
-          {#each g.keys as [k, label] (k + label)}
+          {#each g.keys as [k, label] (k)}
             <div class="row">
               <span>{label}</span>
               <span class="keys">
-                {#each k.split(' ') as part, i (i)}
-                  {#if part === '/' && k.includes(' / ')}<span class="or">/</span>{:else if part === 'then'}<span class="or">then</span>{:else}<span class="kbd">{part}</span>{/if}
-                {/each}
+                {#if k.includes(' then ')}
+                  {@const [first, second] = k.split(' then ')}
+                  {#each tParts('shortcuts.sequence') as part, i (i)}
+                    {#if typeof part !== 'string'}{@render combo(part.slot === 'first' ? first : second)}{:else if part.trim()}<span class="or">{part.trim()}</span>{/if}
+                  {/each}
+                {:else}
+                  {@render combo(k)}
+                {/if}
               </span>
             </div>
           {/each}
@@ -143,12 +169,14 @@
     text-transform: uppercase;
     color: var(--text-3);
   }
+  /* A longer translation wraps onto a second line instead of running into the keys. */
   .row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    height: 32px;
+    min-height: 32px;
+    padding: 4px 0;
     border-bottom: 1px solid var(--border);
     color: var(--text-2);
   }
@@ -156,6 +184,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
+    flex-shrink: 0;
   }
   .or {
     color: var(--text-3);

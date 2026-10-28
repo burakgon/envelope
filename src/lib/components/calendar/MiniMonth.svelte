@@ -1,6 +1,8 @@
 <script lang="ts">
   import { cal, addDays, sameDay, startOfWeek } from '../../stores/calendar.svelte';
   import { ChevronLeft, ChevronRight } from '../../icons';
+  import { t } from '../../i18n';
+  import { dateFormat } from '../../utils/format';
 
   let {
     value,
@@ -37,27 +39,27 @@
     const first = startOfWeek(shown, cal.weekStart);
     return Array.from({ length: 42 }, (_, i) => addDays(first, i));
   });
-  const weekdays = $derived(days.slice(0, 7).map((d) => d.toLocaleDateString(undefined, { weekday: 'narrow' })));
+  const weekdays = $derived(days.slice(0, 7).map((d) => dateFormat({ weekday: 'narrow' }).format(d)));
 </script>
 
 <div class="mini">
   <div class="head">
-    <span class="label">{shown.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
-    <button class="icon-btn sm" aria-label="Previous month" onclick={() => offset--}><ChevronLeft size={15} /></button>
-    <button class="icon-btn sm" aria-label="Next month" onclick={() => offset++}><ChevronRight size={15} /></button>
+    <span class="label">{dateFormat({ month: 'long', year: 'numeric' }).format(shown)}</span>
+    <button class="icon-btn sm" aria-label={t('calendar.miniMonth.previousMonth')} onclick={() => offset--}><ChevronLeft size={15} /></button>
+    <button class="icon-btn sm" aria-label={t('calendar.miniMonth.nextMonth')} onclick={() => offset++}><ChevronRight size={15} /></button>
   </div>
   <div class="grid">
     {#each weekdays as w, i (i)}<span class="wd">{w}</span>{/each}
     {#each days as d (d.getTime())}
-      {@const t = d.getTime()}
+      {@const ms = d.getTime()}
       <button
         class="d"
         class:other={d.getMonth() !== shown.getMonth()}
         class:today={sameDay(d, Date.now())}
-        class:sel={from != null && to != null ? t >= from && t < to : sameDay(t, value)}
+        class:sel={from != null && to != null ? ms >= from && ms < to : sameDay(ms, value)}
         class:single={from == null || to == null}
-        class:busy={marks?.has(t)}
-        onclick={() => onpick(t)}
+        class:busy={marks?.has(ms)}
+        onclick={() => onpick(ms)}
       >{d.getDate()}</button>
     {/each}
   </div>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { formatFingerprint, pgp } from '../stores/pgp.svelte';
+  import { t } from '../i18n';
   import { KeyRound } from '../icons';
 
   let value = $state('');
@@ -26,7 +27,7 @@
     <div
       class="dialog"
       role="dialog"
-      aria-label="Unlock your key"
+      aria-label={t('crypto.passphrase.title')}
       tabindex="-1"
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => {
@@ -40,17 +41,17 @@
         <div class="head">
           <span class="icon"><KeyRound size={18} /></span>
           <div>
-            <h3>Unlock your key</h3>
+            <h3>{t('crypto.passphrase.title')}</h3>
             <p class="who">{ask.key.userIds[0] ?? ask.key.emails[0] ?? ''}</p>
           </div>
         </div>
         <code class="fp selectable">{formatFingerprint(ask.key.fingerprint)}</code>
-        <input bind:this={field} class="input" type="password" autocomplete="off" placeholder="Passphrase" bind:value />
+        <input bind:this={field} class="input" type="password" autocomplete="off" placeholder={t('crypto.passphrase.placeholder')} bind:value />
         {#if ask.error}<p class="error">{ask.error}</p>{/if}
-        <p class="hint">Envelope remembers it until you quit.</p>
+        <p class="hint">{t('crypto.passphrase.hint')}</p>
         <footer>
-          <button type="button" class="btn" onclick={() => pgp.cancel()}>Cancel</button>
-          <button type="submit" class="btn primary" disabled={!value || busy}>Unlock</button>
+          <button type="button" class="btn" onclick={() => pgp.cancel()}>{t('common.cancel')}</button>
+          <button type="submit" class="btn primary" disabled={!value || busy}>{t('crypto.passphrase.unlock')}</button>
         </footer>
       </form>
     </div>

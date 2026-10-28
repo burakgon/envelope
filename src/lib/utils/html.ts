@@ -1,6 +1,7 @@
 // Email HTML preparation: sanitizing, privacy protection and presentation.
 
 import DOMPurify from 'dompurify';
+import { t } from '../i18n';
 
 export interface PreparedEmail {
   html: string;
@@ -32,7 +33,7 @@ function isTracker(img: Element): boolean {
   const style = (img.getAttribute('style') ?? '').replace(/\s/g, '').toLowerCase();
   const tiny = (w === '1' || w === '0') && (h === '1' || h === '0');
   const hidden = style.includes('display:none') || style.includes('width:1px;height:1px') || style.includes('visibility:hidden');
-  const known = TRACKER_HOSTS.some((t) => src.toLowerCase().includes(t));
+  const known = TRACKER_HOSTS.some((host) => src.toLowerCase().includes(host));
   return tiny || (hidden && /^https?:/i.test(src)) || (known && (tiny || !w));
 }
 
@@ -212,7 +213,7 @@ function collapseQuotes(body: HTMLElement) {
   const toggle = body.ownerDocument.createElement('button');
   toggle.className = 'env-quote-toggle';
   toggle.type = 'button';
-  toggle.title = 'Show quoted text';
+  toggle.title = t('mailFrame.showQuotedText');
   toggle.textContent = '•••';
   wrapper.parentElement?.insertBefore(toggle, wrapper);
 }

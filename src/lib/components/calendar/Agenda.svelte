@@ -3,6 +3,8 @@
   import { cal, sameDay, span, startOfDay } from '../../stores/calendar.svelte';
   import { MapPin, Video } from '../../icons';
   import { api } from '../../api';
+  import { t } from '../../i18n';
+  import { dateFormat, timeOf } from '../../utils/format';
 
   let { onopen }: { onopen: (o: Occurrence, rect: DOMRect) => void } = $props();
 
@@ -17,8 +19,6 @@
     }
     return [...map.entries()].sort((a, b) => a[0] - b[0]);
   });
-
-  const time = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 </script>
 
 <div class="agenda">
@@ -26,24 +26,24 @@
     <section>
       <div class="day" class:today={sameDay(day, Date.now())}>
         <span class="n">{new Date(day).getDate()}</span>
-        <span class="w">{new Date(day).toLocaleDateString(undefined, { weekday: 'long' })}<small>{new Date(day).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</small></span>
+        <span class="w">{dateFormat({ weekday: 'long' }).format(day)}<small>{dateFormat({ month: 'long', year: 'numeric' }).format(day)}</small></span>
       </div>
       <div class="items">
         {#each list as o (o.key)}
           <button class="row" style:--c={o.color} onclick={(e) => onopen(o, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
             <span class="bar"></span>
-            <span class="when">{o.allDay ? 'All day' : `${time(o.start)} – ${time(o.end)}`}</span>
+            <span class="when">{o.allDay ? t('calendar.agenda.allDay') : t('calendar.event.timeRange', { start: timeOf(o.start), end: timeOf(o.end) })}</span>
             <span class="title" class:declined={o.myStatus === 'declined'}>{o.title}</span>
             {#if o.location}<span class="loc"><MapPin size={12} />{o.location}</span>{/if}
             {#if o.conferenceUrl}
-              <span class="join" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); api.openUrl(o.conferenceUrl!); }} onkeydown={() => {}}><Video size={13} />Join</span>
+              <span class="join" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); api.openUrl(o.conferenceUrl!); }} onkeydown={() => {}}><Video size={13} />{t('calendar.agenda.join')}</span>
             {/if}
           </button>
         {/each}
       </div>
     </section>
   {:else}
-    <div class="empty">Nothing scheduled.</div>
+    <div class="empty">{t('calendar.agenda.empty')}</div>
   {/each}
 </div>
 
@@ -79,6 +79,8 @@
   .w {
     display: flex;
     flex-direction: column;
+    min-width: 0;
+    overflow-wrap: break-word;
     font-weight: 600;
     font-size: var(--text-sm);
   }
@@ -145,6 +147,8 @@
   .join {
     display: inline-flex;
     align-items: center;
+    flex-shrink: 0;
+    white-space: nowrap;
     gap: 5px;
     height: 26px;
     padding: 0 10px;

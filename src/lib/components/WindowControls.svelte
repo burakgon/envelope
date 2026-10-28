@@ -1,21 +1,22 @@
 <script lang="ts">
   import { api } from '../api';
   import { ui } from '../stores/ui.svelte';
+  import { t } from '../i18n';
 </script>
 
 {#if !ui.settings.nativeTitlebar && !api.isDemo}
   <div class="controls">
-    <button class="ctl" aria-label="Minimize" onclick={() => api.window.minimize()}>
+    <button class="ctl" aria-label={t('window.minimize')} onclick={() => api.window.minimize()}>
       <svg viewBox="0 0 12 12"><path d="M2.5 6h7" /></svg>
     </button>
-    <button class="ctl" aria-label="Maximize" onclick={() => api.window.toggleMaximize()}>
+    <button class="ctl" aria-label={t('window.maximize')} onclick={() => api.window.toggleMaximize()}>
       {#if ui.maximized}
         <svg viewBox="0 0 12 12"><path d="M4 2.5h5.5V8M2.5 4h5.5v5.5H2.5z" /></svg>
       {:else}
         <svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" rx="1" /></svg>
       {/if}
     </button>
-    <button class="ctl close" aria-label="Close" onclick={() => api.window.close()}>
+    <button class="ctl close" aria-label={t('common.close')} onclick={() => api.window.close()}>
       <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" /></svg>
     </button>
   </div>

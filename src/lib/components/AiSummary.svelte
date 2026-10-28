@@ -6,6 +6,7 @@
   import { errorMessage } from '../stores/toasts.svelte';
   import Markdown from './Markdown.svelte';
   import { MessageText, Refresh, Sparkles, X } from '../icons';
+  import { t } from '../i18n';
 
   let { threadId, messages }: { threadId: number; messages: MessageView[] } = $props();
 
@@ -88,8 +89,8 @@
   {/if}
 {:else if phase === 'idle'}
   <div class="bar">
-    <button class="pill" onclick={summarize}><Sparkles size={14} />Summarize</button>
-    <button class="pill" onclick={suggestReplies} disabled={repliesBusy}><MessageText size={14} />{repliesBusy ? 'Thinking…' : 'Suggest replies'}</button>
+    <button class="pill" onclick={summarize}><Sparkles size={14} />{t('aiSummary.summarize')}</button>
+    <button class="pill" onclick={suggestReplies} disabled={repliesBusy}><MessageText size={14} />{repliesBusy ? t('aiSummary.thinking') : t('aiSummary.suggestReplies')}</button>
     {#each replies as r (r.label)}
       <button class="reply" onclick={() => useReply(r)}>{r.label}</button>
     {/each}
@@ -97,13 +98,13 @@
 {:else}
   <div class="card" class:error={phase === 'error'}>
     <div class="head">
-      <span class="title"><Sparkles size={14} />Summary</span>
+      <span class="title"><Sparkles size={14} />{t('aiSummary.title')}</span>
       <span class="grow"></span>
       {#if phase === 'running'}
-        <button class="icon-btn sm" title="Stop" onclick={() => run?.cancel()}><X size={14} /></button>
+        <button class="icon-btn sm" title={t('aiSummary.stop')} onclick={() => run?.cancel()}><X size={14} /></button>
       {:else}
-        <button class="icon-btn sm" title="Regenerate" onclick={summarize}><Refresh size={14} /></button>
-        <button class="icon-btn sm" title="Hide" onclick={() => (phase = 'idle')}><X size={14} /></button>
+        <button class="icon-btn sm" title={t('aiSummary.regenerate')} onclick={summarize}><Refresh size={14} /></button>
+        <button class="icon-btn sm" title={t('common.hide')} onclick={() => (phase = 'idle')}><X size={14} /></button>
       {/if}
     </div>
     {#if phase === 'error'}
@@ -116,7 +117,7 @@
     {#if phase === 'done'}
       <div class="replies">
         {#if replies.length === 0}
-          <button class="pill" onclick={suggestReplies} disabled={repliesBusy}><MessageText size={14} />{repliesBusy ? 'Thinking…' : 'Suggest replies'}</button>
+          <button class="pill" onclick={suggestReplies} disabled={repliesBusy}><MessageText size={14} />{repliesBusy ? t('aiSummary.thinking') : t('aiSummary.suggestReplies')}</button>
         {/if}
         {#each replies as r (r.label)}
           <button class="reply" title={r.text} onclick={() => useReply(r)}>{r.label}</button>

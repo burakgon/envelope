@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ymd } from '../../stores/calendar.svelte';
+  import { dateFormat } from '../../utils/format';
   import Popover from '../Popover.svelte';
   import MiniMonth from './MiniMonth.svelte';
 
@@ -8,16 +9,18 @@
   let open = $state<{ x: number; y: number } | null>(null);
   const day = $derived(new Date(`${value}T00:00:00`));
   const label = $derived(
-    day.toLocaleDateString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: day.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
-    }),
+    Number.isNaN(day.getTime())
+      ? value
+      : dateFormat({
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: day.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+        }).format(day),
   );
 
-  function pick(t: number) {
-    value = ymd(new Date(t));
+  function pick(ms: number) {
+    value = ymd(new Date(ms));
     open = null;
     onchange?.();
   }

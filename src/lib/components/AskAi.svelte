@@ -8,6 +8,7 @@
   import { listDate } from '../utils/format';
   import Markdown from './Markdown.svelte';
   import { ArrowRight, Mail, Sparkles, X } from '../icons';
+  import { t } from '../i18n';
 
   let question = $state(ui.askAi);
   let asked = $state('');
@@ -18,7 +19,7 @@
   let input: HTMLInputElement | undefined = $state();
   let run: AiRun | null = null;
 
-  const examples = ['When is my flight to Berlin?', 'What did Priya decide about the roadmap?', 'Summarize what I missed this week', 'Which invoices did I get this month?'];
+  const examples = $derived([t('askAi.exampleFlight'), t('askAi.exampleDecision'), t('askAi.exampleMissed'), t('askAi.exampleInvoices')]);
 
   onMount(() => {
     input?.focus();
@@ -29,7 +30,7 @@
   async function ask(q = question) {
     if (!q.trim()) return;
     if (!ai.ready) {
-      error = 'Set up an AI provider in Settings → AI first.';
+      error = t('askAi.notSetUp');
       return;
     }
     run?.cancel();
@@ -60,17 +61,17 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={() => ui.close()}>
-  <div class="panel" role="dialog" aria-label="Ask your inbox" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && ui.close()}>
+  <div class="panel" role="dialog" aria-label={t('askAi.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && ui.close()}>
     <form class="q" onsubmit={(e) => { e.preventDefault(); ask(); }}>
       <span class="spark"><Sparkles size={18} /></span>
-      <input bind:this={input} bind:value={question} placeholder="Ask anything about your mail…" />
-      <button class="go" type="submit" disabled={!question.trim() || busy} aria-label="Ask"><ArrowRight size={16} /></button>
-      <button class="icon-btn" type="button" aria-label="Close" onclick={() => ui.close()}><X size={17} /></button>
+      <input bind:this={input} bind:value={question} placeholder={t('askAi.placeholder')} />
+      <button class="go" type="submit" disabled={!question.trim() || busy} aria-label={t('askAi.ask')}><ArrowRight size={16} /></button>
+      <button class="icon-btn" type="button" aria-label={t('common.close')} onclick={() => ui.close()}><X size={17} /></button>
     </form>
 
     <div class="body">
       {#if !asked}
-        <p class="intro">Answers come from your own mail, searched on this computer. Only the most relevant messages are sent to your AI provider.</p>
+        <p class="intro">{t('askAi.intro')}</p>
         <div class="examples">
           {#each examples as ex (ex)}
             <button onclick={() => ask(ex)}>{ex}</button>
@@ -83,16 +84,16 @@
         {:else if answer}
           <Markdown text={answer} streaming={busy} oncite={(n) => { const s = sources.find((x) => x.index === n); if (s) open(s); }} />
         {:else}
-          <div class="thinking"><span></span><span></span><span></span> Searching your mail…</div>
+          <div class="thinking"><span></span><span></span><span></span> {t('askAi.searching')}</div>
         {/if}
         {#if sources.length}
           <div class="sources">
-            <div class="label">Sources</div>
+            <div class="label">{t('askAi.sources')}</div>
             {#each sources as s (s.index)}
               <button class="src" onclick={() => open(s)}>
                 <span class="n">{s.index}</span>
                 <Mail size={14} />
-                <span class="subj truncate">{s.subject || '(no subject)'}</span>
+                <span class="subj truncate">{s.subject || t('common.noSubject')}</span>
                 <span class="from truncate">{s.from}</span>
                 <span class="date">{listDate(s.date)}</span>
               </button>
@@ -178,8 +179,8 @@
     gap: 8px;
   }
   .examples button {
-    height: 32px;
-    padding: 0 14px;
+    min-height: 32px;
+    padding: 6px 14px;
     border-radius: 999px;
     color: var(--text-2);
     font-weight: 500;

@@ -5,7 +5,8 @@
   import { ui } from '../stores/ui.svelte';
   import { cal } from '../stores/calendar.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
-  import { displayName } from '../utils/format';
+  import { dateFormat, displayName, timeOf } from '../utils/format';
+  import { t } from '../i18n';
   import { CalendarDays, CheckCircle, MapPin, Repeat, Users, Video, Warning } from '../icons';
 
   let { message }: { message: MessageView } = $props();
@@ -36,10 +37,9 @@
   const date = $derived(info ? new Date(info.start) : null);
   const when = $derived.by(() => {
     if (!info) return '';
-    const day = new Date(info.start).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-    if (info.allDay) return `${day} · All day`;
-    const t = (x: number) => new Date(x).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-    return `${day} · ${t(info.start)} – ${t(info.end)}`;
+    const day = dateFormat({ weekday: 'long', month: 'long', day: 'numeric' }).format(info.start);
+    if (info.allDay) return t('invite.whenAllDay', { date: day });
+    return t('invite.whenTime', { date: day, start: timeOf(info.start), end: timeOf(info.end) });
   });
 
   async function respond(status: PartStat) {
@@ -49,7 +49,7 @@
       await api.calendar.respondInvite(message.id, status);
       info.myStatus = status;
       toasts.show(
-        status === 'accepted' ? 'Accepted — added to your calendar' : status === 'tentative' ? 'Replied maybe' : 'Declined',
+        status === 'accepted' ? t('invite.accepted') : status === 'tentative' ? t('invite.repliedMaybe') : t('invite.declined'),
         { kind: 'success' },
       );
     } catch (e) {
@@ -64,7 +64,7 @@
     try {
       await api.calendar.remove(info.eventId, null, 'all');
       info.eventId = null;
-      toasts.show('Removed from your calendar');
+      toasts.show(t('invite.removed'));
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -77,32 +77,39 @@
     cal.goto(info.start);
   }
 
-  const time = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const conflictText = $derived.by(() => {
+    if (!conflicts?.length) return '';
+    const events = conflicts
+      .slice(0, 2)
+      .map((c) => (c.allDay ? c.title : t('invite.conflictingEventAt', { title: c.title, time: timeOf(c.start) })))
+      .join(', ');
+    return conflicts.length > 2 ? t('invite.conflictsWithMore', { events, count: conflicts.length - 2 }) : t('invite.conflictsWith', { events });
+  });
 </script>
 
 {#if info && !failed}
   <div class="invite" class:cancelled>
     <div class="top">
-      <button class="date" onclick={show} title="Show in calendar">
-        <span class="m">{date!.toLocaleDateString(undefined, { month: 'short' })}</span>
+      <button class="date" onclick={show} title={t('invite.showInCalendar')}>
+        <span class="m">{dateFormat({ month: 'short' }).format(date!)}</span>
         <span class="d">{date!.getDate()}</span>
-        <span class="w">{date!.toLocaleDateString(undefined, { weekday: 'short' })}</span>
+        <span class="w">{dateFormat({ weekday: 'short' }).format(date!)}</span>
       </button>
       <div class="text">
         <div class="kind">
-          {cancelled ? 'Event cancelled' : 'Invitation'}{#if info.organizer}<span class="from"> · from {displayName(info.organizer)}</span>{/if}
+          {cancelled ? t('invite.cancelled') : t('invite.invitation')}{#if info.organizer}<span class="from"> · {t('invite.fromOrganizer', { name: displayName(info.organizer) })}</span>{/if}
         </div>
         <div class="title selectable">{info.summary || fallbackTitle}</div>
-        <div class="line">{when}{#if info.recurring}<span class="rep"><Repeat size={12} />Repeats</span>{/if}</div>
+        <div class="line">{when}{#if info.recurring}<span class="rep"><Repeat size={12} />{t('invite.repeats')}</span>{/if}</div>
         {#if info.location && info.location.trim() !== info.conferenceUrl}<div class="line"><MapPin size={13} /><span class="truncate">{info.location}</span></div>{/if}
         {#if info.attendees.length}
           <div class="line"><Users size={13} /><span class="truncate">{info.attendees.slice(0, 3).map((a) => displayName(a)).join(', ')}{info.attendees.length > 3 ? ` +${info.attendees.length - 3}` : ''}</span></div>
         {/if}
         {#if conflicts}
           {#if conflicts.length}
-            <div class="line conflict"><Warning size={13} /><span class="truncate">Conflicts with {conflicts.slice(0, 2).map((c) => `${c.title}${c.allDay ? '' : ` (${time(c.start)})`}`).join(', ')}{conflicts.length > 2 ? ` +${conflicts.length - 2}` : ''}</span></div>
+            <div class="line conflict"><Warning size={13} /><span class="truncate" title={conflictText}>{conflictText}</span></div>
           {:else}
-            <div class="line free"><CheckCircle size={13} /><span>You're free at this time</span></div>
+            <div class="line free"><CheckCircle size={13} /><span>{t('invite.free')}</span></div>
           {/if}
         {/if}
       </div>
@@ -110,20 +117,20 @@
     <div class="actions">
       {#if cancelled}
         {#if info.eventId != null}
-          <button class="act" onclick={removeCancelled}>Remove from calendar</button>
+          <button class="act" onclick={removeCancelled}>{t('invite.removeFromCalendar')}</button>
         {:else}
-          <span class="note">This event is no longer on your calendar.</span>
+          <span class="note">{t('invite.noLongerOnCalendar')}</span>
         {/if}
       {:else}
-        <span class="going">Going?</span>
-        <button class="act" class:on={info.myStatus === 'accepted'} disabled={!!busy} onclick={() => respond('accepted')}>Yes</button>
-        <button class="act" class:on={info.myStatus === 'tentative'} disabled={!!busy} onclick={() => respond('tentative')}>Maybe</button>
-        <button class="act" class:on={info.myStatus === 'declined'} disabled={!!busy} onclick={() => respond('declined')}>No</button>
+        <span class="going">{t('invite.going')}</span>
+        <button class="act" class:on={info.myStatus === 'accepted'} disabled={!!busy} onclick={() => respond('accepted')}>{t('invite.rsvpYes')}</button>
+        <button class="act" class:on={info.myStatus === 'tentative'} disabled={!!busy} onclick={() => respond('tentative')}>{t('invite.rsvpMaybe')}</button>
+        <button class="act" class:on={info.myStatus === 'declined'} disabled={!!busy} onclick={() => respond('declined')}>{t('invite.rsvpNo')}</button>
         <span class="grow"></span>
         {#if info.conferenceUrl}
-          <button class="act join" onclick={() => api.openUrl(info!.conferenceUrl!)}><Video size={14} />Join</button>
+          <button class="act join" onclick={() => api.openUrl(info!.conferenceUrl!)}><Video size={14} />{t('invite.join')}</button>
         {/if}
-        <button class="act ghost" onclick={show}><CalendarDays size={14} />Calendar</button>
+        <button class="act ghost" onclick={show}><CalendarDays size={14} />{t('invite.openCalendar')}</button>
       {/if}
     </div>
   </div>
@@ -131,7 +138,7 @@
   <div class="invite simple" class:cancelled>
     <div class="icon"><CalendarDays size={18} /></div>
     <div class="text">
-      <div class="kind">{cancelled ? 'Event cancelled' : 'Invitation'}</div>
+      <div class="kind">{cancelled ? t('invite.cancelled') : t('invite.invitation')}</div>
       <div class="title">{fallbackTitle}</div>
     </div>
   </div>
@@ -252,6 +259,7 @@
   }
   .actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     padding: 10px 16px;

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '../../api';
   import type { Account, AutoReply, AutoReplyAudience, AutoReplyInfo } from '../../api';
+  import { t } from '../../i18n';
   import { Away, Spinner } from '../../icons';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import { autoReplies } from '../../stores/autoReplies.svelte';
@@ -42,9 +43,9 @@
   // Exchange and Microsoft 365 always answer colleagues; their choice is about outsiders.
   const organizational = $derived(account.kind === 'microsoft' || account.kind === 'exchange');
   const audienceLabels = $derived<Record<AutoReplyAudience, string>>({
-    everyone: 'Everyone',
-    contacts: organizational ? 'My organization and my contacts' : 'Only my contacts',
-    organization: 'Only my organization',
+    everyone: t('autoReply.audienceEveryone'),
+    contacts: organizational ? t('autoReply.audienceOrganizationAndContacts') : t('autoReply.audienceContacts'),
+    organization: t('autoReply.audienceOrganization'),
   });
 
   function onStart() {
@@ -58,7 +59,7 @@
       const next: AutoReply = { ...$state.snapshot(reply), start: scheduled ? start : null, end: scheduled ? end : null };
       await api.autoReply.set(account.id, next);
       autoReplies.known(account.id, next.enabled);
-      toasts.show(next.enabled ? 'Automatic replies are on' : 'Automatic replies are off', { kind: 'success' });
+      toasts.show(next.enabled ? t('autoReply.statusOn') : t('autoReply.statusOff'), { kind: 'success' });
       onclose();
     } catch (e) {
       toasts.error(errorMessage(e));
@@ -76,30 +77,30 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={onclose}>
-  <div class="dialog" role="dialog" aria-label="Automatic replies" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
+  <div class="dialog" role="dialog" aria-label={t('autoReply.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
     <header>
       <span class="icon"><Away size={18} /></span>
       <div>
-        <h3>Automatic replies</h3>
+        <h3>{t('autoReply.title')}</h3>
         <span class="sub">{account.email}</span>
       </div>
     </header>
 
     {#if failure}
       <p class="failure">{failure}</p>
-      <footer><button class="btn" onclick={onclose}>Close</button></footer>
+      <footer><button class="btn" onclick={onclose}>{t('common.close')}</button></footer>
     {:else if !reply || !info}
       <div class="loading"><span class="spin"><Spinner size={18} /></span></div>
     {:else}
       <div class="row">
-        <div class="txt"><b>Send automatic replies</b><span>Answer incoming mail while you are away.</span></div>
-        <Toggle checked={reply.enabled} onchange={(v) => (reply!.enabled = v)} />
+        <div class="txt"><b>{t('autoReply.sendReplies')}</b><span>{t('autoReply.sendRepliesDesc')}</span></div>
+        <Toggle checked={reply.enabled} label={t('autoReply.sendReplies')} onchange={(v) => (reply!.enabled = v)} />
       </div>
 
       <div class="body" class:off={!reply.enabled}>
         <label class="check">
           <input type="checkbox" bind:checked={scheduled} />
-          Only during these days
+          {t('autoReply.onlyDuringDays')}
         </label>
         {#if scheduled}
           <div class="dates">
@@ -110,21 +111,21 @@
         {/if}
 
         {#if info.subject}
-          <label class="label" for="ar-subject">Subject</label>
-          <input id="ar-subject" class="input" placeholder="Out of office" bind:value={reply.subject} />
+          <label class="label" for="ar-subject">{t('composer.subject')}</label>
+          <input id="ar-subject" class="input" placeholder={t('autoReply.subjectPlaceholder')} bind:value={reply.subject} />
         {/if}
 
-        <label class="label" for="ar-message">Message</label>
+        <label class="label" for="ar-message">{t('settings.templates.message')}</label>
         <textarea
           id="ar-message"
           class="input message"
           rows="6"
-          placeholder="I'm away until Monday and will reply when I'm back."
+          placeholder={t('autoReply.messagePlaceholder')}
           bind:value={reply.message}
         ></textarea>
 
         {#if info.audiences.length > 1}
-          <label class="label" for="ar-audience">Reply to</label>
+          <label class="label" for="ar-audience">{t('autoReply.audience')}</label>
           <select id="ar-audience" class="input" bind:value={reply.audience}>
             {#each info.audiences as a (a)}
               <option value={a}>{audienceLabels[a]}</option>
@@ -134,9 +135,9 @@
       </div>
 
       <footer>
-        <button class="btn" onclick={onclose}>Cancel</button>
+        <button class="btn" onclick={onclose}>{t('common.cancel')}</button>
         <button class="btn primary" disabled={saving || (reply.enabled && !reply.message.trim())} onclick={save}>
-          {#if saving}<span class="spin"><Spinner size={14} /></span>{/if}Save
+          {#if saving}<span class="spin"><Spinner size={14} /></span>{/if}{t('common.save')}
         </button>
       </footer>
     {/if}
@@ -232,6 +233,7 @@
   }
   .dates {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }

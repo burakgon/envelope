@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { api } from '../../api';
+  import { t } from '../../i18n';
   import { Spinner } from '../../icons';
   import { cal } from '../../stores/calendar.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
@@ -20,7 +21,7 @@
     failure = null;
     try {
       const added = await api.calendar.subscribe(url.trim());
-      toasts.show(`Subscribed to ${added.name}`, { kind: 'success' });
+      toasts.show(t('calendar.subscribe.subscribed', { name: added.name }), { kind: 'success' });
       await cal.loadCalendars();
       cal.load();
       onclose();
@@ -43,15 +44,15 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={onclose}>
-  <div class="dialog" role="dialog" aria-label="Subscribe to a calendar" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
-    <h3>Subscribe to a calendar</h3>
-    <p>Paste the address of a published calendar, such as holidays, a sports schedule or a team calendar. It stays read-only and updates by itself.</p>
-    <input bind:this={input} class="input" placeholder="webcal://… or https://….ics" bind:value={url} spellcheck="false" />
+  <div class="dialog" role="dialog" aria-label={t('calendar.subscribe.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
+    <h3>{t('calendar.subscribe.title')}</h3>
+    <p>{t('calendar.subscribe.description')}</p>
+    <input bind:this={input} class="input" placeholder={t('calendar.subscribe.urlPlaceholder')} bind:value={url} spellcheck="false" />
     {#if failure}<p class="failure">{failure}</p>{/if}
     <footer>
-      <button class="btn" onclick={onclose}>Cancel</button>
+      <button class="btn" onclick={onclose}>{t('common.cancel')}</button>
       <button class="btn primary" disabled={!url.trim() || busy} onclick={subscribe}>
-        {#if busy}<span class="spin"><Spinner size={14} /></span>{/if}Subscribe
+        {#if busy}<span class="spin"><Spinner size={14} /></span>{/if}{t('calendar.subscribe.subscribe')}
       </button>
     </footer>
   </div>

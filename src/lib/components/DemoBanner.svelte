@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Download, X } from '../icons';
+  import { t } from '../i18n';
 
   // Only part of the browser demo: points visitors at the real app.
   let hidden = $state(sessionStorage.getItem('envelope.demo.banner') === 'hidden');
@@ -12,11 +13,11 @@
 
 {#if !hidden}
   <div class="banner" role="note">
-    <button class="close" aria-label="Hide" onclick={close}><X size={13} /></button>
-    <div class="head"><span class="dot"></span><b>Live demo</b></div>
-    <p>Sample mail, nothing leaves your browser.</p>
-    <a class="get" href="https://github.com/burakgon/envelope/releases/latest" target="_blank" rel="noopener"><Download size={14} />Get it for Linux</a>
-    <a class="gh" href="https://github.com/burakgon/envelope" target="_blank" rel="noopener">Star on GitHub</a>
+    <button class="close" aria-label={t('demo.hide')} onclick={close}><X size={13} /></button>
+    <div class="head"><span class="dot"></span><b>{t('demo.title')}</b></div>
+    <p>{t('demo.body')}</p>
+    <a class="get" href="https://github.com/burakgon/envelope/releases/latest" target="_blank" rel="noopener"><Download size={14} />{t('demo.download')}</a>
+    <a class="gh" href="https://github.com/burakgon/envelope" target="_blank" rel="noopener">{t('demo.star')}</a>
   </div>
 {/if}
 

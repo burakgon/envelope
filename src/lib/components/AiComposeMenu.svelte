@@ -7,6 +7,7 @@
   import { errorMessage } from '../stores/toasts.svelte';
   import Popover from './Popover.svelte';
   import { ArrowRight, Languages, Refresh, Sparkles, Wand, X } from '../icons';
+  import { t } from '../i18n';
 
   let {
     x,
@@ -45,11 +46,11 @@
 
   const suggestions = $derived(
     isReply
-      ? ['Say yes and thank them', 'Politely decline', 'Ask for more details', 'Propose another time']
-      : ['Follow up on our last conversation', 'Introduce myself briefly', 'Ask for a quick call this week'],
+      ? [t('aiCompose.replyIdeaAccept'), t('aiCompose.replyIdeaDecline'), t('aiCompose.replyIdeaDetails'), t('aiCompose.replyIdeaAnotherTime')]
+      : [t('aiCompose.newIdeaFollowUp'), t('aiCompose.newIdeaIntroduce'), t('aiCompose.newIdeaCall')],
   );
 
-  async function start(fn: () => AiRun, isReplace: boolean, onDone?: (t: string) => string) {
+  async function start(fn: () => AiRun, isReplace: boolean, onDone?: (out: string) => string) {
     run?.cancel();
     result = '';
     error = '';
@@ -96,14 +97,14 @@
     start(() => ai.run({ kind: 'translate', text: plain, language }, (e) => e.type === 'delta' && (result += e.text)), true);
   }
 
-  const styles = [
-    { id: 'improve', label: 'Improve' },
-    { id: 'shorter', label: 'Shorter' },
-    { id: 'longer', label: 'Longer' },
-    { id: 'formal', label: 'More formal' },
-    { id: 'friendly', label: 'Friendlier' },
-    { id: 'fixGrammar', label: 'Fix grammar' },
-  ];
+  const styles = $derived([
+    { id: 'improve', label: t('aiCompose.styleImprove') },
+    { id: 'shorter', label: t('aiCompose.styleShorter') },
+    { id: 'longer', label: t('aiCompose.styleLonger') },
+    { id: 'formal', label: t('aiCompose.styleFormal') },
+    { id: 'friendly', label: t('aiCompose.styleFriendly') },
+    { id: 'fixGrammar', label: t('aiCompose.styleFixGrammar') },
+  ]);
   const languages = ['English', 'Türkçe', 'Deutsch', 'Español', 'Français', 'Italiano', 'Português', '日本語', '中文', 'Русский', 'العربية'];
 </script>
 
@@ -112,16 +113,16 @@
     <div class="setup">
       <Sparkles size={20} />
       <div>
-        <b>Write faster with AI</b>
-        <p>Connect OpenRouter, OpenAI, Anthropic, Gemini or a local model like Ollama.</p>
-        <button class="btn sm primary" onclick={() => { onclose(); ui.open('settings', 'ai'); }}>Set up AI</button>
+        <b>{t('aiCompose.setupTitle')}</b>
+        <p>{t('aiCompose.setupText')}</p>
+        <button class="btn sm primary" onclick={() => { onclose(); ui.open('settings', 'ai'); }}>{t('aiCompose.setUp')}</button>
       </div>
     </div>
   {:else}
     <form class="ask" onsubmit={(e) => { e.preventDefault(); write(); }}>
       <Sparkles size={16} />
-      <input bind:this={input} bind:value={instruction} placeholder={isReply ? 'Describe your reply…' : 'What should I write?'} />
-      <button class="go" type="submit" disabled={!instruction.trim() || busy} aria-label="Write"><ArrowRight size={15} /></button>
+      <input bind:this={input} bind:value={instruction} placeholder={isReply ? t('aiCompose.replyPlaceholder') : t('aiCompose.newPlaceholder')} />
+      <button class="go" type="submit" disabled={!instruction.trim() || busy} aria-label={t('aiCompose.write')}><ArrowRight size={15} /></button>
     </form>
 
     {#if !result && !busy && !error}
@@ -131,12 +132,12 @@
         {/each}
       </div>
       {#if hasText}
-        <div class="menu-label">Rewrite your text</div>
+        <div class="menu-label">{t('aiCompose.rewriteTitle')}</div>
         <div class="chips">
           {#each styles as s (s.id)}
             <button class="chip-btn" onclick={() => rewrite(s.id)}><Wand size={12} />{s.label}</button>
           {/each}
-          <button class="chip-btn" onclick={() => (showLangs = !showLangs)}><Languages size={12} />Translate</button>
+          <button class="chip-btn" onclick={() => (showLangs = !showLangs)}><Languages size={12} />{t('aiCompose.translate')}</button>
         </div>
         {#if showLangs}
           <div class="chips">
@@ -160,13 +161,13 @@
       </div>
       <div class="actions">
         {#if busy}
-          <button class="btn sm" onclick={() => run?.cancel()}><X size={13} />Stop</button>
+          <button class="btn sm" onclick={() => run?.cancel()}><X size={13} />{t('aiCompose.stop')}</button>
         {:else}
-          <button class="btn sm ghost" onclick={() => lastAction?.()}><Refresh size={13} />Try again</button>
+          <button class="btn sm ghost" onclick={() => lastAction?.()}><Refresh size={13} />{t('aiCompose.tryAgain')}</button>
           <span class="grow"></span>
-          <button class="btn sm" onclick={() => { result = ''; error = ''; }}>Discard</button>
+          <button class="btn sm" onclick={() => { result = ''; error = ''; }}>{t('common.discard')}</button>
           {#if result}
-            <button class="btn sm primary" onclick={() => onapply(result, replace)}>{replace ? 'Replace' : 'Insert'}</button>
+            <button class="btn sm primary" onclick={() => onapply(result, replace)}>{replace ? t('aiCompose.replace') : t('aiCompose.insert')}</button>
           {/if}
         {/if}
       </div>
@@ -226,8 +227,8 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    height: 26px;
-    padding: 0 10px;
+    min-height: 26px;
+    padding: 3px 10px;
     border-radius: 999px;
     font-size: 12px;
     font-weight: 550;

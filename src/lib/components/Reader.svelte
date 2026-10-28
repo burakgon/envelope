@@ -10,6 +10,7 @@
   import AiSummary from './AiSummary.svelte';
   import { pgp } from '../stores/pgp.svelte';
   import { Archive, Clock, Folder, Forward, Mail, MailOpen, Reply, ReplyAll, ShieldAlert, Star, Tag, Trash, Inbox } from '../icons';
+  import { t } from '../i18n';
 
   let expanded = $state<Record<number, boolean>>({});
   let showAll = $state(false);
@@ -59,26 +60,26 @@
     {#if thread}
       <div class="actions">
         {#if inInbox || !mail.isInboxView}
-          <button class="icon-btn" title="Archive (E)" onclick={() => mail.archive([thread.id])}><Archive size={17} /></button>
+          <button class="icon-btn" title={t('reader.toolbarArchive', { key: 'E' })} onclick={() => mail.archive([thread.id])}><Archive size={17} /></button>
         {:else}
-          <button class="icon-btn" title="Move to Inbox" onclick={() => mail.moveTo({ kind: 'inbox' }, [thread.id])}><Inbox size={17} /></button>
+          <button class="icon-btn" title={t('reader.toolbarMoveToInbox')} onclick={() => mail.moveTo({ kind: 'inbox' }, [thread.id])}><Inbox size={17} /></button>
         {/if}
-        <button class="icon-btn" title="Delete (#)" onclick={() => mail.trash([thread.id])}><Trash size={17} /></button>
-        <button class="icon-btn" title="Spam (!)" onclick={() => mail.moveTo({ kind: 'junk' }, [thread.id])}><ShieldAlert size={17} /></button>
+        <button class="icon-btn" title={t('reader.toolbarDelete', { key: '#' })} onclick={() => mail.trash([thread.id])}><Trash size={17} /></button>
+        <button class="icon-btn" title={t('reader.toolbarSpam', { key: '!' })} onclick={() => mail.moveTo({ kind: 'junk' }, [thread.id])}><ShieldAlert size={17} /></button>
         <span class="sep"></span>
-        <button class="icon-btn" title="Snooze (H)" onclick={(e) => (snoozeAt = rect(e))}><Clock size={17} /></button>
-        <button class="icon-btn" title={thread.unreadCount ? 'Mark read (U)' : 'Mark unread (U)'} onclick={() => mail.toggleRead([thread.id])}>
+        <button class="icon-btn" title={t('reader.toolbarSnooze', { key: 'H' })} onclick={(e) => (snoozeAt = rect(e))}><Clock size={17} /></button>
+        <button class="icon-btn" title={thread.unreadCount ? t('reader.toolbarMarkRead', { key: 'U' }) : t('reader.toolbarMarkUnread', { key: 'U' })} onclick={() => mail.toggleRead([thread.id])}>
           {#if thread.unreadCount}<MailOpen size={17} />{:else}<Mail size={17} />{/if}
         </button>
-        <button class="icon-btn" title="Move (V)" onclick={(e) => (moveAt = { ...rect(e), labels: false })}><Folder size={17} /></button>
+        <button class="icon-btn" title={t('reader.toolbarMove', { key: 'V' })} onclick={(e) => (moveAt = { ...rect(e), labels: false })}><Folder size={17} /></button>
         {#if account?.kind === 'gmail' || account?.kind === 'microsoft' || account?.kind === 'exchange'}
-          <button class="icon-btn" title={account?.kind === 'gmail' ? 'Label (L)' : 'Categorize (L)'} onclick={(e) => (moveAt = { ...rect(e), labels: true })}><Tag size={17} /></button>
+          <button class="icon-btn" title={account?.kind === 'gmail' ? t('reader.toolbarLabel', { key: 'L' }) : t('reader.toolbarCategorize', { key: 'L' })} onclick={(e) => (moveAt = { ...rect(e), labels: true })}><Tag size={17} /></button>
         {/if}
       </div>
     {/if}
     <span class="grow" data-tauri-drag-region></span>
     {#if thread}
-      <button class="icon-btn" class:star={thread.flagged} title="Star (S)" onclick={() => mail.toggleStar([thread.id])}>
+      <button class="icon-btn" class:star={thread.flagged} title={t('reader.toolbarStar', { key: 'S' })} onclick={() => mail.toggleStar([thread.id])}>
         <Star size={17} fill={thread.flagged ? 'currentColor' : 'none'} />
       </button>
     {/if}
@@ -89,7 +90,7 @@
     <div class="scroll" bind:this={scroller}>
       <div class="inner">
         <div class="subject-block">
-          <h2 class="selectable">{pgp.subjectOf(messages.map((m) => m.id)) ?? (thread.subject || '(no subject)')}</h2>
+          <h2 class="selectable">{pgp.subjectOf(messages.map((m) => m.id)) ?? (thread.subject || t('common.noSubject'))}</h2>
           <div class="chips">
             {#if mail.multiAccount && account}
               <span class="chip"><span class="dot" style:background={account.color}></span>{account.label ?? account.email}</span>
@@ -97,7 +98,7 @@
             {#each labels as l (l!.id)}
               <span class="chip label" style:--c={l!.color ?? 'var(--text-3)'}>{l!.name}</span>
             {/each}
-            {#if messages.length > 1}<span class="chip">{messages.length} messages</span>{/if}
+            {#if messages.length > 1}<span class="chip">{t('reader.messageCount', { count: messages.length })}</span>{/if}
           </div>
         </div>
 
@@ -109,7 +110,7 @@
           {#each shown as m, i (m.id)}
             {#if !showAll && i === 1 && hiddenCount > 0}
               <button class="more" onclick={() => (showAll = true)}>
-                <span class="line"></span><span class="pill">{hiddenCount} more {hiddenCount === 1 ? 'message' : 'messages'}</span><span class="line"></span>
+                <span class="line"></span><span class="pill">{t('reader.moreMessages', { count: hiddenCount })}</span><span class="line"></span>
               </button>
             {/if}
             <MessageCard message={m} expanded={!!expanded[m.id]} ontoggle={() => (expanded[m.id] = !expanded[m.id])} />
@@ -122,9 +123,9 @@
           </div>
         {:else if last}
           <div class="quick">
-            <button class="qr" onclick={() => compose.reply(last.id, 'reply')}><Reply size={16} />Reply</button>
-            <button class="qr" onclick={() => compose.reply(last.id, 'replyAll')}><ReplyAll size={16} />Reply all</button>
-            <button class="qr" onclick={() => compose.reply(last.id, 'forward', false)}><Forward size={16} />Forward</button>
+            <button class="qr" onclick={() => compose.reply(last.id, 'reply')}><Reply size={16} />{t('reader.reply')}</button>
+            <button class="qr" onclick={() => compose.reply(last.id, 'replyAll')}><ReplyAll size={16} />{t('reader.replyAll')}</button>
+            <button class="qr" onclick={() => compose.reply(last.id, 'forward', false)}><Forward size={16} />{t('reader.forward')}</button>
           </div>
         {/if}
       </div>
@@ -137,12 +138,12 @@
         <rect x="28" y="24" width="104" height="72" rx="14" fill="var(--bg-sunken)" stroke="var(--border-strong)" stroke-width="2" />
         <path d="M40 38 L80 66 L120 38" fill="none" stroke="var(--text-4)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
-      <p class="hint">Select a conversation to read</p>
+      <p class="hint">{t('reader.emptyHint')}</p>
       <div class="keys">
-        <span><kbd class="kbd">J</kbd><kbd class="kbd">K</kbd> navigate</span>
-        <span><kbd class="kbd">E</kbd> archive</span>
-        <span><kbd class="kbd">C</kbd> compose</span>
-        <span><kbd class="kbd">Ctrl</kbd><kbd class="kbd">K</kbd> commands</span>
+        <span><kbd class="kbd">J</kbd><kbd class="kbd">K</kbd> {t('reader.keyHintNavigate')}</span>
+        <span><kbd class="kbd">E</kbd> {t('reader.keyHintArchive')}</span>
+        <span><kbd class="kbd">C</kbd> {t('reader.keyHintCompose')}</span>
+        <span><kbd class="kbd">{t('keys.ctrl')}</kbd><kbd class="kbd">K</kbd> {t('reader.keyHintCommands')}</span>
       </div>
     </div>
   {/if}
@@ -262,6 +263,7 @@
   }
   .quick {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 16px;
   }

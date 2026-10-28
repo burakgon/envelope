@@ -5,6 +5,7 @@
   import type { ComposerState } from '../stores/compose.svelte';
   import { keyName, pgp } from '../stores/pgp.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
+  import { t } from '../i18n';
   import Popover from './Popover.svelte';
   import Toggle from './settings/Toggle.svelte';
   import { BadgeCheck, Check, KeyRound, Lock, LockOpen, Search, Warning } from '../icons';
@@ -95,7 +96,7 @@
       const identity = await api.identities().then((l) => l.find((i) => i.email.toLowerCase() === status!.from));
       await api.crypto.generateKey(status.from, identity?.name ?? '', null);
       await refresh();
-      toasts.show(`Created a key for ${status.from}`, { kind: 'success' });
+      toasts.show(t('crypto.keyCreated', { email: status.from }), { kind: 'success' });
     } catch (e) {
       toasts.error(errorMessage(e));
     } finally {
@@ -110,8 +111,8 @@
     try {
       const found = await api.crypto.lookup(status.missing, keyserver, true);
       const s = await refresh();
-      if (!found.length) toasts.show(keyserver ? 'No keys found on keys.openpgp.org' : 'No keys published by their domains');
-      else if (s?.missing.length === 0) toasts.show('Found keys for everyone', { kind: 'success' });
+      if (!found.length) toasts.show(keyserver ? t('crypto.composer.noKeysOnKeyserver') : t('crypto.composer.noKeysFromDomains'));
+      else if (s?.missing.length === 0) toasts.show(t('crypto.composer.foundKeysForEveryone'), { kind: 'success' });
     } catch (e) {
       toasts.error(errorMessage(e));
     } finally {
@@ -126,13 +127,13 @@
     if (c.data.encrypt && !s.canEncrypt) {
       toasts.error(
         s.ownKey
-          ? `Can't encrypt: no key for ${s.missing.join(', ')}. Turn encryption off or find their keys.`
-          : `Create a key for ${s.from} to send encrypted mail.`,
+          ? t('crypto.composer.cantEncryptMissingKeys', { addresses: s.missing.join(', ') })
+          : t('crypto.composer.createKeyToEncrypt', { email: s.from }),
       );
       return false;
     }
     if (c.data.sign && !s.ownKey) {
-      toasts.error(`Create a key for ${s.from} to sign mail.`);
+      toasts.error(t('crypto.composer.createKeyToSign', { email: s.from }));
       return false;
     }
     if (c.data.sign && s.ownLocked && s.ownKey) {
@@ -153,7 +154,13 @@
   class="icon-btn lock"
   class:on={encryptOn && !blocked}
   class:warn={blocked}
-  title={blocked ? 'Encryption is on, but not every recipient has a key' : encryptOn ? 'Encrypted' : status?.canEncrypt ? 'Not encrypted — click to encrypt' : 'Encryption'}
+  title={blocked
+    ? t('crypto.composer.lockBlocked')
+    : encryptOn
+      ? t('crypto.composer.lockEncrypted')
+      : status?.canEncrypt
+        ? t('crypto.composer.lockNotEncrypted')
+        : t('crypto.composer.lockEncryption')}
   onclick={openMenu}
 >
   {#if encryptOn}<Lock size={17} />{:else}<LockOpen size={17} />{/if}
@@ -164,26 +171,27 @@
     <div class="panel">
       <div class="row">
         <div class="txt">
-          <b>Encrypt</b>
+          <b>{t('crypto.composer.encrypt')}</b>
           <span>
-            {#if !status}Checking keys…
-            {:else if !status.ownKey}You need a key for {status.from}.
-            {:else if !emails.length}Add recipients first.
-            {:else if status.canEncrypt}Only the recipients can read it.
-            {:else}Not every recipient has a key.{/if}
+            {#if !status}{t('crypto.composer.checkingKeys')}
+            {:else if !status.ownKey}{t('crypto.composer.needOwnKey', { email: status.from })}
+            {:else if !emails.length}{t('crypto.composer.addRecipientsFirst')}
+            {:else if status.canEncrypt}{t('crypto.composer.onlyRecipientsCanRead')}
+            {:else}{t('crypto.composer.notEveryRecipientHasKey')}{/if}
           </span>
         </div>
-        <Toggle label="Encrypt" checked={encryptOn} onchange={(v) => setEncrypt(v)} />
+        <Toggle label={t('crypto.composer.encrypt')} checked={encryptOn} onchange={(v) => setEncrypt(v)} />
       </div>
       <div class="row">
         <div class="txt">
-          <b>Sign</b>
-          <span>{status?.ownKey ? 'Recipients can check that it is from you.' : 'Needs a key.'}</span>
+          <b>{t('crypto.composer.sign')}</b>
+          <span>{status?.ownKey ? t('crypto.composer.signHint') : t('crypto.composer.signNeedsKey')}</span>
         </div>
-        <Toggle label="Sign" checked={signOn} onchange={(v) => setSign(v)} />
+        <Toggle label={t('crypto.composer.sign')} checked={signOn} onchange={(v) => setSign(v)} />
       </div>
       {#if status && !status.ownKey}
-        <button class="btn sm" disabled={busy} onclick={createKey}><KeyRound size={14} />Create a key for {status.from}</button>
+        {@const label = t('crypto.composer.createKeyFor', { email: status.from })}
+        <button class="btn sm" disabled={busy} onclick={createKey} title={label}><KeyRound size={14} /><span class="truncate">{label}</span></button>
       {/if}
       {#if status?.recipients.length}
         <div class="list">
@@ -193,14 +201,14 @@
                 {#if r.key.verified}<BadgeCheck size={14} />{:else}<Check size={14} />{/if}
               {:else}<Warning size={14} />{/if}
               <span class="truncate">{r.email}</span>
-              <span class="what" title={r.key ? keyName(r.key) : ''}>{r.key ? (r.key.verified ? 'verified key' : 'has a key') : 'no key'}</span>
+              <span class="what" title={r.key ? keyName(r.key) : ''}>{r.key ? t(r.key.verified ? 'crypto.composer.recipientVerifiedKey' : 'crypto.composer.recipientHasKey') : t('crypto.composer.recipientNoKey')}</span>
             </div>
           {/each}
         </div>
         {#if status.missing.length}
           <div class="find">
-            <button class="btn sm" disabled={busy} onclick={() => findKeys(false)}><Search size={14} />Look up keys</button>
-            <button class="btn sm" disabled={busy} onclick={() => findKeys(true)} title="Asks keys.openpgp.org for the missing addresses">Search keys.openpgp.org</button>
+            <button class="btn sm" disabled={busy} onclick={() => findKeys(false)}><Search size={14} />{t('crypto.composer.lookUpKeys')}</button>
+            <button class="btn sm" disabled={busy} onclick={() => findKeys(true)} title={t('crypto.composer.searchKeyserverHint')}>{t('crypto.composer.searchKeyserver')}</button>
           </div>
         {/if}
       {/if}
@@ -215,8 +223,10 @@
   .lock.warn {
     color: var(--amber);
   }
+  /* A single column as wide as the panel: long addresses and labels shorten or wrap instead of widening it. */
   .panel {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
     padding: 10px 12px;
   }
@@ -236,9 +246,11 @@
   .txt span {
     color: var(--text-3);
     font-size: var(--text-sm);
+    overflow-wrap: anywhere;
   }
   .list {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 2px;
     padding-top: 8px;
     border-top: 1px solid var(--border);
