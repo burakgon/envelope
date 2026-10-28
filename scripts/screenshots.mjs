@@ -51,6 +51,23 @@ const jobs = {
   contacts: () => shot('contacts', { actions: async (p) => { await p.locator('.modes button[aria-label="Contacts"]').click(); await p.waitForTimeout(500); await p.locator('.contacts .row', { hasText: 'Maya Chen' }).click(); await p.waitForTimeout(800); } }),
   invite: () => shot('invite', { actions: async (p) => { await p.locator('.row', { hasText: 'Product sync' }).first().click(); await p.waitForTimeout(900); } }),
   settings: () => shot('settings', { actions: async (p) => { await p.keyboard.press('Control+,'); await p.waitForTimeout(200); await p.locator('.tab', { hasText: 'Appearance' }).click(); } }),
+  scheduling: () => shot('scheduling', { actions: async (p) => {
+    await p.locator('.modes button', { hasText: 'Calendar' }).click();
+    await p.waitForTimeout(600);
+    await p.locator('button.compose').first().click();
+    await p.waitForTimeout(300);
+    await p.keyboard.type('Design review');
+    const guests = p.locator('.people input').first();
+    for (const email of ['maya@northwind.design', 'daniel@northwind.design']) {
+      await guests.click();
+      await guests.type(email);
+      await p.keyboard.press('Enter');
+    }
+    await p.waitForTimeout(900);
+    await p.locator('button', { hasText: 'Next time everyone is free' }).click();
+    await p.waitForTimeout(900);
+  } }),
+  encryption: () => shot('encryption', { theme: 'dark', actions: async (p) => { await p.keyboard.press('Control+,'); await p.waitForTimeout(200); await p.locator('.tab', { hasText: 'Encryption' }).click(); await p.waitForTimeout(400); } }),
 };
 for (const [name, job] of Object.entries(jobs)) {
   if (!only || only === name) await job();

@@ -47,6 +47,10 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 <td width="50%"><img src="docs/screenshots/calendar-month.png" alt="Month view of the calendar in dark mode"></td>
 </tr>
 <tr>
+<td width="50%"><img src="docs/screenshots/scheduling.png" alt="The event editor showing when the guests are busy, with a button for the next time everyone is free"></td>
+<td width="50%"><img src="docs/screenshots/encryption.png" alt="OpenPGP keys and encryption preferences in dark mode"></td>
+</tr>
+<tr>
 <td width="50%"><img src="docs/screenshots/ai-summary.png" alt="AI summary with suggested replies"></td>
 <td width="50%"><img src="docs/screenshots/ai-ask.png" alt="Asking a question about your mail with cited sources"></td>
 </tr>
