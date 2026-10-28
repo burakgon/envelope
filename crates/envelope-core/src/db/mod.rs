@@ -14,7 +14,14 @@ use rusqlite::{Connection, OpenFlags, Transaction};
 use crate::error::{Error, Result};
 
 const SCHEMA: &str = include_str!("schema.sql");
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
+
+/// Steps from one schema version to the next, applied in order to older databases.
+const MIGRATIONS: &[(i64, &str)] = &[(
+    2,
+    "CREATE INDEX IF NOT EXISTS messages_reply ON messages(account_id, in_reply_to) WHERE in_reply_to IS NOT NULL;
+     CREATE INDEX IF NOT EXISTS thread_folders_unread ON thread_folders(folder_id, last_date DESC) WHERE unread > 0;",
+)];
 const MAX_READERS: usize = 6;
 
 /// Handle to the local database. Cheap to clone.
@@ -138,6 +145,12 @@ fn migrate(conn: &Connection) -> Result<()> {
     }
     if version < 1 {
         conn.execute_batch(SCHEMA)?;
+    } else {
+        for (to, sql) in MIGRATIONS {
+            if version < *to {
+                conn.execute_batch(sql)?;
+            }
+        }
     }
     conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))?;
     Ok(())
@@ -151,10 +164,11 @@ pub fn pack(text: &str) -> Vec<u8> {
 /// Reverses [`pack`].
 pub fn unpack(data: &[u8]) -> String {
     // zstd frames start with the magic number 0xFD2FB528 (little endian).
-    if data.len() >= 4 && data[..4] == [0x28, 0xB5, 0x2F, 0xFD] {
-        if let Ok(raw) = zstd::stream::decode_all(data) {
-            return String::from_utf8_lossy(&raw).into_owned();
-        }
+    if data.len() >= 4
+        && data[..4] == [0x28, 0xB5, 0x2F, 0xFD]
+        && let Ok(raw) = zstd::stream::decode_all(data)
+    {
+        return String::from_utf8_lossy(&raw).into_owned();
     }
     String::from_utf8_lossy(data).into_owned()
 }

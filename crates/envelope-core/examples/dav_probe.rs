@@ -5,7 +5,9 @@ async fn main() {
         .auth(envelope_dav::Auth::basic("alex@envelope.test", "password"))
         .build()
         .unwrap();
-    let d = c.discover_from("http://127.0.0.1:5232/", envelope_dav::ServiceType::CalDav).await;
+    let d = c
+        .discover_from("http://127.0.0.1:5232/", envelope_dav::ServiceType::CalDav)
+        .await;
     println!("discover: {d:?}");
     if let Ok(d) = d {
         let cals = c.list_calendars(&d.calendar_home_set[0]).await;

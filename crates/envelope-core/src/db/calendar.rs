@@ -60,15 +60,20 @@ pub fn list_calendars(c: &Connection) -> Result<Vec<CalendarRow>> {
 }
 
 pub fn account_calendars(c: &Connection, account_id: i64) -> Result<Vec<CalendarRow>> {
-    let mut st = c.prepare_cached("SELECT * FROM calendars WHERE account_id = ? ORDER BY sort_order, name")?;
+    let mut st =
+        c.prepare_cached("SELECT * FROM calendars WHERE account_id = ? ORDER BY sort_order, name")?;
     let rows = st.query_map([account_id], calendar_from_row)?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
 pub fn get_calendar(c: &Connection, id: i64) -> Result<CalendarRow> {
-    c.query_row("SELECT * FROM calendars WHERE id = ?", [id], calendar_from_row)
-        .optional()?
-        .ok_or_else(|| Error::NotFound(format!("calendar {id}")))
+    c.query_row(
+        "SELECT * FROM calendars WHERE id = ?",
+        [id],
+        calendar_from_row,
+    )
+    .optional()?
+    .ok_or_else(|| Error::NotFound(format!("calendar {id}")))
 }
 
 /// Fields of a calendar as reported by the server.
@@ -85,7 +90,12 @@ pub struct CalendarUpsert {
 }
 
 /// Creates/updates calendars of an account and removes the ones that vanished.
-pub fn sync_calendars(tx: &Transaction<'_>, account_id: i64, kind: &str, list: &[CalendarUpsert]) -> Result<Vec<i64>> {
+pub fn sync_calendars(
+    tx: &Transaction<'_>,
+    account_id: i64,
+    kind: &str,
+    list: &[CalendarUpsert],
+) -> Result<Vec<i64>> {
     let mut ids = Vec::new();
     for c in list {
         tx.execute(
@@ -129,7 +139,11 @@ pub fn sync_calendars(tx: &Transaction<'_>, account_id: i64, kind: &str, list: &
     Ok(ids)
 }
 
-pub fn set_calendar_sync_state(tx: &Transaction<'_>, id: i64, state: &CalendarSyncState) -> Result<()> {
+pub fn set_calendar_sync_state(
+    tx: &Transaction<'_>,
+    id: i64,
+    state: &CalendarSyncState,
+) -> Result<()> {
     tx.execute(
         "UPDATE calendars SET sync_state = json_patch(sync_state, ?) WHERE id = ?",
         params![serde_json::to_string(state)?, id],
@@ -191,14 +205,17 @@ pub fn series_rows(c: &Connection, calendar_id: i64, uid: &str) -> Result<Vec<Ev
 }
 
 pub fn rows_by_remote(c: &Connection, calendar_id: i64, remote_id: &str) -> Result<Vec<EventRow>> {
-    let mut st = c.prepare_cached("SELECT * FROM events WHERE calendar_id = ? AND remote_id = ?")?;
+    let mut st =
+        c.prepare_cached("SELECT * FROM events WHERE calendar_id = ? AND remote_id = ?")?;
     let rows = st.query_map(params![calendar_id, remote_id], event_from_row)?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
 /// Rows whose UID matches in any calendar (invitations).
 pub fn rows_by_uid(c: &Connection, uid: &str) -> Result<Vec<EventRow>> {
-    let mut st = c.prepare_cached("SELECT * FROM events WHERE uid = ? ORDER BY recurrence_id IS NOT NULL, id")?;
+    let mut st = c.prepare_cached(
+        "SELECT * FROM events WHERE uid = ? ORDER BY recurrence_id IS NOT NULL, id",
+    )?;
     let rows = st.query_map([uid], event_from_row)?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
@@ -229,7 +246,12 @@ pub struct EventWrite<'a> {
 
 /// Inserts or replaces the row for (calendar, uid, recurrence-id).
 pub fn upsert_event(tx: &Transaction<'_>, w: &EventWrite<'_>) -> Result<i64> {
-    let rid = w.event.recurrence_id.as_ref().map(serde_json::to_string).transpose()?;
+    let rid = w
+        .event
+        .recurrence_id
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()?;
     let existing: Option<i64> = tx
         .query_row(
             "SELECT id FROM events WHERE calendar_id = ? AND uid = ? AND recurrence_id IS ?",

@@ -516,9 +516,9 @@ pub fn upsert_message(
     let existing = match (existing, uid, &meta.message_id) {
         (None, Some(_), Some(mid)) => tx
             .query_row(
-                "SELECT m.id, m.thread_id FROM message_folders mf JOIN messages m ON m.id = mf.message_id
-                 WHERE mf.folder_id = ? AND mf.uid IS NULL AND m.message_id = ? LIMIT 1",
-                params![folder_id, mid],
+                "SELECT m.id, m.thread_id FROM messages m JOIN message_folders mf ON mf.message_id = m.id
+                 WHERE m.account_id = ? AND m.message_id = ? AND mf.folder_id = ? AND mf.uid IS NULL LIMIT 1",
+                params![account_id, mid, folder_id],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .optional()?,
@@ -702,6 +702,9 @@ pub struct Location {
     pub role: Option<FolderRole>,
     pub uid: Option<u32>,
     pub remote_id: Option<String>,
+    /// The folder is a label (Gmail label, Outlook category) rather than a
+    /// place the message is stored in.
+    pub is_label: bool,
 }
 
 /// Server locations (with UIDs) of the given messages.
@@ -711,13 +714,14 @@ pub fn locations(c: &Connection, message_ids: &[i64]) -> Result<Vec<Location>> {
     }
     let placeholders = vec!["?"; message_ids.len()].join(",");
     let sql = format!(
-        "SELECT mf.message_id, mf.folder_id, f.remote_id, f.role, mf.uid, m.remote_id
+        "SELECT mf.message_id, mf.folder_id, f.remote_id, f.role, mf.uid, m.remote_id, f.kind
          FROM message_folders mf JOIN folders f ON f.id = mf.folder_id JOIN messages m ON m.id = mf.message_id
          WHERE mf.message_id IN ({placeholders})"
     );
     let mut st = c.prepare(&sql)?;
     let rows = st.query_map(params_from_iter(message_ids.iter()), |r| {
         let role: Option<String> = r.get(3)?;
+        let kind: String = r.get(6)?;
         Ok(Location {
             message_id: r.get(0)?,
             folder_id: r.get(1)?,
@@ -725,9 +729,250 @@ pub fn locations(c: &Connection, message_ids: &[i64]) -> Result<Vec<Location>> {
             role: role.as_deref().and_then(FolderRole::parse),
             uid: r.get(4)?,
             remote_id: r.get(5)?,
+            is_label: kind == "label",
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+// ---------------------------------------------------------------------------
+// Providers addressing messages by id (Microsoft Graph)
+//
+// A Graph message lives in exactly one folder and keeps its (immutable) id
+// when it moves; Outlook categories are labels that travel with it.
+
+/// Local id, thread and flags of the message with a provider id.
+pub fn message_by_remote(
+    c: &Connection,
+    account_id: i64,
+    remote_id: &str,
+) -> Result<Option<(i64, i64, i64)>> {
+    Ok(c.query_row(
+        "SELECT id, thread_id, flags FROM messages WHERE account_id = ? AND remote_id = ?",
+        params![account_id, remote_id],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    )
+    .optional()?)
+}
+
+/// Provider ids of messages, as `(message id, remote id)`.
+pub fn remote_ids(c: &Connection, message_ids: &[i64]) -> Result<Vec<(i64, String)>> {
+    if message_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = vec!["?"; message_ids.len()].join(",");
+    let mut st = c.prepare(&format!(
+        "SELECT id, remote_id FROM messages WHERE id IN ({placeholders}) AND remote_id IS NOT NULL"
+    ))?;
+    let rows = st.query_map(params_from_iter(message_ids.iter()), |r| {
+        Ok((r.get(0)?, r.get(1)?))
+    })?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// `(message id, thread id, remote id)` of the messages in a folder.
+pub fn folder_remote_ids(c: &Connection, folder_id: i64) -> Result<Vec<(i64, i64, String)>> {
+    let mut st = c.prepare_cached(
+        "SELECT m.id, m.thread_id, m.remote_id FROM message_folders mf JOIN messages m ON m.id = mf.message_id
+         WHERE mf.folder_id = ? AND m.remote_id IS NOT NULL",
+    )?;
+    let rows = st.query_map([folder_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// Records the new provider id of a message (ids that change on moves).
+pub fn set_remote_id(tx: &Transaction<'_>, message_id: i64, remote_id: &str) -> Result<()> {
+    tx.execute(
+        "UPDATE messages SET remote_id = ? WHERE id = ?",
+        params![remote_id, message_id],
+    )?;
+    Ok(())
+}
+
+/// Updates the server-controlled state of an already stored message.
+pub fn set_flags_and_keywords(
+    tx: &Transaction<'_>,
+    message_id: i64,
+    flags: i64,
+    keywords: &[String],
+) -> Result<()> {
+    tx.execute(
+        "UPDATE messages SET flags = ?, keywords = ? WHERE id = ?",
+        params![flags, keywords_json(keywords), message_id],
+    )?;
+    Ok(())
+}
+
+/// Makes `folder_id` the only folder (labels aside) that holds a message.
+/// Returns whether its location changed.
+pub fn set_only_folder(tx: &Transaction<'_>, message_id: i64, folder_id: i64) -> Result<bool> {
+    let added = tx.execute(
+        "INSERT OR IGNORE INTO message_folders (folder_id, message_id, uid) VALUES (?, ?, NULL)",
+        params![folder_id, message_id],
+    )?;
+    let removed = tx.execute(
+        "DELETE FROM message_folders WHERE message_id = ?1 AND folder_id != ?2
+           AND folder_id IN (SELECT id FROM folders WHERE kind != 'label')",
+        params![message_id, folder_id],
+    )?;
+    Ok(added + removed > 0)
+}
+
+/// Replaces the label folders of a message, leaving its folder alone.
+/// Returns whether anything changed.
+pub fn set_label_folders(
+    tx: &Transaction<'_>,
+    message_id: i64,
+    label_folders: &[i64],
+) -> Result<bool> {
+    let current: Vec<i64> = {
+        let mut st = tx.prepare_cached(
+            "SELECT mf.folder_id FROM message_folders mf JOIN folders f ON f.id = mf.folder_id
+             WHERE mf.message_id = ? AND f.kind = 'label'",
+        )?;
+        st.query_map([message_id], |r| r.get(0))?
+            .collect::<rusqlite::Result<_>>()?
+    };
+    let mut changed = false;
+    for f in &current {
+        if !label_folders.contains(f) {
+            tx.execute(
+                "DELETE FROM message_folders WHERE message_id = ? AND folder_id = ?",
+                params![message_id, f],
+            )?;
+            changed = true;
+        }
+    }
+    for f in label_folders {
+        if !current.contains(f) {
+            changed |= tx.execute(
+                "INSERT OR IGNORE INTO message_folders (folder_id, message_id, uid) VALUES (?, ?, NULL)",
+                params![f, message_id],
+            )? > 0;
+        }
+    }
+    Ok(changed)
+}
+
+/// Removes a message from a folder but keeps it even when that was its last
+/// location: it may be moving to a folder that has not been synchronized yet
+/// (see [`delete_orphan_messages`]). Returns its thread.
+pub fn detach_from_folder(
+    tx: &Transaction<'_>,
+    folder_id: i64,
+    message_id: i64,
+) -> Result<Option<i64>> {
+    let removed = tx.execute(
+        "DELETE FROM message_folders WHERE folder_id = ? AND message_id = ?",
+        params![folder_id, message_id],
+    )?;
+    if removed == 0 {
+        return Ok(None);
+    }
+    Ok(tx
+        .query_row(
+            "SELECT thread_id FROM messages WHERE id = ?",
+            [message_id],
+            |r| r.get(0),
+        )
+        .optional()?)
+}
+
+/// Deletes the messages of an account that are no longer in any folder;
+/// labels alone do not keep a message (accounts whose labels travel with
+/// messages, such as Outlook categories). Returns `(message id, thread id)`
+/// of each.
+pub fn delete_orphan_messages(tx: &Transaction<'_>, account_id: i64) -> Result<Vec<(i64, i64)>> {
+    let orphans: Vec<(i64, i64)> = {
+        let mut st = tx.prepare(
+            "SELECT id, thread_id FROM messages m WHERE account_id = ?
+               AND NOT EXISTS (SELECT 1 FROM message_folders mf JOIN folders f ON f.id = mf.folder_id
+                               WHERE mf.message_id = m.id AND f.kind != 'label')",
+        )?;
+        st.query_map([account_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?
+    };
+    for (id, _) in &orphans {
+        tx.execute("DELETE FROM message_folders WHERE message_id = ?", [id])?;
+        delete_message_if_orphan(tx, *id)?;
+    }
+    Ok(orphans)
+}
+
+/// Brings a draft that was edited elsewhere up to date; its body is
+/// downloaded again when needed.
+pub fn refresh_draft(tx: &Transaction<'_>, message_id: i64, meta: &MessageMeta) -> Result<()> {
+    tx.execute(
+        "UPDATE messages SET subject = ?, to_json = ?, cc_json = ?, bcc_json = ?, reply_to_json = ?,
+           date = ?, snippet = ?, has_attachments = ?, body_state = 0
+         WHERE id = ?",
+        params![
+            meta.subject,
+            addrs_json(&meta.to),
+            addrs_json(&meta.cc),
+            addrs_json(&meta.bcc),
+            addrs_json(&meta.reply_to),
+            meta.date,
+            meta.snippet.clone().unwrap_or_default(),
+            meta.has_attachments as i64,
+            message_id
+        ],
+    )?;
+    tx.execute("DELETE FROM bodies WHERE message_id = ?", [message_id])?;
+    tx.execute("DELETE FROM attachments WHERE message_id = ?", [message_id])?;
+    index_message(tx, message_id, None)?;
+    Ok(())
+}
+
+/// Fills in what only the full message source tells (threading headers,
+/// mailing list and auto-reply markers, invitations, size) for messages that
+/// were listed without their raw headers.
+pub fn update_from_source(
+    tx: &Transaction<'_>,
+    message_id: i64,
+    meta: &MessageMeta,
+    size: i64,
+) -> Result<()> {
+    let refs = (!meta.references.is_empty()).then(|| meta.references.join(" "));
+    tx.execute(
+        "UPDATE messages SET
+           message_id = coalesce(message_id, ?),
+           in_reply_to = coalesce(?, in_reply_to),
+           refs = coalesce(?, refs),
+           list_unsubscribe = coalesce(?, list_unsubscribe),
+           unsubscribe_post = max(unsubscribe_post, ?),
+           list_id = coalesce(?, list_id),
+           is_auto = max(is_auto, ?),
+           calendar_method = coalesce(?, calendar_method),
+           size = CASE WHEN ? > 0 THEN ? ELSE size END
+         WHERE id = ?",
+        params![
+            meta.message_id,
+            meta.in_reply_to,
+            refs,
+            meta.list_unsubscribe,
+            meta.unsubscribe_post as i64,
+            meta.list_id,
+            meta.is_auto as i64,
+            meta.calendar_method,
+            size,
+            size,
+            message_id
+        ],
+    )?;
+    Ok(())
+}
+
+/// Hides label folders no conversation carries (and shows them again once one
+/// does). Returns whether any visibility changed.
+pub fn hide_unused_labels(tx: &Transaction<'_>, account_id: i64) -> Result<bool> {
+    let changed = tx.execute(
+        "UPDATE folders SET hidden = NOT EXISTS (SELECT 1 FROM thread_folders tf WHERE tf.folder_id = folders.id)
+         WHERE account_id = ? AND kind = 'label'
+           AND hidden != NOT EXISTS (SELECT 1 FROM thread_folders tf WHERE tf.folder_id = folders.id)",
+        [account_id],
+    )?;
+    Ok(changed > 0)
 }
 
 /// Message ids of the given threads, optionally only those in `folder_id`.
@@ -927,10 +1172,11 @@ pub fn refresh_threads(tx: &Transaction<'_>, thread_ids: &BTreeSet<i64>) -> Resu
             Option<String>,
             bool,
             Option<String>,
+            Option<String>,
         )> = {
             let mut st = tx.prepare_cached(
                 "SELECT date, flags, subject, from_name, from_email, snippet, has_attachments, calendar_method,
-                        list_unsubscribe, is_auto, list_id
+                        list_unsubscribe, is_auto, list_id, keywords
                  FROM messages WHERE thread_id = ? ORDER BY date ASC",
             )?;
             st.query_map([tid], |r| {
@@ -946,6 +1192,7 @@ pub fn refresh_threads(tx: &Transaction<'_>, thread_ids: &BTreeSet<i64>) -> Resu
                     r.get(8)?,
                     r.get::<_, i64>(9)? != 0,
                     r.get(10)?,
+                    r.get(11)?,
                 ))
             })?
             .collect::<rusqlite::Result<_>>()?
@@ -1014,6 +1261,9 @@ pub fn refresh_threads(tx: &Transaction<'_>, thread_ids: &BTreeSet<i64>) -> Resu
             last.8.is_some(),
             last.9,
             last.10.is_some(),
+            last.11
+                .as_deref()
+                .is_some_and(|k| has_keyword(k, OTHER_INBOX_KEYWORD)),
         );
 
         tx.execute(
@@ -1033,7 +1283,7 @@ pub fn refresh_threads(tx: &Transaction<'_>, thread_ids: &BTreeSet<i64>) -> Resu
                 serde_json::to_string(&participants)?,
                 category,
                 is_invite as i64,
-                last_sender.as_ref().map(|a| serde_json::to_string(a)).transpose()?,
+                last_sender.as_ref().map(serde_json::to_string).transpose()?,
                 tid
             ],
         )?;
@@ -1062,13 +1312,26 @@ fn identity_emails(c: &Connection, account_id: i64) -> Result<HashSet<String>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-/// Heuristic split-inbox category of a thread.
+/// Keyword of messages the provider filed outside the user's focused inbox
+/// (Outlook's "Other" tab).
+pub const OTHER_INBOX_KEYWORD: &str = "$OtherInbox";
+
+fn has_keyword(keywords_json: &str, keyword: &str) -> bool {
+    serde_json::from_str::<Vec<String>>(keywords_json)
+        .is_ok_and(|k| k.iter().any(|k| k.eq_ignore_ascii_case(keyword)))
+}
+
+/// Heuristic split-inbox category of a thread. `other_inbox` is the provider's
+/// own verdict that the newest message is not important (Outlook's Focused
+/// Inbox); the local mailing-list heuristics still decide between newsletters
+/// and notifications.
 pub fn classify(
     wrote_myself: bool,
     from: &str,
     has_unsubscribe: bool,
     is_auto: bool,
     has_list_id: bool,
+    other_inbox: bool,
 ) -> &'static str {
     if wrote_myself {
         return "people";
@@ -1100,6 +1363,9 @@ pub fn classify(
     }
     if has_unsubscribe || has_list_id {
         return "newsletters";
+    }
+    if other_inbox {
+        return "notifications";
     }
     "people"
 }
@@ -1159,6 +1425,9 @@ pub struct ListSql {
     pub from_where: String,
     pub values: Vec<rusqlite::types::Value>,
     pub order: String,
+    /// A cheaper `FROM … WHERE …` for counting, when the conditions don't need
+    /// the threads table (uses the same values).
+    pub count_from_where: Option<String>,
 }
 
 /// Builds the SQL for listing threads in a mailbox.
@@ -1172,10 +1441,17 @@ pub fn list_sql(
     let mut values: Vec<rusqlite::types::Value> = Vec::new();
     let mut order = "t.last_date DESC".to_string();
     let mut from = "threads t".to_string();
+    // Folder lists only touch `thread_folders` (and its covering index) unless a
+    // condition needs thread columns; counting them then skips the threads table.
+    let mut folder_only = false;
+    // Snoozed threads leave the inbox; the partial index keeps this lookup tiny.
+    const NOT_SNOOZED: &str =
+        "tf.thread_id NOT IN (SELECT id FROM threads WHERE snoozed_until IS NOT NULL)";
 
     match mailbox {
         Mailbox::Folder { id } => {
             from = "thread_folders tf JOIN threads t ON t.id = tf.thread_id".into();
+            folder_only = true;
             wheres.push("tf.folder_id = ?".into());
             values.push((*id).into());
             order = "tf.last_date DESC".into();
@@ -1184,7 +1460,7 @@ pub fn list_sql(
                 .optional()?
                 .flatten();
             if role.as_deref() == Some("inbox") {
-                wheres.push("t.snoozed_until IS NULL".into());
+                wheres.push(NOT_SNOOZED.into());
             }
             if filter.unread {
                 wheres.push("tf.unread > 0".into());
@@ -1192,15 +1468,33 @@ pub fn list_sql(
         }
         Mailbox::Unified { role } => {
             from = "thread_folders tf JOIN threads t ON t.id = tf.thread_id".into();
-            wheres.push(
-                "tf.folder_id IN (SELECT f.id FROM folders f JOIN accounts a ON a.id = f.account_id
-                                  WHERE f.role = ? AND a.enabled = 1)"
-                    .into(),
-            );
-            values.push(role.as_str().to_string().into());
+            folder_only = true;
+            // Resolve the folders up front: with a single account, `folder_id = ?`
+            // lets the (folder_id, last_date) index return rows already sorted.
+            let ids: Vec<i64> = c
+                .prepare_cached(
+                    "SELECT f.id FROM folders f JOIN accounts a ON a.id = f.account_id
+                     WHERE f.role = ? AND a.enabled = 1",
+                )?
+                .query_map([role.as_str()], |r| r.get(0))?
+                .collect::<rusqlite::Result<_>>()?;
+            match ids.as_slice() {
+                [] => wheres.push("0".into()),
+                [one] => {
+                    wheres.push("tf.folder_id = ?".into());
+                    values.push((*one).into());
+                }
+                many => {
+                    wheres.push(format!(
+                        "tf.folder_id IN ({})",
+                        vec!["?"; many.len()].join(",")
+                    ));
+                    values.extend(many.iter().map(|id| rusqlite::types::Value::from(*id)));
+                }
+            }
             order = "tf.last_date DESC".into();
             if *role == FolderRole::Inbox {
-                wheres.push("t.snoozed_until IS NULL".into());
+                wheres.push(NOT_SNOOZED.into());
             }
             if filter.unread {
                 wheres.push("tf.unread > 0".into());
@@ -1223,27 +1517,37 @@ pub fn list_sql(
     }
     if filter.starred {
         wheres.push("t.flagged = 1".into());
+        folder_only = false;
     }
     if filter.attachments {
         wheres.push("t.has_attachments = 1".into());
+        folder_only = false;
     }
     if let Some(cat) = &filter.category {
         wheres.push("t.category = ?".into());
         values.push(cat.clone().into());
+        folder_only = false;
     }
     if let Some((cond, vals)) = search {
+        // Applies to the folder row's thread, so it works for counting too.
+        let column = if from.starts_with("thread_folders") {
+            "tf.thread_id"
+        } else {
+            "t.id"
+        };
         wheres.push(format!(
-            "t.id IN (SELECT m.thread_id FROM messages m WHERE {cond})"
+            "{column} IN (SELECT m.thread_id FROM messages m WHERE {cond})"
         ));
         values.extend(vals);
     }
-    let from_where = if wheres.is_empty() {
-        from
+    let conditions = if wheres.is_empty() {
+        String::new()
     } else {
-        format!("{from} WHERE {}", wheres.join(" AND "))
+        format!(" WHERE {}", wheres.join(" AND "))
     };
     Ok(ListSql {
-        from_where,
+        count_from_where: folder_only.then(|| format!("thread_folders tf{conditions}")),
+        from_where: format!("{from}{conditions}"),
         values,
         order,
     })
@@ -1257,7 +1561,10 @@ const NOT_TRASH: &str =
 /// Runs a list query and returns one page.
 pub fn query_threads(c: &Connection, sql: &ListSql, offset: i64, limit: i64) -> Result<ThreadPage> {
     let total: i64 = c.query_row(
-        &format!("SELECT count(*) FROM {}", sql.from_where),
+        &format!(
+            "SELECT count(*) FROM {}",
+            sql.count_from_where.as_deref().unwrap_or(&sql.from_where)
+        ),
         params_from_iter(sql.values.iter()),
         |r| r.get(0),
     )?;
@@ -1434,17 +1741,30 @@ pub fn attachment_by_cid(
     id.map(|id| get_attachment(c, id)).transpose()
 }
 
-/// Messages of an account still missing a body, newest first.
+/// Messages of an account still missing a body, newest first. With
+/// `skip_attachments`, messages known to carry attachments are left out (their
+/// download waits until they are opened).
 pub fn messages_without_body(
     c: &Connection,
     account_id: i64,
     since: Option<i64>,
+    skip_attachments: bool,
     limit: i64,
 ) -> Result<Vec<i64>> {
     let mut st = c.prepare_cached(
-        "SELECT id FROM messages WHERE account_id = ? AND body_state = 0 AND date >= ? ORDER BY date DESC LIMIT ?",
+        "SELECT id FROM messages WHERE account_id = ? AND body_state = 0 AND date >= ?
+           AND (? = 0 OR has_attachments = 0)
+         ORDER BY date DESC LIMIT ?",
     )?;
-    let rows = st.query_map(params![account_id, since.unwrap_or(0), limit], |r| r.get(0))?;
+    let rows = st.query_map(
+        params![
+            account_id,
+            since.unwrap_or(0),
+            skip_attachments as i64,
+            limit
+        ],
+        |r| r.get(0),
+    )?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 

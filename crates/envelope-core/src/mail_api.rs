@@ -78,7 +78,9 @@ impl Engine {
                     })
                     .await?;
                 }
-                AccountKind::Microsoft => {}
+                AccountKind::Microsoft => {
+                    crate::sync::graph::fetch_bodies(self, account_id, &ids).await?;
+                }
             }
             let threads: BTreeSet<i64> = self.db.read(|c| {
                 let mut set = BTreeSet::new();
@@ -320,7 +322,7 @@ impl Engine {
                         .or_default()
                         .push((l.folder_id, l.uid));
                 }
-                token.locations.extend(snap.into_iter());
+                token.locations.extend(snap);
                 for t in &tids {
                     let s: Option<i64> =
                         tx.query_row("SELECT snoozed_until FROM threads WHERE id = ?", [t], |r| {
@@ -409,13 +411,24 @@ impl Engine {
             let message_ids = mail::thread_message_ids(tx, thread_ids, None)?;
             let locations = mail::locations(tx, &message_ids)?;
             let mut by_account: HashMap<i64, Vec<OpItem>> = HashMap::new();
+            let mut kinds: HashMap<i64, AccountKind> = HashMap::new();
             for l in &locations {
                 let account: i64 = tx.query_row(
                     "SELECT account_id FROM messages WHERE id = ?",
                     [l.message_id],
                     |r| r.get(0),
                 )?;
-                if l.uid.is_some() {
+                let kind = match kinds.get(&account).copied() {
+                    Some(kind) => kind,
+                    None => {
+                        let kind = mail::get_account(tx, account)?.kind;
+                        kinds.insert(account, kind);
+                        kind
+                    }
+                };
+                // Graph messages are addressed by id in the folder holding them.
+                let by_id = kind == AccountKind::Microsoft && !l.is_label && l.remote_id.is_some();
+                if l.uid.is_some() || by_id {
                     by_account.entry(account).or_default().push(OpItem {
                         message_id: l.message_id,
                         folder: l.folder_remote.clone(),
@@ -458,18 +471,26 @@ impl Engine {
         self.after_local_change(&accounts, &thread_ids.iter().copied().collect())
     }
 
-    /// Adds or removes a Gmail label (or copies to an IMAP folder when adding).
+    /// Adds or removes a Gmail label or Outlook category (or copies to an IMAP
+    /// folder when adding).
     pub fn set_label(&self, thread_ids: &[i64], folder_id: i64, add: bool) -> Result<()> {
         let folder = self.db.read(|c| mail::get_folder(c, folder_id))?;
         let account = self.account_row(folder.account_id)?;
-        if account.kind != AccountKind::Gmail {
+        let category = match account.kind {
+            AccountKind::Microsoft => crate::sync::graph::category_name(&folder),
+            _ => None,
+        };
+        if account.kind != AccountKind::Gmail && category.is_none() {
             if add {
                 self.move_threads(thread_ids, None, &MoveTarget::Folder { id: folder_id })?;
             }
             return Ok(());
         }
         let threads: BTreeSet<i64> = thread_ids.iter().copied().collect();
-        let label = gmail_label_name(&folder);
+        let label = match category {
+            Some(name) => name.to_string(),
+            None => gmail_label_name(&folder),
+        };
         self.db.write(|tx| {
             let message_ids = mail::thread_message_ids(tx, thread_ids, None)?;
             for m in &message_ids {
@@ -808,29 +829,33 @@ impl Engine {
 
     async fn attachment_data(&self, att: &mail::AttachmentRow, account_id: i64) -> Result<Vec<u8>> {
         let account = self.account_row(account_id)?;
+        if account.kind == AccountKind::Microsoft {
+            return crate::sync::graph::attachment_data(
+                self,
+                account_id,
+                att.message_id,
+                &att.part_id,
+            )
+            .await;
+        }
         let locations = self.db.read(|c| mail::locations(c, &[att.message_id]))?;
         let location = locations
             .into_iter()
             .find(|l| l.uid.is_some())
             .ok_or_else(|| Error::NotFound("message is not on the server yet".into()))?;
-        match account.kind {
-            AccountKind::Imap | AccountKind::Gmail => {
-                let part = att.part_id.clone();
-                let encoding = att.encoding.clone().unwrap_or_default();
-                self.with_imap(account_id, async |_, client| {
-                    crate::sync::imap::fetch_part(
-                        client,
-                        &location.folder_remote,
-                        location.uid.unwrap_or(0),
-                        &part,
-                        &encoding,
-                    )
-                    .await
-                })
-                .await
-            }
-            AccountKind::Microsoft => Err(Error::Invalid("not supported yet".into())),
-        }
+        let part = att.part_id.clone();
+        let encoding = att.encoding.clone().unwrap_or_default();
+        self.with_imap(account_id, async |_, client| {
+            crate::sync::imap::fetch_part(
+                client,
+                &location.folder_remote,
+                location.uid.unwrap_or(0),
+                &part,
+                &encoding,
+            )
+            .await
+        })
+        .await
     }
 
     /// Bytes of an inline image referenced by `cid:`.
@@ -856,6 +881,10 @@ impl Engine {
                 |r| r.get(0),
             )?)
         })?;
+        if self.account_row(account_id)?.kind == AccountKind::Microsoft {
+            let raw = crate::sync::graph::message_source(self, account_id, message_id).await?;
+            return Ok(String::from_utf8_lossy(&raw).into_owned());
+        }
         let location = self
             .db
             .read(|c| mail::locations(c, &[message_id]))?
@@ -976,7 +1005,9 @@ fn target_folder<'a>(folders: &'a [FolderRow], target: &MoveTarget) -> Result<&'
     found.ok_or_else(|| Error::Invalid("This account has no folder for that action".into()))
 }
 
-/// Local + queued move for a standard IMAP account. Returns op ids.
+/// Local + queued move for an account with real folders (standard IMAP,
+/// Microsoft Graph). Labels (Outlook categories) stay with the messages.
+/// Returns op ids.
 fn imap_move(
     tx: &rusqlite::Transaction<'_>,
     account_id: i64,
@@ -986,10 +1017,17 @@ fn imap_move(
     target: &MoveTarget,
 ) -> Result<Vec<i64>> {
     let dest = target_folder(folders, target)?;
+    if dest.kind == "label" {
+        return Err(Error::Invalid(
+            "Labels are added to conversations, not moved into".into(),
+        ));
+    }
+    // Acting from a label's view moves the conversation out of its folder.
+    let source = source.filter(|s| !folders.iter().any(|f| f.id == *s && f.kind == "label"));
     let keep_roles = [FolderRole::Sent, FolderRole::Drafts];
     let moving: Vec<&mail::Location> = locations
         .iter()
-        .filter(|l| l.folder_id != dest.id)
+        .filter(|l| l.folder_id != dest.id && !l.is_label)
         .filter(|l| match source {
             Some(s) => l.folder_id == s,
             None => {
@@ -1008,7 +1046,7 @@ fn imap_move(
                 message_id: l.message_id,
                 folder: l.folder_remote.clone(),
                 uid: l.uid,
-                remote_id: None,
+                remote_id: l.remote_id.clone(),
             })
             .collect();
         for l in &moving {
@@ -1027,7 +1065,7 @@ fn imap_move(
             message_id: l.message_id,
             folder: l.folder_remote.clone(),
             uid: l.uid,
-            remote_id: None,
+            remote_id: l.remote_id.clone(),
         })
         .collect();
     for l in &moving {

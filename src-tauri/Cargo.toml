@@ -31,3 +31,6 @@ tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 url.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = "2.0"

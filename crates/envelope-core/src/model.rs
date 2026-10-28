@@ -267,11 +267,11 @@ impl Flags {
     }
 
     pub fn bits(&self) -> i64 {
-        (self.seen as i64) * Self::SEEN
-            | (self.flagged as i64) * Self::FLAGGED
-            | (self.answered as i64) * Self::ANSWERED
-            | (self.draft as i64) * Self::DRAFT
-            | (self.forwarded as i64) * Self::FORWARDED
+        ((self.seen as i64) * Self::SEEN)
+            | ((self.flagged as i64) * Self::FLAGGED)
+            | ((self.answered as i64) * Self::ANSWERED)
+            | ((self.draft as i64) * Self::DRAFT)
+            | ((self.forwarded as i64) * Self::FORWARDED)
     }
 }
 

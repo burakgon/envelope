@@ -103,7 +103,7 @@ impl Engine {
                 shutdown: CancellationToken::new(),
             }),
         };
-        for account in engine.db.read(|c| mail::list_accounts(c))? {
+        for account in engine.db.read(mail::list_accounts)? {
             if account.enabled {
                 engine.start_worker(account.id);
             }
@@ -221,7 +221,7 @@ impl Engine {
     }
 
     pub fn accounts(&self) -> Result<Vec<Account>> {
-        let rows = self.db.read(|c| mail::list_accounts(c))?;
+        let rows = self.db.read(mail::list_accounts)?;
         Ok(rows.into_iter().map(|r| self.account_view(r)).collect())
     }
 
@@ -356,7 +356,7 @@ impl Engine {
         // Re-authorizing an existing account just refreshes its tokens.
         if let Some(existing) = self
             .db
-            .read(|c| mail::list_accounts(c))?
+            .read(mail::list_accounts)?
             .into_iter()
             .find(|a| a.email.eq_ignore_ascii_case(&email))
         {

@@ -425,7 +425,7 @@ async fn srv_lookup(domain: &str) -> Option<(Option<ServerConfig>, Option<Server
             lookup.answers().iter().find_map(|rec| match &rec.data {
                 hickory_resolver::proto::rr::RData::SRV(s) => {
                     let host = s.target.to_string().trim_end_matches('.').to_string();
-                    (host != "" && host != ".").then_some((host, s.port))
+                    (!host.is_empty() && host != ".").then_some((host, s.port))
                 }
                 _ => None,
             })
@@ -558,27 +558,23 @@ pub fn parse_autoconfig(
                                 .replace("%EMAILLOCALPART%", local)
                                 .replace("%EMAILDOMAIN%", domain);
                         }
-                        "authentication" => {
-                            if text.starts_with("password") {
-                                *password = true
-                            }
-                        }
+                        "authentication" if text.starts_with("password") => *password = true,
                         _ => {}
                     }
                 }
             }
             Ok(Event::End(e)) => {
                 let name = e.local_name().as_ref().to_string();
-                if name == "incomingServer" || name == "outgoingServer" {
-                    if let Some((ty, mut s, _)) = current.take() {
-                        if s.username == email {
-                            s.username = String::new();
-                        }
-                        if ty == "imap" && imap.is_none() && !s.host.is_empty() {
-                            imap = Some(s);
-                        } else if ty == "smtp" && smtp.is_none() && !s.host.is_empty() {
-                            smtp = Some(s);
-                        }
+                if (name == "incomingServer" || name == "outgoingServer")
+                    && let Some((ty, mut s, _)) = current.take()
+                {
+                    if s.username == email {
+                        s.username = String::new();
+                    }
+                    if ty == "imap" && imap.is_none() && !s.host.is_empty() {
+                        imap = Some(s);
+                    } else if ty == "smtp" && smtp.is_none() && !s.host.is_empty() {
+                        smtp = Some(s);
                     }
                 }
                 field.clear();

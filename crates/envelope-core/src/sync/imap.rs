@@ -801,7 +801,7 @@ impl Session {
         let ids = self
             .engine
             .db
-            .read(|c| mail::messages_without_body(c, account_id, Some(since), limit + 1))?;
+            .read(|c| mail::messages_without_body(c, account_id, Some(since), false, limit + 1))?;
         if ids.is_empty() {
             return Ok(false);
         }
@@ -1045,7 +1045,7 @@ impl Session {
     }
 }
 
-fn folder_priority(role: Option<FolderRole>) -> u8 {
+pub(crate) fn folder_priority(role: Option<FolderRole>) -> u8 {
     match role {
         Some(FolderRole::Inbox) => 0,
         Some(FolderRole::All) => 1,

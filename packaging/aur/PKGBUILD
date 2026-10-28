@@ -9,7 +9,8 @@ license=('GPL-3.0-or-later')
 depends=('webkit2gtk-4.1' 'gtk3' 'hicolor-icon-theme')
 makedepends=('cargo' 'nodejs' 'npm')
 optdepends=('gnome-keyring: store passwords and tokens in a keyring'
-            'kwallet: store passwords and tokens in KWallet')
+            'kwallet: store passwords and tokens in KWallet'
+            'hunspell-en_us: spell checking (or another hunspell dictionary)')
 options=('!lto')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('SKIP')

@@ -145,8 +145,8 @@ pub fn suggest_addresses(
     if q.is_empty() {
         return Ok(Vec::new());
     }
-    let like = format!("{}%", q.replace('%', "").replace('_', ""));
-    let word = format!("% {}%", q.replace('%', "").replace('_', ""));
+    let like = format!("{}%", q.replace(['%', '_'], ""));
+    let word = format!("% {}%", q.replace(['%', '_'], ""));
     let now = now_ms();
     let mut out: Vec<ContactSuggestion> = Vec::new();
     // Address book contacts first.
@@ -313,6 +313,20 @@ pub fn due_ops(c: &Connection, account_id: i64) -> Result<Vec<PendingRow>> {
                 attempts,
             }),
             Err(e) => tracing::warn!("dropping unreadable pending op {id}: {e}"),
+        }
+    }
+    Ok(out)
+}
+
+/// Every queued operation of an account, due or not, oldest first.
+pub fn queued_ops(c: &Connection, account_id: i64) -> Result<Vec<PendingOp>> {
+    let mut st =
+        c.prepare_cached("SELECT payload FROM pending_ops WHERE account_id = ? ORDER BY id")?;
+    let rows = st.query_map([account_id], |r| r.get::<_, String>(0))?;
+    let mut out = Vec::new();
+    for row in rows {
+        if let Ok(op) = serde_json::from_str(&row?) {
+            out.push(op);
         }
     }
     Ok(out)

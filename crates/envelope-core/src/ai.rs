@@ -82,11 +82,18 @@ impl From<ModelInfo> for AiModel {
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum AiTask {
     #[serde(rename_all = "camelCase")]
-    Summarize { thread_id: i64 },
+    Summarize {
+        thread_id: i64,
+    },
     #[serde(rename_all = "camelCase")]
-    QuickReplies { thread_id: i64 },
+    QuickReplies {
+        thread_id: i64,
+    },
     #[serde(rename_all = "camelCase")]
-    DraftReply { thread_id: i64, instruction: String },
+    DraftReply {
+        thread_id: i64,
+        instruction: String,
+    },
     Compose {
         instruction: String,
         #[serde(default)]
@@ -107,7 +114,9 @@ pub enum AiTask {
         question: String,
     },
     #[serde(rename_all = "camelCase")]
-    ExtractEvents { message_id: i64 },
+    ExtractEvents {
+        message_id: i64,
+    },
 }
 
 /// A message used to answer a question.
@@ -140,7 +149,11 @@ fn message_ctx(m: &MessageView) -> MailMessageCtx {
     let body = m
         .body
         .as_ref()
-        .and_then(|b| b.text.clone().or_else(|| b.html.as_deref().map(crate::mime::html_to_text)))
+        .and_then(|b| {
+            b.text
+                .clone()
+                .or_else(|| b.html.as_deref().map(crate::mime::html_to_text))
+        })
         .unwrap_or_else(|| m.snippet.clone());
     MailMessageCtx {
         id: m.id.to_string(),
@@ -156,29 +169,41 @@ fn message_ctx(m: &MessageView) -> MailMessageCtx {
 }
 
 const STOPWORDS: &[&str] = &[
-    "the", "a", "an", "and", "or", "of", "to", "in", "on", "at", "for", "from", "with", "about", "is", "are", "was",
-    "were", "be", "my", "me", "i", "you", "your", "what", "when", "where", "which", "who", "how", "did", "do", "does",
-    "can", "could", "would", "should", "there", "this", "that", "it", "any", "find", "show", "tell", "mail", "email",
-    "emails", "message", "messages", "ne", "zaman", "nerede", "hangi", "bir", "ve", "ile", "mi", "mı", "mu", "mü",
-    "bu", "şu", "der", "die", "das", "und", "ist", "le", "la", "les", "et", "est", "el", "los", "y", "es",
+    "the", "a", "an", "and", "or", "of", "to", "in", "on", "at", "for", "from", "with", "about",
+    "is", "are", "was", "were", "be", "my", "me", "i", "you", "your", "what", "when", "where",
+    "which", "who", "how", "did", "do", "does", "can", "could", "would", "should", "there", "this",
+    "that", "it", "any", "find", "show", "tell", "mail", "email", "emails", "message", "messages",
+    "ne", "zaman", "nerede", "hangi", "bir", "ve", "ile", "mi", "mı", "mu", "mü", "bu", "şu",
+    "der", "die", "das", "und", "ist", "le", "la", "les", "et", "est", "el", "los", "y", "es",
 ];
 
 impl Engine {
     pub fn ai_settings(&self) -> Result<AiSettings> {
-        Ok(self.db.read(|c| misc::kv_get(c, SETTINGS_KEY))?.unwrap_or_else(|| AiSettings {
-            enabled: false,
-            provider: "openrouter".into(),
-            base_url: "https://openrouter.ai/api/v1".into(),
-            model: "openrouter/auto".into(),
-            ..Default::default()
-        }))
+        Ok(self
+            .db
+            .read(|c| misc::kv_get(c, SETTINGS_KEY))?
+            .unwrap_or_else(|| AiSettings {
+                enabled: false,
+                provider: "openrouter".into(),
+                base_url: "https://openrouter.ai/api/v1".into(),
+                model: "openrouter/auto".into(),
+                ..Default::default()
+            }))
     }
 
     pub async fn ai_config(&self) -> Result<AiConfigView> {
         let settings = self.ai_settings()?;
-        let has_key = self.secrets.get(&key_secret(&settings.provider)).await?.is_some();
+        let has_key = self
+            .secrets
+            .get(&key_secret(&settings.provider))
+            .await?
+            .is_some();
         let local = envelope_ai::preset(&settings.provider).is_some_and(|p| p.local);
-        Ok(AiConfigView { settings, has_key, local })
+        Ok(AiConfigView {
+            settings,
+            has_key,
+            local,
+        })
     }
 
     /// Saves settings; `api_key` = Some("") removes the stored key.
@@ -187,10 +212,13 @@ impl Engine {
             if key.trim().is_empty() {
                 self.secrets.delete(&key_secret(&settings.provider)).await?;
             } else {
-                self.secrets.set(&key_secret(&settings.provider), key.trim()).await?;
+                self.secrets
+                    .set(&key_secret(&settings.provider), key.trim())
+                    .await?;
             }
         }
-        self.db.write(|tx| misc::kv_set(tx, SETTINGS_KEY, &settings))
+        self.db
+            .write(|tx| misc::kv_set(tx, SETTINGS_KEY, &settings))
     }
 
     pub fn ai_presets() -> Vec<AiPresetView> {
@@ -215,7 +243,9 @@ impl Engine {
             _ => self.secrets.get(&key_secret(&settings.provider)).await?,
         };
         let mut config = ProviderConfig::from_preset(&settings.provider, key.clone())
-            .unwrap_or_else(|| ProviderConfig::new(envelope_ai::ProviderKind::OpenAiCompatible, "", key, ""));
+            .unwrap_or_else(|| {
+                ProviderConfig::new(envelope_ai::ProviderKind::OpenAiCompatible, "", key, "")
+            });
         if !settings.base_url.trim().is_empty() {
             config.base_url = settings.base_url.trim().to_string();
         }
@@ -224,14 +254,24 @@ impl Engine {
     }
 
     /// Lists models for (possibly unsaved) settings.
-    pub async fn ai_models(&self, settings: Option<AiSettings>, key: Option<String>) -> Result<Vec<AiModel>> {
+    pub async fn ai_models(
+        &self,
+        settings: Option<AiSettings>,
+        key: Option<String>,
+    ) -> Result<Vec<AiModel>> {
         let settings = match settings {
             Some(s) => s,
             None => self.ai_settings()?,
         };
         let client = self.ai_client_for(&settings, key).await?;
-        let mut models: Vec<AiModel> = client.list_models().await.map_err(ai_err)?.into_iter().map(Into::into).collect();
-        models.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        let mut models: Vec<AiModel> = client
+            .list_models()
+            .await
+            .map_err(ai_err)?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        models.sort_by_key(|a| a.name.to_lowercase());
         Ok(models)
     }
 
@@ -240,7 +280,10 @@ impl Engine {
         let client = self.ai_client_for(&settings, key).await?;
         let report = client.test_connection().await.map_err(ai_err)?;
         Ok(match (report.model, report.models_listed) {
-            (Some(m), _) => format!("Connected · {m} answered in {} ms", report.latency.as_millis()),
+            (Some(m), _) => format!(
+                "Connected · {m} answered in {} ms",
+                report.latency.as_millis()
+            ),
             (None, Some(n)) => format!("Connected · {n} models available"),
             _ => format!("Connected in {} ms", report.latency.as_millis()),
         })
@@ -258,20 +301,29 @@ impl Engine {
             timezone: iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".into()),
             now: chrono::Local::now().to_rfc3339(),
             language: settings.language.clone().filter(|l| !l.is_empty()),
-            writing_style: Some(settings.custom_instructions.clone()).filter(|s| !s.trim().is_empty()),
+            writing_style: Some(settings.custom_instructions.clone())
+                .filter(|s| !s.trim().is_empty()),
         })
     }
 
     async fn thread_ctx(&self, thread_id: i64) -> Result<(i64, Vec<MailMessageCtx>)> {
         let detail = self.thread(thread_id)?;
-        let missing: Vec<i64> = detail.messages.iter().filter(|m| m.body.is_none()).map(|m| m.id).collect();
+        let missing: Vec<i64> = detail
+            .messages
+            .iter()
+            .filter(|m| m.body.is_none())
+            .map(|m| m.id)
+            .collect();
         let messages = if missing.is_empty() {
             detail.messages
         } else {
             let ids: Vec<i64> = detail.messages.iter().map(|m| m.id).collect();
             self.load_bodies(ids).await.unwrap_or(detail.messages)
         };
-        Ok((detail.thread.account_id, messages.iter().map(message_ctx).collect()))
+        Ok((
+            detail.thread.account_id,
+            messages.iter().map(message_ctx).collect(),
+        ))
     }
 
     /// Finds messages relevant to a question with the local index.
@@ -285,7 +337,11 @@ impl Engine {
         if terms.is_empty() {
             return Ok(Vec::new());
         }
-        let fts = terms.iter().map(|t| format!("\"{}\"*", t.replace('"', ""))).collect::<Vec<_>>().join(" OR ");
+        let fts = terms
+            .iter()
+            .map(|t| format!("\"{}\"*", t.replace('"', "")))
+            .collect::<Vec<_>>()
+            .join(" OR ");
         self.db.read(|c| {
             let mut st = c.prepare(
                 "SELECT m.id FROM message_fts f JOIN messages m ON m.id = f.rowid
@@ -312,10 +368,16 @@ impl Engine {
     }
 
     /// Runs an AI task, streaming partial text through `emit`.
-    pub async fn ai_run(&self, task: AiTask, emit: impl Fn(AiEvent) + Send + Sync) -> Result<String> {
+    pub async fn ai_run(
+        &self,
+        task: AiTask,
+        emit: impl Fn(AiEvent) + Send + Sync,
+    ) -> Result<String> {
         let settings = self.ai_settings()?;
         if !settings.enabled {
-            return Err(Error::Invalid("AI is turned off. Enable it in Settings → AI.".into()));
+            return Err(Error::Invalid(
+                "AI is turned off. Enable it in Settings → AI.".into(),
+            ));
         }
         let client = self.ai_client_for(&settings, None).await?;
         let budget = Budget::default();
@@ -323,22 +385,40 @@ impl Engine {
         let (kind, messages) = match &task {
             AiTask::Summarize { thread_id } => {
                 let (account, thread) = self.thread_ctx(*thread_id).await?;
-                (Task::SummarizeThread, prompts::summarize_thread(&self.user_ctx(Some(account))?, &thread, budget))
+                (
+                    Task::SummarizeThread,
+                    prompts::summarize_thread(&self.user_ctx(Some(account))?, &thread, budget),
+                )
             }
             AiTask::QuickReplies { thread_id } => {
                 let (account, thread) = self.thread_ctx(*thread_id).await?;
-                (Task::QuickReplies, prompts::quick_replies(&self.user_ctx(Some(account))?, &thread, budget))
+                (
+                    Task::QuickReplies,
+                    prompts::quick_replies(&self.user_ctx(Some(account))?, &thread, budget),
+                )
             }
-            AiTask::DraftReply { thread_id, instruction } => {
+            AiTask::DraftReply {
+                thread_id,
+                instruction,
+            } => {
                 let (account, thread) = self.thread_ctx(*thread_id).await?;
                 (
                     Task::DraftReply,
-                    prompts::draft_reply(&self.user_ctx(Some(account))?, &thread, instruction, budget),
+                    prompts::draft_reply(
+                        &self.user_ctx(Some(account))?,
+                        &thread,
+                        instruction,
+                        budget,
+                    ),
                 )
             }
-            AiTask::Compose { instruction, recipients } => {
-                (Task::Compose, prompts::compose(&self.user_ctx(None)?, instruction, recipients))
-            }
+            AiTask::Compose {
+                instruction,
+                recipients,
+            } => (
+                Task::Compose,
+                prompts::compose(&self.user_ctx(None)?, instruction, recipients),
+            ),
             AiTask::Rewrite { text, style } => {
                 let style = match style.as_str() {
                     "improve" => RewriteStyle::Improve,
@@ -351,17 +431,30 @@ impl Engine {
                     "confident" => RewriteStyle::Confident,
                     other => RewriteStyle::Custom(other.to_string()),
                 };
-                let kind = if matches!(style, RewriteStyle::FixGrammar) { Task::Proofread } else { Task::Rewrite };
+                let kind = if matches!(style, RewriteStyle::FixGrammar) {
+                    Task::Proofread
+                } else {
+                    Task::Rewrite
+                };
                 (kind, prompts::rewrite(&self.user_ctx(None)?, text, &style))
             }
-            AiTask::Translate { text, language } => (Task::Translate, prompts::translate(text, language)),
+            AiTask::Translate { text, language } => {
+                (Task::Translate, prompts::translate(text, language))
+            }
             AiTask::Ask { question } => {
                 let mut sources = self.retrieve(question, 8)?;
                 // Bodies make answers much better; fetch missing ones (bounded).
-                let missing: Vec<i64> = sources.iter().filter(|m| m.body.is_none()).map(|m| m.id).collect();
+                let missing: Vec<i64> = sources
+                    .iter()
+                    .filter(|m| m.body.is_none())
+                    .map(|m| m.id)
+                    .collect();
                 if !missing.is_empty()
-                    && let Ok(loaded) =
-                        tokio::time::timeout(std::time::Duration::from_secs(8), self.load_bodies(missing)).await
+                    && let Ok(loaded) = tokio::time::timeout(
+                        std::time::Duration::from_secs(8),
+                        self.load_bodies(missing),
+                    )
+                    .await
                 {
                     for m in loaded.unwrap_or_default() {
                         if let Some(s) = sources.iter_mut().find(|s| s.id == m.id) {
@@ -379,20 +472,36 @@ impl Engine {
                             message_id: m.id,
                             thread_id: m.thread_id,
                             subject: m.subject.clone(),
-                            from: m.from.as_ref().map(|f| f.name.clone().unwrap_or_else(|| f.email.clone())).unwrap_or_default(),
+                            from: m
+                                .from
+                                .as_ref()
+                                .map(|f| f.name.clone().unwrap_or_else(|| f.email.clone()))
+                                .unwrap_or_default(),
                             date: m.date,
                         })
                         .collect(),
                 });
-                (Task::AskInbox, prompts::ask_inbox(&self.user_ctx(None)?, question, &ctx, budget))
+                (
+                    Task::AskInbox,
+                    prompts::ask_inbox(&self.user_ctx(None)?, question, &ctx, budget),
+                )
             }
-            AiTask::SearchQuery { question } => (Task::NlToSearch, prompts::nl_to_search(&self.user_ctx(None)?, question)),
+            AiTask::SearchQuery { question } => (
+                Task::NlToSearch,
+                prompts::nl_to_search(&self.user_ctx(None)?, question),
+            ),
             AiTask::ExtractEvents { message_id } => {
                 let loaded = self.load_bodies(vec![*message_id]).await?;
-                let m = loaded.first().ok_or_else(|| Error::NotFound("message".into()))?;
+                let m = loaded
+                    .first()
+                    .ok_or_else(|| Error::NotFound("message".into()))?;
                 (
                     Task::ExtractEvents,
-                    prompts::extract_events(&self.user_ctx(Some(m.account_id))?, &message_ctx(m), budget),
+                    prompts::extract_events(
+                        &self.user_ctx(Some(m.account_id))?,
+                        &message_ctx(m),
+                        budget,
+                    ),
                 )
             }
         };
@@ -414,9 +523,15 @@ impl Engine {
 
         // Normalize structured answers to JSON the UI understands.
         let out = match &task {
-            AiTask::QuickReplies { .. } => serde_json::to_string(&prompts::parse_quick_replies(&text).map_err(ai_err)?)?,
-            AiTask::Compose { .. } => serde_json::to_string(&prompts::parse_compose(&text).map_err(ai_err)?)?,
-            AiTask::ExtractEvents { .. } => serde_json::to_string(&prompts::parse_events(&text).map_err(ai_err)?)?,
+            AiTask::QuickReplies { .. } => {
+                serde_json::to_string(&prompts::parse_quick_replies(&text).map_err(ai_err)?)?
+            }
+            AiTask::Compose { .. } => {
+                serde_json::to_string(&prompts::parse_compose(&text).map_err(ai_err)?)?
+            }
+            AiTask::ExtractEvents { .. } => {
+                serde_json::to_string(&prompts::parse_events(&text).map_err(ai_err)?)?
+            }
             AiTask::SearchQuery { .. } => prompts::parse_search_query(&text),
             _ => text.trim().to_string(),
         };

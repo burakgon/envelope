@@ -19,10 +19,20 @@ struct TauriSink {
 
 impl EventSink for TauriSink {
     fn emit(&self, event: EngineEvent) {
-        if let EngineEvent::NewMail { account_id, threads } = &event {
+        if let EngineEvent::NewMail {
+            account_id,
+            threads,
+        } = &event
+        {
             notify::new_mail(&self.app, *account_id, threads);
         }
-        if let EngineEvent::Reminder { event_id, title, start, location } = &event {
+        if let EngineEvent::Reminder {
+            event_id,
+            title,
+            start,
+            location,
+        } = &event
+        {
             notify::reminder(&self.app, *event_id, title, *start, location.as_deref());
         }
         let _ = self.app.emit("engine", &event);
@@ -76,9 +86,17 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             let engine = tauri::async_runtime::block_on(async {
-                Engine::start(Paths::standard(), TauriSink { app: handle.clone() })
+                Engine::start(
+                    Paths::standard(),
+                    TauriSink {
+                        app: handle.clone(),
+                    },
+                )
             })?;
-            app.manage(AppState { engine, ai_runs: Default::default() });
+            app.manage(AppState {
+                engine,
+                ai_runs: Default::default(),
+            });
             // Respect the user's title bar preference before the window shows.
             if let Some(w) = app.get_webview_window("main") {
                 let native = app
@@ -90,6 +108,10 @@ pub fn run() {
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
                 let _ = w.set_decorations(native);
+            }
+            #[cfg(target_os = "linux")]
+            if let Some(w) = app.get_webview_window("main") {
+                enable_spell_checking(&w);
             }
             let args: Vec<String> = std::env::args().collect();
             let pending = handle.clone();
@@ -181,4 +203,40 @@ pub fn run() {
         eprintln!("Envelope failed to start: {e}");
         std::process::exit(1);
     }
+}
+
+/// WebKitGTK ships with spell checking off; turn it on for the user's languages.
+#[cfg(target_os = "linux")]
+fn enable_spell_checking(window: &tauri::WebviewWindow) {
+    let languages = spell_languages();
+    let _ = window.with_webview(move |webview| {
+        use webkit2gtk::{WebContextExt, WebViewExt};
+        if let Some(context) = webview.inner().context() {
+            context.set_spell_checking_enabled(true);
+            let refs: Vec<&str> = languages.iter().map(String::as_str).collect();
+            context.set_spell_checking_languages(&refs);
+        }
+    });
+}
+
+/// Dictionary names (`tr_TR`, `en_US`, …) from the locale environment, English last.
+#[cfg(target_os = "linux")]
+fn spell_languages() -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut push = |tag: &str| {
+        let tag = tag.split(['.', '@']).next().unwrap_or("").trim();
+        if !tag.is_empty() && tag != "C" && tag != "POSIX" && !out.iter().any(|t| t == tag) {
+            out.push(tag.to_string());
+        }
+    };
+    if let Ok(list) = std::env::var("LANGUAGE") {
+        list.split(':').for_each(&mut push);
+    }
+    for var in ["LC_ALL", "LC_MESSAGES", "LANG"] {
+        if let Ok(v) = std::env::var(var) {
+            push(&v);
+        }
+    }
+    push("en_US");
+    out
 }

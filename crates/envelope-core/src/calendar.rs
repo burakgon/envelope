@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use chrono_tz::Tz;
 use envelope_ical::{
-    Alarm, AlarmAction, Attendee, AttendeeRole, Event, EventStatus, EventTime, ExpandOptions, Organizer, PartStat,
-    Transparency, TzContext,
+    Alarm, AlarmAction, Attendee, AttendeeRole, Event, EventStatus, EventTime, ExpandOptions,
+    Organizer, PartStat, Transparency, TzContext,
 };
 use serde::{Deserialize, Serialize};
 
@@ -32,19 +32,27 @@ pub(crate) fn to_ms(t: &EventTime) -> i64 {
 /// End of the recurrence for range queries (None = unbounded or COUNT-limited).
 pub(crate) fn until_ms(event: &Event) -> Option<i64> {
     let rule = event.rrule.as_deref()?;
-    let until = rule
-        .split(';')
-        .find_map(|p| p.strip_prefix("UNTIL=").or_else(|| p.strip_prefix("until=")))?;
+    let until = rule.split(';').find_map(|p| {
+        p.strip_prefix("UNTIL=")
+            .or_else(|| p.strip_prefix("until="))
+    })?;
     let duration = to_ms(&event.end) - to_ms(&event.start);
     let ts = if until.len() == 8 {
-        NaiveDate::parse_from_str(until, "%Y%m%d").ok()?.and_hms_opt(23, 59, 59)?.and_utc().timestamp_millis()
+        NaiveDate::parse_from_str(until, "%Y%m%d")
+            .ok()?
+            .and_hms_opt(23, 59, 59)?
+            .and_utc()
+            .timestamp_millis()
     } else {
         let s = until.trim_end_matches('Z');
         let naive = chrono::NaiveDateTime::parse_from_str(s, "%Y%m%dT%H%M%S").ok()?;
         if until.ends_with('Z') {
             naive.and_utc().timestamp_millis()
         } else {
-            local_tz().from_local_datetime(&naive).earliest()?.timestamp_millis()
+            local_tz()
+                .from_local_datetime(&naive)
+                .earliest()?
+                .timestamp_millis()
         }
     };
     Some(ts + duration.max(0) + 86_400_000)
@@ -175,7 +183,12 @@ impl Engine {
             .identities()?
             .into_iter()
             .map(|i| i.email.to_lowercase())
-            .chain(self.db.read(mail::list_accounts)?.into_iter().map(|a| a.email.to_lowercase()))
+            .chain(
+                self.db
+                    .read(mail::list_accounts)?
+                    .into_iter()
+                    .map(|a| a.email.to_lowercase()),
+            )
             .collect())
     }
 
@@ -197,22 +210,33 @@ impl Engine {
             return Ok(());
         }
         if self.db.read(cdb::calendar_count)? == 0 {
-            self.db.write(|tx| cdb::create_local_calendar(tx, "Personal", "#6d5efc"))?;
+            self.db
+                .write(|tx| cdb::create_local_calendar(tx, "Personal", "#6d5efc"))?;
         }
         Ok(())
     }
 
     pub fn calendars(&self) -> Result<Vec<CalendarView>> {
         self.ensure_local_calendar()?;
-        Ok(self.db.read(cdb::list_calendars)?.iter().map(Into::into).collect())
+        Ok(self
+            .db
+            .read(cdb::list_calendars)?
+            .iter()
+            .map(Into::into)
+            .collect())
     }
 
     pub fn set_calendar_visible(&self, id: i64, visible: bool) -> Result<()> {
         self.db.write(|tx| {
-            tx.execute("UPDATE calendars SET visible = ? WHERE id = ?", rusqlite::params![visible as i64, id])?;
+            tx.execute(
+                "UPDATE calendars SET visible = ? WHERE id = ?",
+                rusqlite::params![visible as i64, id],
+            )?;
             Ok(())
         })?;
-        self.emit(EngineEvent::CalendarChanged { calendar_ids: vec![id] });
+        self.emit(EngineEvent::CalendarChanged {
+            calendar_ids: vec![id],
+        });
         Ok(())
     }
 
@@ -224,11 +248,22 @@ impl Engine {
             )?;
             Ok(())
         })?;
-        self.emit(EngineEvent::CalendarChanged { calendar_ids: vec![id] });
+        self.emit(EngineEvent::CalendarChanged {
+            calendar_ids: vec![id],
+        });
         Ok(())
     }
 
-    fn occurrence(&self, row: &EventRow, event: &Event, cal: &CalendarRow, start: i64, end: i64, rid: Option<EventTime>, me: &[String]) -> Occurrence {
+    fn occurrence(
+        &self,
+        row: &EventRow,
+        event: &Event,
+        cal: &CalendarRow,
+        start: i64,
+        end: i64,
+        rid: Option<EventTime>,
+        me: &[String],
+    ) -> Occurrence {
         let my_status = event
             .attendees
             .iter()
@@ -239,7 +274,11 @@ impl Engine {
             event_id: row.id,
             calendar_id: row.calendar_id,
             uid: event.uid.clone(),
-            title: if event.summary.trim().is_empty() { "(No title)".into() } else { event.summary.clone() },
+            title: if event.summary.trim().is_empty() {
+                "(No title)".into()
+            } else {
+                event.summary.clone()
+            },
             start,
             end,
             all_day: event.is_all_day(),
@@ -261,45 +300,85 @@ impl Engine {
     /// Occurrences of visible calendars overlapping `[from, to)`.
     pub fn occurrences(&self, from: i64, to: i64) -> Result<Vec<Occurrence>> {
         let rows = self.db.read(|c| cdb::range_rows(c, from, to))?;
-        let calendars: HashMap<i64, CalendarRow> =
-            self.db.read(cdb::list_calendars)?.into_iter().map(|c| (c.id, c)).collect();
+        let calendars: HashMap<i64, CalendarRow> = self
+            .db
+            .read(cdb::list_calendars)?
+            .into_iter()
+            .map(|c| (c.id, c))
+            .collect();
         let me = self.my_emails()?;
         let tz = local_tz();
         let ctx = TzContext::new();
-        let opts = ExpandOptions { default_tz: tz, ..Default::default() };
-        let window_from = Utc.timestamp_millis_opt(from).single().unwrap_or_else(Utc::now);
-        let window_to = Utc.timestamp_millis_opt(to).single().unwrap_or_else(Utc::now);
+        let opts = ExpandOptions {
+            default_tz: tz,
+            ..Default::default()
+        };
+        let window_from = Utc
+            .timestamp_millis_opt(from)
+            .single()
+            .unwrap_or_else(Utc::now);
+        let window_to = Utc
+            .timestamp_millis_opt(to)
+            .single()
+            .unwrap_or_else(Utc::now);
 
         let mut out = Vec::new();
         let mut masters: Vec<&EventRow> = Vec::new();
         let mut overrides: HashMap<(i64, &str), Vec<&EventRow>> = HashMap::new();
         for r in &rows {
-            let Some(cal) = calendars.get(&r.calendar_id) else { continue };
+            let Some(cal) = calendars.get(&r.calendar_id) else {
+                continue;
+            };
             if r.is_recurring {
                 masters.push(r);
             } else if r.recurrence_id.is_some() && cal.kind != "graph" {
-                overrides.entry((r.calendar_id, r.uid.as_str())).or_default().push(r);
+                overrides
+                    .entry((r.calendar_id, r.uid.as_str()))
+                    .or_default()
+                    .push(r);
             } else {
                 if r.event.status == EventStatus::Cancelled && r.recurrence_id.is_some() {
                     continue;
                 }
-                let mut o = self.occurrence(r, &r.event, cal, r.start_ts, r.end_ts, r.recurrence_id.clone(), &me);
+                let mut o = self.occurrence(
+                    r,
+                    &r.event,
+                    cal,
+                    r.start_ts,
+                    r.end_ts,
+                    r.recurrence_id.clone(),
+                    &me,
+                );
                 o.start_date = date_str(&r.event.start);
                 o.end_date = date_str(&r.event.end);
                 out.push(o);
             }
         }
         for m in masters {
-            let Some(cal) = calendars.get(&m.calendar_id) else { continue };
-            let ovs: Vec<&EventRow> = overrides.get(&(m.calendar_id, m.uid.as_str())).cloned().unwrap_or_default();
+            let Some(cal) = calendars.get(&m.calendar_id) else {
+                continue;
+            };
+            let ovs: Vec<&EventRow> = overrides
+                .get(&(m.calendar_id, m.uid.as_str()))
+                .cloned()
+                .unwrap_or_default();
             let ov_events: Vec<Event> = ovs.iter().map(|r| r.event.clone()).collect();
-            let expansion = envelope_ical::expand(&m.event, &ov_events, window_from, window_to, &ctx, &opts);
+            let expansion =
+                envelope_ical::expand(&m.event, &ov_events, window_from, window_to, &ctx, &opts);
             for occ in expansion.occurrences {
                 let (row, event) = match occ.override_index {
                     Some(i) => (ovs[i], &ov_events[i]),
                     None => (m, &m.event),
                 };
-                let mut o = self.occurrence(row, event, cal, occ.start.timestamp_millis(), occ.end.timestamp_millis(), occ.recurrence_id.clone(), &me);
+                let mut o = self.occurrence(
+                    row,
+                    event,
+                    cal,
+                    occ.start.timestamp_millis(),
+                    occ.end.timestamp_millis(),
+                    occ.recurrence_id.clone(),
+                    &me,
+                );
                 o.event_id = m.id;
                 o.is_recurring = true;
                 o.start_date = date_str(&occ.start_time);
@@ -311,15 +390,24 @@ impl Engine {
         Ok(out)
     }
 
-    pub fn event_detail(&self, event_id: i64, recurrence_id: Option<EventTime>) -> Result<EventDetail> {
+    pub fn event_detail(
+        &self,
+        event_id: i64,
+        recurrence_id: Option<EventTime>,
+    ) -> Result<EventDetail> {
         let row = self.db.read(|c| cdb::get_event(c, event_id))?;
         let cal = self.db.read(|c| cdb::get_calendar(c, row.calendar_id))?;
         let me = self.my_emails()?;
         // An occurrence of a series may have its own override row.
         let (event, start, end, src_row) = match &recurrence_id {
             Some(rid) if row.is_recurring => {
-                let series = self.db.read(|c| cdb::series_rows(c, row.calendar_id, &row.uid))?;
-                match series.iter().find(|r| r.recurrence_id.as_ref().map(to_ms) == Some(to_ms(rid))) {
+                let series = self
+                    .db
+                    .read(|c| cdb::series_rows(c, row.calendar_id, &row.uid))?;
+                match series
+                    .iter()
+                    .find(|r| r.recurrence_id.as_ref().map(to_ms) == Some(to_ms(rid)))
+                {
                     Some(o) => (o.event.clone(), o.start_ts, o.end_ts, o.clone()),
                     None => {
                         let dur = row.end_ts - row.start_ts;
@@ -332,7 +420,15 @@ impl Engine {
             }
             _ => (row.event.clone(), row.start_ts, row.end_ts, row.clone()),
         };
-        let mut occurrence = self.occurrence(&src_row, &event, &cal, start, end, recurrence_id.clone(), &me);
+        let mut occurrence = self.occurrence(
+            &src_row,
+            &event,
+            &cal,
+            start,
+            end,
+            recurrence_id.clone(),
+            &me,
+        );
         occurrence.event_id = row.id;
         occurrence.start_date = date_str(&event.start);
         occurrence.end_date = date_str(&event.end);
@@ -344,16 +440,31 @@ impl Engine {
             .account_id
             .and_then(|a| self.db.read(|c| mail::get_account(c, a)).ok())
             .map(|a| a.email);
-        Ok(EventDetail { occurrence, event, calendar: (&cal).into(), organizer_is_me, my_email })
+        Ok(EventDetail {
+            occurrence,
+            event,
+            calendar: (&cal).into(),
+            organizer_is_me,
+            my_email,
+        })
     }
 
     /// Builds the canonical event from UI input.
-    pub(crate) fn event_from_input(&self, input: &EventInput, base: Option<&Event>, cal: &CalendarRow) -> Result<Event> {
-        let tz_name = input.timezone.clone().unwrap_or_else(|| local_tz().name().to_string());
+    pub(crate) fn event_from_input(
+        &self,
+        input: &EventInput,
+        base: Option<&Event>,
+        cal: &CalendarRow,
+    ) -> Result<Event> {
+        let tz_name = input
+            .timezone
+            .clone()
+            .unwrap_or_else(|| local_tz().name().to_string());
         let tz: Tz = tz_name.parse().unwrap_or(local_tz());
         let (start, end) = if input.all_day {
-            let s = NaiveDate::parse_from_str(input.start_date.as_deref().unwrap_or(""), "%Y-%m-%d")
-                .map_err(|_| Error::Invalid("Invalid start date".into()))?;
+            let s =
+                NaiveDate::parse_from_str(input.start_date.as_deref().unwrap_or(""), "%Y-%m-%d")
+                    .map_err(|_| Error::Invalid("Invalid start date".into()))?;
             let e = input
                 .end_date
                 .as_deref()
@@ -372,11 +483,19 @@ impl Engine {
                 return Err(Error::Invalid("The event ends before it starts".into()));
             }
             (
-                EventTime::Zoned { local: to_local(input.start)?, tzid: tz_name.clone() },
-                EventTime::Zoned { local: to_local(input.end)?, tzid: tz_name.clone() },
+                EventTime::Zoned {
+                    local: to_local(input.start)?,
+                    tzid: tz_name.clone(),
+                },
+                EventTime::Zoned {
+                    local: to_local(input.end)?,
+                    tzid: tz_name.clone(),
+                },
             )
         };
-        let mut e = base.cloned().unwrap_or_else(|| Event::new(envelope_ical::new_uid(), start.clone(), end.clone()));
+        let mut e = base
+            .cloned()
+            .unwrap_or_else(|| Event::new(envelope_ical::new_uid(), start.clone(), end.clone()));
         e.summary = input.summary.trim().to_string();
         e.description = input.description.clone().filter(|d| !d.trim().is_empty());
         e.location = input.location.clone().filter(|l| !l.trim().is_empty());
@@ -384,11 +503,19 @@ impl Engine {
         e.end = end;
         e.rrule = input.rrule.clone().filter(|r| !r.trim().is_empty());
         e.color = input.color.clone();
-        e.transparency = if input.transparent { Transparency::Transparent } else { Transparency::Opaque };
+        e.transparency = if input.transparent {
+            Transparency::Transparent
+        } else {
+            Transparency::Opaque
+        };
         e.alarms = input
             .alarms
             .iter()
-            .map(|m| Alarm { action: AlarmAction::Display, minutes_before: *m, description: None })
+            .map(|m| Alarm {
+                action: AlarmAction::Display,
+                minutes_before: *m,
+                description: None,
+            })
             .collect();
         e.last_modified = Some(Utc::now());
         if e.created.is_none() {
@@ -414,17 +541,28 @@ impl Engine {
             }
         }
         if !attendees.is_empty() && e.organizer.is_none() {
-            let account = cal.account_id.and_then(|id| self.db.read(|c| mail::get_account(c, id)).ok());
+            let account = cal
+                .account_id
+                .and_then(|id| self.db.read(|c| mail::get_account(c, id)).ok());
             if let Some(acc) = account {
-                e.organizer = Some(Organizer { email: acc.email.clone(), name: Some(acc.name.clone()) });
-                if !attendees.iter().any(|a| a.email == acc.email.to_lowercase()) {
-                    attendees.insert(0, Attendee {
-                        email: acc.email.to_lowercase(),
-                        name: Some(acc.name.clone()),
-                        partstat: PartStat::Accepted,
-                        role: AttendeeRole::Chair,
-                        ..Default::default()
-                    });
+                e.organizer = Some(Organizer {
+                    email: acc.email.clone(),
+                    name: Some(acc.name.clone()),
+                });
+                if !attendees
+                    .iter()
+                    .any(|a| a.email == acc.email.to_lowercase())
+                {
+                    attendees.insert(
+                        0,
+                        Attendee {
+                            email: acc.email.to_lowercase(),
+                            name: Some(acc.name.clone()),
+                            partstat: PartStat::Accepted,
+                            role: AttendeeRole::Chair,
+                            ..Default::default()
+                        },
+                    );
                 }
             }
         }
@@ -448,7 +586,11 @@ impl Engine {
     ) -> Result<i64> {
         let start_ts = to_ms(&event.start);
         let end_ts = to_ms(&event.end).max(start_ts);
-        let until_ts = if event.is_recurring() { until_ms(event) } else { None };
+        let until_ts = if event.is_recurring() {
+            until_ms(event)
+        } else {
+            None
+        };
         self.db.write(|tx| {
             cdb::upsert_event(
                 tx,
@@ -475,13 +617,22 @@ impl Engine {
             return Err(Error::Invalid("This calendar is read-only".into()));
         }
         let event = self.event_from_input(&input, None, &cal)?;
-        let id = crate::sync::calendar::write_create(self, &cal, &event, input.add_conference).await?;
-        self.emit(EngineEvent::CalendarChanged { calendar_ids: vec![cal.id] });
+        let id =
+            crate::sync::calendar::write_create(self, &cal, &event, input.add_conference).await?;
+        self.emit(EngineEvent::CalendarChanged {
+            calendar_ids: vec![cal.id],
+        });
         Ok(id)
     }
 
     /// Updates an event (or occurrence/series according to `scope`).
-    pub async fn update_event(&self, event_id: i64, recurrence_id: Option<EventTime>, scope: EditScope, input: EventInput) -> Result<()> {
+    pub async fn update_event(
+        &self,
+        event_id: i64,
+        recurrence_id: Option<EventTime>,
+        scope: EditScope,
+        input: EventInput,
+    ) -> Result<()> {
         let row = self.db.read(|c| cdb::get_event(c, event_id))?;
         let cal = self.db.read(|c| cdb::get_calendar(c, row.calendar_id))?;
         if cal.read_only {
@@ -495,12 +646,21 @@ impl Engine {
             return self.delete_event(event_id, None, EditScope::All).await;
         }
         crate::sync::calendar::write_update(self, &cal, &row, recurrence_id, scope, &input).await?;
-        self.emit(EngineEvent::CalendarChanged { calendar_ids: vec![cal.id] });
+        self.emit(EngineEvent::CalendarChanged {
+            calendar_ids: vec![cal.id],
+        });
         Ok(())
     }
 
     /// Moves/resizes an occurrence (drag and drop).
-    pub async fn move_event(&self, event_id: i64, recurrence_id: Option<EventTime>, scope: EditScope, start: i64, end: i64) -> Result<()> {
+    pub async fn move_event(
+        &self,
+        event_id: i64,
+        recurrence_id: Option<EventTime>,
+        scope: EditScope,
+        start: i64,
+        end: i64,
+    ) -> Result<()> {
         let detail = self.event_detail(event_id, recurrence_id.clone())?;
         let e = &detail.event;
         let input = EventInput {
@@ -512,12 +672,22 @@ impl Engine {
             start,
             end,
             start_date: if e.is_all_day() {
-                DateTime::from_timestamp_millis(start).map(|d| d.with_timezone(&local_tz()).date_naive().format("%Y-%m-%d").to_string())
+                DateTime::from_timestamp_millis(start).map(|d| {
+                    d.with_timezone(&local_tz())
+                        .date_naive()
+                        .format("%Y-%m-%d")
+                        .to_string()
+                })
             } else {
                 None
             },
             end_date: if e.is_all_day() {
-                DateTime::from_timestamp_millis(end).map(|d| d.with_timezone(&local_tz()).date_naive().format("%Y-%m-%d").to_string())
+                DateTime::from_timestamp_millis(end).map(|d| {
+                    d.with_timezone(&local_tz())
+                        .date_naive()
+                        .format("%Y-%m-%d")
+                        .to_string()
+                })
             } else {
                 None
             },
@@ -525,33 +695,56 @@ impl Engine {
                 EventTime::Zoned { tzid, .. } => Some(tzid.clone()),
                 _ => None,
             },
-            rrule: if scope == EditScope::This { None } else { e.rrule.clone() },
-            attendees: e.attendees.iter().map(|a| Address::new(a.name.clone(), a.email.clone())).collect(),
+            rrule: if scope == EditScope::This {
+                None
+            } else {
+                e.rrule.clone()
+            },
+            attendees: e
+                .attendees
+                .iter()
+                .map(|a| Address::new(a.name.clone(), a.email.clone()))
+                .collect(),
             alarms: e.alarms.iter().map(|a| a.minutes_before).collect(),
             color: e.color.clone(),
             transparent: e.transparency == Transparency::Transparent,
             add_conference: false,
         };
-        self.update_event(event_id, recurrence_id, scope, input).await
+        self.update_event(event_id, recurrence_id, scope, input)
+            .await
     }
 
-    pub async fn delete_event(&self, event_id: i64, recurrence_id: Option<EventTime>, scope: EditScope) -> Result<()> {
+    pub async fn delete_event(
+        &self,
+        event_id: i64,
+        recurrence_id: Option<EventTime>,
+        scope: EditScope,
+    ) -> Result<()> {
         let row = self.db.read(|c| cdb::get_event(c, event_id))?;
         let cal = self.db.read(|c| cdb::get_calendar(c, row.calendar_id))?;
         if cal.read_only {
             return Err(Error::Invalid("This calendar is read-only".into()));
         }
         crate::sync::calendar::write_delete(self, &cal, &row, recurrence_id, scope).await?;
-        self.emit(EngineEvent::CalendarChanged { calendar_ids: vec![cal.id] });
+        self.emit(EngineEvent::CalendarChanged {
+            calendar_ids: vec![cal.id],
+        });
         Ok(())
     }
 
     /// RSVP to an event in one of the user's calendars.
-    pub async fn respond_event(&self, event_id: i64, status: PartStat, comment: Option<String>) -> Result<()> {
+    pub async fn respond_event(
+        &self,
+        event_id: i64,
+        status: PartStat,
+        comment: Option<String>,
+    ) -> Result<()> {
         let row = self.db.read(|c| cdb::get_event(c, event_id))?;
         let cal = self.db.read(|c| cdb::get_calendar(c, row.calendar_id))?;
         crate::sync::calendar::write_respond(self, &cal, &row, status, comment.as_deref()).await?;
-        self.emit(EngineEvent::CalendarChanged { calendar_ids: vec![cal.id] });
+        self.emit(EngineEvent::CalendarChanged {
+            calendar_ids: vec![cal.id],
+        });
         Ok(())
     }
 
@@ -563,7 +756,9 @@ impl Engine {
             if o.status == EventStatus::Cancelled || o.my_status == Some(PartStat::Declined) {
                 continue;
             }
-            let Ok(row) = self.db.read(|c| cdb::get_event(c, o.event_id)) else { continue };
+            let Ok(row) = self.db.read(|c| cdb::get_event(c, o.event_id)) else {
+                continue;
+            };
             for alarm in &row.event.alarms {
                 if alarm.action == AlarmAction::Email {
                     continue;
@@ -609,11 +804,18 @@ impl Engine {
         let att = message
             .attachments
             .iter()
-            .find(|a| a.mime_type == "text/calendar" || a.mime_type == "application/ics" || a.filename.ends_with(".ics"))
+            .find(|a| {
+                a.mime_type == "text/calendar"
+                    || a.mime_type == "application/ics"
+                    || a.filename.ends_with(".ics")
+            })
             .ok_or_else(|| Error::NotFound("invitation".into()))?;
         let path = self.attachment_file(att.id).await?;
         let bytes = tokio::fs::read(path).await?;
-        Ok((String::from_utf8_lossy(&bytes).into_owned(), message.account_id))
+        Ok((
+            String::from_utf8_lossy(&bytes).into_owned(),
+            message.account_id,
+        ))
     }
 
     /// Parses the invitation carried by a message.
@@ -639,7 +841,10 @@ impl Engine {
         let start = envelope_ical::to_utc(&event.start, &itip.tz, local_tz()).timestamp_millis();
         let end = envelope_ical::to_utc(&event.end, &itip.tz, local_tz()).timestamp_millis();
         Ok(InviteInfo {
-            method: itip.method.map(|m| format!("{m:?}").to_uppercase()).unwrap_or_else(|| "REQUEST".into()),
+            method: itip
+                .method
+                .map(|m| format!("{m:?}").to_uppercase())
+                .unwrap_or_else(|| "REQUEST".into()),
             uid: event.uid.clone(),
             summary: event.summary.clone(),
             start,
@@ -647,8 +852,15 @@ impl Engine {
             all_day: event.is_all_day(),
             location: event.location.clone(),
             description: event.description.clone(),
-            organizer: event.organizer.as_ref().map(|o| Address::new(o.name.clone(), o.email.clone())),
-            attendees: event.attendees.iter().map(|a| Address::new(a.name.clone(), a.email.clone())).collect(),
+            organizer: event
+                .organizer
+                .as_ref()
+                .map(|o| Address::new(o.name.clone(), o.email.clone())),
+            attendees: event
+                .attendees
+                .iter()
+                .map(|a| Address::new(a.name.clone(), a.email.clone()))
+                .collect(),
             my_status,
             event_id: existing.first().map(|r| r.id),
             conference_url: event.conference_url.clone(),
@@ -657,7 +869,12 @@ impl Engine {
     }
 
     /// Accepts, declines or tentatively accepts an invitation from a message.
-    pub async fn respond_invite(&self, message_id: i64, status: PartStat, comment: Option<String>) -> Result<()> {
+    pub async fn respond_invite(
+        &self,
+        message_id: i64,
+        status: PartStat,
+        comment: Option<String>,
+    ) -> Result<()> {
         let info = self.invite_info(message_id).await?;
         if let Some(event_id) = info.event_id {
             return self.respond_event(event_id, status, comment).await;
@@ -676,7 +893,15 @@ impl Engine {
         if let Some(organizer) = &info.organizer {
             let reply = envelope_ical::build_reply(&ics, &my_email, status, comment.as_deref())
                 .map_err(|e| Error::Other(e.to_string()))?;
-            crate::sync::calendar::send_reply(self, account_id, &info.summary, &organizer.email, status, reply).await?;
+            crate::sync::calendar::send_reply(
+                self,
+                account_id,
+                &info.summary,
+                &organizer.email,
+                status,
+                reply,
+            )
+            .await?;
         }
         if status != PartStat::Declined {
             // Put it on the user's calendar.
@@ -684,7 +909,11 @@ impl Engine {
             let target = calendars
                 .iter()
                 .find(|c| c.account_id == Some(account_id) && c.is_default && !c.read_only)
-                .or_else(|| calendars.iter().find(|c| c.account_id == Some(account_id) && !c.read_only))
+                .or_else(|| {
+                    calendars
+                        .iter()
+                        .find(|c| c.account_id == Some(account_id) && !c.read_only)
+                })
                 .or_else(|| calendars.iter().find(|c| !c.read_only));
             if let Some(cal) = target {
                 for mut event in itip.events.clone() {
@@ -695,7 +924,9 @@ impl Engine {
                     }
                     crate::sync::calendar::write_create(self, cal, &event, false).await?;
                 }
-                self.emit(EngineEvent::CalendarChanged { calendar_ids: vec![cal.id] });
+                self.emit(EngineEvent::CalendarChanged {
+                    calendar_ids: vec![cal.id],
+                });
             }
         }
         Ok(())

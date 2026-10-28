@@ -17,8 +17,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dir = std::path::PathBuf::from(std::env::args().nth(1).ok_or("usage: dev_account <dir>")?);
     // SAFETY: single-threaded at this point.
     unsafe { std::env::set_var("ENVELOPE_SECRETS", "file") };
-    let engine = Engine::start(Paths { data: dir.join("data"), cache: dir.join("cache") }, Quiet)?;
-    if engine.accounts()?.iter().any(|a| a.email == "alex@envelope.test") {
+    let engine = Engine::start(
+        Paths {
+            data: dir.join("data"),
+            cache: dir.join("cache"),
+        },
+        Quiet,
+    )?;
+    if engine
+        .accounts()?
+        .iter()
+        .any(|a| a.email == "alex@envelope.test")
+    {
         println!("account already present");
         return Ok(());
     }
@@ -29,8 +39,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             provider: "generic".into(),
             password: "password".into(),
             config: AccountConfig {
-                imap: Some(ServerConfig { host: "127.0.0.1".into(), port: 1993, security: Security::Tls, username: String::new() }),
-                smtp: Some(ServerConfig { host: "127.0.0.1".into(), port: 1587, security: Security::None, username: String::new() }),
+                imap: Some(ServerConfig {
+                    host: "127.0.0.1".into(),
+                    port: 1993,
+                    security: Security::Tls,
+                    username: String::new(),
+                }),
+                smtp: Some(ServerConfig {
+                    host: "127.0.0.1".into(),
+                    port: 1587,
+                    security: Security::None,
+                    username: String::new(),
+                }),
                 caldav_url: Some("http://127.0.0.1:5232/".into()),
                 accept_invalid_certs: true,
                 ..Default::default()

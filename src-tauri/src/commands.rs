@@ -38,7 +38,10 @@ impl From<envelope_core::Error> for CmdError {
 
 impl From<String> for CmdError {
     fn from(message: String) -> Self {
-        CmdError { message, kind: "error" }
+        CmdError {
+            message,
+            kind: "error",
+        }
     }
 }
 
@@ -104,7 +107,11 @@ pub async fn account_add_oauth(
 }
 
 #[tauri::command]
-pub async fn account_update(state: State<'_, AppState>, id: i64, patch: AccountPatch) -> R<Account> {
+pub async fn account_update(
+    state: State<'_, AppState>,
+    id: i64,
+    patch: AccountPatch,
+) -> R<Account> {
     Ok(state.engine.update_account(id, patch).await?)
 }
 
@@ -124,7 +131,11 @@ pub fn oauth_client_get(state: State<'_, AppState>, provider: Provider) -> R<Cli
 }
 
 #[tauri::command]
-pub fn oauth_client_set(state: State<'_, AppState>, provider: Provider, client: ClientConfig) -> R<()> {
+pub fn oauth_client_set(
+    state: State<'_, AppState>,
+    provider: Provider,
+    client: ClientConfig,
+) -> R<()> {
     Ok(state.engine.set_oauth_client(provider, client)?)
 }
 
@@ -196,7 +207,12 @@ pub fn snooze(state: State<'_, AppState>, thread_ids: Vec<i64>, until: Option<i6
 }
 
 #[tauri::command]
-pub fn set_label(state: State<'_, AppState>, thread_ids: Vec<i64>, folder_id: i64, add: bool) -> R<()> {
+pub fn set_label(
+    state: State<'_, AppState>,
+    thread_ids: Vec<i64>,
+    folder_id: i64,
+    add: bool,
+) -> R<()> {
     Ok(state.engine.set_label(&thread_ids, folder_id, add)?)
 }
 
@@ -231,7 +247,12 @@ pub fn draft(state: State<'_, AppState>, id: i64) -> R<Draft> {
 }
 
 #[tauri::command]
-pub fn save_draft(state: State<'_, AppState>, id: Option<i64>, data: DraftInput, upload: bool) -> R<i64> {
+pub fn save_draft(
+    state: State<'_, AppState>,
+    id: Option<i64>,
+    data: DraftInput,
+    upload: bool,
+) -> R<i64> {
     Ok(state.engine.save_draft(id, &data, upload)?)
 }
 
@@ -253,7 +274,10 @@ pub async fn send(
     delay_ms: i64,
     send_at: Option<i64>,
 ) -> R<i64> {
-    Ok(state.engine.send(draft_id, &data, delay_ms, send_at).await?)
+    Ok(state
+        .engine
+        .send(draft_id, &data, delay_ms, send_at)
+        .await?)
 }
 
 #[tauri::command]
@@ -367,10 +391,17 @@ pub fn stash_file(state: State<'_, AppState>, filename: String, data: Vec<u8>) -
         .chars()
         .map(|c| if c == '/' || c == '\\' { '_' } else { c })
         .collect();
-    let path = dir.join(if safe.is_empty() { "pasted".to_string() } else { safe });
+    let path = dir.join(if safe.is_empty() {
+        "pasted".to_string()
+    } else {
+        safe
+    });
     std::fs::write(&path, &data).map_err(|e| CmdError::from(e.to_string()))?;
     Ok(FileInfo {
-        filename: path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+        filename: path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default(),
         mime_type: mime_for(&path),
         size: data.len() as u64,
         path: path.to_string_lossy().to_string(),
@@ -452,7 +483,11 @@ pub async fn ai_config(state: State<'_, AppState>) -> R<AiConfigView> {
 }
 
 #[tauri::command]
-pub async fn ai_set_config(state: State<'_, AppState>, settings: AiSettings, api_key: Option<String>) -> R<()> {
+pub async fn ai_set_config(
+    state: State<'_, AppState>,
+    settings: AiSettings,
+    api_key: Option<String>,
+) -> R<()> {
     Ok(state.engine.set_ai_config(settings, api_key).await?)
 }
 
@@ -462,30 +497,50 @@ pub fn ai_presets() -> Vec<AiPresetView> {
 }
 
 #[tauri::command]
-pub async fn ai_models(state: State<'_, AppState>, settings: Option<AiSettings>, api_key: Option<String>) -> R<Vec<AiModel>> {
+pub async fn ai_models(
+    state: State<'_, AppState>,
+    settings: Option<AiSettings>,
+    api_key: Option<String>,
+) -> R<Vec<AiModel>> {
     Ok(state.engine.ai_models(settings, api_key).await?)
 }
 
 #[tauri::command]
-pub async fn ai_test(state: State<'_, AppState>, settings: AiSettings, api_key: Option<String>) -> R<String> {
+pub async fn ai_test(
+    state: State<'_, AppState>,
+    settings: AiSettings,
+    api_key: Option<String>,
+) -> R<String> {
     Ok(state.engine.ai_test(settings, api_key).await?)
 }
 
 #[tauri::command]
-pub async fn ai_run(state: State<'_, AppState>, run_id: String, task: AiTask, on_event: Channel<AiEvent>) -> R<String> {
+pub async fn ai_run(
+    state: State<'_, AppState>,
+    run_id: String,
+    task: AiTask,
+    on_event: Channel<AiEvent>,
+) -> R<String> {
     let engine = state.engine.clone();
     let handle = tauri::async_runtime::spawn(async move {
-        engine.ai_run(task, move |e| {
-            let _ = on_event.send(e);
-        })
-        .await
+        engine
+            .ai_run(task, move |e| {
+                let _ = on_event.send(e);
+            })
+            .await
     });
-    state.ai_runs.lock().insert(run_id.clone(), handle.inner().abort_handle());
+    state
+        .ai_runs
+        .lock()
+        .insert(run_id.clone(), handle.inner().abort_handle());
     let result = handle.await;
     state.ai_runs.lock().remove(&run_id);
     match result {
         Ok(r) => Ok(r?),
-        Err(_) => Err(CmdError { message: "Cancelled".into(), kind: "cancelled" }),
+        Err(_) => Err(CmdError {
+            message: "Cancelled".into(),
+            kind: "cancelled",
+        }),
     }
 }
 
@@ -498,7 +553,9 @@ pub fn ai_cancel(state: State<'_, AppState>, run_id: String) {
 
 // ----- calendar ----------------------------------------------------------------------
 
-use envelope_core::calendar::{CalendarView, EditScope, EventDetail, EventInput, InviteInfo, Occurrence};
+use envelope_core::calendar::{
+    CalendarView, EditScope, EventDetail, EventInput, InviteInfo, Occurrence,
+};
 use envelope_core::envelope_ical::{EventTime, PartStat};
 
 #[tauri::command]
@@ -522,7 +579,11 @@ pub fn occurrences(state: State<'_, AppState>, from: i64, to: i64) -> R<Vec<Occu
 }
 
 #[tauri::command]
-pub fn event_detail(state: State<'_, AppState>, event_id: i64, recurrence_id: Option<EventTime>) -> R<EventDetail> {
+pub fn event_detail(
+    state: State<'_, AppState>,
+    event_id: i64,
+    recurrence_id: Option<EventTime>,
+) -> R<EventDetail> {
     Ok(state.engine.event_detail(event_id, recurrence_id)?)
 }
 
@@ -539,7 +600,10 @@ pub async fn event_update(
     scope: EditScope,
     input: EventInput,
 ) -> R<()> {
-    Ok(state.engine.update_event(event_id, recurrence_id, scope, input).await?)
+    Ok(state
+        .engine
+        .update_event(event_id, recurrence_id, scope, input)
+        .await?)
 }
 
 #[tauri::command]
@@ -551,17 +615,36 @@ pub async fn event_move(
     start: i64,
     end: i64,
 ) -> R<()> {
-    Ok(state.engine.move_event(event_id, recurrence_id, scope, start, end).await?)
+    Ok(state
+        .engine
+        .move_event(event_id, recurrence_id, scope, start, end)
+        .await?)
 }
 
 #[tauri::command]
-pub async fn event_delete(state: State<'_, AppState>, event_id: i64, recurrence_id: Option<EventTime>, scope: EditScope) -> R<()> {
-    Ok(state.engine.delete_event(event_id, recurrence_id, scope).await?)
+pub async fn event_delete(
+    state: State<'_, AppState>,
+    event_id: i64,
+    recurrence_id: Option<EventTime>,
+    scope: EditScope,
+) -> R<()> {
+    Ok(state
+        .engine
+        .delete_event(event_id, recurrence_id, scope)
+        .await?)
 }
 
 #[tauri::command]
-pub async fn event_respond(state: State<'_, AppState>, event_id: i64, status: PartStat, comment: Option<String>) -> R<()> {
-    Ok(state.engine.respond_event(event_id, status, comment).await?)
+pub async fn event_respond(
+    state: State<'_, AppState>,
+    event_id: i64,
+    status: PartStat,
+    comment: Option<String>,
+) -> R<()> {
+    Ok(state
+        .engine
+        .respond_event(event_id, status, comment)
+        .await?)
 }
 
 #[tauri::command]
@@ -570,6 +653,14 @@ pub async fn invite_info(state: State<'_, AppState>, message_id: i64) -> R<Invit
 }
 
 #[tauri::command]
-pub async fn invite_respond(state: State<'_, AppState>, message_id: i64, status: PartStat, comment: Option<String>) -> R<()> {
-    Ok(state.engine.respond_invite(message_id, status, comment).await?)
+pub async fn invite_respond(
+    state: State<'_, AppState>,
+    message_id: i64,
+    status: PartStat,
+    comment: Option<String>,
+) -> R<()> {
+    Ok(state
+        .engine
+        .respond_invite(message_id, status, comment)
+        .await?)
 }

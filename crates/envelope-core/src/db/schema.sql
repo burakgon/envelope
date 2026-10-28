@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS thread_folders (
     PRIMARY KEY (folder_id, thread_id)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS thread_folders_date ON thread_folders(folder_id, last_date DESC);
+CREATE INDEX IF NOT EXISTS thread_folders_unread ON thread_folders(folder_id, last_date DESC) WHERE unread > 0;
 CREATE INDEX IF NOT EXISTS thread_folders_thread ON thread_folders(thread_id);
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -120,6 +121,7 @@ CREATE INDEX IF NOT EXISTS messages_msgid ON messages(account_id, message_id);
 CREATE INDEX IF NOT EXISTS messages_remote ON messages(account_id, remote_id);
 CREATE INDEX IF NOT EXISTS messages_body ON messages(account_id, body_state, date DESC);
 CREATE INDEX IF NOT EXISTS messages_from ON messages(from_email);
+CREATE INDEX IF NOT EXISTS messages_reply ON messages(account_id, in_reply_to) WHERE in_reply_to IS NOT NULL;
 
 -- Server locations of a message: one row per IMAP folder copy or Gmail label.
 CREATE TABLE IF NOT EXISTS message_folders (

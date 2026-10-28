@@ -374,6 +374,10 @@ async fn token_request(url: &str, form: &[(&str, String)]) -> Result<TokenRespon
         let msg = serde_json::from_slice::<ErrorResponse>(&body)
             .map(|e| format!("{}: {}", e.error, e.error_description.unwrap_or_default()))
             .unwrap_or_else(|_| String::from_utf8_lossy(&body).into_owned());
+        // An unavailable identity provider is not a rejected sign-in.
+        if status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(Error::Network(format!("{status}: {msg}")));
+        }
         return Err(Error::Auth(msg));
     }
     Ok(serde_json::from_slice(&body)?)

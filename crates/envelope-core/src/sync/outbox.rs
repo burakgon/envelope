@@ -105,9 +105,9 @@ async fn deliver(engine: &Engine, row: &OutboxRow) -> Result<()> {
                 other => other,
             }
         }
-        AccountKind::Microsoft => Err(Error::Invalid(
-            "sending from Microsoft accounts is not available yet".into(),
-        )),
+        AccountKind::Microsoft => {
+            crate::sync::graph::send(engine, account.id, &row.mime, &row.meta.recipients).await
+        }
     }
 }
 

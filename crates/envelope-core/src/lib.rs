@@ -1,6 +1,10 @@
 //! Envelope's engine: local storage, synchronization, sending, search and the
 //! glue between protocol crates and the user interface.
 
+// Database rows travel as tuples and sync steps take many collaborators; both
+// read better inline than wrapped in one-off types.
+#![allow(clippy::too_many_arguments, clippy::type_complexity)]
+
 pub mod ai;
 pub mod calendar;
 pub mod compose;

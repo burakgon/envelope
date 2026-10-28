@@ -18,7 +18,12 @@ fn main_focused(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
-fn show(app: &AppHandle, summary: String, body: String, on_click: impl FnOnce(&AppHandle) + Send + 'static) {
+fn show(
+    app: &AppHandle,
+    summary: String,
+    body: String,
+    on_click: impl FnOnce(&AppHandle) + Send + 'static,
+) {
     let app = app.clone();
     std::thread::spawn(move || {
         let mut n = notify_rust::Notification::new();
@@ -26,7 +31,9 @@ fn show(app: &AppHandle, summary: String, body: String, on_click: impl FnOnce(&A
             .summary(&summary)
             .body(&body)
             .icon("io.github.burakgon.Envelope")
-            .hint(notify_rust::Hint::DesktopEntry("io.github.burakgon.Envelope".into()))
+            .hint(notify_rust::Hint::DesktopEntry(
+                "io.github.burakgon.Envelope".into(),
+            ))
             .action("default", "Open");
         if let Ok(handle) = n.show() {
             handle.wait_for_action(|action| {
@@ -87,10 +94,11 @@ pub fn reminder(app: &AppHandle, event_id: i64, title: &str, start: i64, locatio
 }
 
 fn chrono_like(start_ms: i64) -> String {
-    let mins = (start_ms - std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0))
+    let mins = (start_ms
+        - std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0))
         / 60_000;
     match mins {
         m if m <= 0 => "Starting now".into(),

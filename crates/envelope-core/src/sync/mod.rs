@@ -1,10 +1,12 @@
 //! Background synchronization: per-account workers and schedulers.
 
 pub mod calendar;
+pub mod graph;
 pub mod imap;
 pub mod outbox;
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use tokio::sync::Notify;
@@ -29,14 +31,93 @@ pub(crate) async fn run_account(
     };
     match account.kind {
         AccountKind::Imap | AccountKind::Gmail => imap::run(engine, account_id, wake, stop).await,
-        AccountKind::Microsoft => {
-            engine.set_sync_state(
-                account_id,
-                SyncState::Error {
-                    message: "Microsoft accounts are not supported in this build yet".into(),
-                },
-            );
-        }
+        AccountKind::Microsoft => graph::run(engine, account_id, wake, stop).await,
+    }
+}
+
+/// Why the most recent attempt to obtain an access token failed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TokenFailure {
+    /// The grant was rejected or is missing: the user has to sign in again.
+    Auth,
+    /// The identity provider could not be reached.
+    Network,
+    /// Anything else, such as an unavailable keyring.
+    Other,
+}
+
+/// OAuth access tokens for the protocol crates.
+pub(crate) struct AccountTokens {
+    engine: Engine,
+    account_id: i64,
+    stale: AtomicBool,
+    failure: parking_lot::Mutex<Option<TokenFailure>>,
+}
+
+impl AccountTokens {
+    pub(crate) fn new(engine: &Engine, account_id: i64) -> Arc<AccountTokens> {
+        Arc::new(AccountTokens {
+            engine: engine.clone(),
+            account_id,
+            stale: AtomicBool::new(false),
+            failure: parking_lot::Mutex::new(None),
+        })
+    }
+
+    async fn token(&self) -> std::result::Result<String, String> {
+        let force = self.stale.swap(false, Ordering::SeqCst);
+        let result = self
+            .engine
+            .tokens
+            .access_token(self.account_id, force)
+            .await;
+        *self.failure.lock() = result.as_ref().err().map(|e| {
+            if e.is_auth() {
+                TokenFailure::Auth
+            } else if e.is_transient() {
+                TokenFailure::Network
+            } else {
+                TokenFailure::Other
+            }
+        });
+        result.map_err(|e| e.to_string())
+    }
+
+    /// Why the most recent token request failed, if it did. Protocol crates
+    /// only pass the error text along; this tells "sign in again" apart from
+    /// "offline".
+    pub(crate) fn last_failure(&self) -> Option<TokenFailure> {
+        *self.failure.lock()
+    }
+}
+
+#[async_trait::async_trait]
+impl envelope_dav::TokenSource for AccountTokens {
+    async fn access_token(&self) -> std::result::Result<String, String> {
+        self.token().await
+    }
+    async fn invalidate(&self) {
+        self.stale.store(true, Ordering::SeqCst);
+    }
+}
+
+#[async_trait::async_trait]
+impl envelope_google::TokenSource for AccountTokens {
+    async fn access_token(&self) -> std::result::Result<String, String> {
+        self.token().await
+    }
+    async fn invalidate(&self) {
+        self.stale.store(true, Ordering::SeqCst);
+    }
+}
+
+#[async_trait::async_trait]
+impl envelope_graph::TokenSource for AccountTokens {
+    async fn access_token(&self) -> std::result::Result<String, String> {
+        self.token().await
+    }
+    async fn invalidate(&self) {
+        self.stale.store(true, Ordering::SeqCst);
     }
 }
 
@@ -88,7 +169,7 @@ pub(crate) fn draft_identity(
     engine: &Engine,
     draft: &DraftInput,
 ) -> Result<(Address, Option<Address>)> {
-    let identities = engine.db.read(|c| misc::list_identities(c))?;
+    let identities = engine.db.read(misc::list_identities)?;
     let identity = draft
         .identity_id
         .and_then(|id| identities.iter().find(|i| i.id == id))

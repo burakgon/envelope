@@ -16,7 +16,11 @@ fn not_found() -> Response<Vec<u8>> {
         .unwrap_or_default()
 }
 
-pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>>, responder: UriSchemeResponder) {
+pub fn handle<R: Runtime>(
+    ctx: UriSchemeContext<'_, R>,
+    request: Request<Vec<u8>>,
+    responder: UriSchemeResponder,
+) {
     let app = ctx.app_handle().clone();
     let path = request.uri().path().to_string();
     tauri::async_runtime::spawn(async move {
@@ -28,7 +32,11 @@ pub fn handle<R: Runtime>(ctx: UriSchemeContext<'_, R>, request: Request<Vec<u8>
         let parts: Vec<String> = path
             .trim_start_matches('/')
             .split('/')
-            .map(|p| percent_encoding::percent_decode_str(p).decode_utf8_lossy().to_string())
+            .map(|p| {
+                percent_encoding::percent_decode_str(p)
+                    .decode_utf8_lossy()
+                    .to_string()
+            })
             .collect();
         let result = match parts.as_slice() {
             [kind, message, cid] if kind == "inline" => match message.parse::<i64>() {
