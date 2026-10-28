@@ -43,6 +43,10 @@ fn feed_url(input: &str) -> Result<url::Url> {
     Ok(url)
 }
 
+fn url_input_is_webcal(input: &str) -> bool {
+    input.trim().to_ascii_lowercase().starts_with("webcal://")
+}
+
 fn http() -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
@@ -210,22 +214,29 @@ impl Engine {
     /// Subscribes to the calendar at `url` and returns it, with its events
     /// already fetched.
     pub async fn subscribe_calendar(&self, url: &str) -> Result<CalendarView> {
+        let input_url = url;
         let url = feed_url(url)?;
         let address = url.to_string();
-        if self
-            .db
-            .read(cdb::list_calendars)?
-            .iter()
-            .any(|c| c.kind == "subscription" && c.remote_id == address)
-        {
+        let webcal = url_input_is_webcal(input_url);
+        let plain = address.replacen("https://", "http://", 1);
+        if self.db.read(cdb::list_calendars)?.iter().any(|c| {
+            c.kind == "subscription" && (c.remote_id == address || (webcal && c.remote_id == plain))
+        }) {
             return Err(Error::Invalid(
                 "You are already subscribed to this calendar.".into(),
             ));
         }
         let client = http()?;
-        let feed = fetch(&client, &address, &Default::default())
-            .await?
-            .ok_or_else(|| Error::Network("the calendar server sent nothing".into()))?;
+        let (address, feed) = match fetch(&client, &address, &Default::default()).await {
+            Ok(feed) => (address, feed),
+            // webcal: names no protocol; older servers only answer plain HTTP.
+            Err(Error::Network(_)) if webcal => {
+                let feed = fetch(&client, &plain, &Default::default()).await?;
+                (plain, feed)
+            }
+            Err(e) => return Err(e),
+        };
+        let feed = feed.ok_or_else(|| Error::Network("the calendar server sent nothing".into()))?;
         let data = envelope_ical::parse_calendar(&feed.text)
             .map_err(|_| Error::Invalid("This address does not lead to a calendar.".into()))?;
         let name =
