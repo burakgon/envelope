@@ -1692,7 +1692,7 @@ dependencies = [
 
 [[package]]
 name = "envelope"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "ashpd",
  "envelope-core",
@@ -1717,7 +1717,7 @@ dependencies = [
 
 [[package]]
 name = "envelope-ai"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "bytes",
  "chrono",
@@ -1732,7 +1732,7 @@ dependencies = [
 
 [[package]]
 name = "envelope-core"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-imap",
@@ -1789,7 +1789,7 @@ dependencies = [
 
 [[package]]
 name = "envelope-dav"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -1810,7 +1810,7 @@ dependencies = [
 
 [[package]]
 name = "envelope-ews"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -1839,7 +1839,7 @@ dependencies = [
 
 [[package]]
 name = "envelope-google"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -1860,7 +1860,7 @@ dependencies = [
 
 [[package]]
 name = "envelope-graph"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -1882,7 +1882,7 @@ dependencies = [
 
 [[package]]
 name = "envelope-ical"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -1896,7 +1896,7 @@ dependencies = [
 
 [[package]]
 name = "envelope-imap"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -1914,7 +1914,7 @@ dependencies = [
 
 [[package]]
 name = "envelope-pgp"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "chrono",

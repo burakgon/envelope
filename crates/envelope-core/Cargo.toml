@@ -16,14 +16,14 @@ bytes = "1.12.1"
 chrono = { version = "0.4.45", features = ["serde"] }
 chrono-tz = "0.10.4"
 dirs = "7.0.0"
-envelope-ai = { version = "0.1.0", path = "../envelope-ai" }
-envelope-dav = { version = "0.1.0", path = "../envelope-dav" }
-envelope-ews = { version = "0.1.0", path = "../envelope-ews" }
-envelope-google = { version = "0.1.0", path = "../envelope-google" }
-envelope-graph = { version = "0.1.0", path = "../envelope-graph" }
-envelope-ical = { version = "0.1.0", path = "../envelope-ical" }
-envelope-imap = { version = "0.1.0", path = "../envelope-imap" }
-envelope-pgp = { version = "0.1.0", path = "../envelope-pgp" }
+envelope-ai = { path = "../envelope-ai" }
+envelope-dav = { path = "../envelope-dav" }
+envelope-ews = { path = "../envelope-ews" }
+envelope-google = { path = "../envelope-google" }
+envelope-graph = { path = "../envelope-graph" }
+envelope-ical = { path = "../envelope-ical" }
+envelope-imap = { path = "../envelope-imap" }
+envelope-pgp = { path = "../envelope-pgp" }
 futures = "0.3.34"
 hickory-resolver = { version = "0.26.3", features = ["tokio"] }
 html-escape = "0.3.0"

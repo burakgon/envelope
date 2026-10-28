@@ -4,6 +4,8 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-29
+
 ### Added
 - Mute conversations (M, the reader toolbar or the command palette): they are archived, and later replies skip the inbox without a notification.
 - Automatic replies (out of office) for Microsoft 365, Exchange, Gmail and IMAP servers that offer ManageSieve: a message, an optional subject and first and last day, and who gets it. A banner in the sidebar shows while they are on.
@@ -13,6 +15,9 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Saved messages (`.eml`, decrypted when they are encrypted to one of your keys), calendar files (`.ics`) and contact cards (`.vcf`) open from the file manager: messages with their pictures and attachments, calendar files with a choice of events to add (without inviting anyone), contact cards with a choice of people to add to an address book; whatever is already there is marked.
 - End-to-end encryption and signing with OpenPGP: keys created automatically per address (or imported), exchanged with Autocrypt headers and found in the recipient's Web Key Directory; PGP/MIME with protected subjects, Bcc recipients kept anonymous and drafts encrypted to yourself; decryption with passphrase prompts, signature status and fingerprint verification; an Encryption settings tab. See `docs/ENCRYPTION.md`.
 - The interface in Deutsch, Español, Français, Italiano, Polski, Português (Brasil), Türkçe, 日本語 and 简体中文 besides English. It follows the system language by default and can be changed under Settings → General; dates and times follow the chosen language, and so do notifications and the tray menu.
+
+### Fixed
+- Archive on a new-mail notification, and the Archive action of mail rules, also took the conversation out of folders it was filed in; they now take it out of the inbox only.
 
 ## [0.1.1] — 2026-10-29
 
@@ -57,6 +62,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Tray icon with the unread count, running in the background and starting at login (through the Background portal in Flatpak).
 - Packages: .deb, .rpm, AppImage, a Flatpak manifest and a PKGBUILD.
 
-[Unreleased]: https://github.com/burakgon/envelope/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/burakgon/envelope/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/burakgon/envelope/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/burakgon/envelope/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/burakgon/envelope/releases/tag/v0.1.0

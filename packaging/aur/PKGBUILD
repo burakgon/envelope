@@ -1,6 +1,6 @@
 # Maintainer: Envelope contributors <https://github.com/burakgon/envelope>
 pkgname=envelope-mail
-pkgver=0.1.1
+pkgver=0.2.0
 pkgrel=1
 pkgdesc='A fast, beautiful mail and calendar client'
 arch=('x86_64' 'aarch64')

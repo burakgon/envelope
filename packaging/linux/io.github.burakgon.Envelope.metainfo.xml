@@ -94,6 +94,21 @@
     <color type="primary" scheme_preference="dark">#2a1f8f</color>
   </branding>
   <releases>
+    <release version="0.2.0" date="2026-10-29">
+      <description>
+        <p>End-to-end encryption, the interface in ten languages, and a scheduling assistant for meetings.</p>
+        <ul>
+          <li>Encrypt and sign mail with OpenPGP; keys are created for you and exchanged with Autocrypt</li>
+          <li>The interface in German, Spanish, French, Italian, Polish, Brazilian Portuguese, Turkish, Japanese and Simplified Chinese</li>
+          <li>See when guests are busy and move a meeting to the next time everyone is free</li>
+          <li>Subscribe to calendars by URL</li>
+          <li>Automatic replies for Microsoft 365, Exchange, Gmail and servers with ManageSieve</li>
+          <li>Mute conversations</li>
+          <li>Open saved messages, calendar files and contact cards from the file manager</li>
+          <li>Add, change and delete Exchange contacts</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.1" date="2026-10-29">
       <description>
         <p>New-mail notifications get Archive and Mark as Read buttons, and Gmail send-as addresses become identities with their signatures.</p>
