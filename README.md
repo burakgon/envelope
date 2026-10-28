@@ -177,7 +177,7 @@ Press `?` in the app for the full list.
 
 ## How it works
 
-Envelope is a [Tauri 2](https://tauri.app) application: a Rust core and a Svelte 5 interface rendered by WebKitGTK.
+Envelope is a [Tauri 2](https://tauri.app) application: a Rust core and a Svelte 5 interface rendered by WebKitGTK. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) walks through storage, sync, local-first actions and how mail is shown safely.
 
 | Crate | What it does |
 | --- | --- |

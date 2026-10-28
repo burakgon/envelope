@@ -57,6 +57,8 @@ Please make sure all of these pass before opening a pull request. New protocol c
 
 ## Project layout
 
+For how the pieces fit together, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first.
+
 - `crates/` — the Rust libraries (protocol clients and the sync engine). Each crate is usable on its own and has its own docs.
 - `src-tauri/` — the desktop shell: Tauri commands, events and the `att://` protocol.
 - `src/` — the Svelte 5 + TypeScript interface. `src/lib/api` is the typed boundary to the backend (`tauri.ts`) and the demo (`mock.ts`); `src/lib/stores` hold app state; `src/lib/components` the UI.
