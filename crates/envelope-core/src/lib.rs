@@ -12,6 +12,7 @@ pub mod contacts;
 pub mod db;
 pub mod engine;
 pub mod error;
+pub mod files;
 pub mod mail_api;
 pub mod mime;
 pub mod model;

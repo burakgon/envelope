@@ -502,6 +502,62 @@ pub async fn attachment_reveal(app: AppHandle, state: State<'_, AppState>, id: i
         .map_err(|e| CmdError::from(e.to_string()))
 }
 
+// ----- opened files ----------------------------------------------------------------
+
+#[tauri::command]
+pub async fn file_open(
+    state: State<'_, AppState>,
+    path: String,
+) -> R<envelope_core::files::OpenedFile> {
+    Ok(state.engine.open_file(std::path::Path::new(&path)).await?)
+}
+
+#[tauri::command]
+pub async fn file_import_events(
+    state: State<'_, AppState>,
+    path: String,
+    calendar_id: i64,
+    uids: Option<Vec<String>>,
+) -> R<envelope_core::files::ImportResult> {
+    Ok(state
+        .engine
+        .import_calendar_file(std::path::Path::new(&path), calendar_id, uids)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn file_part_open(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+    part_id: String,
+) -> R<()> {
+    let file = state
+        .engine
+        .file_part(std::path::Path::new(&path), &part_id)
+        .await?;
+    app.opener()
+        .open_path(file.to_string_lossy(), None::<&str>)
+        .map_err(|e| CmdError::from(e.to_string()))
+}
+
+#[tauri::command]
+pub async fn file_part_save(
+    state: State<'_, AppState>,
+    path: String,
+    part_id: String,
+    target: String,
+) -> R<()> {
+    let file = state
+        .engine
+        .file_part(std::path::Path::new(&path), &part_id)
+        .await?;
+    tokio::fs::copy(&file, &target)
+        .await
+        .map_err(|e| CmdError::from(format!("could not save: {e}")))?;
+    Ok(())
+}
+
 // ----- settings -------------------------------------------------------------------
 
 #[tauri::command]

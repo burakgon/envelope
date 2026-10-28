@@ -359,7 +359,17 @@ export function createMockApi(): Api {
       return () => listeners.delete(cb);
     },
     onMailto: () => () => {},
+    onOpenFile: () => () => {},
     onOpenThread: () => () => {},
+
+    files: {
+      open: async () => {
+        throw { message: 'Opening files needs the desktop app', kind: 'invalid' };
+      },
+      importEvents: async () => ({ added: 0, skipped: 0 }),
+      openPart: async () => {},
+      savePart: async () => {},
+    },
 
     contacts: {
       books: async () => structuredClone(people.books),

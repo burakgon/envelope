@@ -101,8 +101,15 @@ export function createTauriApi(): Api {
 
     onEvent: (cb) => subscribe<T.EngineEvent>('engine', cb),
     onMailto: (cb) => subscribe<string>('mailto', cb),
+    onOpenFile: (cb) => subscribe<string>('open-file', cb),
     onOpenThread: (cb) => subscribe<number | null>('open-thread', cb),
 
+    files: {
+      open: (path) => invoke('file_open', { path }),
+      importEvents: (path, calendarId, uids) => invoke('file_import_events', { path, calendarId, uids: uids ?? null }),
+      openPart: (path, partId) => invoke('file_part_open', { path, partId }),
+      savePart: (path, partId, target) => invoke('file_part_save', { path, partId, target }),
+    },
     contacts: {
       books: () => invoke('contact_books'),
       list: (query, bookId, offset, limit) => invoke('contacts_list', { query, bookId, offset, limit }),

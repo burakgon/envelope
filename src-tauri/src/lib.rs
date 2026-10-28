@@ -48,15 +48,36 @@ impl EventSink for TauriSink {
     }
 }
 
-/// Handles `mailto:` links and `--compose` passed on the command line.
-fn handle_args(app: &AppHandle, args: &[String]) {
+/// Handles `mailto:` links, `--compose` and message or calendar files passed
+/// on the command line.
+fn handle_args(app: &AppHandle, args: &[String], cwd: &std::path::Path) {
     for arg in args.iter().skip(1) {
         if arg.starts_with("mailto:") {
             let _ = app.emit("mailto", arg.clone());
         } else if arg == "--compose" {
             let _ = app.emit("mailto", "mailto:");
+        } else if let Some(path) = file_arg(arg, cwd) {
+            let _ = app.emit("open-file", path.to_string_lossy());
         }
     }
+}
+
+/// A file named on the command line, as a path or a `file:` URL.
+fn file_arg(arg: &str, cwd: &std::path::Path) -> Option<std::path::PathBuf> {
+    if arg.starts_with('-') {
+        return None;
+    }
+    let path = if arg.starts_with("file:") {
+        url::Url::parse(arg).ok()?.to_file_path().ok()?
+    } else {
+        std::path::PathBuf::from(arg)
+    };
+    let path = if path.is_absolute() {
+        path
+    } else {
+        cwd.join(path)
+    };
+    path.is_file().then_some(path)
 }
 
 pub(crate) fn show_main(app: &AppHandle) {
@@ -84,9 +105,9 @@ pub fn run() {
     }
 
     let result = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             show_main(app);
-            handle_args(app, &argv);
+            handle_args(app, &argv, std::path::Path::new(&cwd));
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
@@ -125,11 +146,12 @@ pub fn run() {
                 enable_spell_checking(&w);
             }
             let args: Vec<String> = std::env::args().collect();
+            let cwd = std::env::current_dir().unwrap_or_default();
             let pending = handle.clone();
             tauri::async_runtime::spawn(async move {
-                // Give the UI a moment to subscribe before delivering mailto links.
+                // Give the UI a moment to subscribe before delivering links and files.
                 tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-                handle_args(&pending, &args);
+                handle_args(&pending, &args, &cwd);
             });
             if let Err(e) = tray::create(app.handle()) {
                 tracing::warn!("could not create the tray icon: {e}");
@@ -191,6 +213,10 @@ pub fn run() {
             commands::attachment_open,
             commands::attachment_save,
             commands::attachment_reveal,
+            commands::file_open,
+            commands::file_import_events,
+            commands::file_part_open,
+            commands::file_part_save,
             commands::settings_get,
             commands::settings_set,
             commands::set_decorations,
@@ -272,4 +298,31 @@ fn spell_languages() -> Vec<String> {
     }
     push("en_US");
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn finds_files_named_on_the_command_line() {
+        let dir = std::env::temp_dir().join(format!("envelope-args-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("sub dir")).unwrap();
+        let file = dir.join("sub dir").join("invite.ics");
+        std::fs::write(&file, "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n").unwrap();
+
+        assert_eq!(file_arg("sub dir/invite.ics", &dir), Some(file.clone()));
+        assert_eq!(
+            file_arg(file.to_str().unwrap(), Path::new("/")),
+            Some(file.clone())
+        );
+        let url = url::Url::from_file_path(&file).unwrap().to_string();
+        assert!(url.contains("sub%20dir"), "{url}");
+        assert_eq!(file_arg(&url, Path::new("/")), Some(file.clone()));
+        assert_eq!(file_arg("--minimized", &dir), None);
+        assert_eq!(file_arg("missing.eml", &dir), None);
+        assert_eq!(file_arg("sub dir", &dir), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

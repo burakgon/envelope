@@ -586,6 +586,43 @@ export interface ExtractedEvent {
   confidence: number;
 }
 
+/** A saved message (.eml) opened from a file. Inline pictures are `data:` URLs. */
+export interface FileMessage {
+  path: string;
+  subject: string;
+  from: Address | null;
+  to: Address[];
+  cc: Address[];
+  replyTo: Address[];
+  date: number;
+  html: string | null;
+  text: string | null;
+  attachments: { partId: string; filename: string; mimeType: string; size: number }[];
+}
+
+export interface FileEvent {
+  uid: string;
+  summary: string;
+  start: number;
+  end: number;
+  allDay: boolean;
+  location: string | null;
+  recurring: boolean;
+  /** Already on one of the user's calendars. */
+  exists: boolean;
+}
+
+/** What a file opened with Envelope contains. */
+export type OpenedFile =
+  | ({ kind: 'message' } & FileMessage)
+  | { kind: 'calendar'; path: string; name: string | null; events: FileEvent[] };
+
+export interface ImportResult {
+  added: number;
+  /** Events that were already on a calendar. */
+  skipped: number;
+}
+
 export interface InviteInfo {
   method: string;
   uid: string;

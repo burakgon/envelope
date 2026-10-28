@@ -72,6 +72,8 @@ export interface Api {
 
   onEvent(cb: (e: T.EngineEvent) => void): () => void;
   onMailto(cb: (url: string) => void): () => void;
+  /** A message or calendar file was opened with Envelope. */
+  onOpenFile(cb: (path: string) => void): () => void;
   onOpenThread(cb: (threadId: number | null) => void): () => void;
 
   calendar: {
@@ -87,6 +89,15 @@ export interface Api {
     respond(eventId: number, status: T.PartStat, comment?: string | null): Promise<void>;
     invite(messageId: number): Promise<T.InviteInfo>;
     respondInvite(messageId: number, status: T.PartStat, comment?: string | null): Promise<void>;
+  };
+
+  /** Saved messages (.eml) and calendar files (.ics) opened from outside. */
+  files: {
+    open(path: string): Promise<T.OpenedFile>;
+    /** Adds the file's events (or only `uids`) to a calendar, skipping ones already there. */
+    importEvents(path: string, calendarId: number, uids?: string[] | null): Promise<T.ImportResult>;
+    openPart(path: string, partId: string): Promise<void>;
+    savePart(path: string, partId: string, target: string): Promise<void>;
   };
 
   contacts: {
