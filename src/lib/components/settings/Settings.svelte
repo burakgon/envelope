@@ -6,11 +6,13 @@
   import { ui } from '../../stores/ui.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import AiSettings from './AiSettings.svelte';
+  import AutoReplyDialog from './AutoReplyDialog.svelte';
+  import { autoReplies } from '../../stores/autoReplies.svelte';
   import RulesSettings from './RulesSettings.svelte';
   import Toggle from './Toggle.svelte';
   import Logo from '../Logo.svelte';
   import {
-    Bell, Calendar, FileText, Filter, Info, Keyboard, Mail, Palette, Pen, Settings as Gear, ShieldCheck, Sparkles, Users, X, Plus, Trash, Moon, Sun, Lock, ExternalLink, Code,
+    Away, Bell, Calendar, FileText, Filter, Info, Keyboard, Mail, Palette, Pen, Settings as Gear, ShieldCheck, Sparkles, Users, X, Plus, Trash, Moon, Sun, Lock, ExternalLink, Code,
   } from '../../icons';
   import { cal } from '../../stores/calendar.svelte';
   import type { Template } from '../../stores/ui.svelte';
@@ -56,6 +58,7 @@
   let editing = $state<Identity | null>(null);
 
   let autostart = $state(false);
+  let autoReplyFor = $state<Account | null>(null);
 
   onMount(async () => {
     if (!cal.calendars.length) cal.loadCalendars();
@@ -361,9 +364,10 @@
               <input type="color" class="color" value={a.color} onchange={(e) => saveAccount(a, { color: (e.currentTarget as HTMLInputElement).value })} title="Account color" />
               <div class="acct-info">
                 <input class="name-input" value={a.label ?? ''} placeholder={a.email} onchange={(e) => saveAccount(a, { label: (e.currentTarget as HTMLInputElement).value })} />
-                <span class="acct-sub" title={a.config.exchange?.ewsUrl ?? undefined}>{a.email} · {accountKindLabel(a)} {a.sync.state === 'authError' ? '· sign-in needed' : ''}</span>
+                <span class="acct-sub" title={a.config.exchange?.ewsUrl ?? undefined}>{a.email} · {accountKindLabel(a)} {a.sync.state === 'authError' ? '· sign-in needed' : ''}{autoReplies.on[a.id] ? ' · automatic replies on' : ''}</span>
               </div>
               <Toggle checked={a.enabled} onchange={(v) => saveAccount(a, { enabled: v })} />
+              <button class="icon-btn" class:active={autoReplies.on[a.id]} title="Automatic replies" aria-label="Automatic replies" onclick={() => (autoReplyFor = a)}><Away size={16} /></button>
               <button class="btn sm" onclick={() => reauth(a)}><Lock size={13} />Sign in again</button>
               <button class="icon-btn" title="Remove account" onclick={() => removeAccount(a)}><Trash size={16} /></button>
             </div>
@@ -500,6 +504,10 @@
     </section>
   </div>
 </div>
+
+{#if autoReplyFor}
+  <AutoReplyDialog account={autoReplyFor} onclose={() => (autoReplyFor = null)} />
+{/if}
 
 <style>
   .rich {

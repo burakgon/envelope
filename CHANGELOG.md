@@ -4,6 +4,9 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+- Automatic replies (out of office) for Microsoft 365, Exchange, Gmail and IMAP servers that offer ManageSieve: a message, an optional subject and first and last day, and who gets it. A banner in the sidebar shows while they are on.
+
 ## [0.1.1] — 2026-10-29
 
 ### Added

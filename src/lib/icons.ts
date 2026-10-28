@@ -9,6 +9,7 @@ export { default as Compose } from '@lucide/svelte/icons/square-pen';
 export { default as Pen } from '@lucide/svelte/icons/pen-line';
 export { default as Reply } from '@lucide/svelte/icons/reply';
 export { default as ReplyAll } from '@lucide/svelte/icons/reply-all';
+export { default as Away } from '@lucide/svelte/icons/plane';
 export { default as Forward } from '@lucide/svelte/icons/forward';
 export { default as Paperclip } from '@lucide/svelte/icons/paperclip';
 export { default as Search } from '@lucide/svelte/icons/search';

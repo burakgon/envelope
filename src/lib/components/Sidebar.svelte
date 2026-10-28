@@ -11,6 +11,7 @@
   import Logo from './Logo.svelte';
   import OutboxMenu from './OutboxMenu.svelte';
   import DemoBanner from './DemoBanner.svelte';
+  import AutoReplyBanner from './AutoReplyBanner.svelte';
   import { api } from '../api';
   import CalendarSidebar from './calendar/CalendarSidebar.svelte';
   import { cal } from '../stores/calendar.svelte';
@@ -322,6 +323,7 @@
   </nav>
   {/if}
 
+  <AutoReplyBanner />
   {#if api.isDemo}<DemoBanner />{/if}
   <footer>
     <button class="item" onclick={() => ui.open('settings')}>

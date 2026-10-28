@@ -65,6 +65,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - **Snooze**, star, archive, report spam, bulk actions and **undo** for everything.
 - **Follow-up reminders**: get nudged when nobody replied to a message you sent.
 - **Rules** that file, label, mark or silence new mail as it arrives — for every kind of account.
+- **Automatic replies** (out of office) for Microsoft 365, Exchange, Gmail and IMAP servers with Sieve, with optional dates and a reminder while they are on.
 - **Safe HTML rendering** in a sandboxed frame with remote content blocking, tracking-pixel removal, dark-mode adaptation for plain emails and `cid:` inline images.
 - **Offline-first**: read, search, triage and write without a connection; changes sync when you're back.
 - **Push mail** via IMAP IDLE, CONDSTORE/QRESYNC for fast resyncs, Gmail extensions (labels, thread ids, `X-GM-RAW` search) when talking to Gmail.

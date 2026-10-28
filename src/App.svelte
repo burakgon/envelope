@@ -7,6 +7,7 @@
   import { ui } from './lib/stores/ui.svelte';
   import { ai } from './lib/stores/ai.svelte';
   import { cal } from './lib/stores/calendar.svelte';
+  import { autoReplies } from './lib/stores/autoReplies.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import ThreadList from './lib/components/ThreadList.svelte';
   import Reader from './lib/components/Reader.svelte';
@@ -49,6 +50,8 @@
       await ai.load();
       booted = true;
       cal.init();
+      // Whether any account is sending automatic replies; not urgent.
+      setTimeout(() => autoReplies.refresh(mail.accounts), 4000);
       if (mail.accounts.length === 0) ui.open('onboarding');
       // Not an animation frame: the window is still hidden, and hidden views
       // get none, so the window would never be shown.
