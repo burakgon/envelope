@@ -9,7 +9,7 @@ default_internal_user = @USER@
 default_internal_group = @GROUP@
 default_login_user = @USER@
 
-protocols = imap sieve
+protocols = imap @SIEVE_PROTOCOL@
 listen = 127.0.0.1
 
 ssl = yes
@@ -76,7 +76,8 @@ service anvil {
   chroot =
 }
 
-# ManageSieve, for automatic replies.
+# ManageSieve, for automatic replies (left out without Pigeonhole).
+#SIEVE_BEGIN
 service managesieve-login {
   chroot =
   inet_listener sieve {
@@ -89,3 +90,4 @@ sieve_script personal {
   path = ~/sieve
   active_path = ~/.dovecot.sieve
 }
+#SIEVE_END

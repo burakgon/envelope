@@ -29,7 +29,16 @@ for user in alex@envelope.test sam@envelope.test; do
   echo "$user:{PLAIN}password:$(id -u):$(id -g)::$ROOT/home/$user::" >> "$ROOT/users"
 done
 
-sed -e "s|@ROOT@|$ROOT|g" -e "s|@USER@|$(id -un)|g" -e "s|@GROUP@|$(id -gn)|g" \
+# ManageSieve needs Pigeonhole (the dovecot-managesieved / pigeonhole package).
+SIEVE_PROTOCOL=sieve
+DROP_SIEVE=()
+if [ ! -e /usr/lib/dovecot/managesieve ] && [ ! -e /usr/libexec/dovecot/managesieve ]; then
+  SIEVE_PROTOCOL=
+  DROP_SIEVE=(-e '/#SIEVE_BEGIN/,/#SIEVE_END/d')
+  echo "devserver: Pigeonhole not found, running without ManageSieve" >&2
+fi
+
+sed "${DROP_SIEVE[@]}" -e "s|@SIEVE_PROTOCOL@|$SIEVE_PROTOCOL|g" -e "s|@ROOT@|$ROOT|g" -e "s|@USER@|$(id -un)|g" -e "s|@GROUP@|$(id -gn)|g" \
     -e "s|@IMAP_PORT@|$IMAP_PORT|g" -e "s|@IMAPS_PORT@|$IMAPS_PORT|g" -e "s|@SIEVE_PORT@|$SIEVE_PORT|g" \
     "$HERE/dovecot.conf.in" > "$ROOT/dovecot.conf"
 
