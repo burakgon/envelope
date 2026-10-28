@@ -65,8 +65,31 @@ export function mockAiRun(task: T.AiTask, onEvent?: (e: T.AiEvent) => void): T.A
       return stream(`[${task.language}] ${task.text.replace(/<[^>]+>/g, ' ').trim()}`, onEvent);
     case 'searchQuery':
       return stream(task.question.toLowerCase().includes('attachment') ? 'has:attachment' : task.question, (e) => e.type === 'done' && onEvent?.(e));
-    case 'extractEvents':
-      return stream('[]', (e) => e.type === 'done' && onEvent?.(e));
+    case 'extractEvents': {
+      const m = data.messages.find((x) => x.id === task.messageId);
+      const t = data.threads.find((x) => x.id === m?.threadId);
+      const at = (days: number, h: number, min = 0) => {
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        d.setHours(h, min, 0, 0);
+        return d.toISOString();
+      };
+      const subject = `${t?.subject ?? ''} ${m?.subject ?? ''}`;
+      const events: T.ExtractedEvent[] = [];
+      if (/roadmap/i.test(subject))
+        events.push({ title: 'Q4 roadmap final review', start: at(1, 10), end: at(1, 10, 45), all_day: false, location: null, description: 'Final pass on the Q4 roadmap before sharing it with the team.', confidence: 0.92 });
+      if (/berlin|trip|flight/i.test(subject)) {
+        events.push({ title: 'Flight TK1723 IST → BER', start: at(16, 9, 40), end: at(16, 11, 55), all_day: false, location: 'Istanbul Airport (IST)', description: 'Seat 12A · Booking SKY7Q2', confidence: 0.95 });
+        events.push({ title: 'Flight TK1724 BER → IST', start: at(19, 18, 20), end: at(19, 22, 35), all_day: false, location: 'Berlin Brandenburg (BER)', description: 'Booking SKY7Q2', confidence: 0.95 });
+      }
+      const day = (days: number) => {
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      };
+      if (/offsite/i.test(subject)) events.push({ title: 'Team offsite — Cappadocia', start: day(24), end: day(26), all_day: true, location: 'Göreme, Cappadocia', description: null, confidence: 0.85 });
+      return stream(JSON.stringify(events), (e) => e.type === 'done' && onEvent?.(e));
+    }
     case 'ask': {
       const q = task.question.toLowerCase();
       const words = q.split(/\W+/).filter((w) => w.length > 3);

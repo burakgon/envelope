@@ -20,6 +20,8 @@
   import Onboarding from './lib/components/Onboarding.svelte';
   import AskAi from './lib/components/AskAi.svelte';
   import CalendarView from './lib/components/calendar/CalendarView.svelte';
+  import EventEditor from './lib/components/calendar/EventEditor.svelte';
+  import ScopeDialog from './lib/components/calendar/ScopeDialog.svelte';
 
   let booted = $state(false);
   let kbMenu = $state<{ kind: 'snooze' | 'move' | 'label'; ids: number[] } | null>(null);
@@ -44,6 +46,7 @@
       await mail.init();
       await ai.load();
       booted = true;
+      cal.init();
       if (mail.accounts.length === 0) ui.open('onboarding');
       requestAnimationFrame(() => api.ready());
     })().catch((e) => {
@@ -94,6 +97,7 @@
       return;
     }
     if (typing || e.defaultPrevented) return;
+    if (cal.editor || cal.scopeAsk) return;
     if (ui.overlay) {
       if (key === 'Escape') ui.close();
       return;
@@ -269,6 +273,8 @@
 {#if ui.overlay === 'settings'}<Settings />{/if}
 {#if ui.overlay === 'onboarding' || ui.overlay === 'addAccount'}<Onboarding first={ui.overlay === 'onboarding'} />{/if}
 {#if ui.overlay === 'ask'}<AskAi />{/if}
+{#if cal.editor}<EventEditor />{/if}
+{#if cal.scopeAsk}<ScopeDialog />{/if}
 
 {#if kbMenu}
   {@const ids = kbMenu.ids}

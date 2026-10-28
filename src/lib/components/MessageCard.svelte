@@ -13,8 +13,11 @@
   import InviteCard from './InviteCard.svelte';
   import ImageViewer from './ImageViewer.svelte';
   import { printMessage } from '../utils/print';
+  import { ai } from '../stores/ai.svelte';
+  import { cal } from '../stores/calendar.svelte';
+  import type { ExtractedEvent } from '../api';
   import { fileIconKind } from '../utils/format';
-  import { Code, Eye, Forward, Image, Mail, More, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
+  import { CalendarPlus, Code, Eye, Forward, Image, Mail, More, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
 
   let { message, expanded, ontoggle }: { message: MessageView; expanded: boolean; ontoggle: () => void } = $props();
 
@@ -24,6 +27,31 @@
   let showRecipients = $state(false);
   let source = $state<string | null>(null);
   let viewing = $state<number | null>(null);
+  let found = $state<{ x: number; y: number; events: ExtractedEvent[] } | null>(null);
+
+  /** Asks the AI for events in this message and opens the event editor with them. */
+  async function addToCalendar() {
+    const at = menu ?? { x: innerWidth / 2, y: innerHeight / 3 };
+    menu = null;
+    const progress = toasts.show('Looking for events…', { kind: 'progress', duration: 0 });
+    try {
+      const text = await api.ai.run({ kind: 'extractEvents', messageId: message.id }).promise;
+      const events: ExtractedEvent[] = JSON.parse(text);
+      toasts.dismiss(progress);
+      if (!events.length) toasts.show('No dates or events found in this message');
+      else if (events.length === 1) cal.fromExtracted(events[0]);
+      else found = { x: at.x, y: at.y, events };
+    } catch (e) {
+      toasts.dismiss(progress);
+      toasts.error(errorMessage(e));
+    }
+  }
+
+  function foundWhen(e: ExtractedEvent): string {
+    const d = new Date(e.all_day ? `${e.start.slice(0, 10)}T00:00:00` : e.start);
+    const day = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    return e.all_day ? day : `${day}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+  }
 
   const sender = $derived(message.from);
   const fromMe = $derived(!!sender && mail.meEmails.has(sender.email.toLowerCase()));
@@ -157,6 +185,18 @@
   </article>
 {/if}
 
+{#if found}
+  <Popover x={found.x} y={found.y} align="end" onclose={() => (found = null)} width={300}>
+    <div class="menu-label">Add to calendar</div>
+    {#each found.events as e, i (i)}
+      <button class="menu-item found" onclick={() => { found = null; cal.fromExtracted(e); }}>
+        <CalendarPlus size={15} />
+        <span class="found-txt"><b class="truncate">{e.title}</b><span>{foundWhen(e)}{e.location ? ` · ${e.location}` : ''}</span></span>
+      </button>
+    {/each}
+  </Popover>
+{/if}
+
 {#if viewing != null && viewing >= 0}
   <ImageViewer items={images} start={viewing} onclose={() => (viewing = null)} />
 {/if}
@@ -172,6 +212,9 @@
     </button>
     <button class="menu-item" onclick={() => { menu = null; allowRemote = true; }}><Eye size={15} />Load remote content</button>
     <button class="menu-item" onclick={() => { menu = null; navigator.clipboard.writeText(sender?.email ?? ''); toasts.show('Address copied'); }}><Copy size={15} />Copy sender address</button>
+    {#if ai.ready}
+      <button class="menu-item" onclick={addToCalendar}><CalendarPlus size={15} />Add to calendar</button>
+    {/if}
     <button class="menu-item" onclick={() => { menu = null; printMessage(message, remote); }}><Printer size={15} />Print…</button>
     <button class="menu-item" onclick={viewSource}><Code size={15} />View source</button>
   </Popover>
@@ -187,6 +230,26 @@
 {/if}
 
 <style>
+  .found {
+    height: auto;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    align-items: flex-start;
+  }
+  .found :global(svg) {
+    margin-top: 2px;
+  }
+  .found-txt {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+  }
+  .found-txt span {
+    font-size: var(--text-sm);
+    color: var(--text-3);
+  }
   .collapsed {
     display: flex;
     align-items: center;

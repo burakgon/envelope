@@ -9,8 +9,6 @@
   import MonthGrid from './MonthGrid.svelte';
   import Agenda from './Agenda.svelte';
   import EventPopover from './EventPopover.svelte';
-  import EventEditor from './EventEditor.svelte';
-  import ScopeDialog from './ScopeDialog.svelte';
   import { ChevronLeft, ChevronRight, PanelLeft, Plus, Spinner } from '../../icons';
 
   let popover = $state.raw<{ key: string; rect: DOMRect } | null>(null);
@@ -90,8 +88,6 @@
     <EventPopover occurrence={popOcc} rect={popover.rect} onclose={() => (popover = null)} />
   {/key}
 {/if}
-{#if cal.editor}<EventEditor />{/if}
-{#if cal.scopeAsk}<ScopeDialog />{/if}
 
 <style>
   .calendar {

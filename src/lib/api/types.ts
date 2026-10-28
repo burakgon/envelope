@@ -487,6 +487,19 @@ export interface EventInput {
   addConference?: boolean;
 }
 
+/** An event found in a message by the AI (`extractEvents`). */
+export interface ExtractedEvent {
+  title: string;
+  /** `YYYY-MM-DD` for all-day events, otherwise an ISO date-time (with offset, or local). */
+  start: string;
+  /** For all-day events, the last day (inclusive). */
+  end: string | null;
+  all_day: boolean;
+  location: string | null;
+  description: string | null;
+  confidence: number;
+}
+
 export interface InviteInfo {
   method: string;
   uid: string;

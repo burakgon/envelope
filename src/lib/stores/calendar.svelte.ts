@@ -1,5 +1,5 @@
 import { api } from '../api';
-import type { CalendarInfo, EditScope, EventInput, Occurrence } from '../api';
+import type { CalendarInfo, EditScope, EventInput, ExtractedEvent, Occurrence } from '../api';
 import { errorMessage, toasts } from './toasts.svelte';
 import { ui } from './ui.svelte';
 
@@ -177,7 +177,8 @@ class Cal {
   }
 
   /** Opens the editor for a new event. */
-  newEvent(start?: number, end?: number, allDay = false) {
+  async newEvent(start?: number, end?: number, allDay = false) {
+    if (!this.calendars.length) await this.loadCalendars();
     const cal = this.defaultCalendar();
     if (!cal) {
       toasts.error('There is no calendar you can add events to.');
@@ -203,6 +204,56 @@ class Cal {
         end: e,
         startDate: allDay ? ymd(new Date(s)) : null,
         endDate: allDay ? ymd(new Date(e)) : null,
+        rrule: null,
+        attendees: [],
+        alarms: ui.settings.defaultAlarm >= 0 ? [ui.settings.defaultAlarm] : [],
+        transparent: false,
+        addConference: false,
+      },
+    };
+  }
+
+  /** Opens the editor prefilled with an event the AI found in a message. */
+  async fromExtracted(e: ExtractedEvent) {
+    if (!this.calendars.length) await this.loadCalendars();
+    const c = this.defaultCalendar();
+    if (!c) {
+      toasts.error('There is no calendar you can add events to.');
+      return;
+    }
+    let start: number;
+    let end: number;
+    let startDate: string | null = null;
+    let endDate: string | null = null;
+    if (e.all_day) {
+      startDate = e.start.slice(0, 10);
+      const last = (e.end ?? e.start).slice(0, 10);
+      endDate = ymd(addDays(new Date(`${last < startDate ? startDate : last}T00:00:00`), 1));
+      start = new Date(`${startDate}T00:00:00`).getTime();
+      end = new Date(`${endDate}T00:00:00`).getTime();
+    } else {
+      start = new Date(e.start).getTime();
+      end = e.end ? new Date(e.end).getTime() : NaN;
+      if (!(end > start)) end = start + ui.settings.defaultEventMinutes * 60_000;
+    }
+    if (Number.isNaN(start)) {
+      toasts.error('The event has a date I could not read.');
+      return;
+    }
+    this.editor = {
+      eventId: null,
+      recurrenceId: null,
+      isRecurring: false,
+      input: {
+        calendarId: c.id,
+        summary: e.title,
+        description: e.description ?? '',
+        location: e.location ?? '',
+        allDay: e.all_day,
+        start,
+        end,
+        startDate,
+        endDate,
         rrule: null,
         attendees: [],
         alarms: ui.settings.defaultAlarm >= 0 ? [ui.settings.defaultAlarm] : [],
