@@ -30,9 +30,21 @@ impl From<envelope_core::Error> for CmdError {
             _ => "error",
         };
         CmdError {
-            message: e.to_string(),
+            message: user_message(&e),
             kind,
         }
+    }
+}
+
+/// The error as shown to people: sentences written for them as they are,
+/// short technical details with a readable label.
+fn user_message(e: &envelope_core::Error) -> String {
+    use envelope_core::Error as E;
+    match e {
+        E::NotFound(m) | E::Network(m) if m.ends_with('.') && m.contains(' ') => m.clone(),
+        E::NotFound(m) => format!("Not found: {m}"),
+        E::Network(m) => format!("Network error: {m}"),
+        other => other.to_string(),
     }
 }
 
@@ -80,6 +92,32 @@ pub async fn discover(email: String) -> R<Discovery> {
 #[tauri::command]
 pub async fn account_add_password(state: State<'_, AppState>, input: NewAccount) -> R<Account> {
     Ok(state.engine.add_password_account(input).await?)
+}
+
+/// Adds an on-premises Exchange account (Autodiscover when `ews_url` is
+/// empty).
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn account_add_exchange(
+    state: State<'_, AppState>,
+    email: String,
+    name: String,
+    password: String,
+    ews_url: Option<String>,
+    username: Option<String>,
+    accept_invalid_certs: Option<bool>,
+    auth: Option<ExchangeAuth>,
+) -> R<Account> {
+    let input = NewExchangeAccount {
+        email,
+        name,
+        password,
+        ews_url,
+        username,
+        accept_invalid_certs: accept_invalid_certs.unwrap_or(false),
+        auth: auth.unwrap_or_default(),
+    };
+    Ok(state.engine.add_exchange_account(input).await?)
 }
 
 #[tauri::command]

@@ -108,6 +108,10 @@ async fn deliver(engine: &Engine, row: &OutboxRow) -> Result<()> {
         AccountKind::Microsoft => {
             crate::sync::graph::send(engine, account.id, &row.mime, &row.meta.recipients).await
         }
+        // `SendAndSaveCopy` files the sent copy in Sent Items.
+        AccountKind::Exchange => {
+            crate::sync::ews::send(engine, &account, &row.mime, &row.meta.recipients).await
+        }
     }
 }
 

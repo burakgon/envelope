@@ -360,7 +360,7 @@ fn folder_upserts(tree: &[MailFolder], categories: &[OutlookCategory]) -> Vec<Fo
 
 /// A label folder for an Outlook category. Categories are applied rather than
 /// moved into, so they are not offered as move targets.
-fn category_upsert(name: &str, color: Option<String>) -> FolderUpsert {
+pub(crate) fn category_upsert(name: &str, color: Option<String>) -> FolderUpsert {
     FolderUpsert {
         remote_id: format!("{CATEGORY_PREFIX}{name}"),
         name: name.to_string(),
@@ -383,7 +383,7 @@ pub(crate) fn category_name(folder: &FolderRow) -> Option<&str> {
 /// Graph takes the recipients of a MIME submission from its headers, but Bcc
 /// recipients only exist in our envelope: name them in a `Bcc:` header,
 /// which Exchange delivers to and strips before delivery.
-fn with_bcc_header<'a>(mime: &'a [u8], recipients: &[String]) -> Cow<'a, [u8]> {
+pub(crate) fn with_bcc_header<'a>(mime: &'a [u8], recipients: &[String]) -> Cow<'a, [u8]> {
     let end = header_end(mime);
     let meta = mime::meta_from_headers(&mime[..end]);
     let listed: HashSet<String> = meta
@@ -1523,7 +1523,7 @@ impl Session {
 // Bodies, attachments and sending (shared by the worker and user actions)
 
 /// Where the MIME source of a message is cached for attachment downloads.
-fn source_path(engine: &Engine, account_id: i64, message_id: i64) -> PathBuf {
+pub(crate) fn source_path(engine: &Engine, account_id: i64, message_id: i64) -> PathBuf {
     engine
         .paths
         .cache
@@ -1534,7 +1534,7 @@ fn source_path(engine: &Engine, account_id: i64, message_id: i64) -> PathBuf {
 
 /// Serializes downloads of the same message source (a message with several
 /// inline images asks for all of them at once).
-fn source_lock(path: &Path) -> Arc<tokio::sync::Mutex<()>> {
+pub(crate) fn source_lock(path: &Path) -> Arc<tokio::sync::Mutex<()>> {
     type Locks = parking_lot::Mutex<HashMap<PathBuf, Weak<tokio::sync::Mutex<()>>>>;
     static LOCKS: OnceLock<Locks> = OnceLock::new();
     let mut locks = LOCKS.get_or_init(Default::default).lock();
@@ -1547,7 +1547,7 @@ fn source_lock(path: &Path) -> Arc<tokio::sync::Mutex<()>> {
     lock
 }
 
-async fn save_source(path: &Path, raw: &[u8]) {
+pub(crate) async fn save_source(path: &Path, raw: &[u8]) {
     let Some(dir) = path.parent() else { return };
     let tmp = dir.join(format!(".{}.part", uuid::Uuid::new_v4().simple()));
     let result = async {

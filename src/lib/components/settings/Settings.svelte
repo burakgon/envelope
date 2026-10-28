@@ -73,6 +73,21 @@
     }
   }
 
+  /** Provider (and, for Exchange, the server) shown under an account. */
+  function accountKindLabel(a: Account): string {
+    if (a.kind === 'exchange') {
+      const url = a.config.exchange?.ewsUrl ?? '';
+      let host = '';
+      try {
+        host = url ? new URL(url).host : '';
+      } catch {
+        host = url;
+      }
+      return host ? `Exchange · ${host}` : 'Exchange';
+    }
+    return a.provider === 'generic' ? 'IMAP' : a.provider;
+  }
+
   async function removeAccount(a: Account) {
     if (!confirm(`Remove ${a.email}? Local copies of its mail will be deleted. Nothing is deleted on the server.`)) return;
     try {
@@ -320,7 +335,7 @@
               <input type="color" class="color" value={a.color} onchange={(e) => saveAccount(a, { color: (e.currentTarget as HTMLInputElement).value })} title="Account color" />
               <div class="acct-info">
                 <input class="name-input" value={a.label ?? ''} placeholder={a.email} onchange={(e) => saveAccount(a, { label: (e.currentTarget as HTMLInputElement).value })} />
-                <span class="acct-sub">{a.email} · {a.provider === 'generic' ? 'IMAP' : a.provider} {a.sync.state === 'authError' ? '· sign-in needed' : ''}</span>
+                <span class="acct-sub" title={a.config.exchange?.ewsUrl ?? undefined}>{a.email} · {accountKindLabel(a)} {a.sync.state === 'authError' ? '· sign-in needed' : ''}</span>
               </div>
               <Toggle checked={a.enabled} onchange={(v) => saveAccount(a, { enabled: v })} />
               <button class="btn sm" onclick={() => reauth(a)}><Lock size={13} />Sign in again</button>

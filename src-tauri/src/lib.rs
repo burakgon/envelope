@@ -141,6 +141,7 @@ pub fn run() {
             commands::accounts,
             commands::discover,
             commands::account_add_password,
+            commands::account_add_exchange,
             commands::account_add_oauth,
             commands::account_update,
             commands::account_remove,

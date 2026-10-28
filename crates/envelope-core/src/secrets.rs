@@ -92,6 +92,13 @@ impl Secrets {
         Ok(value)
     }
 
+    /// Puts a secret into the in-memory cache only, keeping tests away from
+    /// the desktop keyring.
+    #[cfg(test)]
+    pub(crate) fn preload(&self, key: &str, value: &str) {
+        self.cache.lock().insert(key.to_string(), value.to_string());
+    }
+
     pub async fn set(&self, key: &str, value: &str) -> Result<()> {
         match self.keyring().await {
             Some(k) => {

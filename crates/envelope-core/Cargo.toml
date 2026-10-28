@@ -18,6 +18,7 @@ chrono-tz = "0.10.4"
 dirs = "7.0.0"
 envelope-ai = { version = "0.1.0", path = "../envelope-ai" }
 envelope-dav = { version = "0.1.0", path = "../envelope-dav" }
+envelope-ews = { version = "0.1.0", path = "../envelope-ews" }
 envelope-google = { version = "0.1.0", path = "../envelope-google" }
 envelope-graph = { version = "0.1.0", path = "../envelope-graph" }
 envelope-ical = { version = "0.1.0", path = "../envelope-ical" }

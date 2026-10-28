@@ -29,6 +29,16 @@ export function createTauriApi(): Api {
     accounts: () => invoke('accounts'),
     discover: (email) => invoke('discover', { email }),
     addPasswordAccount: (input) => invoke('account_add_password', { input }),
+    addExchangeAccount: (input) =>
+      invoke('account_add_exchange', {
+        email: input.email,
+        name: input.name,
+        password: input.password,
+        ewsUrl: input.ewsUrl || null,
+        username: input.username || null,
+        acceptInvalidCerts: input.acceptInvalidCerts ?? false,
+        auth: input.auth ?? null,
+      }),
     addOAuthAccount: (provider, loginHint) => invoke('account_add_oauth', { provider, loginHint: loginHint ?? null }),
     updateAccount: (id, patch) => invoke('account_update', { id, patch }),
     removeAccount: (id) => invoke('account_remove', { id }),

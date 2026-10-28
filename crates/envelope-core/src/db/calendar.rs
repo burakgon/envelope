@@ -328,6 +328,13 @@ pub fn clear_calendar(tx: &Transaction<'_>, calendar_id: i64) -> Result<()> {
     Ok(())
 }
 
+/// Whether calendars of this kind store concrete occurrences (Microsoft
+/// Graph and Exchange calendar views) instead of series masters plus
+/// overrides: their rows with a recurrence id stand on their own.
+pub fn stores_instances(kind: &str) -> bool {
+    matches!(kind, "graph" | "ews")
+}
+
 /// Candidate rows for a time range: concrete events overlapping it, recurring
 /// masters that may produce occurrences in it, and their overrides.
 pub fn range_rows(c: &Connection, from: i64, to: i64) -> Result<Vec<EventRow>> {
@@ -335,9 +342,9 @@ pub fn range_rows(c: &Connection, from: i64, to: i64) -> Result<Vec<EventRow>> {
         "SELECT e.* FROM events e JOIN calendars c ON c.id = e.calendar_id
          LEFT JOIN accounts a ON a.id = c.account_id
          WHERE c.visible = 1 AND (c.account_id IS NULL OR a.enabled = 1) AND e.local_state != 3 AND (
-           (e.is_recurring = 0 AND (e.recurrence_id IS NULL OR c.kind = 'graph') AND e.start_ts < ?2 AND e.end_ts > ?1)
+           (e.is_recurring = 0 AND (e.recurrence_id IS NULL OR c.kind IN ('graph', 'ews')) AND e.start_ts < ?2 AND e.end_ts > ?1)
            OR (e.is_recurring = 1 AND e.start_ts < ?2 AND (e.until_ts IS NULL OR e.until_ts > ?1))
-           OR (e.recurrence_id IS NOT NULL AND c.kind != 'graph' AND EXISTS (
+           OR (e.recurrence_id IS NOT NULL AND c.kind NOT IN ('graph', 'ews') AND EXISTS (
                 SELECT 1 FROM events m WHERE m.calendar_id = e.calendar_id AND m.uid = e.uid AND m.is_recurring = 1
                   AND m.start_ts < ?2 AND (m.until_ts IS NULL OR m.until_ts > ?1)))
          )",

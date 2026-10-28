@@ -1,6 +1,6 @@
 // Types shared with the Rust engine (see crates/envelope-core/src/model.rs).
 
-export type AccountKind = 'imap' | 'gmail' | 'microsoft';
+export type AccountKind = 'imap' | 'gmail' | 'microsoft' | 'exchange';
 export type Security = 'tls' | 'startTls' | 'none';
 export type AuthMethod = 'password' | 'oAuthGoogle' | 'oAuthMicrosoft';
 
@@ -20,6 +20,32 @@ export interface AccountConfig {
   acceptInvalidCerts: boolean;
   saveSentCopy: boolean | null;
   bodySyncDays: number | null;
+  /** Exchange Web Services settings (Exchange accounts only). */
+  exchange?: ExchangeConfig | null;
+}
+
+/** How an Exchange account signs in: NTLM with a Basic fallback, or one of them. */
+export type ExchangeAuth = 'auto' | 'ntlm' | 'basic';
+
+export interface ExchangeConfig {
+  ewsUrl: string;
+  /** Login name (`DOMAIN\user` or a UPN); empty means the e-mail address. */
+  username: string;
+  auth: ExchangeAuth;
+  version: string | null;
+}
+
+/** Input for adding an on-premises Exchange account. */
+export interface NewExchangeAccount {
+  email: string;
+  name: string;
+  password: string;
+  /** EWS URL or server name; found automatically when empty. */
+  ewsUrl?: string | null;
+  /** `DOMAIN\user` or a UPN, when it is not the e-mail address. */
+  username?: string | null;
+  acceptInvalidCerts?: boolean;
+  auth?: ExchangeAuth;
 }
 
 export type SyncState =

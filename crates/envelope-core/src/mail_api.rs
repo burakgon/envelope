@@ -81,6 +81,9 @@ impl Engine {
                 AccountKind::Microsoft => {
                     crate::sync::graph::fetch_bodies(self, account_id, &ids).await?;
                 }
+                AccountKind::Exchange => {
+                    crate::sync::ews::fetch_bodies(self, &account, &ids).await?;
+                }
             }
             let threads: BTreeSet<i64> = self.db.read(|c| {
                 let mut set = BTreeSet::new();
@@ -426,8 +429,11 @@ impl Engine {
                         kind
                     }
                 };
-                // Graph messages are addressed by id in the folder holding them.
-                let by_id = kind == AccountKind::Microsoft && !l.is_label && l.remote_id.is_some();
+                // Graph and Exchange messages are addressed by id in the folder
+                // holding them.
+                let by_id = matches!(kind, AccountKind::Microsoft | AccountKind::Exchange)
+                    && !l.is_label
+                    && l.remote_id.is_some();
                 if l.uid.is_some() || by_id {
                     by_account.entry(account).or_default().push(OpItem {
                         message_id: l.message_id,
@@ -477,7 +483,9 @@ impl Engine {
         let folder = self.db.read(|c| mail::get_folder(c, folder_id))?;
         let account = self.account_row(folder.account_id)?;
         let category = match account.kind {
-            AccountKind::Microsoft => crate::sync::graph::category_name(&folder),
+            AccountKind::Microsoft | AccountKind::Exchange => {
+                crate::sync::graph::category_name(&folder)
+            }
             _ => None,
         };
         if account.kind != AccountKind::Gmail && category.is_none() {
@@ -849,6 +857,10 @@ impl Engine {
             )
             .await;
         }
+        if account.kind == AccountKind::Exchange {
+            return crate::sync::ews::attachment_data(self, &account, att.message_id, &att.part_id)
+                .await;
+        }
         let locations = self.db.read(|c| mail::locations(c, &[att.message_id]))?;
         let location = locations
             .into_iter()
@@ -892,8 +904,13 @@ impl Engine {
                 |r| r.get(0),
             )?)
         })?;
-        if self.account_row(account_id)?.kind == AccountKind::Microsoft {
+        let account = self.account_row(account_id)?;
+        if account.kind == AccountKind::Microsoft {
             let raw = crate::sync::graph::message_source(self, account_id, message_id).await?;
+            return Ok(String::from_utf8_lossy(&raw).into_owned());
+        }
+        if account.kind == AccountKind::Exchange {
+            let raw = crate::sync::ews::message_source(self, &account, message_id).await?;
             return Ok(String::from_utf8_lossy(&raw).into_owned());
         }
         let location = self

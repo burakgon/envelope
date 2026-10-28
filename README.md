@@ -6,7 +6,7 @@
 
 **A fast, beautiful mail and calendar client for Linux.**
 
-Gmail, Microsoft 365, Outlook.com, iCloud, Yahoo, Fastmail and any IMAP server — with a real calendar,<br>
+Gmail, Microsoft 365, Outlook.com, Exchange, iCloud, Yahoo, Fastmail and any IMAP server — with a real calendar,<br>
 instant offline search, a keyboard-first workflow and optional AI that runs on the provider *you* choose.
 
 [![CI](https://github.com/burakgon/envelope/actions/workflows/ci.yml/badge.svg)](https://github.com/burakgon/envelope/actions/workflows/ci.yml)
@@ -76,7 +76,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - Recurring events with editing scopes (*this event*, *this and following*, *all events*).
 - Guests, RSVP, Google Meet / Teams links and one-click **Join**, reminders, busy/free.
 - Invitations in mail (iTIP) become cards with **Yes / Maybe / No**, a conflict check against your calendar and replies sent to the organizer.
-- Two-way sync: **CalDAV** (iCloud, Fastmail, Nextcloud, Radicale, …), **Google Calendar** and **Microsoft 365 / Outlook.com**.
+- Two-way sync: **CalDAV** (iCloud, Fastmail, Nextcloud, Radicale, …), **Google Calendar**, **Microsoft 365 / Outlook.com** and **on-premises Exchange**.
 
 ### Contacts
 - Address books synced both ways with **CardDAV**, **Google Contacts** and **Microsoft 365**, plus a local address book.
@@ -112,13 +112,14 @@ Real servers add network latency to the sync, but everything you click on is ans
 | --- | --- | --- | --- |
 | Gmail / Google Workspace | IMAP + Gmail extensions | Google Calendar API | Google sign-in (OAuth) |
 | Microsoft 365 / Outlook.com / Hotmail | Microsoft Graph | Microsoft Graph | Microsoft sign-in (OAuth) |
+| Exchange 2013 – Subscription Edition (on-premises) | Exchange Web Services | Exchange Web Services | Windows password (NTLM or Basic) |
 | iCloud Mail | IMAP | CalDAV | App-specific password |
 | Yahoo Mail | IMAP | CalDAV | App password |
 | AOL | IMAP | — | App password |
 | Fastmail | IMAP | CalDAV | App password |
 | Any other provider | IMAP + SMTP (auto-detected) | CalDAV (optional) | Password |
 
-Server settings are detected automatically from your address (provider presets, the Thunderbird ISP database, autoconfig and DNS SRV records). Proton Mail works through Proton Mail Bridge.
+Server settings are detected automatically from your address (provider presets, the Thunderbird ISP database, autoconfig, Exchange Autodiscover and DNS SRV records). Proton Mail works through Proton Mail Bridge.
 
 ## Install
 
@@ -174,6 +175,7 @@ Envelope is a [Tauri 2](https://tauri.app) application: a Rust core and a Svelte
 | [`envelope-imap`](crates/envelope-imap) | Async IMAP client: TLS/STARTTLS, XOAUTH2, IDLE, CONDSTORE/QRESYNC, MOVE/UIDPLUS, Gmail extensions |
 | [`envelope-core`](crates/envelope-core) | The engine: SQLite storage (WAL, FTS5, zstd-compressed bodies), threading, sync workers, offline operation queue, outbox, OAuth, autodiscovery |
 | [`envelope-graph`](crates/envelope-graph) | Microsoft Graph client: mail, folders, delta queries, calendar, contacts, batching |
+| [`envelope-ews`](crates/envelope-ews) | Exchange Web Services client for on-premises Exchange: NTLM/Basic, Autodiscover, item sync, calendar, streaming notifications |
 | [`envelope-google`](crates/envelope-google) | Google Calendar and People API client |
 | [`envelope-dav`](crates/envelope-dav) | CalDAV / CardDAV client with discovery, sync-collection and multiget |
 | [`envelope-ical`](crates/envelope-ical) | iCalendar parsing and writing, recurrence expansion, time zones, iTIP |
@@ -194,7 +196,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the details.
 
 ## Roadmap
 
-- Exchange on-premises (EWS)
 - PGP / S/MIME
 - Flathub and AUR packages
 

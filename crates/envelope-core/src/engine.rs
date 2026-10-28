@@ -204,11 +204,12 @@ impl Engine {
 
     fn account_view(&self, row: AccountRow) -> Account {
         let has_calendar = match row.kind {
-            AccountKind::Gmail | AccountKind::Microsoft => true,
+            AccountKind::Gmail | AccountKind::Microsoft | AccountKind::Exchange => true,
             AccountKind::Imap => row.config.caldav_url.is_some(),
         };
         let has_contacts = match row.kind {
             AccountKind::Gmail | AccountKind::Microsoft => true,
+            AccountKind::Exchange => false,
             AccountKind::Imap => row.config.carddav_url.is_some(),
         };
         Account {
@@ -242,7 +243,7 @@ impl Engine {
         self.db.read(|c| mail::get_account(c, id))
     }
 
-    fn next_color(&self) -> Result<String> {
+    pub(crate) fn next_color(&self) -> Result<String> {
         const PALETTE: [&str; 8] = [
             "#6d5efc", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#8b5cf6", "#14b8a6",
         ];

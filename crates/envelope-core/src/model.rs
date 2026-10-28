@@ -12,6 +12,8 @@ pub enum AccountKind {
     Gmail,
     /// Outlook.com / Microsoft 365 via Microsoft Graph, OAuth.
     Microsoft,
+    /// On-premises Microsoft Exchange via Exchange Web Services (EWS), password.
+    Exchange,
 }
 
 impl AccountKind {
@@ -20,6 +22,7 @@ impl AccountKind {
             AccountKind::Imap => "imap",
             AccountKind::Gmail => "gmail",
             AccountKind::Microsoft => "microsoft",
+            AccountKind::Exchange => "exchange",
         }
     }
 
@@ -27,6 +30,7 @@ impl AccountKind {
         match s {
             "gmail" => AccountKind::Gmail,
             "microsoft" => AccountKind::Microsoft,
+            "exchange" => AccountKind::Exchange,
             _ => AccountKind::Imap,
         }
     }
@@ -82,6 +86,34 @@ pub struct AccountConfig {
     pub save_sent_copy: Option<bool>,
     /// How many days of mail to download message bodies for (None = all).
     pub body_sync_days: Option<u32>,
+    /// Exchange Web Services settings (Exchange accounts only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exchange: Option<ExchangeConfig>,
+}
+
+/// How an Exchange account signs in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ExchangeAuth {
+    /// NTLM (Windows integrated authentication), falling back to Basic when
+    /// the server does not offer NTLM.
+    #[default]
+    Auto,
+    Ntlm,
+    Basic,
+}
+
+/// Connection settings of an on-premises Exchange account.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ExchangeConfig {
+    /// EWS endpoint, e.g. `https://mail.example.com/EWS/Exchange.asmx`.
+    pub ews_url: String,
+    /// Login name (`DOMAIN\user` or a UPN); empty means the account e-mail.
+    pub username: String,
+    pub auth: ExchangeAuth,
+    /// EWS schema version the server speaks (`Exchange2016`), once known.
+    pub version: Option<String>,
 }
 
 /// High-level sync state of an account, shown in the sidebar.
@@ -530,6 +562,21 @@ pub struct NewAccount {
     pub provider: String,
     pub password: String,
     pub config: AccountConfig,
+}
+
+/// Input for adding an on-premises Exchange account.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct NewExchangeAccount {
+    pub email: String,
+    pub name: String,
+    pub password: String,
+    /// EWS URL or server name; found with Autodiscover when empty.
+    pub ews_url: Option<String>,
+    /// Login name (`DOMAIN\user` or a UPN) when it is not the e-mail address.
+    pub username: Option<String>,
+    pub accept_invalid_certs: bool,
+    pub auth: ExchangeAuth,
 }
 
 /// Events pushed from the engine to the UI, e.g.

@@ -1296,6 +1296,7 @@ dependencies = [
  "dirs",
  "envelope-ai",
  "envelope-dav",
+ "envelope-ews",
  "envelope-google",
  "envelope-graph",
  "envelope-ical",

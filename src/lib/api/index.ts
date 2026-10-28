@@ -11,6 +11,8 @@ export interface Api {
   accounts(): Promise<T.Account[]>;
   discover(email: string): Promise<T.Discovery>;
   addPasswordAccount(input: T.NewAccount): Promise<T.Account>;
+  /** Adds an on-premises Exchange account (finds the server when no URL is given). */
+  addExchangeAccount(input: T.NewExchangeAccount): Promise<T.Account>;
   addOAuthAccount(provider: T.OAuthProvider, loginHint?: string | null): Promise<T.Account>;
   updateAccount(id: number, patch: T.AccountPatch): Promise<T.Account>;
   removeAccount(id: number): Promise<void>;

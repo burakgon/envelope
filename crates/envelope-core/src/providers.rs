@@ -2,8 +2,9 @@
 //!
 //! Discovery order: built-in presets by domain, MX records (catches Google
 //! Workspace / Microsoft 365 on custom domains), the Thunderbird ISP database,
-//! the domain's own autoconfig file, RFC 6186 SRV records and finally common
-//! host name guesses.
+//! the domain's own autoconfig file, an on-premises Exchange server answering
+//! Autodiscover (probed without credentials), RFC 6186 SRV records and
+//! finally common host name guesses.
 
 use std::time::Duration;
 
@@ -301,6 +302,26 @@ fn from_preset(email: &str, p: &Preset) -> Discovery {
     }
 }
 
+/// An on-premises Exchange server (Exchange Web Services, signed in with the
+/// Windows password).
+fn exchange_discovery(email: &str) -> Discovery {
+    Discovery {
+        email: email.to_string(),
+        provider: "exchange".into(),
+        provider_name: "Exchange".into(),
+        kind: AccountKind::Exchange,
+        auth: AuthMethod::Password,
+        imap: None,
+        smtp: None,
+        caldav_url: None,
+        carddav_url: None,
+        password_hint: Some(
+            "Use the password you sign in to your work computer or Outlook with.".into(),
+        ),
+        password_help_url: None,
+    }
+}
+
 fn domain_of(email: &str) -> Option<String> {
     email
         .rsplit_once('@')
@@ -357,10 +378,24 @@ pub async fn discover(email: &str) -> Discovery {
         }
     }
 
-    if let Some((imap, smtp)) = autoconfig(email, &domain, &mx_hosts).await {
+    // Exchange shows itself on `autodiscover.<domain>` (checked without
+    // credentials, alongside the autoconfig lookups).
+    let (autoconfigured, exchange) = tokio::join!(
+        autoconfig(email, &domain, &mx_hosts),
+        crate::sync::ews::exchange_hint(&domain),
+    );
+    if exchange == crate::sync::ews::ExchangeHint::Microsoft365
+        && let Some(p) = preset("outlook")
+    {
+        return from_preset(email, p);
+    }
+    if let Some((imap, smtp)) = autoconfigured {
         let mut d = generic(imap, smtp);
         d.caldav_url = Some(format!("https://{domain}"));
         return d;
+    }
+    if exchange == crate::sync::ews::ExchangeHint::OnPremises {
+        return exchange_discovery(email);
     }
     if let Some((imap, smtp)) = srv_lookup(&domain).await {
         return generic(imap, smtp);

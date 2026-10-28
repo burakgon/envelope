@@ -136,6 +136,10 @@ export function createMockApi(): Api {
       } satisfies T.Discovery, 400);
     },
     addPasswordAccount: async () => { throw { message: 'Adding accounts is disabled in the demo', kind: 'invalid' }; },
+    addExchangeAccount: async () => {
+      await delay(null, 900);
+      throw { message: 'Adding accounts is disabled in the demo', kind: 'invalid' };
+    },
     addOAuthAccount: async () => { throw { message: 'Adding accounts is disabled in the demo', kind: 'invalid' }; },
     updateAccount: async (id, patch) => {
       const a = data.accounts.find((x) => x.id === id)!;

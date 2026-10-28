@@ -305,8 +305,8 @@
     <button class="menu-item" onclick={() => { snoozeAt = { x: menu!.x, y: menu!.y, ids }; menu = null; }}><Clock size={15} />Snooze…<span class="hint">H</span></button>
     <div class="divider"></div>
     <button class="menu-item" onclick={() => { moveAt = { x: menu!.x, y: menu!.y, ids, labels: false }; menu = null; }}><Folder size={15} />Move to…<span class="hint">V</span></button>
-    {#if ['gmail', 'microsoft'].includes(mail.accountById.get(menu.thread.accountId)?.kind ?? '')}
-      <button class="menu-item" onclick={() => { moveAt = { x: menu!.x, y: menu!.y, ids, labels: true }; menu = null; }}><Tag size={15} />{mail.accountById.get(menu.thread.accountId)?.kind === 'microsoft' ? 'Categorize…' : 'Label…'}<span class="hint">L</span></button>
+    {#if ['gmail', 'microsoft', 'exchange'].includes(mail.accountById.get(menu.thread.accountId)?.kind ?? '')}
+      <button class="menu-item" onclick={() => { moveAt = { x: menu!.x, y: menu!.y, ids, labels: true }; menu = null; }}><Tag size={15} />{mail.accountById.get(menu.thread.accountId)?.kind === 'gmail' ? 'Label…' : 'Categorize…'}<span class="hint">L</span></button>
     {/if}
     <button class="menu-item" onclick={() => { mail.moveTo({ kind: 'junk' }, ids); menu = null; }}><ShieldAlert size={15} />Report spam<span class="hint">!</span></button>
   </Popover>

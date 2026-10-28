@@ -51,6 +51,8 @@ pub(crate) fn has_contacts(account: &AccountRow) -> bool {
     match account.kind {
         AccountKind::Gmail | AccountKind::Microsoft => true,
         AccountKind::Imap => account.config.carddav_url.is_some(),
+        // Exchange address books aren't synced yet; the local book covers them.
+        AccountKind::Exchange => false,
     }
 }
 
@@ -157,6 +159,7 @@ pub(crate) async fn sync_account(
                 .unwrap_or(false);
             graph_sync(engine, account, &client, writable, pull).await
         }
+        AccountKind::Exchange => Ok(Vec::new()),
     }
 }
 

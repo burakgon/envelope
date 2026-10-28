@@ -331,7 +331,7 @@ impl Engine {
             };
             if r.is_recurring {
                 masters.push(r);
-            } else if r.recurrence_id.is_some() && cal.kind != "graph" {
+            } else if r.recurrence_id.is_some() && !cdb::stores_instances(&cal.kind) {
                 overrides
                     .entry((r.calendar_id, r.uid.as_str()))
                     .or_default()
@@ -875,6 +875,17 @@ impl Engine {
         status: PartStat,
         comment: Option<String>,
     ) -> Result<()> {
+        // Exchange answers its own meeting requests (and updates the calendar).
+        if crate::sync::ews::calendar::respond_to_request(
+            self,
+            message_id,
+            status,
+            comment.as_deref(),
+        )
+        .await?
+        {
+            return Ok(());
+        }
         let info = self.invite_info(message_id).await?;
         if let Some(event_id) = info.event_id {
             return self.respond_event(event_id, status, comment).await;

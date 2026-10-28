@@ -11,7 +11,7 @@
 
   let { first = false }: { first?: boolean } = $props();
 
-  type Step = 'welcome' | 'providers' | 'oauth' | 'password' | 'done';
+  type Step = 'welcome' | 'providers' | 'oauth' | 'password' | 'exchange' | 'done';
   let step = $state<Step>(untrack(() => (first ? 'welcome' : 'providers')));
   let info = $state<AppInfo | null>(null);
   let email = $state('');
@@ -27,6 +27,8 @@
   let smtp = $state<ServerConfig>({ host: '', port: 465, security: 'tls', username: '' });
   let caldav = $state('');
   let insecure = $state(false);
+  let ewsUrl = $state('');
+  let ewsUser = $state('');
   let added = $state<string | null>(null);
 
   onMount(async () => {
@@ -36,6 +38,7 @@
   const providers = [
     { id: 'gmail', name: 'Google', sub: 'Gmail & Workspace', mark: 'G', bg: 'linear-gradient(135deg,#4285f4,#34a853 55%,#fbbc05 80%,#ea4335)' },
     { id: 'outlook', name: 'Microsoft', sub: 'Outlook & Microsoft 365', mark: 'M', bg: 'linear-gradient(135deg,#0078d4,#28a8ea)' },
+    { id: 'exchange', name: 'Exchange', sub: 'On-premises server', mark: 'E', bg: 'linear-gradient(135deg,#123a73,#1c9bd6)' },
     { id: 'icloud', name: 'iCloud', sub: 'iCloud Mail', mark: '☁', bg: 'linear-gradient(135deg,#5ac8fa,#007aff)' },
     { id: 'yahoo', name: 'Yahoo', sub: 'Yahoo & AOL', mark: 'Y!', bg: 'linear-gradient(135deg,#7e1fff,#6001d2)' },
     { id: 'fastmail', name: 'Fastmail', sub: 'Fastmail', mark: 'F', bg: 'linear-gradient(135deg,#2268c5,#0b4ea2)' },
@@ -53,6 +56,8 @@
     if (id === 'gmail' || id === 'outlook') {
       oauthProvider = id === 'gmail' ? 'google' : 'microsoft';
       step = 'oauth';
+    } else if (id === 'exchange') {
+      step = 'exchange';
     } else {
       step = 'password';
       discovery = null;
@@ -68,6 +73,7 @@
       discovery = d;
       if (d.kind === 'gmail' && provider !== 'generic') return pick('gmail');
       if (d.kind === 'microsoft') return pick('outlook');
+      if (d.kind === 'exchange') return pick('exchange');
       provider = d.provider;
       if (d.imap) imap = { ...d.imap };
       if (d.smtp) smtp = { ...d.smtp };
@@ -135,6 +141,35 @@
     } catch (e) {
       error = errorMessage(e);
       advanced = advanced || /connect|host|server|timed out|network|tls/i.test(error);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function submitExchange() {
+    if (!email.includes('@') || !password) {
+      error = 'Enter your e-mail address and password.';
+      return;
+    }
+    busy = true;
+    error = null;
+    try {
+      const account = await api.addExchangeAccount({
+        email: email.trim(),
+        name: name.trim(),
+        password,
+        ewsUrl: ewsUrl.trim() || null,
+        username: ewsUser.trim() || null,
+        acceptInvalidCerts: insecure,
+      });
+      added = account.email;
+      await mail.loadAccounts();
+      step = 'done';
+    } catch (e) {
+      error = errorMessage(e);
+      // Server addresses, user names and certificates are set under Advanced.
+      const kind = e && typeof e === 'object' && 'kind' in e ? (e as { kind: unknown }).kind : null;
+      advanced = advanced || kind === 'notFound' || /advanced|server|address|certificate|connect|reach|found/i.test(error);
     } finally {
       busy = false;
     }
@@ -286,6 +321,52 @@
         <div class="actions">
           <button class="btn primary lg" type="submit" disabled={busy}>
             {#if busy}<span class="spin"><Spinner size={16} /></span> Connecting…{:else}Add account{/if}
+          </button>
+        </div>
+      </form>
+    {:else if step === 'exchange'}
+      <button class="back" onclick={() => (step = 'providers')}><ArrowLeft size={15} /> Back</button>
+      <h2>Add Exchange account</h2>
+      <div class="note">
+        <Lock size={15} />
+        <span>Sign in with the password you use for Outlook or your work computer. Envelope finds your organization's Exchange server on its own; if it can't, enter the server under Advanced.</span>
+      </div>
+      <form class="form" onsubmit={(e) => { e.preventDefault(); submitExchange(); }}>
+        <div>
+          <label class="label" for="ex-name">Your name</label>
+          <input id="ex-name" class="input" bind:value={name} placeholder="Alex Morgan" autocomplete="name" />
+        </div>
+        <div>
+          <label class="label" for="ex-email">Work e-mail</label>
+          <input id="ex-email" class="input" type="email" bind:value={email} placeholder="you@company.com" autocomplete="email" spellcheck="false" />
+        </div>
+        <div>
+          <label class="label" for="ex-pass">Password</label>
+          <input id="ex-pass" class="input" type="password" bind:value={password} autocomplete="current-password" />
+        </div>
+
+        <button type="button" class="adv-toggle" onclick={() => (advanced = !advanced)}>
+          <span class="chev" class:open={advanced}><ChevronDown size={14} /></span> Advanced
+        </button>
+        {#if advanced}
+          <div class="adv">
+            <div>
+              <label class="label" for="ex-url">Server</label>
+              <input id="ex-url" class="input" bind:value={ewsUrl} placeholder="mail.company.com" spellcheck="false" />
+              <span class="field-hint">Leave empty to find it automatically. A server name or the full address ending in /EWS/Exchange.asmx both work.</span>
+            </div>
+            <div>
+              <label class="label" for="ex-user">User name</label>
+              <input id="ex-user" class="input" bind:value={ewsUser} placeholder="DOMAIN\user (defaults to your e-mail)" autocomplete="username" spellcheck="false" />
+            </div>
+            <label class="check"><input type="checkbox" bind:checked={insecure} /> Accept self-signed certificates</label>
+          </div>
+        {/if}
+
+        {#if error}<p class="error">{error}</p>{/if}
+        <div class="actions">
+          <button class="btn primary lg" type="submit" disabled={busy}>
+            {#if busy}<span class="spin"><Spinner size={16} /></span> {ewsUrl.trim() ? 'Signing in…' : 'Finding your server…'}{:else}Add account{/if}
           </button>
         </div>
       </form>
@@ -444,6 +525,10 @@
     background: var(--bg-elevated);
     box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-md);
   }
+  /* A tile alone in the last row sits in the middle. */
+  .prov:last-child:nth-child(3n + 1) {
+    grid-column: 2;
+  }
   .mark {
     width: 42px;
     height: 42px;
@@ -543,6 +628,13 @@
     align-items: center;
     gap: 8px;
     color: var(--text-2);
+  }
+  .field-hint {
+    display: block;
+    margin-top: 6px;
+    font-size: 11.5px;
+    color: var(--text-3);
+    line-height: 1.45;
   }
   .actions {
     display: flex;

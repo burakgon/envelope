@@ -2,6 +2,7 @@
 
 pub mod calendar;
 pub mod contacts;
+pub mod ews;
 pub mod graph;
 pub mod imap;
 pub mod outbox;
@@ -33,6 +34,7 @@ pub(crate) async fn run_account(
     match account.kind {
         AccountKind::Imap | AccountKind::Gmail => imap::run(engine, account_id, wake, stop).await,
         AccountKind::Microsoft => graph::run(engine, account_id, wake, stop).await,
+        AccountKind::Exchange => ews::run(engine, account_id, wake, stop).await,
     }
 }
 

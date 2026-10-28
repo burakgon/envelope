@@ -105,6 +105,7 @@ pub(crate) async fn sync_account(engine: &Engine, account: &AccountRow) -> Resul
     match account.kind {
         AccountKind::Gmail => google_sync(engine, account).await,
         AccountKind::Microsoft => graph_sync(engine, account).await,
+        AccountKind::Exchange => super::ews::calendar::sync_account(engine, account).await,
         AccountKind::Imap if account.config.caldav_url.is_some() => {
             caldav_sync(engine, account).await
         }
@@ -684,6 +685,7 @@ pub(crate) async fn write_create(
                 true,
             )
         }
+        "ews" => super::ews::calendar::write_create(engine, cal, event).await,
         other => Err(Error::Invalid(format!("unsupported calendar type {other}"))),
     }
 }
@@ -725,6 +727,9 @@ pub(crate) async fn write_update(
     scope: EditScope,
     input: &EventInput,
 ) -> Result<()> {
+    if cal.kind == "ews" {
+        return super::ews::calendar::write_update(engine, cal, row, scope, input).await;
+    }
     let series = row.is_recurring && rid.is_some();
     let scope = if series { scope } else { EditScope::All };
 
@@ -973,6 +978,9 @@ pub(crate) async fn write_delete(
     rid: Option<EventTime>,
     scope: EditScope,
 ) -> Result<()> {
+    if cal.kind == "ews" {
+        return super::ews::calendar::write_delete(engine, cal, row, scope).await;
+    }
     let series = row.is_recurring && rid.is_some();
     let scope = if series { scope } else { EditScope::All };
     match (cal.kind.as_str(), scope) {
@@ -1164,6 +1172,7 @@ pub(crate) async fn write_respond(
                 .map_err(graph_err)?;
             graph_sync_calendar(engine, &client, cal).await?;
         }
+        "ews" => super::ews::calendar::write_respond(engine, cal, row, status, comment).await?,
         _ => {
             // CalDAV and local: update our copy and e-mail an iTIP reply to the organizer.
             let mut event = row.event.clone();
