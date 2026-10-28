@@ -4,6 +4,7 @@ use envelope_core::model::{FlagChange, MoveTarget, ThreadSummary};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::AppState;
+use crate::strings;
 
 fn enabled(app: &AppHandle, key: &str) -> bool {
     app.try_state::<AppState>()
@@ -29,7 +30,7 @@ fn show(
     body: String,
     on_click: impl FnOnce(&AppHandle) + Send + 'static,
 ) {
-    show_with(app, summary, body, &[], move |app, _| on_click(app));
+    show_with(app, summary, body, Vec::new(), move |app, _| on_click(app));
 }
 
 /// Shows a notification with extra buttons (`(action id, label)`). Clicking
@@ -39,11 +40,10 @@ fn show_with(
     app: &AppHandle,
     summary: String,
     body: String,
-    buttons: &[(&'static str, &'static str)],
+    buttons: Vec<(&'static str, String)>,
     on_action: impl FnOnce(&AppHandle, &str) + Send + 'static,
 ) {
     let app = app.clone();
-    let buttons = buttons.to_vec();
     std::thread::spawn(move || {
         let mut n = notify_rust::Notification::new();
         n.appname("Envelope")
@@ -53,7 +53,7 @@ fn show_with(
             .hint(notify_rust::Hint::DesktopEntry(
                 "io.github.burakgon.Envelope".into(),
             ))
-            .action("default", "Open");
+            .action("default", &strings::get("native.notify.open", "Open"));
         for (id, label) in &buttons {
             n.action(id, label);
         }
@@ -95,7 +95,11 @@ pub fn new_mail(app: &AppHandle, account_id: i64, threads: &[ThreadSummary]) {
         (from, body, Some(t.id))
     } else {
         (
-            format!("{} new messages", threads.len()),
+            strings::fill(
+                "native.notify.newMessages",
+                "{count} new messages",
+                &[("count", &threads.len().to_string())],
+            ),
             threads
                 .iter()
                 .take(4)
@@ -105,10 +109,16 @@ pub fn new_mail(app: &AppHandle, account_id: i64, threads: &[ThreadSummary]) {
             None,
         )
     };
-    let buttons: &[(&str, &str)] = if thread.is_some() {
-        &[("archive", "Archive"), ("read", "Mark as Read")]
+    let buttons = if thread.is_some() {
+        vec![
+            ("archive", strings::get("native.notify.archive", "Archive")),
+            (
+                "read",
+                strings::get("native.notify.markRead", "Mark as Read"),
+            ),
+        ]
     } else {
-        &[]
+        Vec::new()
     };
     show_with(app, summary, body, buttons, move |app, action| {
         let Some(state) = app.try_state::<AppState>() else {
@@ -145,8 +155,11 @@ pub fn follow_up(app: &AppHandle, thread_id: i64, subject: &str) {
     }
     show(
         app,
-        "No reply yet".to_string(),
-        format!("{subject}\nFollow up on this conversation?"),
+        strings::get("native.notify.noReply", "No reply yet"),
+        format!(
+            "{subject}\n{}",
+            strings::get("native.notify.followUp", "Follow up on this conversation?")
+        ),
         move |app| {
             let _ = app.emit("open-thread", Some(thread_id));
         },
@@ -175,9 +188,20 @@ fn chrono_like(start_ms: i64) -> String {
             .unwrap_or(0))
         / 60_000;
     match mins {
-        m if m <= 0 => "Starting now".into(),
-        1 => "In 1 minute".into(),
-        m if m < 60 => format!("In {m} minutes"),
-        m => format!("In {} h {} min", m / 60, m % 60),
+        m if m <= 0 => strings::get("native.reminder.now", "Starting now"),
+        1 => strings::get("native.reminder.inOneMinute", "In 1 minute"),
+        m if m < 60 => strings::fill(
+            "native.reminder.inMinutes",
+            "In {minutes} minutes",
+            &[("minutes", &m.to_string())],
+        ),
+        m => strings::fill(
+            "native.reminder.inHours",
+            "In {hours} h {minutes} min",
+            &[
+                ("hours", &(m / 60).to_string()),
+                ("minutes", &(m % 60).to_string()),
+            ],
+        ),
     }
 }

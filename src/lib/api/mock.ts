@@ -354,6 +354,7 @@ export function createMockApi(): Api {
     },
     setDecorations: async () => {},
     setBadge: async () => {},
+    setNativeStrings: async () => {},
     openUrl: async (url) => { window.open(url, '_blank', 'noopener'); },
 
     onEvent: (cb) => {

@@ -86,6 +86,13 @@ pub async fn autostart_set(enabled: bool) -> R<()> {
     crate::autostart::set(enabled).await.map_err(CmdError::from)
 }
 
+/// Translations for notifications and the tray menu, in the interface language.
+#[tauri::command]
+pub fn set_native_strings(strings: std::collections::HashMap<String, String>) {
+    crate::strings::set(strings);
+    crate::tray::relabel();
+}
+
 #[tauri::command]
 pub fn app_info(state: State<'_, AppState>) -> serde_json::Value {
     serde_json::json!({

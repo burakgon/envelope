@@ -68,6 +68,8 @@ export interface Api {
   setSetting(key: string, value: unknown): Promise<void>;
   setDecorations(native: boolean): Promise<void>;
   setBadge(count: number): Promise<void>;
+  /** Translations for texts shown outside the window (notifications, tray menu), keyed `native.*`. */
+  setNativeStrings(strings: Record<string, string>): Promise<void>;
   openUrl(url: string): Promise<void>;
 
   onEvent(cb: (e: T.EngineEvent) => void): () => void;

@@ -8,8 +8,30 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::AppState;
+use crate::strings;
 
 const TRAY_ID: &str = "main";
+
+/// Menu entries: id, translation key, English text.
+const LABELS: &[(&str, &str, &str)] = &[
+    ("open", "native.tray.open", "Open Envelope"),
+    ("compose", "native.tray.compose", "New Message"),
+    ("sync", "native.tray.sync", "Check for New Mail"),
+    ("quit", "native.tray.quit", "Quit Envelope"),
+];
+
+/// The menu entries, relabeled when the interface language is known.
+static ITEMS: OnceLock<Vec<MenuItem<tauri::Wry>>> = OnceLock::new();
+
+/// Puts the current translations on the tray menu.
+pub fn relabel() {
+    for item in ITEMS.get().into_iter().flatten() {
+        if let Some((_, key, english)) = LABELS.iter().find(|(id, _, _)| *id == item.id().as_ref())
+        {
+            let _ = item.set_text(strings::get(key, english));
+        }
+    }
+}
 
 /// Whether a tray icon can be shown. On Linux it needs an AppIndicator
 /// library at run time; without one, creating the icon would abort the app.
@@ -37,10 +59,26 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         tracing::info!("no AppIndicator library found; running without a tray icon");
         return Ok(());
     }
-    let open = MenuItem::with_id(app, "open", "Open Envelope", true, None::<&str>)?;
-    let compose = MenuItem::with_id(app, "compose", "New Message", true, None::<&str>)?;
-    let sync = MenuItem::with_id(app, "sync", "Check for New Mail", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Envelope", true, None::<&str>)?;
+    let item = |id: &str| -> tauri::Result<MenuItem<tauri::Wry>> {
+        let (key, english) = LABELS
+            .iter()
+            .find(|(i, _, _)| *i == id)
+            .map(|(_, k, e)| (*k, *e))
+            .unwrap_or(("", id));
+        MenuItem::with_id(app, id, strings::get(key, english), true, None::<&str>)
+    };
+    let (open, compose, sync, quit) = (
+        item("open")?,
+        item("compose")?,
+        item("sync")?,
+        item("quit")?,
+    );
+    let _ = ITEMS.set(vec![
+        open.clone(),
+        compose.clone(),
+        sync.clone(),
+        quit.clone(),
+    ]);
     let separator = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&open, &compose, &sync, &separator, &quit])?;
     let mut tray = TrayIconBuilder::with_id(TRAY_ID);
@@ -96,8 +134,12 @@ pub fn set_unread(app: &AppHandle, count: i64) {
     };
     let tooltip = match count {
         0 => "Envelope".to_string(),
-        1 => "Envelope — 1 unread message".to_string(),
-        n => format!("Envelope — {n} unread messages"),
+        1 => strings::get("native.tray.unreadOne", "Envelope — 1 unread message"),
+        n => strings::fill(
+            "native.tray.unreadMany",
+            "Envelope — {count} unread messages",
+            &[("count", &n.to_string())],
+        ),
     };
     let _ = tray.set_tooltip(Some(tooltip));
     // Panels that support it show this label next to the icon.

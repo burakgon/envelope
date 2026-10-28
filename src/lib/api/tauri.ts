@@ -97,6 +97,7 @@ export function createTauriApi(): Api {
     setSetting: (key, value) => invoke('settings_set', { key, value }),
     setDecorations: (native) => invoke('set_decorations', { native }),
     setBadge: (count) => invoke('set_unread_badge', { count }),
+    setNativeStrings: (strings) => invoke('set_native_strings', { strings }),
     openUrl: (url) => openUrl(url),
 
     onEvent: (cb) => subscribe<T.EngineEvent>('engine', cb),

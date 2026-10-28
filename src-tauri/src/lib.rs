@@ -5,6 +5,7 @@ mod commands;
 mod crypto;
 mod notify;
 mod protocol;
+mod strings;
 mod tray;
 
 use envelope_core::model::EngineEvent;
@@ -266,6 +267,7 @@ pub fn run() {
             commands::contact_delete,
             commands::autostart_get,
             commands::autostart_set,
+            commands::set_native_strings,
             crypto::crypto_settings_get,
             crypto::crypto_settings_set,
             crypto::crypto_own_keys,
