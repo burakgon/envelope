@@ -105,6 +105,7 @@ Numbers from `cargo run --release -p envelope-core --example bench_sync` — a 5
 
 | | |
 | --- | --- |
+| Start-up to a usable window (release build, warm / cold) | 0.35 s / 0.6 s |
 | First screen of conversations after adding the account | 0.7 s |
 | Complete initial sync of all 50 000 messages | 10 s |
 | Open the inbox (first 100 conversations) | 1 ms |
