@@ -385,3 +385,121 @@ export interface AiRun {
   promise: Promise<string>;
   cancel(): void;
 }
+
+// ----- Calendar ----------------------------------------------------------------
+
+export type EventTime =
+  | { kind: 'date'; date: string }
+  | { kind: 'zoned'; local: string; tzid: string }
+  | { kind: 'utc'; at: string }
+  | { kind: 'floating'; local: string };
+
+export type PartStat = 'needsAction' | 'accepted' | 'declined' | 'tentative' | 'delegated';
+export type EventStatus = 'confirmed' | 'tentative' | 'cancelled';
+export type EditScope = 'this' | 'following' | 'all';
+
+export interface CalendarInfo {
+  id: number;
+  accountId: number | null;
+  kind: string;
+  name: string;
+  color: string;
+  readOnly: boolean;
+  isDefault: boolean;
+  visible: boolean;
+}
+
+export interface Occurrence {
+  key: string;
+  eventId: number;
+  calendarId: number;
+  uid: string;
+  title: string;
+  start: number;
+  end: number;
+  allDay: boolean;
+  startDate: string | null;
+  endDate: string | null;
+  location: string | null;
+  color: string;
+  status: EventStatus;
+  transparent: boolean;
+  isRecurring: boolean;
+  recurrenceId: EventTime | null;
+  myStatus: PartStat | null;
+  hasAttendees: boolean;
+  conferenceUrl: string | null;
+  readOnly: boolean;
+}
+
+export interface CalAttendee {
+  email: string;
+  name: string | null;
+  partstat: PartStat;
+  role: 'chair' | 'required' | 'optional' | 'nonParticipant';
+  rsvp: boolean;
+}
+
+export interface CalEvent {
+  uid: string;
+  recurrenceId: EventTime | null;
+  summary: string;
+  description: string | null;
+  descriptionHtml: string | null;
+  location: string | null;
+  url: string | null;
+  start: EventTime;
+  end: EventTime;
+  rrule: string | null;
+  status: EventStatus;
+  transparency: 'opaque' | 'transparent';
+  organizer: { email: string; name: string | null } | null;
+  attendees: CalAttendee[];
+  alarms: { action: string; minutesBefore: number; description: string | null }[];
+  color: string | null;
+  conferenceUrl: string | null;
+}
+
+export interface EventDetail {
+  occurrence: Occurrence;
+  event: CalEvent;
+  calendar: CalendarInfo;
+  organizerIsMe: boolean;
+  myEmail: string | null;
+}
+
+export interface EventInput {
+  calendarId: number;
+  summary: string;
+  description?: string | null;
+  location?: string | null;
+  allDay: boolean;
+  start: number;
+  end: number;
+  startDate?: string | null;
+  endDate?: string | null;
+  timezone?: string | null;
+  rrule?: string | null;
+  attendees: Address[];
+  alarms: number[];
+  color?: string | null;
+  transparent?: boolean;
+  addConference?: boolean;
+}
+
+export interface InviteInfo {
+  method: string;
+  uid: string;
+  summary: string;
+  start: number;
+  end: number;
+  allDay: boolean;
+  location: string | null;
+  description: string | null;
+  organizer: Address | null;
+  attendees: Address[];
+  myStatus: PartStat | null;
+  eventId: number | null;
+  conferenceUrl: string | null;
+  recurring: boolean;
+}

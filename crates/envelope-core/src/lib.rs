@@ -2,6 +2,7 @@
 //! glue between protocol crates and the user interface.
 
 pub mod ai;
+pub mod calendar;
 pub mod compose;
 pub mod db;
 pub mod engine;
@@ -19,3 +20,5 @@ pub mod sync;
 pub use engine::{AccountPatch, Engine, EventSink, Paths};
 pub use error::{Error, Result};
 pub use mail_api::UndoToken;
+
+pub use envelope_ical;

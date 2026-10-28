@@ -9,6 +9,8 @@
     Mails, PanelLeft, Plus, Send, Settings, ShieldAlert, Spinner, Star, Tag, Trash, WifiOff, Flag,
   } from '../icons';
   import Logo from './Logo.svelte';
+  import CalendarSidebar from './calendar/CalendarSidebar.svelte';
+  import { cal } from '../stores/calendar.svelte';
 
   const roleIcon: Record<FolderRole, typeof Inbox> = {
     inbox: Inbox, sent: Send, drafts: File, trash: Trash, junk: ShieldAlert, archive: Archive, all: Mails, starred: Star, important: Flag,
@@ -137,21 +139,34 @@
   </header>
 
   <div class="top">
-    <button class="compose" onclick={() => compose.new()}>
-      <Compose size={16} strokeWidth={2.2} />
-      <span>New message</span>
-      <span class="kbd-hint">C</span>
-    </button>
+    {#if ui.view === 'calendar'}
+      <button class="compose" onclick={() => cal.newEvent()}>
+        <Plus size={16} strokeWidth={2.4} />
+        <span>New event</span>
+        <span class="kbd-hint">C</span>
+      </button>
+    {:else}
+      <button class="compose" onclick={() => compose.new()}>
+        <Compose size={16} strokeWidth={2.2} />
+        <span>New message</span>
+        <span class="kbd-hint">C</span>
+      </button>
+    {/if}
     <div class="modes" role="tablist">
-      <button role="tab" aria-selected={ui.view === 'mail'} class:on={ui.view === 'mail'} onclick={() => (ui.view = 'mail')}>
+      <button role="tab" aria-selected={ui.view === 'mail'} class:on={ui.view === 'mail'} onclick={(e) => { ui.view = 'mail'; e.currentTarget.blur(); }}>
         <Mail size={15} /> Mail
       </button>
-      <button role="tab" aria-selected={ui.view === 'calendar'} class:on={ui.view === 'calendar'} onclick={() => (ui.view = 'calendar')}>
+      <button role="tab" aria-selected={ui.view === 'calendar'} class:on={ui.view === 'calendar'} onclick={(e) => { ui.view = 'calendar'; e.currentTarget.blur(); }}>
         <Calendar size={15} /> Calendar
       </button>
     </div>
   </div>
 
+  {#if ui.view === 'calendar'}
+  <nav class="scroll">
+    <CalendarSidebar />
+  </nav>
+  {:else}
   <nav class="scroll">
     <div class="group">
       <button class="item" class:active={ui.view === 'mail' && mail.isMailbox({ kind: 'unified', role: 'inbox' })} onclick={() => go({ kind: 'unified', role: 'inbox' })}>
@@ -257,6 +272,7 @@
       <Plus size={16} /><span class="name">Add account</span>
     </button>
   </nav>
+  {/if}
 
   <footer>
     <button class="item" onclick={() => ui.open('settings')}>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { api } from '../api';
   import type { AccountConfig, AppInfo, Discovery, OAuthProvider, Security, ServerConfig } from '../api';
   import { mail } from '../stores/mail.svelte';
@@ -12,7 +12,7 @@
   let { first = false }: { first?: boolean } = $props();
 
   type Step = 'welcome' | 'providers' | 'oauth' | 'password' | 'done';
-  let step = $state<Step>(first ? 'welcome' : 'providers');
+  let step = $state<Step>(untrack(() => (first ? 'welcome' : 'providers')));
   let info = $state<AppInfo | null>(null);
   let email = $state('');
   let name = $state('');

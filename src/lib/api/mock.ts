@@ -4,6 +4,7 @@ import type { Api } from './index';
 import type * as T from './types';
 import * as data from './mockdata';
 import { mockAiRun, mockPresets } from './mock-ai';
+import * as cal from './mock-calendar';
 
 type Listener = (e: T.EngineEvent) => void;
 
@@ -345,6 +346,48 @@ export function createMockApi(): Api {
     },
     onMailto: () => () => {},
     onOpenThread: () => () => {},
+
+    calendar: {
+      list: async () => structuredClone(cal.calendars),
+      setVisible: async (id, visible) => {
+        const c = cal.calendars.find((x) => x.id === id);
+        if (c) c.visible = visible;
+        emit({ type: 'calendarChanged', calendarIds: [id] });
+      },
+      setColor: async (id, color) => {
+        const c = cal.calendars.find((x) => x.id === id);
+        if (c) c.color = color;
+        emit({ type: 'calendarChanged', calendarIds: [id] });
+      },
+      occurrences: async (from, to) => cal.occurrences(from, to),
+      detail: async (eventId, rid) => cal.detail(eventId, rid),
+      create: async (input) => {
+        const id = cal.create(input);
+        emit({ type: 'calendarChanged', calendarIds: [input.calendarId] });
+        return id;
+      },
+      update: async (id, rid, scope, input) => {
+        cal.update(id, rid, scope, input);
+        emit({ type: 'calendarChanged', calendarIds: [] });
+      },
+      move: async (id, rid, scope, start, end) => {
+        cal.move(id, rid, scope, start, end);
+        emit({ type: 'calendarChanged', calendarIds: [] });
+      },
+      remove: async (id, rid, scope) => {
+        cal.remove(id, rid, scope);
+        emit({ type: 'calendarChanged', calendarIds: [] });
+      },
+      respond: async (id, status) => {
+        cal.respond(id, status);
+        emit({ type: 'calendarChanged', calendarIds: [] });
+      },
+      invite: async () => cal.invite(),
+      respondInvite: async (_m, status) => {
+        cal.respond(cal.invite().eventId!, status);
+        emit({ type: 'calendarChanged', calendarIds: [] });
+      },
+    },
 
     ai: {
       config: async () => ({ ...aiSettings, hasKey: true, local: false }),

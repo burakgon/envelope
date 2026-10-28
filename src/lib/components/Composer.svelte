@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { api } from '../api';
   import type { DraftAttachment } from '../api';
   import { compose, type ComposerState } from '../stores/compose.svelte';
@@ -23,7 +24,7 @@
     return [html, ''];
   }
 
-  const initial = splitQuote(c.data.html);
+  const initial = untrack(() => splitQuote(c.data.html));
   let body = $state(initial[0]);
   let quoted = $state(initial[1]);
   let showQuote = $state(false);
@@ -375,9 +376,12 @@
   .from select {
     flex: 1;
     border: none;
-    background: transparent;
     font-weight: 500;
     height: 30px;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 24px;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8f9c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 4px center / 13px;
   }
   .ccbcc {
     display: flex;

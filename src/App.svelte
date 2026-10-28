@@ -6,6 +6,7 @@
   import { toasts } from './lib/stores/toasts.svelte';
   import { ui } from './lib/stores/ui.svelte';
   import { ai } from './lib/stores/ai.svelte';
+  import { cal } from './lib/stores/calendar.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import ThreadList from './lib/components/ThreadList.svelte';
   import Reader from './lib/components/Reader.svelte';
@@ -120,11 +121,33 @@
     }
 
     if (ui.view === 'calendar') {
-      if (key === 'g') {
-        gPending = true;
-        if (gTimer) clearTimeout(gTimer);
-        gTimer = setTimeout(() => (gPending = false), 1200);
-      } else if (key === 'c') compose.new();
+      if (cal.editor || cal.scopeAsk) return;
+      const actions: Record<string, () => void> = {
+        g: () => {
+          gPending = true;
+          if (gTimer) clearTimeout(gTimer);
+          gTimer = setTimeout(() => (gPending = false), 1200);
+        },
+        c: () => cal.newEvent(),
+        t: () => cal.today(),
+        d: () => cal.setView('day'),
+        w: () => cal.setView('week'),
+        m: () => cal.setView('month'),
+        a: () => cal.setView('agenda'),
+        j: () => cal.step(1),
+        n: () => cal.step(1),
+        ArrowRight: () => cal.step(1),
+        k: () => cal.step(-1),
+        p: () => cal.step(-1),
+        ArrowLeft: () => cal.step(-1),
+        '/': () => ui.open('palette'),
+        '?': () => ui.open('shortcuts'),
+      };
+      const fn = actions[key];
+      if (fn) {
+        e.preventDefault();
+        fn();
+      }
       return;
     }
 

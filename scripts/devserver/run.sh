@@ -2,7 +2,7 @@
 # Starts a self-contained local mail + calendar server for developing Envelope:
 #   IMAP  127.0.0.1:1143 (STARTTLS) and 127.0.0.1:1993 (TLS, self-signed)
 #   SMTP  127.0.0.1:1587 (no TLS, any password)
-#   DAV   http://127.0.0.1:5232/ (Radicale CalDAV/CardDAV, any password)
+#   DAV   http://127.0.0.1:5232/ (Radicale CalDAV/CardDAV)
 # Accounts: alex@envelope.test / password, sam@envelope.test / password
 # Data lives in .devserver/ (delete it to start fresh).
 set -euo pipefail
@@ -34,6 +34,10 @@ sed -e "s|@ROOT@|$ROOT|g" -e "s|@USER@|$(id -un)|g" -e "s|@GROUP@|$(id -gn)|g" \
 if [ ! -d "$ROOT/home/alex@envelope.test/Maildir" ]; then
   python3 "$HERE/seed.py" "$ROOT/home/alex@envelope.test/Maildir" alex@envelope.test
 fi
+if [ ! -d "$ROOT/radicale/collection-root/alex@envelope.test" ]; then
+  python3 "$HERE/seed_calendar.py" "$ROOT/radicale"
+fi
+printf 'alex@envelope.test:password\nsam@envelope.test:password\n' > "$ROOT/radicale.users"
 
 pids=()
 cleanup() { kill "${pids[@]}" 2>/dev/null || true; }
@@ -42,7 +46,8 @@ trap cleanup EXIT INT TERM
 dovecot -F -c "$ROOT/dovecot.conf" & pids+=($!)
 python3 "$HERE/smtp_sink.py" "$ROOT" "$SMTP_PORT" & pids+=($!)
 python3 -m radicale --server-hosts "127.0.0.1:$DAV_PORT" \
-  --storage-filesystem-folder "$ROOT/radicale" --auth-type none \
+  --storage-filesystem-folder "$ROOT/radicale" --auth-type htpasswd \
+  --auth-htpasswd-filename "$ROOT/radicale.users" --auth-htpasswd-encryption plain \
   --logging-level warning & pids+=($!)
 
 echo "devserver: IMAP $IMAP_PORT/$IMAPS_PORT, SMTP $SMTP_PORT, DAV $DAV_PORT (data: $ROOT)"

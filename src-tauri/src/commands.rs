@@ -495,3 +495,81 @@ pub fn ai_cancel(state: State<'_, AppState>, run_id: String) {
         h.abort();
     }
 }
+
+// ----- calendar ----------------------------------------------------------------------
+
+use envelope_core::calendar::{CalendarView, EditScope, EventDetail, EventInput, InviteInfo, Occurrence};
+use envelope_core::envelope_ical::{EventTime, PartStat};
+
+#[tauri::command]
+pub fn calendars(state: State<'_, AppState>) -> R<Vec<CalendarView>> {
+    Ok(state.engine.calendars()?)
+}
+
+#[tauri::command]
+pub fn calendar_set_visible(state: State<'_, AppState>, id: i64, visible: bool) -> R<()> {
+    Ok(state.engine.set_calendar_visible(id, visible)?)
+}
+
+#[tauri::command]
+pub fn calendar_set_color(state: State<'_, AppState>, id: i64, color: String) -> R<()> {
+    Ok(state.engine.set_calendar_color(id, &color)?)
+}
+
+#[tauri::command]
+pub fn occurrences(state: State<'_, AppState>, from: i64, to: i64) -> R<Vec<Occurrence>> {
+    Ok(state.engine.occurrences(from, to)?)
+}
+
+#[tauri::command]
+pub fn event_detail(state: State<'_, AppState>, event_id: i64, recurrence_id: Option<EventTime>) -> R<EventDetail> {
+    Ok(state.engine.event_detail(event_id, recurrence_id)?)
+}
+
+#[tauri::command]
+pub async fn event_create(state: State<'_, AppState>, input: EventInput) -> R<i64> {
+    Ok(state.engine.create_event(input).await?)
+}
+
+#[tauri::command]
+pub async fn event_update(
+    state: State<'_, AppState>,
+    event_id: i64,
+    recurrence_id: Option<EventTime>,
+    scope: EditScope,
+    input: EventInput,
+) -> R<()> {
+    Ok(state.engine.update_event(event_id, recurrence_id, scope, input).await?)
+}
+
+#[tauri::command]
+pub async fn event_move(
+    state: State<'_, AppState>,
+    event_id: i64,
+    recurrence_id: Option<EventTime>,
+    scope: EditScope,
+    start: i64,
+    end: i64,
+) -> R<()> {
+    Ok(state.engine.move_event(event_id, recurrence_id, scope, start, end).await?)
+}
+
+#[tauri::command]
+pub async fn event_delete(state: State<'_, AppState>, event_id: i64, recurrence_id: Option<EventTime>, scope: EditScope) -> R<()> {
+    Ok(state.engine.delete_event(event_id, recurrence_id, scope).await?)
+}
+
+#[tauri::command]
+pub async fn event_respond(state: State<'_, AppState>, event_id: i64, status: PartStat, comment: Option<String>) -> R<()> {
+    Ok(state.engine.respond_event(event_id, status, comment).await?)
+}
+
+#[tauri::command]
+pub async fn invite_info(state: State<'_, AppState>, message_id: i64) -> R<InviteInfo> {
+    Ok(state.engine.invite_info(message_id).await?)
+}
+
+#[tauri::command]
+pub async fn invite_respond(state: State<'_, AppState>, message_id: i64, status: PartStat, comment: Option<String>) -> R<()> {
+    Ok(state.engine.respond_invite(message_id, status, comment).await?)
+}

@@ -67,6 +67,21 @@ export interface Api {
   onMailto(cb: (url: string) => void): () => void;
   onOpenThread(cb: (threadId: number | null) => void): () => void;
 
+  calendar: {
+    list(): Promise<T.CalendarInfo[]>;
+    setVisible(id: number, visible: boolean): Promise<void>;
+    setColor(id: number, color: string): Promise<void>;
+    occurrences(from: number, to: number): Promise<T.Occurrence[]>;
+    detail(eventId: number, recurrenceId: T.EventTime | null): Promise<T.EventDetail>;
+    create(input: T.EventInput): Promise<number>;
+    update(eventId: number, recurrenceId: T.EventTime | null, scope: T.EditScope, input: T.EventInput): Promise<void>;
+    move(eventId: number, recurrenceId: T.EventTime | null, scope: T.EditScope, start: number, end: number): Promise<void>;
+    remove(eventId: number, recurrenceId: T.EventTime | null, scope: T.EditScope): Promise<void>;
+    respond(eventId: number, status: T.PartStat, comment?: string | null): Promise<void>;
+    invite(messageId: number): Promise<T.InviteInfo>;
+    respondInvite(messageId: number, status: T.PartStat, comment?: string | null): Promise<void>;
+  };
+
   ai: {
     config(): Promise<T.AiConfig>;
     setConfig(settings: T.AiSettings, apiKey?: string | null): Promise<void>;

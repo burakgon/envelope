@@ -89,6 +89,21 @@ export function createTauriApi(): Api {
     onMailto: (cb) => subscribe<string>('mailto', cb),
     onOpenThread: (cb) => subscribe<number | null>('open-thread', cb),
 
+    calendar: {
+      list: () => invoke('calendars'),
+      setVisible: (id, visible) => invoke('calendar_set_visible', { id, visible }),
+      setColor: (id, color) => invoke('calendar_set_color', { id, color }),
+      occurrences: (from, to) => invoke('occurrences', { from, to }),
+      detail: (eventId, recurrenceId) => invoke('event_detail', { eventId, recurrenceId }),
+      create: (input) => invoke('event_create', { input }),
+      update: (eventId, recurrenceId, scope, input) => invoke('event_update', { eventId, recurrenceId, scope, input }),
+      move: (eventId, recurrenceId, scope, start, end) => invoke('event_move', { eventId, recurrenceId, scope, start, end }),
+      remove: (eventId, recurrenceId, scope) => invoke('event_delete', { eventId, recurrenceId, scope }),
+      respond: (eventId, status, comment) => invoke('event_respond', { eventId, status, comment: comment ?? null }),
+      invite: (messageId) => invoke('invite_info', { messageId }),
+      respondInvite: (messageId, status, comment) => invoke('invite_respond', { messageId, status, comment: comment ?? null }),
+    },
+
     ai: {
       config: () => invoke('ai_config'),
       setConfig: (settings, apiKey) => invoke('ai_set_config', { settings, apiKey: apiKey ?? null }),

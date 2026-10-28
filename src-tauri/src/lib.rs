@@ -163,6 +163,18 @@ pub fn run() {
             commands::ai_test,
             commands::ai_run,
             commands::ai_cancel,
+            commands::calendars,
+            commands::calendar_set_visible,
+            commands::calendar_set_color,
+            commands::occurrences,
+            commands::event_detail,
+            commands::event_create,
+            commands::event_update,
+            commands::event_move,
+            commands::event_delete,
+            commands::event_respond,
+            commands::invite_info,
+            commands::invite_respond,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

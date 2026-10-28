@@ -17,6 +17,10 @@ chrono = { version = "0.4.45", features = ["serde"] }
 chrono-tz = "0.10.4"
 dirs = "7.0.0"
 envelope-ai = { version = "0.1.0", path = "../envelope-ai" }
+envelope-dav = { version = "0.1.0", path = "../envelope-dav" }
+envelope-google = { version = "0.1.0", path = "../envelope-google" }
+envelope-graph = { version = "0.1.0", path = "../envelope-graph" }
+envelope-ical = { version = "0.1.0", path = "../envelope-ical" }
 envelope-imap = { version = "0.1.0", path = "../envelope-imap" }
 futures = "0.3.34"
 hickory-resolver = { version = "0.26.3", features = ["tokio"] }

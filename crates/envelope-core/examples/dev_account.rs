@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             config: AccountConfig {
                 imap: Some(ServerConfig { host: "127.0.0.1".into(), port: 1993, security: Security::Tls, username: String::new() }),
                 smtp: Some(ServerConfig { host: "127.0.0.1".into(), port: 1587, security: Security::None, username: String::new() }),
-                caldav_url: Some("http://127.0.0.1:5232/alex/".into()),
+                caldav_url: Some("http://127.0.0.1:5232/".into()),
                 accept_invalid_certs: true,
                 ..Default::default()
             },

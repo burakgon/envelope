@@ -107,3 +107,7 @@ export { default as MessageText } from '@lucide/svelte/icons/message-square-text
 export { default as ListChecks } from '@lucide/svelte/icons/list-checks';
 export { default as ShieldAlert } from '@lucide/svelte/icons/shield-alert';
 export { default as UsersRound } from '@lucide/svelte/icons/users-round';
+export { default as Repeat } from '@lucide/svelte/icons/repeat';
+export { default as AlignLeft } from '@lucide/svelte/icons/align-left';
+export { default as HelpCircle } from '@lucide/svelte/icons/circle-help';
+export { default as XCircle } from '@lucide/svelte/icons/circle-x';

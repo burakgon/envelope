@@ -48,6 +48,17 @@
         ['Esc', 'Close composer (keeps draft)'],
       ],
     },
+    {
+      title: 'Calendar',
+      keys: [
+        ['C', 'New event'],
+        ['T', 'Jump to today'],
+        ['D / W / M / A', 'Day / week / month / agenda'],
+        ['J / K', 'Next / previous period'],
+        ['G then M', 'Back to Mail'],
+        ['Ctrl Enter', 'Save event'],
+      ],
+    },
   ];
 </script>
 

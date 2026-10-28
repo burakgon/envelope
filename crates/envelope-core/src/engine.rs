@@ -63,6 +63,7 @@ pub struct Inner {
     /// Connections used for user-initiated fetches (bodies, attachments).
     pub(crate) interactive: Mutex<HashMap<i64, ImapSlot>>,
     pub(crate) outbox_wake: Notify,
+    pub(crate) calendar_wake: Notify,
     pub(crate) shutdown: CancellationToken,
 }
 
@@ -98,6 +99,7 @@ impl Engine {
                 sync_states: Mutex::new(HashMap::new()),
                 interactive: Mutex::new(HashMap::new()),
                 outbox_wake: Notify::new(),
+                calendar_wake: Notify::new(),
                 shutdown: CancellationToken::new(),
             }),
         };
@@ -107,6 +109,7 @@ impl Engine {
             }
         }
         crate::sync::outbox::spawn_scheduler(engine.clone());
+        crate::sync::calendar::spawn_scheduler(engine.clone());
         crate::sync::spawn_housekeeping(engine.clone());
         Ok(engine)
     }
@@ -178,6 +181,7 @@ impl Engine {
     }
 
     pub fn sync_now(&self, account_id: Option<i64>) {
+        self.calendar_wake.notify_one();
         match account_id {
             Some(id) => self.wake(id),
             None => {
@@ -334,6 +338,7 @@ impl Engine {
             .set(&secrets::password_key(id), &input.password)
             .await?;
         self.start_worker(id);
+        self.calendar_wake.notify_one();
         self.emit(EngineEvent::AccountsChanged);
         self.account(id)
     }
@@ -395,6 +400,7 @@ impl Engine {
         })?;
         self.tokens.store(id, &auth.tokens).await?;
         self.start_worker(id);
+        self.calendar_wake.notify_one();
         self.emit(EngineEvent::AccountsChanged);
         self.account(id)
     }
@@ -474,6 +480,7 @@ impl Engine {
             if patch.enabled.unwrap_or(current.enabled) {
                 self.start_worker(id);
             }
+            self.calendar_wake.notify_one();
         }
         self.emit(EngineEvent::AccountsChanged);
         self.account(id)

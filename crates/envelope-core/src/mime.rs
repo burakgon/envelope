@@ -183,6 +183,18 @@ pub fn parse_full(raw: &[u8]) -> Option<(MessageMeta, ParsedBody)> {
                     .unwrap_or_else(|| "PUBLISH".into());
                 calendar = Some((method, body.into_owned()));
             }
+            if !part.is_attachment() {
+                attachments.push(AttachmentMeta {
+                    part_id: format!("mp:{index}"),
+                    filename: "invite.ics".into(),
+                    mime_type: mime.clone(),
+                    size: part.decoded_len() as i64,
+                    content_id: None,
+                    inline: true,
+                    encoding: None,
+                });
+                continue;
+            }
         }
         let is_body_part = part.in_html_body() || part.in_text_body();
         if part.is_multipart() || (is_body_part && !part.is_attachment()) {
@@ -417,6 +429,16 @@ fn walk_plan<'a>(p: &'a BodyPart, plan: &mut BodyPlan<'a>, in_attachment: bool) 
                 plan.calendar = Some(p);
             }
             if !is_attachment && filename.is_none() {
+                // Keep invitations reachable (hidden from the attachment list).
+                plan.attachments.push(AttachmentMeta {
+                    part_id: p.part_id.clone(),
+                    filename: "invite.ics".into(),
+                    mime_type: "text/calendar".into(),
+                    size: p.size as i64,
+                    content_id: None,
+                    inline: true,
+                    encoding: Some(p.encoding.clone()),
+                });
                 return;
             }
         }

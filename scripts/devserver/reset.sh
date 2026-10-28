@@ -5,3 +5,5 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=${ENVELOPE_DEVSERVER_DIR:-$HERE/../../.devserver}
 rm -rf "$ROOT/home/alex@envelope.test"
 python3 "$HERE/seed.py" "$ROOT/home/alex@envelope.test/Maildir" alex@envelope.test >/dev/null
+rm -rf "$ROOT/radicale/collection-root/alex@envelope.test"
+python3 "$HERE/seed_calendar.py" "$ROOT/radicale" >/dev/null

@@ -33,7 +33,13 @@ pub fn detect_conference_url(vevent: &Component) -> Option<String> {
             }
         }
     }
-    None
+    // A location that is nothing but a link is where the meeting happens,
+    // whatever service it points to.
+    vevent
+        .property("LOCATION")
+        .map(|p| p.text_value())
+        .filter(|v| !v.trim().contains(char::is_whitespace))
+        .and_then(|v| web_url(&v))
 }
 
 /// The value as an http(s) URL, if it is one.
@@ -249,5 +255,19 @@ mod tests {
             detect_conference_url(event).as_deref(),
             Some("https://teams.microsoft.com/l/meetup-join/xyz")
         );
+    }
+
+    #[test]
+    fn bare_link_location() {
+        let text = "BEGIN:VEVENT\nLOCATION:https://meet.example.org/standup\nEND:VEVENT\n";
+        let event = &parse_components(text)[0];
+        assert_eq!(
+            detect_conference_url(event).as_deref(),
+            Some("https://meet.example.org/standup")
+        );
+
+        let text = "BEGIN:VEVENT\nLOCATION:Room 4 (see https://example.org/map)\nEND:VEVENT\n";
+        let event = &parse_components(text)[0];
+        assert_eq!(detect_conference_url(event), None);
     }
 }

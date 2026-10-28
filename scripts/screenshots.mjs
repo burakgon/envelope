@@ -43,6 +43,11 @@ const jobs = {
   palette: () => shot('palette', { theme: 'dark', actions: async (p) => { await openFirst(p); await p.keyboard.press('Control+k'); await p.keyboard.type('arch'); } }),
   'ai-summary': () => shot('ai-summary', { actions: async (p) => { await p.locator('.row', { hasText: 'Q4 roadmap' }).click(); await p.waitForTimeout(400); await p.locator('.pill', { hasText: 'Summarize' }).click(); await p.waitForTimeout(3500); await p.locator('.pill', { hasText: 'Suggest replies' }).click(); await p.waitForTimeout(2000); } }),
   'ai-ask': () => shot('ai-ask', { theme: 'dark', actions: async (p) => { await openFirst(p); await p.keyboard.press('Control+k'); await p.keyboard.type('When is my flight to Berlin?'); await p.waitForTimeout(300); await p.locator('.row', { hasText: 'Ask AI' }).click(); await p.waitForTimeout(3500); } }),
+  'calendar-week': () => shot('calendar-week', { actions: async (p) => { await p.locator('.modes button', { hasText: 'Calendar' }).click(); await p.waitForTimeout(900); } }),
+  'calendar-month': () => shot('calendar-month', { theme: 'dark', actions: async (p) => { await p.locator('.modes button', { hasText: 'Calendar' }).click(); await p.waitForTimeout(400); await p.keyboard.press('m'); await p.waitForTimeout(800); } }),
+  'calendar-event': () => shot('calendar-event', { actions: async (p) => { await p.locator('.modes button', { hasText: 'Calendar' }).click(); await p.waitForTimeout(900); await p.locator('.ev .evc', { hasText: 'Roadmap' }).first().click(); await p.waitForTimeout(700); } }),
+  'calendar-editor': () => shot('calendar-editor', { theme: 'dark', actions: async (p) => { await p.locator('.modes button', { hasText: 'Calendar' }).click(); await p.waitForTimeout(600); await p.keyboard.press('c'); await p.waitForTimeout(200); await p.keyboard.type('Design review'); await p.waitForTimeout(200); await p.locator('.editor input.field').nth(1).click(); await p.waitForTimeout(400); } }),
+  invite: () => shot('invite', { actions: async (p) => { await p.locator('.row', { hasText: 'Product sync' }).first().click(); await p.waitForTimeout(900); } }),
   settings: () => shot('settings', { actions: async (p) => { await p.keyboard.press('Control+,'); await p.waitForTimeout(200); await p.locator('.tab', { hasText: 'Appearance' }).click(); } }),
 };
 for (const [name, job] of Object.entries(jobs)) {
