@@ -121,6 +121,26 @@ export function prepareHtml(raw: string, opts: PrepareOptions): PreparedEmail {
   return { html: out, blockedRemote: blocked, trackers, designed };
 }
 
+/**
+ * Sanitizes a fragment of mail HTML for display inside the app itself (not in the
+ * sandboxed message frame), e.g. the quoted original below a reply. Remote images
+ * are dropped so that opening a reply doesn't ping trackers.
+ */
+export function sanitizeFragment(html: string): string {
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.nodeName === 'IMG' && REMOTE.test(node.getAttribute('src') ?? '')) node.removeAttribute('src');
+    if (node.nodeName === 'A') node.setAttribute('target', '_blank');
+  });
+  try {
+    return DOMPurify.sanitize(html, {
+      FORBID_TAGS: ['style', 'form', 'input', 'button', 'textarea', 'select', 'iframe', 'object', 'embed', 'link', 'meta'],
+      FORBID_ATTR: ['srcset'],
+    }) as string;
+  } finally {
+    DOMPurify.removeAllHooks();
+  }
+}
+
 function cspMeta(allowRemote: boolean): string {
   const img = allowRemote ? 'data: att: http://att.localhost https: http:' : 'data: att: http://att.localhost';
   const font = allowRemote ? 'data: https:' : 'data:';

@@ -1,18 +1,30 @@
 <script lang="ts">
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
+  import { api } from '../api';
 
   let { text, streaming = false, oncite }: { text: string; streaming?: boolean; oncite?: (n: number) => void } = $props();
 
   const html = $derived.by(() => {
     const raw = marked.parse(text, { async: false, gfm: true, breaks: true }) as string;
     const withCites = raw.replace(/\[(\d{1,2})\]/g, '<button class="cite" data-cite="$1">$1</button>');
-    return DOMPurify.sanitize(withCites, { ADD_ATTR: ['data-cite'], ADD_TAGS: ['button'] });
+    // Model output can echo text from untrusted mail: no images (they could leak data), no forms.
+    return DOMPurify.sanitize(withCites, {
+      ADD_ATTR: ['data-cite'],
+      ADD_TAGS: ['button'],
+      FORBID_TAGS: ['img', 'picture', 'video', 'audio', 'source', 'style', 'form', 'input', 'textarea', 'select', 'iframe'],
+    });
   });
 
   function click(e: MouseEvent) {
     const el = (e.target as HTMLElement).closest('[data-cite]');
-    if (el) oncite?.(Number(el.getAttribute('data-cite')));
+    if (el) return oncite?.(Number(el.getAttribute('data-cite')));
+    const a = (e.target as HTMLElement).closest('a[href]');
+    if (a) {
+      e.preventDefault();
+      const href = a.getAttribute('href') ?? '';
+      if (/^(https?:|mailto:)/i.test(href)) api.openUrl(href);
+    }
   }
 </script>
 

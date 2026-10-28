@@ -27,6 +27,7 @@
   let showRecipients = $state(false);
   let source = $state<string | null>(null);
   let viewing = $state<number | null>(null);
+  let bodyImages = $state<{ items: { src: string; filename: string }[]; index: number } | null>(null);
   let found = $state<{ x: number; y: number; events: ExtractedEvent[] } | null>(null);
 
   /** Asks the AI for events in this message and opens the event editor with them. */
@@ -161,7 +162,7 @@
 
     <div class="content">
       {#if message.body}
-        <MailFrame {message} allowRemote={remote} onstats={(s) => (stats = s)} />
+        <MailFrame {message} allowRemote={remote} onstats={(s) => (stats = s)} onimage={(items, index) => (bodyImages = { items, index })} />
       {:else}
         <div class="loading">
           <span class="skeleton" style="width:72%;height:12px"></span>
@@ -199,6 +200,9 @@
 
 {#if viewing != null && viewing >= 0}
   <ImageViewer items={images} start={viewing} onclose={() => (viewing = null)} />
+{/if}
+{#if bodyImages}
+  <ImageViewer items={bodyImages.items} start={bodyImages.index} onclose={() => (bodyImages = null)} />
 {/if}
 
 {#if menu}

@@ -6,7 +6,8 @@
   import { fileSize } from '../utils/format';
   import { ChevronLeft, ChevronRight, Download, ExternalLink, X } from '../icons';
 
-  let { items, start = 0, onclose }: { items: AttachmentInfo[]; start?: number; onclose: () => void } = $props();
+  type Item = AttachmentInfo | { id?: undefined; src: string; filename: string; size?: undefined };
+  let { items, start = 0, onclose }: { items: Item[]; start?: number; onclose: () => void } = $props();
 
   let index = $state(0);
   let zoomed = $state(false);
@@ -24,12 +25,16 @@
     zoomed = false;
   }
 
+  const src = (item: Item) => (item.id != null ? api.attachmentUrl(item.id) : item.src);
+
   async function save() {
+    if (current.id == null) return;
+    const id = current.id;
     const target = await api.pickSavePath(current.filename);
     if (!target) return;
     try {
-      await api.attachmentSave(current.id, target);
-      toasts.show(`Saved ${current.filename}`, { kind: 'success', action: { label: 'Show', run: () => api.attachmentReveal(current.id) } });
+      await api.attachmentSave(id, target);
+      toasts.show(`Saved ${current.filename}`, { kind: 'success', action: { label: 'Show', run: () => api.attachmentReveal(id) } });
     } catch (e) {
       toasts.error(errorMessage(e));
     }
@@ -51,17 +56,20 @@
   <header>
     <div class="name">
       <b class="truncate">{current?.filename}</b>
-      <span>{fileSize(current?.size ?? 0)}{items.length > 1 ? ` · ${index + 1} of ${items.length}` : ''}</span>
+      <span>{[current?.size != null ? fileSize(current.size) : '', items.length > 1 ? `${index + 1} of ${items.length}` : ''].filter(Boolean).join(' · ')}</span>
     </div>
-    <button class="tool" title="Save as…" onclick={save}><Download size={18} /></button>
-    <button class="tool" title="Open with another app" onclick={() => api.attachmentOpen(current.id).catch((e) => toasts.error(errorMessage(e)))}><ExternalLink size={18} /></button>
+    {#if current?.id != null}
+      {@const id = current.id}
+      <button class="tool" title="Save as…" onclick={save}><Download size={18} /></button>
+      <button class="tool" title="Open with another app" onclick={() => api.attachmentOpen(id).catch((e) => toasts.error(errorMessage(e)))}><ExternalLink size={18} /></button>
+    {/if}
     <button class="tool" title="Close (Esc)" onclick={onclose}><X size={20} /></button>
   </header>
 
   <div class="stage" class:zoomed role="presentation" onclick={(e) => e.target === e.currentTarget && onclose()}>
-    {#key current?.id}
+    {#key current ? src(current) : ''}
       <button class="zoom" aria-label={zoomed ? 'Fit to window' : 'Actual size'} onclick={() => (zoomed = !zoomed)}>
-        <img src={api.attachmentUrl(current.id)} alt={current.filename} draggable="false" />
+        <img src={src(current)} alt={current.filename} draggable="false" />
       </button>
     {/key}
   </div>

@@ -11,6 +11,7 @@
   import Popover from './Popover.svelte';
   import AiComposeMenu from './AiComposeMenu.svelte';
   import TemplateMenu from './TemplateMenu.svelte';
+  import { sanitizeFragment } from '../utils/html';
   import type { Template } from '../stores/ui.svelte';
   import type { Editor as TipTap } from '@tiptap/core';
   import { ChevronDown, Clock, FileText, Maximize, Minimize, Minus, More, Paperclip, Send, Sparkles, Trash, Type, X, File as FileIcon } from '../icons';
@@ -244,7 +245,17 @@
       {#if quoted}
         <button class="quote-toggle" title="Show quoted text" onclick={() => (showQuote = !showQuote)}>•••</button>
         {#if showQuote}
-          <div class="quoted">{@html quoted}</div>
+          <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+          <div
+            class="quoted"
+            onclick={(e) => {
+              const a = (e.target as HTMLElement).closest('a[href]');
+              if (!a) return;
+              e.preventDefault();
+              const href = a.getAttribute('href') ?? '';
+              if (/^(https?:|mailto:)/i.test(href)) api.openUrl(href);
+            }}
+          >{@html sanitizeFragment(quoted)}</div>
         {/if}
       {/if}
       {#if c.data.attachments.length}
