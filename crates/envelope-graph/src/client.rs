@@ -722,6 +722,41 @@ impl GraphClient {
         self.execute(request).await?.json()
     }
 
+    /// PUTs one byte range of a file to a pre-authenticated upload URL (an
+    /// attachment upload session). No `Authorization` header is sent: the URL
+    /// carries its own credentials.
+    pub(crate) async fn put_range(
+        &self,
+        url: &str,
+        data: Bytes,
+        start: usize,
+        total: usize,
+    ) -> Result<(), GraphError> {
+        let end = start + data.len();
+        let response = self
+            .inner
+            .http
+            .put(url)
+            .header(CONTENT_TYPE, "application/octet-stream")
+            .header(CONTENT_LENGTH, data.len())
+            .header(
+                reqwest::header::CONTENT_RANGE,
+                format!("bytes {start}-{}/{total}", end.saturating_sub(1)),
+            )
+            .body(data)
+            .send()
+            .await?;
+        let status = response.status().as_u16();
+        if (200..300).contains(&status) {
+            return Ok(());
+        }
+        let headers = response.headers().clone();
+        let body = response.bytes().await.unwrap_or_default();
+        Err(GraphError::Api(Box::new(ApiError::from_response(
+            status, &headers, &body,
+        ))))
+    }
+
     /// Sends a request whose response body is irrelevant.
     pub async fn send_empty(&self, request: &GraphRequest) -> Result<(), GraphError> {
         self.execute(request).await.map(drop)

@@ -16,6 +16,32 @@ use crate::folders::FolderRole;
 use crate::serde_util::{graph_enum, lenient_bool, null_default};
 use crate::types::{DateTimeTimeZone, Importance, Recipient};
 
+/// Attachments below this size are posted inline; larger ones use an upload session.
+const SMALL_ATTACHMENT: usize = 3 * 1024 * 1024;
+/// Upload session chunk: a multiple of 320 KiB, below the 4 MiB maximum.
+const UPLOAD_CHUNK: usize = 10 * 320 * 1024;
+
+/// A file to attach to a draft with [`GraphClient::add_attachment`].
+#[derive(Debug, Clone, Copy)]
+pub struct NewAttachment<'a> {
+    /// File name shown to recipients.
+    pub name: &'a str,
+    /// MIME type, e.g. `application/pdf`.
+    pub content_type: &'a str,
+    /// The file's contents.
+    pub bytes: &'a [u8],
+    /// `Content-ID` for inline images.
+    pub content_id: Option<&'a str>,
+    /// Whether the file is shown inside the body (an inline image).
+    pub inline: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UploadSession {
+    upload_url: String,
+}
+
 /// The message properties a message list needs; the default `$select` of
 /// delta sync, listing and search.
 pub const MESSAGE_LIST_FIELDS: &[&str] = &[
@@ -651,6 +677,63 @@ impl GraphClient {
         }
         .text(BASE64.encode(mime));
         self.send_json(&request).await
+    }
+
+    /// Attaches a file to a draft. Files of 3 MB or more go through an
+    /// upload session in chunks, so attachments up to 150 MB work.
+    pub async fn add_attachment(
+        &self,
+        message_id: &str,
+        attachment: &NewAttachment<'_>,
+    ) -> Result<(), GraphError> {
+        let a = attachment;
+        if a.bytes.len() < SMALL_ATTACHMENT {
+            let body = json!({
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": a.name,
+                "contentType": a.content_type,
+                "contentBytes": BASE64.encode(a.bytes),
+                "isInline": a.inline,
+                "contentId": a.content_id,
+            });
+            let request =
+                GraphRequest::post(["me", "messages", message_id, "attachments"]).json(&body)?;
+            let _: serde_json::Value = self.send_json(&request).await?;
+            return Ok(());
+        }
+        let body = json!({
+            "AttachmentItem": {
+                "attachmentType": "file",
+                "name": a.name,
+                "size": a.bytes.len(),
+                "contentType": a.content_type,
+                "isInline": a.inline,
+                "contentId": a.content_id,
+            }
+        });
+        let request = GraphRequest::post([
+            "me",
+            "messages",
+            message_id,
+            "attachments",
+            "createUploadSession",
+        ])
+        .json(&body)?;
+        let session: UploadSession = self.send_json(&request).await?;
+        let total = a.bytes.len();
+        let mut start = 0;
+        while start < total {
+            let end = (start + UPLOAD_CHUNK).min(total);
+            self.put_range(
+                &session.upload_url,
+                Bytes::copy_from_slice(&a.bytes[start..end]),
+                start,
+                total,
+            )
+            .await?;
+            start = end;
+        }
+        Ok(())
     }
 
     /// Sends an existing draft.

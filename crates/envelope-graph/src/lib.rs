@@ -62,7 +62,7 @@ pub use event::{
 pub use folders::{FolderRole, MailFolder};
 pub use messages::{
     FlagStatus, FollowupFlag, InferenceClassification, InternetMessageHeader, MESSAGE_LIST_FIELDS,
-    Message, MessageDeltaOptions, MessageListOptions, MessageUpdate,
+    Message, MessageDeltaOptions, MessageListOptions, MessageUpdate, NewAttachment,
 };
 pub use profile::{
     AutomaticRepliesSetting, AutomaticRepliesStatus, ExternalAudienceScope, LocaleInfo,

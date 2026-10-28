@@ -1330,3 +1330,131 @@ async fn the_worker_syncs_replays_changes_and_stops() {
         .expect("no panic");
     f.server.verify().await;
 }
+
+#[tokio::test]
+async fn sends_large_messages_as_a_draft_with_uploaded_files() {
+    let f = fixture().await;
+    let upload = format!("{}/upload/session-1", f.server.uri());
+    f.mount(
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/messages"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({ "id": "draft-1" })))
+            .expect(1),
+    )
+    .await;
+    f.mount(
+        Mock::given(method("POST"))
+            .and(path(
+                "/v1.0/me/messages/draft-1/attachments/createUploadSession",
+            ))
+            .respond_with(ResponseTemplate::new(201).set_body_json(
+                json!({ "uploadUrl": upload, "expirationDateTime": "2030-01-01T00:00:00Z" }),
+            ))
+            .expect(1),
+    )
+    .await;
+    f.mount(
+        Mock::given(method("PUT"))
+            .and(path("/upload/session-1"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(2),
+    )
+    .await;
+    f.mount(
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/messages/draft-1/attachments"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({ "id": "att-small" })))
+            .expect(1),
+    )
+    .await;
+    f.mount(
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/messages/draft-1/send"))
+            .respond_with(ResponseTemplate::new(202))
+            .expect(1),
+    )
+    .await;
+
+    let big: Vec<u8> = (0..4_000_000u32).map(|i| (i % 251) as u8).collect();
+    let out = crate::compose::Outgoing {
+        from: Address::new(Some("Megan".into()), "megan@contoso.com"),
+        reply_to: None,
+        to: vec![Address::new(None, "danas@contoso.com")],
+        cc: vec![],
+        bcc: vec![Address::new(None, "secret@example.com")],
+        subject: "Big files".into(),
+        html: "<p>Two files attached</p>".into(),
+        text: None,
+        in_reply_to: Some("original@contoso.com".into()),
+        references: vec!["original@contoso.com".into()],
+        attachments: vec![
+            crate::compose::FilePart {
+                filename: "video.bin".into(),
+                mime_type: "application/octet-stream".into(),
+                data: big,
+                content_id: None,
+            },
+            crate::compose::FilePart {
+                filename: "notes.txt".into(),
+                mime_type: "text/plain".into(),
+                data: b"small".to_vec(),
+                content_id: None,
+            },
+        ],
+        read_receipt: false,
+        message_id: None,
+        extra_headers: vec![],
+        calendar: None,
+        allow_no_recipients: false,
+    };
+    let rendered = crate::compose::render(&out).expect("rendered");
+    assert!(rendered.mime.len() > MIME_LIMIT);
+    send_with(&f.graph, &rendered.mime, &rendered.recipients)
+        .await
+        .expect("sent");
+
+    let requests = f.server.received_requests().await.unwrap_or_default();
+    let draft = requests
+        .iter()
+        .find(|r| r.url.path() == "/v1.0/me/messages")
+        .expect("draft upload");
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(&draft.body)
+        .expect("base64 draft");
+    let text = String::from_utf8_lossy(&decoded);
+    assert!(
+        decoded.len() < 100_000,
+        "the draft carries no files ({} bytes)",
+        decoded.len()
+    );
+    assert!(text.contains("Bcc: secret@example.com"), "{text}");
+    assert!(
+        text.contains("In-Reply-To: <original@contoso.com>"),
+        "{text}"
+    );
+    let puts: Vec<_> = requests
+        .iter()
+        .filter(|r| r.method.as_str() == "PUT")
+        .collect();
+    assert!(
+        puts.iter()
+            .all(|r| !r.headers.contains_key("authorization"))
+    );
+    let ranges: Vec<String> = puts
+        .iter()
+        .map(|r| {
+            r.headers
+                .get("content-range")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .to_string()
+        })
+        .collect();
+    assert_eq!(
+        ranges,
+        vec![
+            "bytes 0-3276799/4000000".to_string(),
+            "bytes 3276800-3999999/4000000".to_string()
+        ]
+    );
+}

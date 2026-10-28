@@ -24,7 +24,7 @@ use chrono::{SecondsFormat, Utc};
 use envelope_graph::{
     BatchRequest, DeltaCursor, FlagStatus, GraphClient, GraphError, GraphRequest,
     InferenceClassification, MailFolder, Message, MessageDeltaOptions, MessageListOptions,
-    MessageUpdate, OutlookCategory, Recipient,
+    MessageUpdate, NewAttachment, OutlookCategory, Recipient,
 };
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -172,8 +172,8 @@ fn graph_error(e: GraphError, token_failure: Option<TokenFailure>) -> Error {
                 0 | 429 | 500..=599 => Error::Network(text),
                 404 => Error::NotFound(text),
                 413 => Error::Invalid(
-                    "The message is too large: Microsoft 365 accepts about 3 MB \
-                     (attachments included) from Envelope"
+                    "The message is too large for Microsoft 365 \
+                     (each attachment can be up to 150 MB)"
                         .into(),
                 ),
                 _ => Error::Other(text),
@@ -1730,13 +1730,104 @@ pub(crate) async fn send(
     send_with(&graph, mime, recipients).await
 }
 
+/// Raw MIME that fits in one `sendMail` request (base64 adds a third; Graph
+/// takes about 4 MB per request).
+const MIME_LIMIT: usize = 2_900_000;
+
 async fn send_with(graph: &GraphMail, mime: &[u8], recipients: &[String]) -> Result<()> {
     let mime = with_bcc_header(mime, recipients);
+    if mime.len() > MIME_LIMIT {
+        return send_large(graph, &mime).await;
+    }
     graph
         .client
         .send_mime(&mime)
         .await
         .map_err(|e| graph.err(e))
+}
+
+/// Too big for one request: uploads the message without its files as a draft
+/// (keeping its headers, so replies stay threaded), attaches the files — large
+/// ones through an upload session — and sends the draft.
+async fn send_large(graph: &GraphMail, mime: &[u8]) -> Result<()> {
+    let (skeleton, files) = split_files(mime)?;
+    let draft = graph
+        .client
+        .create_draft_mime(&skeleton, None)
+        .await
+        .map_err(|e| graph.err(e))?;
+    let sent = async {
+        for f in &files {
+            let attachment = NewAttachment {
+                name: &f.filename,
+                content_type: &f.mime_type,
+                bytes: &f.data,
+                content_id: f.content_id.as_deref(),
+                inline: f.inline,
+            };
+            graph.client.add_attachment(&draft.id, &attachment).await?;
+        }
+        graph.client.send_draft(&draft.id).await
+    }
+    .await;
+    if let Err(e) = sent {
+        let _ = graph.client.delete_draft(&draft.id).await;
+        return Err(graph.err(e));
+    }
+    Ok(())
+}
+
+struct SplitFile {
+    filename: String,
+    mime_type: String,
+    data: Vec<u8>,
+    content_id: Option<String>,
+    inline: bool,
+}
+
+/// The message re-rendered without its files, and the files.
+fn split_files(raw: &[u8]) -> Result<(Vec<u8>, Vec<SplitFile>)> {
+    let unreadable = || Error::Invalid("The message to send could not be read".into());
+    let (meta, body) = mime::parse_full(raw).ok_or_else(unreadable)?;
+    let mut files = Vec::new();
+    for a in &body.attachments {
+        // An invitation travels as the calendar alternative, not as a file.
+        if body.calendar.is_some() && a.mime_type.eq_ignore_ascii_case("text/calendar") {
+            continue;
+        }
+        let Some(data) = mime::extract_part(raw, &a.part_id) else {
+            continue;
+        };
+        files.push(SplitFile {
+            filename: a.filename.clone(),
+            mime_type: a.mime_type.clone(),
+            data,
+            content_id: a.content_id.clone(),
+            inline: a.inline && a.content_id.is_some(),
+        });
+    }
+    let out = crate::compose::Outgoing {
+        from: meta.from.clone().ok_or_else(unreadable)?,
+        reply_to: meta.reply_to.first().cloned(),
+        to: meta.to.clone(),
+        cc: meta.cc.clone(),
+        bcc: Vec::new(),
+        subject: meta.subject.clone(),
+        html: body.html.clone().unwrap_or_default(),
+        text: body.text.clone(),
+        in_reply_to: meta.in_reply_to.clone(),
+        references: meta.references.clone(),
+        attachments: Vec::new(),
+        read_receipt: false,
+        message_id: meta.message_id.clone(),
+        extra_headers: Vec::new(),
+        calendar: body.calendar.clone(),
+        allow_no_recipients: true,
+    };
+    let rendered = crate::compose::render(&out)?.mime;
+    // Bcc recipients only travel in the header block we added for Graph.
+    let bcc: Vec<String> = meta.bcc.iter().map(|a| a.email.clone()).collect();
+    Ok((with_bcc_header(&rendered, &bcc).into_owned(), files))
 }
 
 #[cfg(test)]
