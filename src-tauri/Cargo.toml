@@ -1,0 +1,12 @@
+[package]
+name = "envelope"
+description = "A fast, beautiful mail and calendar client for Linux"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+default-run = "envelope"
+
+[dependencies]
+envelope-core = { path = "../crates/envelope-core" }

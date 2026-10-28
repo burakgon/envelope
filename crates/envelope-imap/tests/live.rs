@@ -38,14 +38,22 @@ async fn full_session() {
 
     let (list, statuses) = c.list(true).await.expect("list");
     for l in &list {
-        println!("mailbox {:?} attrs {:?} special {:?}", l.name, l.attributes, l.special_use());
+        println!(
+            "mailbox {:?} attrs {:?} special {:?}",
+            l.name,
+            l.attributes,
+            l.special_use()
+        );
     }
     println!("statuses: {}", statuses.len());
     assert!(list.iter().any(|l| l.name == "INBOX"));
     assert!(list.iter().any(|l| l.special_use() == Some("\\Sent")));
 
     let sel = c.select("INBOX", None).await.expect("select");
-    println!("selected: exists={} uidvalidity={:?} uidnext={:?} modseq={:?}", sel.exists, sel.uid_validity, sel.uid_next, sel.highest_modseq);
+    println!(
+        "selected: exists={} uidvalidity={:?} uidnext={:?} modseq={:?}",
+        sel.exists, sel.uid_validity, sel.uid_next, sel.highest_modseq
+    );
     assert!(sel.exists > 50);
 
     let t = std::time::Instant::now();
@@ -62,29 +70,51 @@ async fn full_session() {
     assert_eq!(with_header, items.len(), "every item has header data");
     let with_att = items
         .iter()
-        .filter(|i| i.bodystructure.as_ref().is_some_and(|b| b.leaves().iter().any(|p| p.disposition.as_deref() == Some("attachment"))))
+        .filter(|i| {
+            i.bodystructure.as_ref().is_some_and(|b| {
+                b.leaves()
+                    .iter()
+                    .any(|p| p.disposition.as_deref() == Some("attachment"))
+            })
+        })
         .count();
     println!("with attachments: {with_att}");
     assert!(with_att >= 2);
 
     // Full body of the newest message.
     let last = items.iter().map(|i| i.uid.unwrap()).max().unwrap();
-    let body = c.uid_fetch(&last.to_string(), "UID BODY.PEEK[]").await.expect("body");
+    let body = c
+        .uid_fetch(&last.to_string(), "UID BODY.PEEK[]")
+        .await
+        .expect("body");
     assert!(body[0].body.as_ref().is_some_and(|b| b.len() > 100));
 
     // Append + move + expunge round trip in a fresh mailbox.
     let _ = c.delete("Envelope Test/Ünïcödé").await;
     let _ = c.delete("Envelope Test").await;
-    c.create("Envelope Test/Ünïcödé").await.expect("create unicode mailbox");
+    c.create("Envelope Test/Ünïcödé")
+        .await
+        .expect("create unicode mailbox");
     let raw = b"From: a@b.test\r\nTo: alex@envelope.test\r\nSubject: append test\r\n\r\nhello\r\n";
-    let appended = c.append("Envelope Test/Ünïcödé", &["\\Seen"], None, raw).await.expect("append");
+    let appended = c
+        .append("Envelope Test/Ünïcödé", &["\\Seen"], None, raw)
+        .await
+        .expect("append");
     println!("appended: {appended:?}");
-    let s2 = c.select("Envelope Test/Ünïcödé", None).await.expect("select unicode");
+    let s2 = c
+        .select("Envelope Test/Ünïcödé", None)
+        .await
+        .expect("select unicode");
     assert_eq!(s2.exists, 1);
     let uids = c.uid_search("ALL").await.expect("search");
     assert_eq!(uids.len(), 1);
-    c.uid_store(&uids, "+FLAGS.SILENT", &["\\Flagged"]).await.expect("store");
-    let f = c.uid_fetch(&uids[0].to_string(), "UID FLAGS").await.expect("flags");
+    c.uid_store(&uids, "+FLAGS.SILENT", &["\\Flagged"])
+        .await
+        .expect("store");
+    let f = c
+        .uid_fetch(&uids[0].to_string(), "UID FLAGS")
+        .await
+        .expect("flags");
     assert!(f[0].has_flag("\\Flagged"));
     let moved = c.uid_move(&uids, "Trash").await.expect("move");
     println!("moved pairs: {moved:?}");
@@ -94,14 +124,25 @@ async fn full_session() {
 
     // QRESYNC select with stale modseq returns changes.
     if c.is_enabled("QRESYNC") {
-        let q = envelope_imap::QresyncParams { uid_validity: sel.uid_validity.unwrap(), modseq: 1, known_uids: None };
+        let q = envelope_imap::QresyncParams {
+            uid_validity: sel.uid_validity.unwrap(),
+            modseq: 1,
+            known_uids: None,
+        };
         let s3 = c.select("INBOX", Some(&q)).await.expect("qresync select");
-        println!("qresync changed={} vanished={}", s3.changed.len(), s3.vanished.len());
+        println!(
+            "qresync changed={} vanished={}",
+            s3.changed.len(),
+            s3.vanished.len()
+        );
     }
 
     // IDLE: interrupt after a short time.
     let (end, _) = c
-        .idle(Duration::from_secs(30), tokio::time::sleep(Duration::from_millis(300)))
+        .idle(
+            Duration::from_secs(30),
+            tokio::time::sleep(Duration::from_millis(300)),
+        )
         .await
         .expect("idle");
     assert_eq!(end, IdleEnd::Interrupted);
@@ -111,21 +152,37 @@ async fn full_session() {
 #[tokio::test]
 async fn starttls_and_idle_push() {
     let Some((_, _)) = server() else { return };
-    let Some(mut a) = connect(Security::StartTls, Some(1143)).await else { return };
-    let Some(mut b) = connect(Security::Tls, None).await else { return };
+    let Some(mut a) = connect(Security::StartTls, Some(1143)).await else {
+        return;
+    };
+    let Some(mut b) = connect(Security::Tls, None).await else {
+        return;
+    };
     a.select("INBOX", None).await.unwrap();
     let pusher = tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(500)).await;
-        b.append("INBOX", &[], None, b"From: x@y.test\r\nSubject: push\r\n\r\nhi\r\n").await.unwrap();
+        b.append(
+            "INBOX",
+            &[],
+            None,
+            b"From: x@y.test\r\nSubject: push\r\n\r\nhi\r\n",
+        )
+        .await
+        .unwrap();
         b
     });
-    let (end, untagged) = a.idle(Duration::from_secs(10), std::future::pending::<()>()).await.unwrap();
+    let (end, untagged) = a
+        .idle(Duration::from_secs(10), std::future::pending::<()>())
+        .await
+        .unwrap();
     println!("idle end {end:?} {untagged:?}");
     assert_eq!(end, IdleEnd::Changed);
     let mut b = pusher.await.unwrap();
     // clean up the pushed message
     b.select("INBOX", None).await.unwrap();
     let uids = b.uid_search("SUBJECT push").await.unwrap();
-    b.uid_store(&uids, "+FLAGS.SILENT", &["\\Deleted"]).await.unwrap();
+    b.uid_store(&uids, "+FLAGS.SILENT", &["\\Deleted"])
+        .await
+        .unwrap();
     b.uid_expunge(&uids).await.unwrap();
 }

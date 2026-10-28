@@ -144,7 +144,9 @@ impl std::fmt::Debug for Client {
 
 /// Quotes a string as an IMAP `astring`, or returns `None` if it needs a literal.
 pub fn quote(s: &str) -> Option<String> {
-    if s.bytes().any(|b| b == b'\r' || b == b'\n' || b == 0 || b >= 0x80) {
+    if s.bytes()
+        .any(|b| b == b'\r' || b == b'\n' || b == 0 || b >= 0x80)
+    {
         return None;
     }
     let mut out = String::with_capacity(s.len() + 2);
@@ -227,8 +229,21 @@ fn merge_fetches(items: impl IntoIterator<Item = FetchItem>) -> Vec<FetchItem> {
                 macro_rules! take {
                     ($($field:ident),*) => { $( if item.$field.is_some() { target.$field = item.$field; } )* };
                 }
-                take!(uid, flags, modseq, internal_date, size, header, body, bodystructure,
-                      gm_msgid, gm_thrid, gm_labels, email_id, thread_id);
+                take!(
+                    uid,
+                    flags,
+                    modseq,
+                    internal_date,
+                    size,
+                    header,
+                    body,
+                    bodystructure,
+                    gm_msgid,
+                    gm_thrid,
+                    gm_labels,
+                    email_id,
+                    thread_id
+                );
                 target.sections.extend(item.sections);
             }
             None => {
@@ -541,7 +556,9 @@ impl Client {
                 }) => {
                     self.bye = Some(text);
                 }
-                Resp::Untagged(Untagged::Capabilities(c)) if !name.eq_ignore_ascii_case("ENABLE") => {
+                Resp::Untagged(Untagged::Capabilities(c))
+                    if !name.eq_ignore_ascii_case("ENABLE") =>
+                {
                     self.caps = c;
                 }
                 Resp::Untagged(u) => untagged.push(u),
@@ -552,7 +569,11 @@ impl Client {
 
     /// Splits off untagged responses a command did not ask for so the sync
     /// layer can react to them later.
-    fn stash<F: Fn(&Untagged) -> bool>(&mut self, untagged: Vec<Untagged>, keep: F) -> Vec<Untagged> {
+    fn stash<F: Fn(&Untagged) -> bool>(
+        &mut self,
+        untagged: Vec<Untagged>,
+        keep: F,
+    ) -> Vec<Untagged> {
         let mut kept = Vec::new();
         for u in untagged {
             if keep(&u) {
@@ -713,7 +734,9 @@ impl Client {
         if wanted.is_empty() {
             return Ok(Vec::new());
         }
-        let done = self.run_text(&format!("ENABLE {}", wanted.join(" "))).await?;
+        let done = self
+            .run_text(&format!("ENABLE {}", wanted.join(" ")))
+            .await?;
         for u in done.untagged {
             if let Untagged::Capabilities(c) = u {
                 for cap in c {
@@ -745,7 +768,10 @@ impl Client {
 
     /// Lists all mailboxes. Uses `RETURN (SPECIAL-USE)` when available and,
     /// with LIST-STATUS, returns per-mailbox status in the same round trip.
-    pub async fn list(&mut self, with_status: bool) -> Result<(Vec<ListEntry>, Vec<MailboxStatus>)> {
+    pub async fn list(
+        &mut self,
+        with_status: bool,
+    ) -> Result<(Vec<ListEntry>, Vec<MailboxStatus>)> {
         let extended = self.has_cap("LIST-EXTENDED");
         let mut ret: Vec<String> = Vec::new();
         if extended && self.has_cap("SPECIAL-USE") {
@@ -801,7 +827,11 @@ impl Client {
     }
 
     /// Selects a mailbox read-write, using QRESYNC/CONDSTORE when possible.
-    pub async fn select(&mut self, mailbox: &str, qresync: Option<&QresyncParams>) -> Result<Selected> {
+    pub async fn select(
+        &mut self,
+        mailbox: &str,
+        qresync: Option<&QresyncParams>,
+    ) -> Result<Selected> {
         self.select_impl("SELECT", mailbox, qresync).await
     }
 
@@ -964,7 +994,11 @@ impl Client {
 
     /// `UID SEARCH <criteria>`.
     pub async fn uid_search(&mut self, criteria: &str) -> Result<Vec<u32>> {
-        let charset = if criteria.is_ascii() { "" } else { "CHARSET UTF-8 " };
+        let charset = if criteria.is_ascii() {
+            ""
+        } else {
+            "CHARSET UTF-8 "
+        };
         let done = self
             .run_text(&format!("UID SEARCH {charset}{criteria}"))
             .await?;
@@ -1013,7 +1047,12 @@ impl Client {
     }
 
     /// Adds or removes Gmail labels (`X-GM-LABELS`).
-    pub async fn gmail_store_labels(&mut self, uids: &[u32], add: bool, labels: &[&str]) -> Result<()> {
+    pub async fn gmail_store_labels(
+        &mut self,
+        uids: &[u32],
+        add: bool,
+        labels: &[&str],
+    ) -> Result<()> {
         if uids.is_empty() || labels.is_empty() {
             return Ok(());
         }
@@ -1086,7 +1125,8 @@ impl Client {
             return Ok(pairs);
         }
         let pairs = self.uid_copy(uids, dest).await?;
-        self.uid_store(uids, "+FLAGS.SILENT", &["\\Deleted"]).await?;
+        self.uid_store(uids, "+FLAGS.SILENT", &["\\Deleted"])
+            .await?;
         self.uid_expunge(uids).await?;
         Ok(pairs)
     }

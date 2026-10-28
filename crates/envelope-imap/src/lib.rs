@@ -14,4 +14,6 @@ pub mod utf7;
 pub use client::{Auth, Client, Config, Done, IdleEnd, Part, QresyncParams, Selected};
 pub use error::{Error, Result};
 pub use stream::Security;
-pub use types::{BodyPart, Code, FetchItem, ListEntry, MailboxStatus, Status, Untagged, uid_set_string};
+pub use types::{
+    BodyPart, Code, FetchItem, ListEntry, MailboxStatus, Status, Untagged, uid_set_string,
+};

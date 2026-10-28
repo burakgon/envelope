@@ -19,3 +19,4 @@ tokio-rustls = "0.26"
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std", "tls12", "logging"] }
 rustls-platform-verifier = "0.7"
 rustls-pki-types = "1"
+serde = { workspace = true, features = ["derive"] }

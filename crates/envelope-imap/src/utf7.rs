@@ -2,7 +2,7 @@
 
 use base64::Engine;
 use base64::alphabet::Alphabet;
-use base64::engine::{GeneralPurpose, GeneralPurposeConfig, DecodePaddingMode};
+use base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig};
 
 fn engine() -> GeneralPurpose {
     // Same as the IMAP alphabet: standard base64 with ',' instead of '/'.
@@ -68,7 +68,9 @@ pub fn decode(name: &str) -> Option<String> {
             return None;
         }
         let units: Vec<u16> = bytes
-            .as_chunks::<2>().0.iter()
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| u16::from_be_bytes(*c))
             .collect();
         out.push_str(&String::from_utf16(&units).ok()?);
@@ -112,7 +114,10 @@ mod tests {
             decode("~peter/mail/&U,BTFw-/&ZeVnLIqe-").as_deref(),
             Some("~peter/mail/台北/日本語")
         );
-        assert_eq!(encode("~peter/mail/台北/日本語"), "~peter/mail/&U,BTFw-/&ZeVnLIqe-");
+        assert_eq!(
+            encode("~peter/mail/台北/日本語"),
+            "~peter/mail/&U,BTFw-/&ZeVnLIqe-"
+        );
     }
 
     #[test]

@@ -38,8 +38,15 @@ pub enum Code {
     UidNext(u32),
     UidValidity(u32),
     Unseen(u32),
-    AppendUid { uid_validity: u32, uids: Vec<u32> },
-    CopyUid { uid_validity: u32, source: Vec<u32>, dest: Vec<u32> },
+    AppendUid {
+        uid_validity: u32,
+        uids: Vec<u32>,
+    },
+    CopyUid {
+        uid_validity: u32,
+        source: Vec<u32>,
+        dest: Vec<u32>,
+    },
     UidNotSticky,
     Other,
 }
@@ -63,7 +70,13 @@ impl ListEntry {
     /// RFC 6154 special-use role, if any (`\Sent`, `\Trash`, …).
     pub fn special_use(&self) -> Option<&'static str> {
         const ROLES: [&str; 7] = [
-            "\\All", "\\Archive", "\\Drafts", "\\Flagged", "\\Junk", "\\Sent", "\\Trash",
+            "\\All",
+            "\\Archive",
+            "\\Drafts",
+            "\\Flagged",
+            "\\Junk",
+            "\\Sent",
+            "\\Trash",
         ];
         ROLES.into_iter().find(|r| self.has_attr(r))
     }
@@ -86,7 +99,8 @@ pub struct MailboxStatus {
 }
 
 /// A node of a message's MIME structure as reported by `BODYSTRUCTURE`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct BodyPart {
     /// IMAP part specifier (`1`, `1.2`, …). Empty for a top-level multipart.
     pub part_id: String,
@@ -319,7 +333,9 @@ fn params(p: &imap_proto::BodyParams<'_>) -> Vec<(String, String)> {
         .unwrap_or_default()
 }
 
-fn disposition(d: &Option<imap_proto::ContentDisposition<'_>>) -> (Option<String>, Vec<(String, String)>) {
+fn disposition(
+    d: &Option<imap_proto::ContentDisposition<'_>>,
+) -> (Option<String>, Vec<(String, String)>) {
     match d {
         Some(d) => (Some(d.ty.to_ascii_lowercase()), params(&d.params)),
         None => (None, Vec::new()),
@@ -376,10 +392,14 @@ fn convert_part(bs: &BodyStructure<'_>, id: String) -> BodyPart {
                 ..Default::default()
             }
         }
-        BodyStructure::Basic { common, other, .. }
-        | BodyStructure::Text { common, other, .. } => leaf(common, other, id, Vec::new()),
+        BodyStructure::Basic { common, other, .. } | BodyStructure::Text { common, other, .. } => {
+            leaf(common, other, id, Vec::new())
+        }
         BodyStructure::Message {
-            common, other, body, ..
+            common,
+            other,
+            body,
+            ..
         } => {
             let inner = match body.as_ref() {
                 BodyStructure::Multipart { .. } => convert_part(body, id.clone()),
@@ -423,7 +443,9 @@ fn fetch_from(seq: u32, attrs: &[AttributeValue<'_>]) -> FetchItem {
     for attr in attrs {
         match attr {
             AttributeValue::Uid(u) => item.uid = Some(*u),
-            AttributeValue::Flags(f) => item.flags = Some(f.iter().map(|s| s.to_string()).collect()),
+            AttributeValue::Flags(f) => {
+                item.flags = Some(f.iter().map(|s| s.to_string()).collect())
+            }
             AttributeValue::ModSeq(m) => item.modseq = Some(*m),
             AttributeValue::InternalDate(d) => {
                 item.internal_date = DateTime::parse_from_str(d.trim(), "%d-%b-%Y %H:%M:%S %z").ok()
@@ -492,22 +514,33 @@ pub fn convert(resp: Response<'_>) -> Resp {
             tag: tag.0,
             status: status_from(status),
             code: outcome.code.as_ref().map(code_from),
-            text: outcome.information.map(|s| s.to_string()).unwrap_or_default(),
+            text: outcome
+                .information
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
         },
         Response::Continue(outcome) => Resp::Continue {
-            text: outcome.information.map(|s| s.to_string()).unwrap_or_default(),
+            text: outcome
+                .information
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
         },
         Response::Data { status, outcome } => {
             let code = outcome.code.as_ref().map(code_from);
             Resp::Untagged(Untagged::Status {
                 status: status_from(status),
                 code,
-                text: outcome.information.map(|s| s.to_string()).unwrap_or_default(),
+                text: outcome
+                    .information
+                    .map(|s| s.to_string())
+                    .unwrap_or_default(),
             })
         }
         Response::Capabilities(caps) => Resp::Untagged(Untagged::Capabilities(caps_from(&caps))),
         Response::Expunge(n) => Resp::Untagged(Untagged::Expunge(n)),
-        Response::Vanished { earlier, uids } => Resp::Untagged(Untagged::Vanished { earlier, uids }),
+        Response::Vanished { earlier, uids } => {
+            Resp::Untagged(Untagged::Vanished { earlier, uids })
+        }
         Response::Fetch(seq, attrs) => {
             Resp::Untagged(Untagged::Fetch(Box::new(fetch_from(seq, &attrs))))
         }
@@ -610,7 +643,9 @@ mod tests {
 
     #[test]
     fn fetch_header_fields_literal() {
-        let r = parse(b"* 1 FETCH (UID 7 BODY[HEADER.FIELDS (SUBJECT)] {15}\r\nSubject: Hi\r\n\r\n)\r\n");
+        let r = parse(
+            b"* 1 FETCH (UID 7 BODY[HEADER.FIELDS (SUBJECT)] {15}\r\nSubject: Hi\r\n\r\n)\r\n",
+        );
         let Resp::Untagged(Untagged::Fetch(f)) = r else {
             panic!("expected fetch")
         };
