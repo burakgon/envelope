@@ -1,15 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '../api';
-  import type { Occurrence, ThreadSummary } from '../api';
+  import type { ContactSummary, Occurrence, ThreadSummary } from '../api';
+  import Avatar from './Avatar.svelte';
   import { compose } from '../stores/compose.svelte';
   import { mail, roleLabels } from '../stores/mail.svelte';
   import { ui } from '../stores/ui.svelte';
   import { cal } from '../stores/calendar.svelte';
+  import { people } from '../stores/contacts.svelte';
   import type { CalView } from '../stores/calendar.svelte';
   import { listDate, displayName } from '../utils/format';
   import {
-    Archive, Calendar, CalendarPlus, Compose, Folder, Inbox, Keyboard, Mail, Moon, Refresh, Search, Settings, Sparkles, Star, Sun, Tag, Trash, Clock, Send, File, Mails,
+    Archive, BookUser, Calendar, CalendarPlus, Compose, UserPlus, Folder, Inbox, Keyboard, Mail, Moon, Refresh, Search, Settings, Sparkles, Star, Sun, Tag, Trash, Clock, Send, File, Mails,
   } from '../icons';
 
   interface Command {
@@ -46,6 +48,8 @@
     { id: 'settings', label: 'Settings', group: 'Go to', icon: Settings, hint: 'Ctrl ,', run: () => ui.open('settings') },
     { id: 'ai-settings', label: 'AI settings', group: 'Go to', icon: Sparkles, keywords: 'openrouter openai model key', run: () => ui.open('settings', 'ai') },
     { id: 'shortcuts', label: 'Keyboard shortcuts', group: 'Help', icon: Keyboard, hint: '?', run: () => ui.open('shortcuts') },
+    { id: 'contacts', label: 'Contacts', group: 'Go to', icon: BookUser, hint: 'G P', keywords: 'people address book', run: () => (ui.view = 'contacts') },
+    { id: 'new-contact', label: 'New contact', group: 'Actions', icon: UserPlus, searchOnly: true, keywords: 'person add address book', run: () => { ui.view = 'contacts'; people.init().then(() => people.newContact()); } },
     { id: 'new-event', label: 'New event', group: 'Calendar', icon: CalendarPlus, keywords: 'meeting appointment schedule', run: () => { ui.view = 'calendar'; cal.newEvent(); } },
     { id: 'cal-today', label: 'Calendar: today', group: 'Calendar', icon: Calendar, searchOnly: true, run: () => { ui.view = 'calendar'; cal.today(); } },
     ...(['day', 'week', 'month', 'agenda'] as CalView[]).map((v) => ({
@@ -123,9 +127,35 @@
       .slice(0, 4);
   });
 
-  type Row = { kind: 'cmd'; cmd: Command } | { kind: 'event'; event: Occurrence } | { kind: 'thread'; thread: ThreadSummary } | { kind: 'ask' };
+  // People from the address books.
+  let found = $state<ContactSummary[]>([]);
+  let contactTimer: ReturnType<typeof setTimeout> | null = null;
+  $effect(() => {
+    const text = q.trim();
+    if (contactTimer) clearTimeout(contactTimer);
+    if (text.length < 2) {
+      found = [];
+      return;
+    }
+    contactTimer = setTimeout(async () => {
+      try {
+        const page = await api.contacts.list(text, null, 0, 3);
+        if (q.trim() === text) found = page.items;
+      } catch {
+        found = [];
+      }
+    }, 70);
+  });
+
+  type Row =
+    | { kind: 'cmd'; cmd: Command }
+    | { kind: 'person'; person: ContactSummary }
+    | { kind: 'event'; event: Occurrence }
+    | { kind: 'thread'; thread: ThreadSummary }
+    | { kind: 'ask' };
   const rows = $derived<Row[]>([
     ...commands.map((cmd) => ({ kind: 'cmd' as const, cmd })),
+    ...found.map((person) => ({ kind: 'person' as const, person })),
     ...events.map((event) => ({ kind: 'event' as const, event })),
     ...threads.map((thread) => ({ kind: 'thread' as const, thread })),
     ...(q.trim().length > 3 && ui.settings.aiEnabled ? [{ kind: 'ask' as const }] : []),
@@ -159,7 +189,14 @@
     if (!row) return;
     ui.close();
     if (row.kind === 'cmd') row.cmd.run();
-    else if (row.kind === 'event') {
+    else if (row.kind === 'person') {
+      const p = row.person;
+      if (p.email) compose.new({ to: [{ name: p.name, email: p.email }] });
+      else {
+        ui.view = 'contacts';
+        people.select(p.id);
+      }
+    } else if (row.kind === 'event') {
       ui.view = 'calendar';
       cal.view = 'day';
       cal.goto(row.event.start);
@@ -205,9 +242,11 @@
       <span class="kbd">Esc</span>
     </div>
     <div class="list" bind:this={listEl}>
-      {#each rows as row, i (row.kind === 'cmd' ? row.cmd.id : row.kind === 'thread' ? `t${row.thread.id}` : row.kind === 'event' ? `e${row.event.key}` : 'ask')}
+      {#each rows as row, i (row.kind === 'cmd' ? row.cmd.id : row.kind === 'thread' ? `t${row.thread.id}` : row.kind === 'event' ? `e${row.event.key}` : row.kind === 'person' ? `p${row.person.id}` : 'ask')}
         {#if row.kind === 'cmd' && (i === 0 || rows[i - 1].kind !== 'cmd' || (rows[i - 1] as { cmd: Command }).cmd.group !== row.cmd.group)}
           <div class="group">{row.cmd.group}</div>
+        {:else if row.kind === 'person' && rows[i - 1]?.kind !== 'person'}
+          <div class="group">People</div>
         {:else if row.kind === 'event' && rows[i - 1]?.kind !== 'event'}
           <div class="group">Events</div>
         {:else if row.kind === 'thread' && rows[i - 1]?.kind !== 'thread'}
@@ -218,6 +257,20 @@
             <span class="ico"><row.cmd.icon size={16} /></span>
             <span class="label">{row.cmd.label}</span>
             {#if row.cmd.hint}<span class="hint">{row.cmd.hint}</span>{/if}
+          {:else if row.kind === 'person'}
+            <span class="ico"><Avatar person={{ name: row.person.name, email: row.person.email ?? row.person.name }} size={22} /></span>
+            <span class="label truncate">{row.person.email ? `Write to ${row.person.name}` : row.person.name}{#if row.person.email}<span class="sub">&nbsp;· {row.person.email}</span>{/if}</span>
+            <span
+              class="hint open-contact"
+              role="button"
+              tabindex="-1"
+              onkeydown={() => {}}
+              onclick={(e) => {
+                e.stopPropagation();
+                ui.close();
+                ui.view = 'contacts';
+                people.init().then(() => people.select(row.person.id));
+              }}>Open</span>
           {:else if row.kind === 'event'}
             <span class="ico"><span class="dot" style:background={row.event.color}></span></span>
             <span class="label truncate">{row.event.title}{#if row.event.location}<span class="sub">&nbsp;· {row.event.location}</span>{/if}</span>
@@ -247,6 +300,14 @@
   }
   .sub {
     color: var(--text-3);
+  }
+  .open-contact {
+    padding: 2px 8px;
+    border-radius: 6px;
+  }
+  .open-contact:hover {
+    background: var(--bg-active);
+    color: var(--text);
   }
   .backdrop {
     position: fixed;

@@ -11,6 +11,37 @@ export interface Template {
   html: string;
 }
 
+/** What a rule looks at. */
+export type RuleField = 'from' | 'to' | 'subject' | 'any';
+export type RuleOp = 'contains' | 'notContains' | 'is' | 'endsWith';
+export interface RuleCondition {
+  field: RuleField;
+  op: RuleOp;
+  value: string;
+}
+export type RuleAction =
+  | { kind: 'move'; folderId: number }
+  | { kind: 'label'; folderId: number }
+  | { kind: 'archive' }
+  | { kind: 'trash' }
+  | { kind: 'spam' }
+  | { kind: 'read' }
+  | { kind: 'star' }
+  | { kind: 'mute' };
+/** A filter applied by the sync engine to newly arrived mail (stored as `ui.rules`). */
+export interface MailRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  /** Only for this account; null = all accounts. */
+  accountId: number | null;
+  match: 'all' | 'any';
+  conditions: RuleCondition[];
+  actions: RuleAction[];
+  /** Don't run later rules on a message this one matched. */
+  stop: boolean;
+}
+
 /** User preferences persisted through the backend settings store. */
 export interface Settings {
   theme: Theme;
@@ -36,6 +67,7 @@ export interface Settings {
   defaultAlarm: number; // minutes before; -1 = none
   showDeclined: boolean;
   templates: Template[];
+  rules: MailRule[];
   sidebarWidth: number;
   listWidth: number;
   aiEnabled: boolean;
@@ -65,18 +97,21 @@ export const defaultSettings: Settings = {
   defaultAlarm: 10,
   showDeclined: true,
   templates: [],
+  rules: [],
   sidebarWidth: 236,
   listWidth: 392,
   aiEnabled: true,
 };
 
-export type View = 'mail' | 'calendar';
+export type View = 'mail' | 'calendar' | 'contacts';
 export type Overlay = null | 'settings' | 'palette' | 'shortcuts' | 'onboarding' | 'addAccount' | 'ask';
 
 class Ui {
   view = $state<View>('mail');
   overlay = $state<Overlay>(null);
   settingsTab = $state('general');
+  /** A rule to open in the rules editor (from "Create rule…" on a message). */
+  rulesDraft = $state<MailRule | null>(null);
   sidebarCollapsed = $state(false);
   settings = $state<Settings>({ ...defaultSettings });
   systemDark = $state(typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches);

@@ -6,10 +6,11 @@
   import { ui } from '../../stores/ui.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import AiSettings from './AiSettings.svelte';
+  import RulesSettings from './RulesSettings.svelte';
   import Toggle from './Toggle.svelte';
   import Logo from '../Logo.svelte';
   import {
-    Bell, Calendar, FileText, Info, Keyboard, Mail, Palette, Pen, Settings as Gear, ShieldCheck, Sparkles, Users, X, Plus, Trash, Moon, Sun, Lock, ExternalLink, Code,
+    Bell, Calendar, FileText, Filter, Info, Keyboard, Mail, Palette, Pen, Settings as Gear, ShieldCheck, Sparkles, Users, X, Plus, Trash, Moon, Sun, Lock, ExternalLink, Code,
   } from '../../icons';
   import { cal } from '../../stores/calendar.svelte';
   import type { Template } from '../../stores/ui.svelte';
@@ -39,6 +40,7 @@
     { id: 'accounts', label: 'Accounts', icon: Users },
     { id: 'signatures', label: 'Signatures', icon: Pen },
     { id: 'templates', label: 'Templates', icon: FileText },
+    { id: 'rules', label: 'Rules', icon: Filter },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'privacy', label: 'Privacy', icon: ShieldCheck },
@@ -178,6 +180,8 @@
             <Toggle checked={ui.settings.sendAndArchive} onchange={(v) => ui.set('sendAndArchive', v)} />
           </div>
         </div>
+      {:else if ui.settingsTab === 'rules'}
+        <RulesSettings />
       {:else if ui.settingsTab === 'templates'}
         <h2>Templates</h2>
         <p class="desc">Messages you write once and insert from the composer with a click — for answers you send often.</p>

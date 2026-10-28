@@ -5,6 +5,7 @@ import type * as T from './types';
 import * as data from './mockdata';
 import { mockAiRun, mockPresets } from './mock-ai';
 import * as cal from './mock-calendar';
+import * as people from './mock-contacts';
 
 type Listener = (e: T.EngineEvent) => void;
 
@@ -346,6 +347,18 @@ export function createMockApi(): Api {
     },
     onMailto: () => () => {},
     onOpenThread: () => () => {},
+
+    contacts: {
+      books: async () => structuredClone(people.books),
+      list: async (query, bookId, offset, limit) => people.list(query, bookId, offset, limit),
+      get: async (id) => {
+        const c = people.contacts.find((x) => x.id === id);
+        if (!c) throw { message: 'Contact not found', kind: 'notFound' };
+        return structuredClone(c);
+      },
+      save: async (contact) => people.save(structuredClone(contact)),
+      remove: async (id) => people.remove(id),
+    },
 
     calendar: {
       list: async () => structuredClone(cal.calendars),

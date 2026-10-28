@@ -70,8 +70,8 @@
           {#if thread.unreadCount}<MailOpen size={17} />{:else}<Mail size={17} />{/if}
         </button>
         <button class="icon-btn" title="Move (V)" onclick={(e) => (moveAt = { ...rect(e), labels: false })}><Folder size={17} /></button>
-        {#if account?.kind === 'gmail'}
-          <button class="icon-btn" title="Label (L)" onclick={(e) => (moveAt = { ...rect(e), labels: true })}><Tag size={17} /></button>
+        {#if account?.kind === 'gmail' || account?.kind === 'microsoft'}
+          <button class="icon-btn" title={account?.kind === 'microsoft' ? 'Categorize (L)' : 'Label (L)'} onclick={(e) => (moveAt = { ...rect(e), labels: true })}><Tag size={17} /></button>
         {/if}
       </div>
     {/if}

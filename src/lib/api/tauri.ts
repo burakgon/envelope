@@ -89,6 +89,13 @@ export function createTauriApi(): Api {
     onMailto: (cb) => subscribe<string>('mailto', cb),
     onOpenThread: (cb) => subscribe<number | null>('open-thread', cb),
 
+    contacts: {
+      books: () => invoke('contact_books'),
+      list: (query, bookId, offset, limit) => invoke('contacts_list', { query, bookId, offset, limit }),
+      get: (id) => invoke('contact_get', { id }),
+      save: (contact) => invoke('contact_save', { contact }),
+      remove: (id) => invoke('contact_delete', { id }),
+    },
     calendar: {
       list: () => invoke('calendars'),
       setVisible: (id, visible) => invoke('calendar_set_visible', { id, visible }),

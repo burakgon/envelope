@@ -16,6 +16,7 @@
         ['G then D', 'Go to Drafts'],
         ['G then T', 'Go to Sent'],
         ['G then C', 'Open Calendar'],
+        ['G then P', 'Open Contacts'],
         ['1 / 2 / 3', 'Split inbox tabs'],
       ],
     },
@@ -57,6 +58,16 @@
         ['J / K', 'Next / previous period'],
         ['G then M', 'Back to Mail'],
         ['Ctrl Enter', 'Save event'],
+      ],
+    },
+    {
+      title: 'Contacts',
+      keys: [
+        ['C', 'New contact'],
+        ['/', 'Search contacts'],
+        ['J / K', 'Next / previous contact'],
+        ['E', 'Edit contact'],
+        ['Ctrl S', 'Save contact'],
       ],
     },
   ];

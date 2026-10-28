@@ -6,17 +6,21 @@
   import { toasts } from '../stores/toasts.svelte';
   import {
     AlertCircle, Archive, Calendar, ChevronDown, Clock, Compose, File, Folder as FolderIcon, Inbox, Mail,
-    Mails, PanelLeft, Plus, Send, Settings, ShieldAlert, Spinner, Star, Tag, Trash, WifiOff, Flag,
+    Mails, PanelLeft, Plus, Send, Settings, ShieldAlert, Spinner, Star, Tag, Trash, WifiOff, Flag, BookUser, UserPlus, Users,
   } from '../icons';
   import Logo from './Logo.svelte';
+  import OutboxMenu from './OutboxMenu.svelte';
   import CalendarSidebar from './calendar/CalendarSidebar.svelte';
   import { cal } from '../stores/calendar.svelte';
+  import { people } from '../stores/contacts.svelte';
 
   const roleIcon: Record<FolderRole, typeof Inbox> = {
     inbox: Inbox, sent: Send, drafts: File, trash: Trash, junk: ShieldAlert, archive: Archive, all: Mails, starred: Star, important: Flag,
   };
 
   let collapsedAccounts = $state<Record<number, boolean>>({});
+  let outboxAt = $state<{ x: number; y: number } | null>(null);
+  const pending = $derived(mail.outbox.filter((i) => i.state !== 'sent'));
   let dragOver = $state<number | null>(null);
   let resizing = $state(false);
 
@@ -139,7 +143,13 @@
   </header>
 
   <div class="top">
-    {#if ui.view === 'calendar'}
+    {#if ui.view === 'contacts'}
+      <button class="compose" onclick={() => people.newContact()}>
+        <UserPlus size={16} strokeWidth={2.2} />
+        <span>New contact</span>
+        <span class="kbd-hint">C</span>
+      </button>
+    {:else if ui.view === 'calendar'}
       <button class="compose" onclick={() => cal.newEvent()}>
         <Plus size={16} strokeWidth={2.4} />
         <span>New event</span>
@@ -159,12 +169,28 @@
       <button role="tab" aria-selected={ui.view === 'calendar'} class:on={ui.view === 'calendar'} onclick={(e) => { ui.view = 'calendar'; e.currentTarget.blur(); }}>
         <Calendar size={15} /> Calendar
       </button>
+      <button role="tab" aria-selected={ui.view === 'contacts'} class:on={ui.view === 'contacts'} title="Contacts" aria-label="Contacts" onclick={(e) => { ui.view = 'contacts'; e.currentTarget.blur(); }}>
+        <BookUser size={15} />
+      </button>
     </div>
   </div>
 
   {#if ui.view === 'calendar'}
   <nav class="scroll">
     <CalendarSidebar />
+  </nav>
+  {:else if ui.view === 'contacts'}
+  <nav class="scroll">
+    <div class="group">
+      <button class="item" class:active={people.bookId == null} onclick={() => people.setBook(null)}>
+        <Users size={16} /><span class="name">All contacts</span>
+      </button>
+      {#each people.books as b (b.id)}
+        <button class="item" class:active={people.bookId === b.id} onclick={() => people.setBook(b.id)}>
+          <BookUser size={16} /><span class="name truncate">{b.name}</span>
+        </button>
+      {/each}
+    </div>
   </nav>
   {:else}
   <nav class="scroll">
@@ -187,6 +213,20 @@
       <button class="item" class:active={mail.isMailbox({ kind: 'unified', role: 'sent' })} onclick={() => go({ kind: 'unified', role: 'sent' })}>
         <Send size={16} /><span class="name">Sent</span>
       </button>
+      {#if pending.length}
+        <button
+          class="item"
+          class:alert={pending.some((i) => i.state === 'failed')}
+          onclick={(e) => {
+            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            outboxAt = { x: r.right + 6, y: r.top };
+          }}
+        >
+          {#if pending.some((i) => i.state === 'failed')}<AlertCircle size={16} />{:else}<Clock size={16} />{/if}
+          <span class="name">{pending.every((i) => i.state === 'queued' && i.sendAt > Date.now() + 60_000) ? 'Scheduled' : 'Outbox'}</span>
+          <span class="count">{pending.length}</span>
+        </button>
+      {/if}
       {#if single}
         {#each singleRoles as f (f.id)}
           {@const Icon = roleIcon[f.role!]}
@@ -284,6 +324,10 @@
   <div class="resizer" role="separator" aria-orientation="vertical" onpointerdown={startResize}></div>
 </aside>
 
+{#if outboxAt}
+  <OutboxMenu x={outboxAt.x} y={outboxAt.y} onclose={() => (outboxAt = null)} />
+{/if}
+
 <style>
   .sidebar {
     position: relative;
@@ -351,7 +395,7 @@
   }
   .modes {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 36px;
     padding: 3px;
     gap: 2px;
     border-radius: 10px;
@@ -407,6 +451,10 @@
   }
   .item.active .count {
     color: var(--accent-text);
+  }
+  .item.alert,
+  .item.alert .count {
+    color: var(--red);
   }
   .item.drop {
     background: var(--accent-soft);

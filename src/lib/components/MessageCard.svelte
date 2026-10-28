@@ -17,7 +17,7 @@
   import { cal } from '../stores/calendar.svelte';
   import type { ExtractedEvent } from '../api';
   import { fileIconKind } from '../utils/format';
-  import { CalendarPlus, Code, Eye, Forward, Image, Mail, More, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
+  import { CalendarPlus, Code, Eye, Filter, Forward, Image, Mail, More, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
 
   let { message, expanded, ontoggle }: { message: MessageView; expanded: boolean; ontoggle: () => void } = $props();
 
@@ -218,6 +218,18 @@
     <button class="menu-item" onclick={() => { menu = null; navigator.clipboard.writeText(sender?.email ?? ''); toasts.show('Address copied'); }}><Copy size={15} />Copy sender address</button>
     {#if ai.ready}
       <button class="menu-item" onclick={addToCalendar}><CalendarPlus size={15} />Add to calendar</button>
+    {/if}
+    {#if sender && !fromMe}
+      <button
+        class="menu-item"
+        onclick={() => {
+          menu = null;
+          ui.rulesDraft = {
+            id: '', name: displayName(sender!), enabled: true, accountId: message.accountId, match: 'all',
+            conditions: [{ field: 'from', op: 'contains', value: sender!.email }], actions: [{ kind: 'archive' }], stop: false,
+          };
+          ui.open('settings', 'rules');
+        }}><Filter size={15} />Create rule…</button>
     {/if}
     <button class="menu-item" onclick={() => { menu = null; printMessage(message, remote); }}><Printer size={15} />Print…</button>
     <button class="menu-item" onclick={viewSource}><Code size={15} />View source</button>

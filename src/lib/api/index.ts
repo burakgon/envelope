@@ -82,6 +82,16 @@ export interface Api {
     respondInvite(messageId: number, status: T.PartStat, comment?: string | null): Promise<void>;
   };
 
+  contacts: {
+    books(): Promise<T.ContactBook[]>;
+    /** Contacts matching `query` (name, e-mail, organization, phone), sorted by name. */
+    list(query: string, bookId: number | null, offset: number, limit: number): Promise<T.ContactPage>;
+    get(id: number): Promise<T.Contact>;
+    /** Creates (id null) or updates a contact; returns its id. */
+    save(contact: T.ContactInput): Promise<number>;
+    remove(id: number): Promise<void>;
+  };
+
   ai: {
     config(): Promise<T.AiConfig>;
     setConfig(settings: T.AiSettings, apiKey?: string | null): Promise<void>;

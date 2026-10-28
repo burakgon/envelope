@@ -21,6 +21,8 @@
   import AskAi from './lib/components/AskAi.svelte';
   import CalendarView from './lib/components/calendar/CalendarView.svelte';
   import EventEditor from './lib/components/calendar/EventEditor.svelte';
+  import ContactsView from './lib/components/contacts/ContactsView.svelte';
+  import { people } from './lib/stores/contacts.svelte';
   import ScopeDialog from './lib/components/calendar/ScopeDialog.svelte';
 
   let booted = $state(false);
@@ -119,8 +121,33 @@
         a: () => mail.setMailbox({ kind: 'everything' }),
         c: () => (ui.view = 'calendar'),
         m: () => (ui.view = 'mail'),
+        p: () => (ui.view = 'contacts'),
       };
       go[key.toLowerCase()]?.();
+      return;
+    }
+
+    if (ui.view === 'contacts') {
+      if (people.editing) return;
+      if (key === 'g') {
+        gPending = true;
+        if (gTimer) clearTimeout(gTimer);
+        gTimer = setTimeout(() => (gPending = false), 1200);
+      } else if (key === 'c' || key === 'n') {
+        e.preventDefault();
+        people.newContact();
+      } else if (key === '/') {
+        e.preventDefault();
+        ui.focusSearch++;
+      } else if (key === 'j' || key === 'ArrowDown') {
+        e.preventDefault();
+        people.step(1);
+      } else if (key === 'k' || key === 'ArrowUp') {
+        e.preventDefault();
+        people.step(-1);
+      } else if (key === 'e' && people.detail) {
+        people.edit();
+      } else if (key === '?') ui.open('shortcuts');
       return;
     }
 
@@ -256,8 +283,10 @@
     {#if ui.view === 'mail'}
       <ThreadList />
       <Reader />
-    {:else}
+    {:else if ui.view === 'calendar'}
       <CalendarView />
+    {:else}
+      <ContactsView />
     {/if}
   </main>
 

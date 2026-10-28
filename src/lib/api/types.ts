@@ -246,6 +246,58 @@ export interface OutboxItem {
   error: string | null;
 }
 
+// ----- Contacts ----------------------------------------------------------------
+
+export interface ContactBook {
+  id: number;
+  accountId: number | null;
+  /** `carddav`, `google`, `graph` or `local`. */
+  kind: string;
+  name: string;
+  readOnly: boolean;
+}
+
+export interface LabeledValue {
+  value: string;
+  /** `home`, `work`, `mobile`, `other`, or free text. */
+  label: string | null;
+}
+
+export interface Contact {
+  id: number;
+  bookId: number;
+  name: string;
+  givenName: string | null;
+  familyName: string | null;
+  emails: LabeledValue[];
+  phones: LabeledValue[];
+  addresses: LabeledValue[];
+  urls: string[];
+  organization: string | null;
+  title: string | null;
+  /** `YYYY-MM-DD`, or `--MM-DD` when the year is unknown. */
+  birthday: string | null;
+  notes: string | null;
+  /** A `data:` URL. */
+  photo: string | null;
+}
+
+export type ContactInput = Omit<Contact, 'id'> & { id: number | null };
+
+export interface ContactSummary {
+  id: number;
+  bookId: number;
+  name: string;
+  email: string | null;
+  organization: string | null;
+  photo: string | null;
+}
+
+export interface ContactPage {
+  total: number;
+  items: ContactSummary[];
+}
+
 export interface ContactSuggestion {
   name: string | null;
   email: string;
@@ -312,6 +364,7 @@ export type EngineEvent =
   | { type: 'syncStatus'; accountId: number; sync: SyncState }
   | { type: 'newMail'; accountId: number; threads: ThreadSummary[] }
   | { type: 'calendarChanged'; calendarIds: number[] }
+  | { type: 'contactsChanged'; bookIds: number[] }
   | { type: 'outboxChanged' }
   | { type: 'sendFailed'; outboxId: number; error: string }
   | { type: 'reminder'; eventId: number; title: string; start: number; location: string | null };
