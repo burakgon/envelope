@@ -26,7 +26,7 @@ Envelope receives the sign-in result on a temporary loopback address (`http://12
 ## Google
 
 1. Open the [Google Cloud console](https://console.cloud.google.com/) and create a project (or pick an existing one).
-2. **APIs & Services → Library**: enable the **Google Calendar API** and the **People API**. (Mail uses IMAP and SMTP, which need no API to be enabled.)
+2. **APIs & Services → Library**: enable the **Google Calendar API**, the **People API** and the **Gmail API** (used only for the vacation responder; mail itself goes over IMAP and SMTP).
 3. **APIs & Services → OAuth consent screen** (Google Auth Platform):
    - User type **External** (or **Internal** for a Workspace-only setup).
    - Add these scopes under **Data access**:
@@ -34,6 +34,7 @@ Envelope receives the sign-in result on a temporary loopback address (`http://12
      - `https://www.googleapis.com/auth/calendar`
      - `https://www.googleapis.com/auth/contacts`
      - `https://www.googleapis.com/auth/contacts.other.readonly`
+     - `https://www.googleapis.com/auth/gmail.settings.basic`
      - `openid`, `email`, `profile`
    - While the app is in *Testing*, add the Google accounts you want to use under **Audience → Test users**. (`https://mail.google.com/` is a restricted scope; publishing an app with it for everyone requires Google's verification.)
 4. **Clients → Create client**, application type **Desktop app**. Copy the client id and client secret into `ENVELOPE_GOOGLE_CLIENT_ID` and `ENVELOPE_GOOGLE_CLIENT_SECRET`.
