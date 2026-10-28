@@ -208,8 +208,7 @@ impl Engine {
             AccountKind::Imap => row.config.caldav_url.is_some(),
         };
         let has_contacts = match row.kind {
-            AccountKind::Gmail | AccountKind::Microsoft => true,
-            AccountKind::Exchange => false,
+            AccountKind::Gmail | AccountKind::Microsoft | AccountKind::Exchange => true,
             AccountKind::Imap => row.config.carddav_url.is_some(),
         };
         Account {

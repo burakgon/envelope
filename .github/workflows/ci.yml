@@ -18,8 +18,8 @@ jobs:
     name: Interface
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: lts/*
           cache: npm
@@ -32,7 +32,7 @@ jobs:
     name: Rust
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: System libraries
         run: |
           sudo apt-get update
@@ -42,7 +42,7 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: lts/*
           cache: npm

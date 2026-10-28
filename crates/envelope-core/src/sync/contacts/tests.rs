@@ -1193,3 +1193,54 @@ fn book_names_prefer_the_server_name() {
     assert_eq!(book_name(None, &account), "iCloud");
     assert_eq!(book_name(Some(" card "), &account), "iCloud");
 }
+
+#[test]
+fn maps_exchange_contacts() {
+    let c = envelope_ews::Contact {
+        id: Some(envelope_ews::ItemId {
+            id: "AAMk1".into(),
+            change_key: Some("ck".into()),
+        }),
+        parent_folder_id: None,
+        is_group: false,
+        display_name: None,
+        file_as: Some("Okafor, Daniel".into()),
+        given_name: Some("Daniel".into()),
+        middle_name: None,
+        surname: Some("Okafor".into()),
+        nickname: None,
+        company_name: Some("Lumen".into()),
+        department: None,
+        job_title: Some("Engineering Manager".into()),
+        email_addresses: vec![envelope_ews::ContactEmail {
+            key: "EmailAddress1".into(),
+            address: "daniel@lumen.dev".into(),
+            name: None,
+        }],
+        phone_numbers: vec![
+            envelope_ews::ContactPhone {
+                key: "MobilePhone".into(),
+                number: "+44 7700 900 461".into(),
+            },
+            envelope_ews::ContactPhone {
+                key: "BusinessPhone".into(),
+                number: "+44 20 7946 0000".into(),
+            },
+        ],
+        birthday: None,
+        categories: vec![],
+        source: Some("Store".into()),
+        last_modified: None,
+    };
+    let mapped = super::ews_contact(&c, "AAMk1");
+    assert_eq!(mapped.name, "Daniel Okafor");
+    assert_eq!(mapped.organization.as_deref(), Some("Lumen"));
+    assert_eq!(mapped.emails[0].value, "daniel@lumen.dev");
+    assert!(mapped.emails[0].preferred);
+    let kinds: Vec<_> = mapped
+        .phones
+        .iter()
+        .map(|p| p.kind.clone().unwrap_or_default())
+        .collect();
+    assert_eq!(kinds, vec!["cell", "work"]);
+}

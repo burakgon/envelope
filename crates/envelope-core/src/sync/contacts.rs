@@ -51,8 +51,7 @@ pub(crate) fn has_contacts(account: &AccountRow) -> bool {
     match account.kind {
         AccountKind::Gmail | AccountKind::Microsoft => true,
         AccountKind::Imap => account.config.carddav_url.is_some(),
-        // Exchange address books aren't synced yet; the local book covers them.
-        AccountKind::Exchange => false,
+        AccountKind::Exchange => true,
     }
 }
 
@@ -159,7 +158,7 @@ pub(crate) async fn sync_account(
                 .unwrap_or(false);
             graph_sync(engine, account, &client, writable, pull).await
         }
-        AccountKind::Exchange => Ok(Vec::new()),
+        AccountKind::Exchange => ews_sync(engine, account, pull).await,
     }
 }
 
@@ -1470,3 +1469,159 @@ async fn make_thumbnails(engine: &Engine) {
 
 #[cfg(test)]
 mod tests;
+
+// ----- Exchange (EWS) ------------------------------------------------------------
+
+/// The Contacts folder of an Exchange mailbox (read-only for now).
+const EWS_BOOK: &str = "ews:contacts";
+
+async fn ews_sync(engine: &Engine, account: &AccountRow, pull: bool) -> Result<Vec<i64>> {
+    let account_id = account.id;
+    let upsert = BookUpsert {
+        remote_id: EWS_BOOK.to_owned(),
+        name: book_name(None, account),
+        read_only: true,
+        is_default: true,
+        sort_order: 0,
+    };
+    let mut changed = engine
+        .db
+        .write(|tx| cdb::sync_books(tx, account_id, "ews", std::slice::from_ref(&upsert)))?;
+    if !pull {
+        return Ok(changed);
+    }
+    let Some(book) = engine
+        .db
+        .read(|c| cdb::account_books(c, account_id))?
+        .into_iter()
+        .next()
+    else {
+        return Ok(changed);
+    };
+    let mail = super::ews::EwsMail::for_account(engine, account).await?;
+    let mut items = Vec::new();
+    let mut seen = HashSet::new();
+    let mut offset = 0;
+    loop {
+        let page = mail
+            .client()
+            .find_contacts(envelope_ews::DistinguishedFolder::Contacts, offset, 500)
+            .await
+            .map_err(super::ews::ews_error)?;
+        let count = page.items.len() as u32;
+        for c in page.items {
+            if c.is_group {
+                continue;
+            }
+            let Some(id) = c.id.clone() else {
+                continue;
+            };
+            seen.insert(id.id.clone());
+            items.push(SyncedContact {
+                remote_id: id.id.clone(),
+                etag: id.change_key.clone(),
+                uid: id.id.clone(),
+                contact: ews_contact(&c, &id.id),
+                base: None,
+                photo: PhotoChange::Keep,
+                is_group: false,
+            });
+        }
+        match page.next_offset {
+            Some(next) if !page.includes_last_item_in_range && count > 0 => offset = next,
+            _ => break,
+        }
+    }
+    let book_id = book.id;
+    let listed = !seen.is_empty();
+    let swept = engine
+        .db
+        .write_async(move |tx| {
+            for item in &items {
+                cdb::upsert_synced(tx, book_id, item)?;
+            }
+            cdb::sweep(tx, book_id, &seen)
+        })
+        .await?;
+    let mut state = book.sync_state.clone();
+    state.last_sync = Some(now_ms());
+    engine
+        .db
+        .write(|tx| cdb::set_book_sync_state(tx, book_id, &state))?;
+    // Unchanged contacts are rewritten in place; report the book as changed
+    // when anything could have moved.
+    if swept > 0 || listed {
+        changed.push(book_id);
+    }
+    Ok(changed)
+}
+
+/// An Exchange contact in the shared contact model.
+fn ews_contact(c: &envelope_ews::Contact, id: &str) -> Contact {
+    use envelope_ical::ContactField;
+    let name = c
+        .display_name
+        .clone()
+        .filter(|n| !n.trim().is_empty())
+        .or_else(|| {
+            let parts: Vec<&str> = [c.given_name.as_deref(), c.surname.as_deref()]
+                .into_iter()
+                .flatten()
+                .filter(|p| !p.trim().is_empty())
+                .collect();
+            (!parts.is_empty()).then(|| parts.join(" "))
+        })
+        .or_else(|| c.file_as.clone())
+        .or_else(|| c.email_addresses.first().map(|e| e.address.clone()))
+        .unwrap_or_default();
+    let phone_kind = |key: &str| -> Option<String> {
+        let k = key.to_ascii_lowercase();
+        Some(
+            if k.contains("mobile") || k.contains("car") {
+                "cell"
+            } else if k.contains("fax") {
+                "fax"
+            } else if k.contains("home") {
+                "home"
+            } else if k.contains("business") || k.contains("company") || k.contains("assistant") {
+                "work"
+            } else {
+                "other"
+            }
+            .to_owned(),
+        )
+    };
+    Contact {
+        uid: id.to_owned(),
+        name,
+        given_name: c.given_name.clone(),
+        family_name: c.surname.clone(),
+        nickname: c.nickname.clone(),
+        emails: c
+            .email_addresses
+            .iter()
+            .enumerate()
+            .map(|(i, e)| ContactField {
+                value: e.address.clone(),
+                kind: None,
+                preferred: i == 0,
+            })
+            .collect(),
+        phones: c
+            .phone_numbers
+            .iter()
+            .map(|p| ContactField {
+                value: p.number.clone(),
+                kind: phone_kind(&p.key),
+                preferred: false,
+            })
+            .collect(),
+        organization: c.company_name.clone().filter(|s| !s.trim().is_empty()),
+        title: c.job_title.clone().filter(|s| !s.trim().is_empty()),
+        note: None,
+        birthday: c.birthday.map(|b| b.date_naive()),
+        photo: None,
+        addresses: Vec::new(),
+        urls: Vec::new(),
+    }
+}

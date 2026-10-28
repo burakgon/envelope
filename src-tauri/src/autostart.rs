@@ -76,7 +76,10 @@ mod tests {
         set(true).unwrap();
         assert!(is_enabled());
         let entry = std::fs::read_to_string(dir.join("autostart").join(ENTRY)).unwrap();
-        assert!(entry.contains("Exec=\"/home/me/Apps/Envelope 0.1.0.AppImage\" --minimized"), "{entry}");
+        assert!(
+            entry.contains("Exec=\"/home/me/Apps/Envelope 0.1.0.AppImage\" --minimized"),
+            "{entry}"
+        );
         set(false).unwrap();
         assert!(!is_enabled());
         set(false).unwrap();

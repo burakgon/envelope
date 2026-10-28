@@ -157,6 +157,11 @@ fn build_client(key: &ClientKey) -> Result<EwsClient> {
 }
 
 impl EwsMail {
+    /// The underlying EWS client.
+    pub(crate) fn client(&self) -> &EwsClient {
+        &self.client
+    }
+
     fn new(client: EwsClient) -> EwsMail {
         EwsMail {
             client,
