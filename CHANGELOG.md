@@ -4,6 +4,19 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-10-29
+
+### Added
+- Archive and Mark as Read buttons on new-mail notifications.
+- Gmail send-as addresses become identities, with their names, reply-to addresses and signatures.
+
+### Fixed
+- The window could stay hidden at startup: it waited for an animation frame that a hidden window never gets.
+- Starting at login showed the window when it had been open at the last exit, instead of staying in the tray.
+- New-mail notifications for IMAP accounts did not name the sender, and could be suppressed while the window was hidden in the tray.
+- The undo send setting showed no choice on a fresh install (the default is now 5 seconds).
+- Flatpak: starting at login goes through the Background portal, and the tray icon shows from inside the sandbox.
+
 ## [0.1.0] — 2026-10-29
 
 ### Mail
@@ -34,5 +47,6 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Tray icon with the unread count, running in the background and starting at login (through the Background portal in Flatpak).
 - Packages: .deb, .rpm, AppImage, a Flatpak manifest and a PKGBUILD.
 
-[Unreleased]: https://github.com/burakgon/envelope/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/burakgon/envelope/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/burakgon/envelope/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/burakgon/envelope/releases/tag/v0.1.0

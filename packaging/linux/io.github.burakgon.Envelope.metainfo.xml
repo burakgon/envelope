@@ -90,6 +90,16 @@
     <color type="primary" scheme_preference="dark">#2a1f8f</color>
   </branding>
   <releases>
+    <release version="0.1.1" date="2026-10-29">
+      <description>
+        <p>New-mail notifications get Archive and Mark as Read buttons, and Gmail send-as addresses become identities with their signatures.</p>
+        <ul>
+          <li>The window no longer stays hidden at startup on some systems</li>
+          <li>Starting at login keeps Envelope in the tray</li>
+          <li>Notifications name the sender for every kind of account</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-10-29">
       <description>
         <p>First public release.</p>
