@@ -140,9 +140,13 @@
     }
   }
 
+  // Switching security moves a standard port to its counterpart; a custom port stays.
   function securityPort(kind: 'imap' | 'smtp', sec: Security) {
-    if (kind === 'imap') imap.port = sec === 'tls' ? 993 : 143;
-    else smtp.port = sec === 'tls' ? 465 : 587;
+    if (kind === 'imap') {
+      if ([993, 143].includes(imap.port)) imap.port = sec === 'tls' ? 993 : 143;
+    } else if ([465, 587, 25].includes(smtp.port)) {
+      smtp.port = sec === 'tls' ? 465 : 587;
+    }
   }
 
   const hint = $derived(
@@ -224,7 +228,7 @@
       {#if error}<p class="error">{error}</p>{/if}
     {:else if step === 'password'}
       <button class="back" onclick={() => (step = 'providers')}><ArrowLeft size={15} /> Back</button>
-      <h2>Add {providerName} account</h2>
+      <h2>{provider === 'generic' ? 'Add your mail account' : `Add your ${providerName} account`}</h2>
       {#if hint}
         <div class="note">
           <Lock size={15} />
