@@ -6,6 +6,8 @@
   import Toggle from '../settings/Toggle.svelte';
   import DatePicker from './DatePicker.svelte';
   import TimePicker from './TimePicker.svelte';
+  import AvailabilityStrip from './AvailabilityStrip.svelte';
+  import { mail } from '../../stores/mail.svelte';
   import { AlignLeft, Bell, Calendar, Clock, MapPin, Repeat, Users, Video, X } from '../../icons';
 
   const st = cal.editor!;
@@ -110,6 +112,23 @@
   }
 
   const calendarColor = $derived(cal.calendarById.get(input.calendarId)?.color ?? 'var(--accent)');
+  // The meeting as currently entered, for the guests' availability.
+  const slotStart = $derived(new Date(`${startDate}T${startTime}`).getTime());
+  const slotEnd = $derived(new Date(`${endDate}T${endTime}`).getTime());
+  const organizer = $derived.by(() => {
+    const accountId = cal.calendarById.get(input.calendarId)?.accountId;
+    return mail.accounts.find((a) => a.id === accountId)?.email ?? mail.accounts[0]?.email ?? null;
+  });
+
+  /** Moves the meeting to `t`, keeping its length. */
+  function moveTo(t: number) {
+    const length = slotEnd - slotStart;
+    startDate = dateOf(t);
+    startTime = timeOf(t);
+    endDate = dateOf(t + length);
+    endTime = timeOf(t + length);
+    prevStartDate = startDate;
+  }
 </script>
 
 <div class="backdrop" role="presentation" onclick={() => (cal.editor = null)}>
@@ -167,7 +186,19 @@
 
       <div class="row people">
         <Users size={17} />
-        <div class="grow"><RecipientInput label="Guests" bind:value={input.attendees} /></div>
+        <div class="grow">
+          <RecipientInput label="Guests" bind:value={input.attendees} />
+          {#if !input.allDay && input.attendees.length && slotEnd > slotStart}
+            <AvailabilityStrip
+              calendarId={input.calendarId}
+              {organizer}
+              attendees={input.attendees}
+              start={slotStart}
+              end={slotEnd}
+              onpick={moveTo}
+            />
+          {/if}
+        </div>
       </div>
 
       <div class="row">
