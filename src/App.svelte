@@ -8,6 +8,7 @@
   import { ai } from './lib/stores/ai.svelte';
   import { cal } from './lib/stores/calendar.svelte';
   import { autoReplies } from './lib/stores/autoReplies.svelte';
+  import FileViewer from './lib/components/FileViewer.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import ThreadList from './lib/components/ThreadList.svelte';
   import Reader from './lib/components/Reader.svelte';
@@ -27,6 +28,8 @@
   import ScopeDialog from './lib/components/calendar/ScopeDialog.svelte';
 
   let booted = $state(false);
+  /** Message and calendar files handed to the app, shown one after another. */
+  let openedFiles = $state<string[]>([]);
   let kbMenu = $state<{ kind: 'snooze' | 'move' | 'label'; ids: number[] } | null>(null);
   let gPending = false;
   let gTimer: ReturnType<typeof setTimeout> | null = null;
@@ -63,6 +66,7 @@
       api.ready();
     });
     const offMailto = api.onMailto((url) => compose.fromMailto(url));
+    const offFile = api.onOpenFile((path) => (openedFiles = [...openedFiles, path]));
     const offOpen = api.onOpenThread((id) => {
       ui.view = 'mail';
       if (id != null) {
@@ -73,6 +77,7 @@
     const offResize = api.window.onResized(async () => (ui.maximized = await api.window.isMaximized()));
     return () => {
       offMailto();
+      offFile();
       offOpen();
       offResize();
     };
@@ -309,6 +314,7 @@
 {#if ui.overlay === 'onboarding' || ui.overlay === 'addAccount'}<Onboarding first={ui.overlay === 'onboarding'} />{/if}
 {#if ui.overlay === 'ask'}<AskAi />{/if}
 {#if cal.editor}<EventEditor />{/if}
+{#if openedFiles.length}{#key openedFiles[0]}<FileViewer path={openedFiles[0]} onclose={() => (openedFiles = openedFiles.slice(1))} />{/key}{/if}
 {#if cal.scopeAsk}<ScopeDialog />{/if}
 
 {#if kbMenu}

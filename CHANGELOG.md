@@ -6,6 +6,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 
 ### Added
 - Automatic replies (out of office) for Microsoft 365, Exchange, Gmail and IMAP servers that offer ManageSieve: a message, an optional subject and first and last day, and who gets it. A banner in the sidebar shows while they are on.
+- Saved messages (`.eml`) and calendar files (`.ics`) open from the file manager: messages with their pictures and attachments, calendar files with a choice of events to add (without inviting anyone) and a note for those already on a calendar.
 
 ## [0.1.1] — 2026-10-29
 
