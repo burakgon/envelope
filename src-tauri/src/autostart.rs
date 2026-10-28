@@ -1,4 +1,5 @@
-//! Starting Envelope when the user logs in (an XDG autostart entry).
+//! Starting Envelope when the user logs in (an XDG autostart entry). Inside
+//! Flatpak the desktop's Background portal writes the entry for us.
 
 use std::path::PathBuf;
 
@@ -34,7 +35,46 @@ pub fn is_enabled() -> bool {
     entry_path().is_some_and(|p| p.exists())
 }
 
-pub fn set(enabled: bool) -> Result<(), String> {
+pub async fn set(enabled: bool) -> Result<(), String> {
+    // The portal's entry lives outside the sandbox, where it cannot be read
+    // back; the copy written below into the app's own configuration
+    // directory remembers the answer.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("FLATPAK_ID").is_some() {
+        portal(enabled).await?;
+    }
+    write_entry(enabled)
+}
+
+#[cfg(target_os = "linux")]
+async fn portal(enabled: bool) -> Result<(), String> {
+    use ashpd::desktop::ResponseError;
+    use ashpd::desktop::background::Background;
+
+    let response = match Background::request()
+        .reason("Check for new mail and reminders after you log in")
+        .auto_start(enabled)
+        .command(["envelope", "--minimized"])
+        .send()
+        .await
+        .and_then(|r| r.response())
+    {
+        Ok(r) => r,
+        Err(ashpd::Error::Response(ResponseError::Cancelled)) if enabled => {
+            return Err("Starting at login was not allowed.".into());
+        }
+        Err(e) => return Err(format!("The desktop did not accept the request: {e}")),
+    };
+    if enabled && !response.auto_start() {
+        return Err(
+            "Starting at login was not allowed. You can change this in your system settings."
+                .into(),
+        );
+    }
+    Ok(())
+}
+
+fn write_entry(enabled: bool) -> Result<(), String> {
     let path = entry_path().ok_or("cannot find the configuration directory")?;
     if !enabled {
         return match std::fs::remove_file(&path) {
@@ -73,16 +113,16 @@ mod tests {
             std::env::remove_var("FLATPAK_ID");
         }
         assert!(!is_enabled());
-        set(true).unwrap();
+        write_entry(true).unwrap();
         assert!(is_enabled());
         let entry = std::fs::read_to_string(dir.join("autostart").join(ENTRY)).unwrap();
         assert!(
             entry.contains("Exec=\"/home/me/Apps/Envelope 0.1.0.AppImage\" --minimized"),
             "{entry}"
         );
-        set(false).unwrap();
+        write_entry(false).unwrap();
         assert!(!is_enabled());
-        set(false).unwrap();
+        write_entry(false).unwrap();
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

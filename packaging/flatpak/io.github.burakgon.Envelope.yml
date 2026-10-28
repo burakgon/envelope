@@ -1,15 +1,15 @@
-# Flatpak manifest. The offline dependency sources are generated from the lock files:
-#   flatpak-cargo-generator ../../Cargo.lock -o cargo-sources.json
-#   flatpak-node-generator npm ../../package-lock.json -o node-sources.json
-# then:
+# Flatpak manifest for local builds; the Flathub copy builds a release tag
+# instead of this checkout. The offline dependency sources come from the lock
+# files (see generate-sources.sh), then:
+#   git submodule update --init packaging/flatpak/shared-modules
 #   flatpak-builder --user --install --force-clean build io.github.burakgon.Envelope.yml
 id: io.github.burakgon.Envelope
 runtime: org.gnome.Platform
-runtime-version: '49'
+runtime-version: '51'
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
-  - org.freedesktop.Sdk.Extension.node22
+  - org.freedesktop.Sdk.Extension.node24
 command: envelope
 finish-args:
   - --share=ipc
@@ -18,22 +18,25 @@ finish-args:
   - --socket=fallback-x11
   - --device=dri
   - --talk-name=org.freedesktop.Notifications
-  # Tray icon (StatusNotifierItem) and starting at login.
+  # Tray icon (StatusNotifierItem).
   - --talk-name=org.kde.StatusNotifierWatcher
-  - --filesystem=xdg-config/autostart:create
   # Saving attachments without a file chooser round-trip.
   - --filesystem=xdg-download
 build-options:
-  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin
-  env:
-    CARGO_HOME: /run/build/envelope/cargo
-    CARGO_NET_OFFLINE: 'true'
-    npm_config_cache: /run/build/envelope/flatpak-node/npm-cache
-    npm_config_offline: 'true'
-    XDG_CACHE_HOME: /run/build/envelope/flatpak-node/cache
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node24/bin
 modules:
+  # Tray icon support; Envelope runs without one when it is missing.
+  - shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json
+
   - name: envelope
     buildsystem: simple
+    build-options:
+      env:
+        CARGO_HOME: /run/build/envelope/cargo
+        CARGO_NET_OFFLINE: 'true'
+        npm_config_cache: /run/build/envelope/flatpak-node/npm-cache
+        npm_config_offline: 'true'
+        XDG_CACHE_HOME: /run/build/envelope/flatpak-node/cache
     build-commands:
       - npm ci --offline --ignore-scripts
       - npm run build
@@ -50,6 +53,9 @@ modules:
           - target
           - node_modules
           - dist
+          - dist-demo
           - .devserver
+          - packaging/flatpak/build
+          - packaging/flatpak/.flatpak-builder
       - cargo-sources.json
       - node-sources.json

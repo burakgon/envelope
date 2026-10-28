@@ -14,10 +14,12 @@
       locally, so opening, searching and organizing mail never waits for the network.
     </p>
     <ul>
-      <li>Gmail, Microsoft 365, Outlook.com, iCloud, Yahoo, Fastmail and any IMAP server</li>
+      <li>Gmail, Microsoft 365, Outlook.com, Exchange, iCloud, Yahoo, Fastmail and any IMAP server</li>
       <li>Unified inbox, conversations, split inbox and lightning-fast full-text search</li>
-      <li>Calendar with CalDAV, Google Calendar and Microsoft 365 support</li>
+      <li>Calendar with CalDAV, Google Calendar, Microsoft 365 and Exchange, including invitations</li>
+      <li>Contacts synced with CardDAV, Google and Microsoft 365</li>
       <li>Keyboard shortcuts for everything, command palette, undo send, snooze and send later</li>
+      <li>Rules, templates and reminders when nobody replies</li>
       <li>Privacy first: remote images and trackers blocked by default</li>
       <li>Optional AI assistance with your own provider (OpenRouter, OpenAI, Anthropic, Gemini, Ollama and more)</li>
     </ul>
@@ -26,17 +28,21 @@
   <url type="homepage">https://github.com/burakgon/envelope</url>
   <url type="bugtracker">https://github.com/burakgon/envelope/issues</url>
   <url type="vcs-browser">https://github.com/burakgon/envelope</url>
+  <url type="contribute">https://github.com/burakgon/envelope/blob/main/CONTRIBUTING.md</url>
   <content_rating type="oars-1.1"/>
   <categories>
     <category>Network</category>
     <category>Email</category>
     <category>Office</category>
+    <category>Calendar</category>
   </categories>
   <keywords>
     <keyword>mail</keyword>
     <keyword>email</keyword>
     <keyword>calendar</keyword>
     <keyword>imap</keyword>
+    <keyword>exchange</keyword>
+    <keyword>contacts</keyword>
   </keywords>
   <provides>
     <binary>envelope</binary>
@@ -63,6 +69,14 @@
       <caption>Writing a message</caption>
       <image>https://raw.githubusercontent.com/burakgon/envelope/main/docs/screenshots/compose.png</image>
     </screenshot>
+    <screenshot>
+      <caption>Answering an invitation, with conflicts shown</caption>
+      <image>https://raw.githubusercontent.com/burakgon/envelope/main/docs/screenshots/invite.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Contacts and their recent conversations</caption>
+      <image>https://raw.githubusercontent.com/burakgon/envelope/main/docs/screenshots/contacts.png</image>
+    </screenshot>
   </screenshots>
   <requires>
     <display_length compare="ge">768</display_length>
@@ -76,7 +90,7 @@
     <color type="primary" scheme_preference="dark">#2a1f8f</color>
   </branding>
   <releases>
-    <release version="0.1.0" date="2026-10-28">
+    <release version="0.1.0" date="2026-10-29">
       <description>
         <p>First public release.</p>
       </description>

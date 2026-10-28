@@ -33,5 +33,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 url.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
+# Starting at login from inside Flatpak (the Background portal).
+ashpd = { version = "0.13", default-features = false, features = ["tokio", "background"] }
 libloading = "0.8"
 webkit2gtk = "2.0"

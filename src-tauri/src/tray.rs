@@ -43,8 +43,21 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "Quit Envelope", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&open, &compose, &sync, &separator, &quit])?;
-    TrayIconBuilder::with_id(TRAY_ID)
-        .icon(Image::from_bytes(include_bytes!("../icons/64x64.png"))?)
+    let mut tray = TrayIconBuilder::with_id(TRAY_ID);
+    // The icon is handed to the panel as a file; inside Flatpak only this
+    // runtime directory is visible to the host as well.
+    if let (Some(runtime), Some(id)) = (
+        std::env::var_os("XDG_RUNTIME_DIR"),
+        std::env::var_os("FLATPAK_ID"),
+    ) {
+        tray = tray.temp_dir_path(
+            std::path::Path::new(&runtime)
+                .join("app")
+                .join(id)
+                .join("tray-icon"),
+        );
+    }
+    tray.icon(Image::from_bytes(include_bytes!("../icons/64x64.png"))?)
         .tooltip("Envelope")
         .menu(&menu)
         .show_menu_on_left_click(false)

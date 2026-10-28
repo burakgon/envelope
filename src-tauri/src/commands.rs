@@ -80,8 +80,8 @@ pub fn autostart_get() -> bool {
 }
 
 #[tauri::command]
-pub fn autostart_set(enabled: bool) -> R<()> {
-    crate::autostart::set(enabled).map_err(CmdError::from)
+pub async fn autostart_set(enabled: bool) -> R<()> {
+    crate::autostart::set(enabled).await.map_err(CmdError::from)
 }
 
 #[tauri::command]
