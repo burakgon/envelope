@@ -1,0 +1,37 @@
+From: Gina GnuPG <gina@gnupg.example>
+To: Rita RSA <rita@rsa.example>
+Date: Wed, 28 Oct 2026 09:30:00 +0100
+Subject: Signed hello
+Message-ID: <sig-1@gnupg.example>
+MIME-Version: 1.0
+Content-Type: multipart/signed; micalg=pgp-sha512;
+ protocol="application/pgp-signature";
+ boundary="enigSigned9F3E"
+
+This is an OpenPGP/MIME signed message (RFC 4880 and 3156)
+--enigSigned9F3E
+Content-Type: multipart/mixed; boundary="enigSig0123"
+
+--enigSig0123
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Signed with GnuPG. Merhaba d=C3=BCnya!
+-- 
+Gina
+
+--enigSig0123--
+
+--enigSigned9F3E
+Content-Type: application/pgp-signature; name="signature.asc"
+Content-Description: OpenPGP digital signature
+Content-Disposition: attachment; filename="signature.asc"
+
+-----BEGIN PGP SIGNATURE-----
+
+iIkEABYKADEWIQQE8nPQdwXKEpdVa9s+UbH4sDNgUQUCauJokBMcZ2luYUBnbnVw
+Zy5leGFtcGxlAAoJED5RsfiwM2BRtrMA/i2f/jiK6aqYiE5rrekXk+X8at8Wv48b
+SxeTMXUCtIzPAP9zQq0EQCvHtEZH3TRj9CYXFFUyVcd2a8PepDcU4WqLCg==
+=gNwo
+-----END PGP SIGNATURE-----
+--enigSigned9F3E--

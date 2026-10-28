@@ -15,6 +15,9 @@ pub enum Error {
     NotFound(String),
     #[error("{0}")]
     Invalid(String),
+    /// An OpenPGP secret key (fingerprint) needs its passphrase.
+    #[error("Your OpenPGP key is protected by a passphrase. Unlock it to continue.")]
+    Locked(String),
     #[error("{0}")]
     Other(String),
     #[error("invalid data: {0}")]
@@ -39,6 +42,18 @@ impl Error {
             Error::Imap(e) => e.is_transient(),
             Error::Network(_) => true,
             _ => false,
+        }
+    }
+}
+
+impl From<envelope_pgp::Error> for Error {
+    fn from(e: envelope_pgp::Error) -> Self {
+        use envelope_pgp::Error as P;
+        match e {
+            P::Locked(fingerprint) => Error::Locked(fingerprint),
+            P::BadPassphrase => Error::Invalid("Wrong passphrase".into()),
+            P::NoKey | P::Invalid(_) => Error::Invalid(e.to_string()),
+            P::Pgp(m) => Error::Other(format!("OpenPGP: {m}")),
         }
     }
 }

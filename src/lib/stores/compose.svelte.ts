@@ -3,6 +3,7 @@ import type { Address, DraftInput } from '../api';
 import { mail } from './mail.svelte';
 import { errorMessage, toasts } from './toasts.svelte';
 import { ui } from './ui.svelte';
+import { isEncrypted, pgp } from './pgp.svelte';
 
 export interface ComposerState {
   key: number;
@@ -116,6 +117,9 @@ class Compose {
 
   async reply(messageId: number, mode: 'reply' | 'replyAll' | 'forward', inline = true) {
     try {
+      // An encrypted original is decrypted first, so the reply can quote it.
+      const original = mail.detail?.messages.find((m) => m.id === messageId);
+      if (original && isEncrypted(original)) await pgp.open(messageId);
       const data = await api.composeReply(messageId, mode);
       const threadId = mail.detail?.thread.id ?? null;
       this.open(data, { inline, threadId, showCc: data.cc.length > 0 });

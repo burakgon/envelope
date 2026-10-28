@@ -2,6 +2,7 @@
 
 mod autostart;
 mod commands;
+mod crypto;
 mod notify;
 mod protocol;
 mod tray;
@@ -260,6 +261,24 @@ pub fn run() {
             commands::contact_delete,
             commands::autostart_get,
             commands::autostart_set,
+            crypto::crypto_settings_get,
+            crypto::crypto_settings_set,
+            crypto::crypto_own_keys,
+            crypto::crypto_generate_key,
+            crypto::crypto_import_text,
+            crypto::crypto_import_file,
+            crypto::crypto_export_public,
+            crypto::crypto_export_secret,
+            crypto::crypto_export_file,
+            crypto::crypto_delete_key,
+            crypto::crypto_keys,
+            crypto::crypto_set_verified,
+            crypto::crypto_set_own_key,
+            crypto::crypto_unlock,
+            crypto::crypto_lock,
+            crypto::crypto_compose_status,
+            crypto::crypto_lookup,
+            crypto::crypto_open,
         ])
         .build(tauri::generate_context!());
     match result {

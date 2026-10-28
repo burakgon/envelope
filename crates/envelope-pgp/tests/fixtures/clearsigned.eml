@@ -1,0 +1,23 @@
+From: Gina GnuPG <gina@gnupg.example>
+To: Rita RSA <rita@rsa.example>
+Date: Wed, 28 Oct 2026 09:30:00 +0100
+Subject: Clearsigned
+Message-ID: <clear-1@gnupg.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Clear and signed.
+- - a list item
+Tschüss
+
+-----BEGIN PGP SIGNATURE-----
+
+iIkEARYKADEWIQQE8nPQdwXKEpdVa9s+UbH4sDNgUQUCauJokBMcZ2luYUBnbnVw
+Zy5leGFtcGxlAAoJED5RsfiwM2BRC74BAJcc4A2+FDx2lY/svoTkW8ta7Hzwpnr5
+VgZDZArcQqaAAQDTSd082XoqFTgWsUbS+82dMbJGXeciS7t0g9T1m06oAg==
+=rE53
+-----END PGP SIGNATURE-----

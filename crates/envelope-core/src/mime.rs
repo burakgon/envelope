@@ -8,7 +8,7 @@ use crate::model::{Address, Flags, UnsubscribeInfo};
 
 /// Header fields requested during header synchronization.
 pub const SYNC_HEADER_FIELDS: &str = "DATE FROM SENDER REPLY-TO TO CC BCC SUBJECT MESSAGE-ID IN-REPLY-TO REFERENCES \
-     LIST-UNSUBSCRIBE LIST-UNSUBSCRIBE-POST LIST-ID AUTO-SUBMITTED CONTENT-TYPE";
+     LIST-UNSUBSCRIBE LIST-UNSUBSCRIBE-POST LIST-ID AUTO-SUBMITTED CONTENT-TYPE AUTOCRYPT";
 
 fn addresses(list: Option<mail_parser::AddressList<'_>>) -> Vec<Address> {
     let Some(list) = list else {
@@ -74,6 +74,16 @@ pub fn meta_from_message(msg: &Message<'_>) -> MessageMeta {
                 .subtype()
                 .is_some_and(|s| s.eq_ignore_ascii_case("mixed"))
     });
+    // Autocrypt: a message with more than one header must be ignored.
+    let autocrypt = {
+        let mut values = headers
+            .all("Autocrypt")
+            .map(|h| String::from_utf8_lossy(h.raw_value()).trim().to_string());
+        match (values.next(), values.next()) {
+            (Some(v), None) if !v.is_empty() => Some(v),
+            _ => None,
+        }
+    };
     MessageMeta {
         message_id: msg.message_id().map(clean_id).filter(|s| !s.is_empty()),
         in_reply_to: msg
@@ -97,6 +107,7 @@ pub fn meta_from_message(msg: &Message<'_>) -> MessageMeta {
         is_auto,
         calendar_method,
         has_attachments: likely_attachments,
+        autocrypt,
         ..Default::default()
     }
 }
@@ -382,6 +393,32 @@ pub struct BodyPlan<'a> {
     pub attachments: Vec<AttachmentMeta>,
 }
 
+/// Whether a message structure is PGP/MIME encrypted or signed (such
+/// messages are always downloaded whole: decryption and signature checks
+/// need every byte).
+pub fn has_openpgp(root: &BodyPart) -> bool {
+    matches!(
+        root.mime_type.as_str(),
+        "multipart/encrypted" | "multipart/signed"
+    ) || root.children.iter().any(has_openpgp)
+}
+
+/// Whether a complete message is PGP/MIME encrypted or signed (judged by its
+/// top-level `Content-Type`).
+pub fn is_openpgp_mime(raw: &[u8]) -> bool {
+    let end = raw
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .unwrap_or(raw.len().min(64 * 1024));
+    let meta = MessageParser::new().parse_headers(&raw[..end]);
+    meta.and_then(|m| {
+        m.content_type()
+            .map(|ct| ct.subtype().map(str::to_ascii_lowercase))
+    })
+    .flatten()
+    .is_some_and(|s| s == "encrypted" || s == "signed")
+}
+
 /// Picks the parts to display and lists attachments.
 pub fn body_plan(root: &BodyPart) -> BodyPlan<'_> {
     let mut plan = BodyPlan::default();
@@ -395,6 +432,14 @@ fn part_filename(p: &BodyPart) -> Option<String> {
 
 fn walk_plan<'a>(p: &'a BodyPart, plan: &mut BodyPlan<'a>, in_attachment: bool) {
     let is_attachment = p.disposition.as_deref() == Some("attachment");
+    // OpenPGP: what an encrypted message contains is known once it is
+    // decrypted, and signatures are not attachments.
+    if matches!(
+        p.mime_type.as_str(),
+        "multipart/encrypted" | "application/pgp-signature" | "application/pgp-encrypted"
+    ) {
+        return;
+    }
     if p.is_multipart() {
         for c in &p.children {
             walk_plan(c, plan, in_attachment);
@@ -598,6 +643,48 @@ mod tests {
             extract_part(raw, &body.attachments[0].part_id).unwrap(),
             b"%PDF-"
         );
+    }
+
+    #[test]
+    fn openpgp_parts_are_not_attachments() {
+        let leaf = |id: &str, mime: &str| BodyPart {
+            part_id: id.into(),
+            mime_type: mime.into(),
+            ..Default::default()
+        };
+        let signed = BodyPart {
+            mime_type: "multipart/signed".into(),
+            children: vec![
+                leaf("1", "text/plain"),
+                leaf("2", "application/pgp-signature"),
+            ],
+            ..Default::default()
+        };
+        let plan = body_plan(&signed);
+        assert!(plan.text.is_some());
+        assert!(plan.attachments.is_empty());
+        assert!(has_openpgp(&signed));
+        let encrypted = BodyPart {
+            mime_type: "multipart/encrypted".into(),
+            children: vec![
+                leaf("1", "application/pgp-encrypted"),
+                leaf("2", "application/octet-stream"),
+            ],
+            ..Default::default()
+        };
+        assert!(body_plan(&encrypted).attachments.is_empty());
+        assert!(!has_openpgp(&leaf("1", "text/plain")));
+        assert!(is_openpgp_mime(
+            b"Content-Type: multipart/encrypted;\r\n protocol=\"application/pgp-encrypted\"; boundary=x\r\n\r\n--x--\r\n"
+        ));
+        assert!(!is_openpgp_mime(b"Content-Type: text/plain\r\n\r\nhi"));
+        // The Autocrypt header counts only when there is exactly one.
+        let m = meta_from_headers(b"From: a@b.c\r\nAutocrypt: addr=a@b.c; keydata=AAAA\r\n\r\n");
+        assert_eq!(m.autocrypt.as_deref(), Some("addr=a@b.c; keydata=AAAA"));
+        let m = meta_from_headers(
+            b"From: a@b.c\r\nAutocrypt: addr=a@b.c; keydata=AAAA\r\nAutocrypt: addr=a@b.c; keydata=BBBB\r\n\r\n",
+        );
+        assert!(m.autocrypt.is_none());
     }
 
     #[test]

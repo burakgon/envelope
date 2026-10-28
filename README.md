@@ -67,6 +67,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - **Rules** that file, label, mark or silence new mail as it arrives — for every kind of account.
 - **Automatic replies** (out of office) for Microsoft 365, Exchange, Gmail and IMAP servers with Sieve, with optional dates and a reminder while they are on.
 - **Safe HTML rendering** in a sandboxed frame with remote content blocking, tracking-pixel removal, dark-mode adaptation for plain emails and `cid:` inline images.
+- **End-to-end encryption** with OpenPGP that sets itself up: keys are created and exchanged with Autocrypt and found in the recipient's Web Key Directory, the lock in the composer turns on when everyone has a key, and messages show who signed them. Experts can import, export and verify keys — see [docs/ENCRYPTION.md](docs/ENCRYPTION.md).
 - **Offline-first**: read, search, triage and write without a connection; changes sync when you're back.
 - **Push mail** via IMAP IDLE, CONDSTORE/QRESYNC for fast resyncs, Gmail extensions (labels, thread ids, `X-GM-RAW` search) when talking to Gmail.
 - Desktop notifications with Archive and Mark as Read buttons, unread badge, `mailto:` handling, and saved messages (`.eml`) and calendar files (`.ics`) open straight from your file manager.
@@ -181,6 +182,7 @@ Envelope is a [Tauri 2](https://tauri.app) application: a Rust core and a Svelte
 | [`envelope-google`](crates/envelope-google) | Google Calendar and People API client |
 | [`envelope-dav`](crates/envelope-dav) | CalDAV / CardDAV client with discovery, sync-collection and multiget |
 | [`envelope-ical`](crates/envelope-ical) | iCalendar parsing and writing, recurrence expansion, time zones, iTIP |
+| [`envelope-pgp`](crates/envelope-pgp) | OpenPGP on rPGP: keys, PGP/MIME and inline PGP with protected headers, Autocrypt, Web Key Directory |
 | [`envelope-ai`](crates/envelope-ai) | Streaming client for OpenAI-compatible, Anthropic and Gemini APIs |
 | [`src-tauri`](src-tauri) | Desktop shell: commands, events, `att://` protocol for attachments, notifications |
 | [`src`](src) | The Svelte 5 + TypeScript interface |
@@ -191,14 +193,14 @@ Envelope is a [Tauri 2](https://tauri.app) application: a Rust core and a Svelte
 npm run demo                  # the full UI in a browser with realistic demo data, no backend needed
 scripts/devserver/run.sh      # local Dovecot IMAP + SMTP sink + Radicale CalDAV with seeded mail and events
 cargo test --workspace        # unit and integration tests
-ENVELOPE_TEST_IMAP=1 cargo test -p envelope-core --test live_imap --test live_calendar   # against the dev server
+ENVELOPE_TEST_IMAP=1 cargo test -p envelope-core --test live_imap --test live_calendar --test live_pgp   # against the dev server
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the details.
 
 ## Roadmap
 
-- PGP / S/MIME
+- S/MIME
 - An AUR package
 
 ## License

@@ -108,6 +108,36 @@ export interface Api {
     savePart(path: string, partId: string, target: string): Promise<void>;
   };
 
+  /** OpenPGP end-to-end encryption. */
+  crypto: {
+    settings(): Promise<T.CryptoSettings>;
+    setSettings(settings: T.CryptoSettings): Promise<void>;
+    /** Every sending address and its key. */
+    ownKeys(): Promise<T.OwnKey[]>;
+    generateKey(email: string, name: string, passphrase?: string | null): Promise<T.KeyInfo>;
+    /** Imports armored keys (public or secret); `ownEmail` makes a secret key that address's key. */
+    importText(text: string, passphrase?: string | null, ownEmail?: string | null): Promise<T.KeyInfo[]>;
+    importFile(path: string, passphrase?: string | null, ownEmail?: string | null): Promise<T.KeyInfo[]>;
+    exportPublic(fingerprint: string): Promise<string>;
+    /** A passphrase protects the exported copy of a key that has none. */
+    exportSecret(fingerprint: string, passphrase?: string | null): Promise<string>;
+    exportFile(fingerprint: string, secret: boolean, passphrase: string | null, path: string): Promise<void>;
+    deleteKey(fingerprint: string): Promise<void>;
+    /** Keys matching an address, a name or a fingerprint. */
+    keys(query: string): Promise<T.KeyInfo[]>;
+    setVerified(fingerprint: string, verified: boolean): Promise<void>;
+    setOwnKey(email: string, fingerprint: string): Promise<void>;
+    /** Checks a passphrase and remembers it until Envelope quits. */
+    unlock(fingerprint: string, passphrase: string): Promise<void>;
+    /** Forgets passphrases and decrypted messages. */
+    lock(): Promise<void>;
+    composeStatus(accountId: number, identityId: number | null, from: T.Address | null, recipients: string[]): Promise<T.ComposeCrypto>;
+    /** Looks keys up in the recipients' Web Key Directories (and on keys.openpgp.org with `keyserver`). */
+    lookup(emails: string[], keyserver: boolean, explicit: boolean): Promise<T.KeyInfo[]>;
+    /** Decrypts and/or verifies a message. */
+    open(messageId: number): Promise<T.OpenedMessage>;
+  };
+
   contacts: {
     books(): Promise<T.ContactBook[]>;
     /** Contacts matching `query` (name, e-mail, organization, phone), sorted by name. */

@@ -8,6 +8,7 @@
   import SnoozeMenu from './SnoozeMenu.svelte';
   import MoveMenu from './MoveMenu.svelte';
   import AiSummary from './AiSummary.svelte';
+  import { pgp } from '../stores/pgp.svelte';
   import { Archive, Clock, Folder, Forward, Mail, MailOpen, Reply, ReplyAll, ShieldAlert, Star, Tag, Trash, Inbox } from '../icons';
 
   let expanded = $state<Record<number, boolean>>({});
@@ -88,7 +89,7 @@
     <div class="scroll" bind:this={scroller}>
       <div class="inner">
         <div class="subject-block">
-          <h2 class="selectable">{thread.subject || '(no subject)'}</h2>
+          <h2 class="selectable">{pgp.subjectOf(messages.map((m) => m.id)) ?? (thread.subject || '(no subject)')}</h2>
           <div class="chips">
             {#if mail.multiAccount && account}
               <span class="chip"><span class="dot" style:background={account.color}></span>{account.label ?? account.email}</span>

@@ -1,0 +1,52 @@
+From: Gina GnuPG <gina@gnupg.example>
+To: Rita RSA <rita@rsa.example>
+Date: Wed, 28 Oct 2026 09:30:00 +0100
+Subject: ...
+Message-ID: <tb-1@gnupg.example>
+MIME-Version: 1.0
+Content-Type: multipart/encrypted;
+ protocol="application/pgp-encrypted";
+ boundary="------------gnupgEnc5C1C0FA3D6E0"
+
+This is an OpenPGP/MIME encrypted message (RFC 4880 and 3156)
+--------------gnupgEnc5C1C0FA3D6E0
+Content-Type: application/pgp-encrypted
+Content-Description: PGP/MIME version identification
+
+Version: 1
+
+--------------gnupgEnc5C1C0FA3D6E0
+Content-Type: application/octet-stream; name="encrypted.asc"
+Content-Description: OpenPGP encrypted message
+Content-Disposition: inline; filename="encrypted.asc"
+
+-----BEGIN PGP MESSAGE-----
+
+hQGMAzKQlF3NnpAOAQv+NFUQbVz5NgnqQTLtnCQtq55pelcETmPNz8Z02PmmURmM
++A2KYcjFTDpTSkUIqshGVYqSlNfKFH3OCH3JFZuBj+GAadXQgVrjsbrpCQv1pTyT
+fdZoELb+KbddkW9WpELgdi/yORDVeQroro/wRkf4GXxVf8MIMFrsZHaEz9B9Vf6l
+MeCXQ2DdOz0ssZ4RocdLMXCBx31XoeY8W6r9Gemkb3LI+Y+6GB1UxS5IY8MW4xQf
+3vpKwVr5m3kxZ4uriNB/tzMd0xZXSoU57ZJGD8lo0VrquSF+bKDh9ZE4VLlTr9l0
+e8lx+VJJG7eKIqzGDmHsOaTHZhJzGDRoK9EsE4fAZD8Y9b9SLTTEJ/9EWMVx3Wkk
+qPghm9vHDSHAZ300WIGT4bqpfaTdtiw+WbWD57FsFj/SYIAjhFHdKyXRMd5a+sFL
+n1f2lYS2/S2QstuqvcLsCHo6sbl3GeINuJCGqHK+GLxXeC0eCnFijKLepe2xpHqG
+28Ynia/XFz7UBlY9R79ihF4DUth3XYRcaJ8SAQdAsSCKIkjgxPBXjgJAff0Ra6pe
+pmvKRmv0ejqDOl7DX2UwN4bu2zRlMZkmaa0QUb5DUXv9K3O0yHDnn/B/EzNRYIWT
+5G/3vo2NLNu0nSgWYm8v0ukBnit+t+WtvYz0/O+3S7bqXGghHYn3r1AHENmoarCL
+v+BT/1v6y8qDvYGWfCbK0hpu/0H7D0rFY45AOmkihTLuo97iIYa7fD4P55fstzfc
+l6T/d54Zsy48cXClELDdXnAJYIiNYgzebzO3NQFWZHp4wQEkvWvOSjMZzXwhvl7X
+W8Q/2BiL6gnhRuEiA9C+6cUjBw1/JoPVGVVWoHxITjxGvZmommbPmej5yp/+Rpc+
+5a2U8YbtEoaKZbo7yBusqzFMNznTodjdGw68BGW9n74J2bt9fuCuVprYr4mjHK0c
+ueRfc6yWXBAlR960bknV2nWa4PLFY3OxlUq2bRBLLRTr/bKAwr4MTpqq5sxrD9OP
+NOaTifF6/3kp+ukHzLH0BqEK2m8SQ2/JK4+PeofvjIL5TBz1Ny6rofiDlKY9sCcu
+u96WQlzJsv6Zsc1PVqHUSjQxXWZytUGCPih/9JC9JQyZzHkFZF99q8YzuDmAUGtQ
+2jSj6gvKg6FuIqcAEHCsK8g0lRLGtVbkLqOeUuRtY//W5KV4TcKDUQmIVOLqMKTs
+cDXqlflc4jtcj7AfgMfu2TYXPX+Y+NVJBZsaWBKED+s97KGiMCND/Cx9aEb3q7o2
+PNT1Dj+dhTguUhN3APzcMkzVKrbj42LkWEQwpflYv3vh2iOWoQbu7p7CygFTkZrY
+u189Bl+DI0VPO+ggcCTlNSaKnd8qSnglkhmL04jSPxzV/V8X+3QcLWStK92WLJ24
+uXRuf+SDcfXBDqlTboa9RVlUtuZQ9PFCLduQoqMX1RTlU5eLnYJeNei1+PH/MKew
+DQ==
+=RfAO
+-----END PGP MESSAGE-----
+
+--------------gnupgEnc5C1C0FA3D6E0--

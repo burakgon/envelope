@@ -1,0 +1,27 @@
+From: Gina GnuPG <gina@gnupg.example>
+To: Rita RSA <rita@rsa.example>
+Date: Wed, 28 Oct 2026 09:30:00 +0100
+Subject: Inline
+Message-ID: <inline-1@gnupg.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+-----BEGIN PGP MESSAGE-----
+
+hQGMAzKQlF3NnpAOAQwAp7fFnjwXsmK2r8CB95ZaGMWATEFTERB0YBs57tRQBBQm
+ftYDgBLlIwI3K6wd7z+JtCL4uVJVPUiPLziBEUESX85kQ4JeGAWuJIQ2zZgxqXbv
+2uB1o3v6aJL7XOd/zxyjoEpgmb1PSpwScu3PLiAxMC6ZHk16gVWdN2o6pW2Fpsps
+04IPuePpksTt+aJeU5hOqup8uwgpN30DqYMvVYnwqmKJLf79VnjrP2N92gEchqAo
+fV15+BeSpjIXPpDnGB564Ztcpw4z0aBrgf2os72Xzg64MjmyDOq4A7Tgejw/2ywL
+9rqvK7x8NHSU14RqMZ/exDfPnqE2VzgBa4uSBPbV6mIKETpjSynjNZc9HRncoKfJ
+tUvpJGWUm9CLJsVq8vg0keRQ1UXHQJXn6X3pAh4LsJNrIrcP+3muxnHoiLYtFsOk
+1I7TtRUF18d151OvrbpUwtPv0xTsz3RaLS2chdWA5p3doPFPoKYkj4GqR8YmGjRA
+yZc2uw+6bs2lESpu7aMg0sAnAZ3NiMshLbCE/TDJz0g0BPlxOaw6WKFF3c5CUAAo
+c/wD4SmoTiyfPGxd1E2Bp3RJZijrEiNHBXVQ2b8267e1JhAT79pgsVOSkJ1d72Fz
+E6nss0TvCwkU7alwqsly4BmeZgT0xWCef3+V6I6glSFr8TWMl8Q6706UiyGc4Y2V
+Zyluj+KGfR7JW9j5n/aAkouuO0eJIe09YLqyr1QTxQ8OMaqkJa/ldW9Hy3ksbc+X
+k8RzT4tAwvqfJAnaAkVyuY1ZlQwTSQh5XuPsBceFGT9wG3n116wTwTQ9imw08lXl
+7rmw+99BOH5T
+=/ekW
+-----END PGP MESSAGE-----

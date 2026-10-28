@@ -206,6 +206,8 @@ export interface MessageView {
   unsubscribe: UnsubscribeInfo | null;
   calendarMethod: string | null;
   isAuto: boolean;
+  /** OpenPGP content, opened with `api.crypto.open`. */
+  crypto?: CryptoKind | null;
 }
 
 export interface ThreadDetail {
@@ -258,6 +260,10 @@ export interface DraftInput {
   requestReadReceipt?: boolean;
   /** Remind me if nobody replies within this many days. */
   followUpDays?: number | null;
+  /** Encrypt with OpenPGP (to every recipient and the sender). */
+  encrypt?: boolean | null;
+  /** Sign with the sender's OpenPGP key. */
+  sign?: boolean | null;
 }
 
 export interface Draft {
@@ -675,4 +681,110 @@ export interface InviteInfo {
   eventId: number | null;
   conferenceUrl: string | null;
   recurring: boolean;
+}
+
+// ----- OpenPGP -----------------------------------------------------------------
+
+export type CryptoKind = 'encrypted' | 'signed' | 'inline-encrypted' | 'inline-signed';
+
+/** Where a key came from. */
+export type KeySource = 'own' | 'autocrypt' | 'gossip' | 'wkd' | 'keyserver' | 'manual';
+
+export interface CryptoSettings {
+  /** Encrypt automatically when every recipient has a key. */
+  encryptWhenPossible: boolean;
+  signByDefault: boolean;
+  /** Send the public key with every message (Autocrypt). */
+  sendAutocrypt: boolean;
+  /** Replace the subject of encrypted messages with "...". */
+  protectSubject: boolean;
+  /** Keep decrypted copies on this device (search, previews). */
+  keepDecrypted: boolean;
+  /** Look up missing keys in the recipient's domain while composing. */
+  wkdLookup: boolean;
+}
+
+export interface KeyInfo {
+  /** Upper-case hex. */
+  fingerprint: string;
+  userIds: string[];
+  emails: string[];
+  algorithm: string;
+  createdAt: number;
+  expiresAt: number | null;
+  revoked: boolean;
+  expired: boolean;
+  canEncrypt: boolean;
+  canSign: boolean;
+  /** One of the user's own keys (the secret key is in the keyring). */
+  secret: boolean;
+  /** The secret key is protected by a passphrase. */
+  protected: boolean;
+  source: KeySource;
+  /** The user compared the fingerprint with its owner. */
+  verified: boolean;
+  addedAt: number;
+  updatedAt: number;
+}
+
+/** An address the user sends from, and its key. */
+export interface OwnKey {
+  email: string;
+  name: string;
+  identityIds: number[];
+  key: KeyInfo | null;
+  /** No passphrase needed right now. */
+  unlocked: boolean;
+}
+
+export interface RecipientKey {
+  email: string;
+  key: KeyInfo | null;
+  /** The recipient asked for encrypted mail (Autocrypt). */
+  preferEncrypt: boolean;
+}
+
+/** What the composer can do for a message. */
+export interface ComposeCrypto {
+  from: string;
+  ownKey: KeyInfo | null;
+  ownLocked: boolean;
+  recipients: RecipientKey[];
+  missing: string[];
+  canEncrypt: boolean;
+  canSign: boolean;
+  /** Every recipient asked for encryption. */
+  mutual: boolean;
+  settings: CryptoSettings;
+}
+
+export interface SignatureView {
+  status: 'good' | 'bad' | 'unknownKey';
+  signer: KeyInfo | null;
+  /** Fingerprint or key id named in the signature. */
+  issuer: string | null;
+  created: number | null;
+  /** The signing key carries the sender's address. */
+  senderMatches: boolean;
+}
+
+/** An encrypted or signed message, opened. */
+export interface OpenedMessage {
+  messageId: number;
+  kind: CryptoKind;
+  encrypted: boolean;
+  status: 'ok' | 'locked' | 'noKey' | 'error';
+  error: string | null;
+  /** The key whose passphrase is needed. */
+  lockedKey: KeyInfo | null;
+  /** Decrypted content (null: the stored body is the content). */
+  body: MessageBody | null;
+  attachments: AttachmentInfo[];
+  /** The real subject (protected headers). */
+  subject: string | null;
+  signatures: SignatureView[];
+  /** The signature covers only part of the message. */
+  partiallySigned: boolean;
+  /** The message has unencrypted parts besides the encrypted one. */
+  partiallyEncrypted: boolean;
 }

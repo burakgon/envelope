@@ -24,6 +24,7 @@ impl From<envelope_core::Error> for CmdError {
             E::Auth(_) => "auth",
             E::NotFound(_) => "notFound",
             E::Invalid(_) => "invalid",
+            E::Locked(_) => "locked",
             E::Network(_) => "network",
             E::Imap(i) if i.is_auth() => "auth",
             E::Imap(i) if i.is_transient() => "network",

@@ -50,7 +50,7 @@ cargo test --workspace
 npm run check                       # svelte-check / TypeScript
 
 # end-to-end tests against the local server (resets .devserver state)
-ENVELOPE_TEST_IMAP=1 cargo test -p envelope-core --test live_imap --test live_calendar
+ENVELOPE_TEST_IMAP=1 cargo test -p envelope-core --test live_imap --test live_calendar --test live_pgp
 ```
 
 Please make sure all of these pass before opening a pull request. New protocol code should come with tests — the crates use recorded server responses and `wiremock` so they run offline.

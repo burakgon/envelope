@@ -1,0 +1,46 @@
+From: Gina GnuPG <gina@gnupg.example>
+To: Rita RSA <rita@rsa.example>
+Date: Wed, 28 Oct 2026 09:30:00 +0100
+Subject: Nested
+Message-ID: <nested-1@gnupg.example>
+MIME-Version: 1.0
+Content-Type: multipart/encrypted;
+ protocol="application/pgp-encrypted";
+ boundary="------------gnupgEnc5C1C0FA3D6E0"
+
+This is an OpenPGP/MIME encrypted message (RFC 4880 and 3156)
+--------------gnupgEnc5C1C0FA3D6E0
+Content-Type: application/pgp-encrypted
+Content-Description: PGP/MIME version identification
+
+Version: 1
+
+--------------gnupgEnc5C1C0FA3D6E0
+Content-Type: application/octet-stream; name="encrypted.asc"
+Content-Description: OpenPGP encrypted message
+Content-Disposition: inline; filename="encrypted.asc"
+
+-----BEGIN PGP MESSAGE-----
+
+hQGMAzKQlF3NnpAOAQv/Tiw59Rg8GB2I7VLtN5Xlt14KnbzP5byj7OORs+I96JwZ
+lRT1TPSqadocyp8SDsrT/JDCpE3lEEFOpCbkVdnAxLQUleCnfnIEwlO4pzMHUnhT
+OTrBKDuF5ia5zM8xaAPxIsXBr/JeK7WMRe9mCHHFyo/0qayGqSobJ0kWRgHsWxrr
+wfoekb4TwEdPGmm41uRkX9pCa03rXM634r3kJoOsdB54FBzIJcx5b6aPru4H7pqx
+Q3OaY+8lB5zP6SXyE3nn/v7pQY8ZyNV2CInpyBm5GktXDspAAnlfaFwYDXOYkIpH
+4YD3pwl9bMyeLn6uF8xOlUuDP6JVlLuVAVrOpIDq/pqvmR4bbIIp+zSyfYRqqQ12
+EDgTCrArEVL7kkCFKk9Pq9BHBDJbDRw7YXu/ISXcoSBCasH/yOYfn19V6vqtG1kw
+hEcwqNAR6lILlpEBXZZjQQ2BIftHqnk7OVUnovKK6k7QgzL+tR456Ckepvn8ncFH
+cEnUAVCtRj+89j7qyfbj0sD/AZlBJoZhVeT6ffieRwRKFhuo86fZC4ocxHKW0jAq
+f21Rt6MrUWBr6ek0HI27RB/FzxTs6cU8reepx2zCfulWmpVTHN5RJMujfXxC3qCm
+tOXJ8zeouw/BleJbpZc6tvR24LUmE5pbNt85xRQr2y67dWUhMTazSOvA8+2sWugf
+Z2DfAVgLH43exB7l3vFcxuo46oF1PmXH7umamf/pZY6LKAvvOgS/JPJ5LzzXAE7C
+exgwxuy30DKAqJF657YoASo7xHIYRx6MT/5MM6zOz5sjDncA3z4IiMJAqANBaf7p
+TR89pGHAwRJu5RKKW9WTeoYryXmBBVglb672pwK22cemzXyIqLqCa4pbLGgnHXT+
+LBpXfjlpioAhjVYJjtIx1Ggvl1FAw6S0Nde0UOs42K/oc8cD/5una8Ee3XA95GFC
+Pk86LI2fiUy+57pjGMe5F/QY4JaJp/As/fiPT82wlFK3Nte1aqd4wU3UBBccgeqX
+8dfM6x2sj9WV6IUR1A6SwAHqQmW8tRbxJrZLfobhFFqcmbdGXTqJ35X2krL4bm4g
+GFl3797VJXBmlJLcQxk1a+pl30vlOc2JTG0dJp0XTfy4
+=w0n0
+-----END PGP MESSAGE-----
+
+--------------gnupgEnc5C1C0FA3D6E0--

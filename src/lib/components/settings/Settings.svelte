@@ -6,6 +6,7 @@
   import { ui } from '../../stores/ui.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import AiSettings from './AiSettings.svelte';
+  import EncryptionSettings from './EncryptionSettings.svelte';
   import AutoReplyDialog from './AutoReplyDialog.svelte';
   import { autoReplies } from '../../stores/autoReplies.svelte';
   import RulesSettings from './RulesSettings.svelte';
@@ -46,6 +47,7 @@
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'privacy', label: 'Privacy', icon: ShieldCheck },
+    { id: 'encryption', label: 'Encryption', icon: Lock },
     { id: 'ai', label: 'AI', icon: Sparkles },
     { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
     { id: 'advanced', label: 'Advanced', icon: Code },
@@ -454,6 +456,8 @@
           </div>
         </div>
         <p class="desc">Envelope has no telemetry. Mail is stored only on this computer and your mail servers. AI features send only what you ask about to the provider you configure.</p>
+      {:else if ui.settingsTab === 'encryption'}
+        <EncryptionSettings />
       {:else if ui.settingsTab === 'ai'}
         <AiSettings />
       {:else if ui.settingsTab === 'shortcuts'}

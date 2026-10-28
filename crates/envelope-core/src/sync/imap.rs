@@ -731,6 +731,7 @@ impl Session {
         let folder_id = folder.id;
         let is_inbox_like = matches!(folder.role, Some(FolderRole::Inbox | FolderRole::All));
         let is_inbox = folder.role == Some(FolderRole::Inbox);
+        let is_junk = folder.role == Some(FolderRole::Junk);
         let folder_remote = folder.remote_id.clone();
         let my_email = self.account.email.to_lowercase();
         let (threads, mut fresh_unread, arrivals) = self
@@ -752,6 +753,7 @@ impl Session {
                 let mut threads = BTreeSet::new();
                 let mut fresh_unread = Vec::new();
                 let mut arrivals = Vec::new();
+                let mine = crate::crypto::my_emails(tx)?;
                 for (uid, meta, attachments, labels) in prepared {
                     if leaving.contains(&uid) {
                         continue;
@@ -760,6 +762,9 @@ impl Session {
                     if stored.is_new {
                         if !attachments.is_empty() {
                             mail::replace_attachments(tx, stored.message_id, &attachments)?;
+                        }
+                        if !is_junk {
+                            crate::crypto::on_headers(tx, &meta, &mine)?;
                         }
                         let from_me = meta
                             .from
@@ -1338,9 +1343,9 @@ pub(crate) async fn fetch_bodies(
         if client.selected() != Some(folder.as_str()) {
             client.select(&folder, None).await?;
         }
-        let (small, large): (Vec<&BodyTarget>, Vec<&BodyTarget>) = targets
-            .iter()
-            .partition(|t| t.size <= FULL_BODY_LIMIT || t.structure.is_none());
+        let (small, large): (Vec<&BodyTarget>, Vec<&BodyTarget>) = targets.iter().partition(|t| {
+            t.size <= FULL_BODY_LIMIT || t.structure.as_ref().is_none_or(mime::has_openpgp)
+        });
         // Small messages: whole message in batches.
         for chunk in small.chunks(20) {
             let uids: Vec<u32> = chunk.iter().map(|t| t.uid).collect();
@@ -1408,15 +1413,27 @@ async fn store_full_bodies(
     engine: &Engine,
     results: Vec<(i64, bool, Option<Vec<u8>>)>,
 ) -> Result<usize> {
-    engine
+    let (n, encrypted) = engine
         .db
         .write_async(move |tx| {
             let mut n = 0;
+            let mut encrypted = Vec::new();
             for (id, has_structure, raw) in results {
-                match raw.as_deref().and_then(mime::parse_full) {
-                    Some((_, body)) => {
-                        // Attachments with IMAP part ids came from BODYSTRUCTURE already.
-                        let atts = if has_structure {
+                let parsed = raw
+                    .as_deref()
+                    .and_then(|r| mime::parse_full(r).map(|p| (r, p)));
+                match parsed {
+                    Some((raw, (meta, mut body))) => {
+                        let pgp = crate::crypto::on_source(tx, id, raw, &meta, &mut body)?;
+                        if pgp.is_some_and(|k| k.is_encrypted()) {
+                            encrypted.push(id);
+                        }
+                        // Attachments with IMAP part ids came from BODYSTRUCTURE
+                        // already (an encrypted message's are only known
+                        // after decryption).
+                        let atts = if pgp.is_some_and(|k| k.is_encrypted()) {
+                            Some(&[][..])
+                        } else if has_structure {
                             None
                         } else {
                             Some(body.attachments.as_slice())
@@ -1434,9 +1451,11 @@ async fn store_full_bodies(
                     None => mail::mark_body_failed(tx, id)?,
                 }
             }
-            Ok(n)
+            Ok((n, encrypted))
         })
-        .await
+        .await?;
+    engine.decrypt_later(encrypted);
+    Ok(n)
 }
 
 /// Downloads an attachment part.

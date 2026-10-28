@@ -6,6 +6,7 @@ import * as data from './mockdata';
 import { mockAiRun, mockPresets } from './mock-ai';
 import * as cal from './mock-calendar';
 import * as people from './mock-contacts';
+import { createMockCrypto } from './mock-crypto';
 
 type Listener = (e: T.EngineEvent) => void;
 
@@ -390,6 +391,8 @@ export function createMockApi(): Api {
       openPart: async () => {},
       savePart: async () => {},
     },
+
+    crypto: createMockCrypto(() => identities),
 
     contacts: {
       books: async () => structuredClone(people.books),

@@ -23,6 +23,7 @@ envelope-google = { version = "0.1.0", path = "../envelope-google" }
 envelope-graph = { version = "0.1.0", path = "../envelope-graph" }
 envelope-ical = { version = "0.1.0", path = "../envelope-ical" }
 envelope-imap = { version = "0.1.0", path = "../envelope-imap" }
+envelope-pgp = { version = "0.1.0", path = "../envelope-pgp" }
 futures = "0.3.34"
 hickory-resolver = { version = "0.26.3", features = ["tokio"] }
 html-escape = "0.3.0"

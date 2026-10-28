@@ -1597,14 +1597,19 @@ async fn download_bodies(
             }
         }
     }
-    let (threads, keep) = engine
+    let (threads, keep, encrypted) = engine
         .db
         .write_async(move |tx| {
             let mut threads = BTreeSet::new();
             let mut keep = Vec::new();
+            let mut encrypted = Vec::new();
             for (id, raw) in sources {
                 match mime::parse_full(&raw) {
-                    Some((meta, body)) => {
+                    Some((meta, mut body)) => {
+                        let pgp = crate::crypto::on_source(tx, id, &raw, &meta, &mut body)?;
+                        if pgp.is_some_and(|k| k.is_encrypted()) {
+                            encrypted.push(id);
+                        }
                         mail::store_body(
                             tx,
                             id,
@@ -1630,9 +1635,10 @@ async fn download_bodies(
             for id in failed {
                 mail::mark_body_failed(tx, id)?;
             }
-            Ok((threads, keep))
+            Ok((threads, keep, encrypted))
         })
         .await?;
+    engine.decrypt_later(encrypted);
     for (id, raw) in keep {
         save_source(&source_path(engine, account_id, id), &raw).await;
     }
@@ -1737,6 +1743,14 @@ const MIME_LIMIT: usize = 2_900_000;
 async fn send_with(graph: &GraphMail, mime: &[u8], recipients: &[String]) -> Result<()> {
     let mime = with_bcc_header(mime, recipients);
     if mime.len() > MIME_LIMIT {
+        // Rebuilding the message around its files would undo the OpenPGP
+        // encryption or signature.
+        if mime::is_openpgp_mime(&mime) {
+            return Err(Error::Invalid(
+                "Encrypted or signed messages larger than about 3 MB can't be sent through Microsoft 365. Remove some attachments, or send it unencrypted."
+                    .into(),
+            ));
+        }
         return send_large(graph, &mime).await;
     }
     graph

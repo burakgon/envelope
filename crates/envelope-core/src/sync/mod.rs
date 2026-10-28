@@ -281,7 +281,7 @@ pub(crate) async fn render_draft(
             content_id: if a.inline { a.content_id.clone() } else { None },
         });
     }
-    let out = Outgoing {
+    let mut out = Outgoing {
         from,
         reply_to,
         to: draft.to.clone(),
@@ -297,5 +297,12 @@ pub(crate) async fn render_draft(
         allow_no_recipients: for_draft,
         ..Default::default()
     };
-    compose::render(&out)
+    // OpenPGP: the sender's key in an Autocrypt header, encryption and
+    // signatures as the composer asked.
+    let plan = crate::crypto::plan_outgoing(engine, draft, &out.from, for_draft).await?;
+    if let Some(header) = &plan.autocrypt {
+        out.extra_headers
+            .push(("Autocrypt".to_string(), header.clone()));
+    }
+    crate::crypto::apply_plan(&plan, compose::render(&out)?)
 }

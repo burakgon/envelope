@@ -544,6 +544,13 @@ impl Engine {
 
     /// Saves a draft locally; with `upload`, also stores it on the server.
     pub fn save_draft(&self, id: Option<i64>, data: &DraftInput, upload: bool) -> Result<i64> {
+        // Encrypted drafts go to the server encrypted to the sender's key;
+        // without one they stay on this device.
+        let upload = upload
+            && (data.encrypt != Some(true)
+                || crate::sync::draft_identity(self, data)
+                    .and_then(|(from, _)| self.own_key_for(&from.email))
+                    .is_ok_and(|k| k.is_some()));
         let id = self.db.write(|tx| {
             let id = misc::draft_save(tx, id, data)?;
             if upload {
@@ -701,7 +708,28 @@ impl Engine {
             mode: Some(mode.to_string()),
             ..Default::default()
         };
-        let body = m.body.clone();
+        // An encrypted original: quote what was decrypted, reply encrypted.
+        let opened = m
+            .crypto
+            .as_ref()
+            .and_then(|_| self.crypto.opened(message_id));
+        let encrypted_original = m
+            .crypto
+            .as_deref()
+            .is_some_and(|k| k == "encrypted" || k == "inline-encrypted");
+        if encrypted_original {
+            draft.encrypt = Some(true);
+        }
+        let subject = opened
+            .as_ref()
+            .and_then(|o| o.view.subject.clone())
+            .unwrap_or_else(|| m.subject.clone());
+        let body = match opened.as_ref().and_then(|o| o.view.body.clone()) {
+            Some(b) if encrypted_original || m.crypto.as_deref() == Some("inline-signed") => {
+                Some(b)
+            }
+            _ => m.body.clone(),
+        };
         let original_html = match &body {
             Some(MessageBody { html: Some(h), .. }) => sanitize_quoted(h),
             Some(MessageBody { text: Some(t), .. }) => text_to_html(t),
@@ -728,7 +756,7 @@ impl Engine {
             .unwrap_or_default();
         match mode {
             "forward" => {
-                draft.subject = crate::compose::prefixed_subject("Fwd: ", &m.subject);
+                draft.subject = crate::compose::prefixed_subject("Fwd: ", &subject);
                 let to_list =
                     m.to.iter()
                         .map(|a| a.to_header())
@@ -736,11 +764,14 @@ impl Engine {
                         .join(", ");
                 draft.html = format!(
                     "<p></p><p></p><div class=\"envelope-forward\">---------- Forwarded message ---------<br>From: {sender}<br>Date: {date}<br>Subject: {}<br>To: {}<br><br>{original_html}</div>",
-                    html_escape::encode_text(&m.subject),
+                    html_escape::encode_text(&subject),
                     html_escape::encode_text(&to_list)
                 );
-                draft.attachments = m
-                    .attachments
+                let attachments = match &opened {
+                    Some(o) if encrypted_original => o.view.attachments.clone(),
+                    _ => m.attachments.clone(),
+                };
+                draft.attachments = attachments
                     .iter()
                     .filter(|a| !a.inline)
                     .map(|a| DraftAttachment {
@@ -755,7 +786,7 @@ impl Engine {
                     .collect();
             }
             _ => {
-                draft.subject = crate::compose::prefixed_subject("Re: ", &m.subject);
+                draft.subject = crate::compose::prefixed_subject("Re: ", &subject);
                 let primary: Vec<Address> = if from_me {
                     m.to.clone()
                 } else if !m.reply_to.is_empty() {
@@ -806,6 +837,10 @@ impl Engine {
 
     /// Ensures an attachment is downloaded and returns its local path.
     pub async fn attachment_file(&self, attachment_id: i64) -> Result<PathBuf> {
+        // Attachments inside encrypted messages are decrypted on demand.
+        if attachment_id < 0 {
+            return self.decrypted_attachment_file(attachment_id).await;
+        }
         let att = self.db.read(|c| mail::get_attachment(c, attachment_id))?;
         let account_id: i64 = self.db.read(|c| {
             Ok(c.query_row(
@@ -887,6 +922,9 @@ impl Engine {
             .trim_start_matches('<')
             .trim_end_matches('>')
             .to_string();
+        if let Some(found) = self.decrypted_inline(message_id, &cid).await? {
+            return Ok(found);
+        }
         let att = self
             .db
             .read(|c| mail::attachment_by_cid(c, message_id, &cid))?
@@ -897,6 +935,12 @@ impl Engine {
 
     /// The raw RFC 5322 source of a message.
     pub async fn message_source(&self, message_id: i64) -> Result<String> {
+        let raw = self.message_source_bytes(message_id).await?;
+        Ok(String::from_utf8_lossy(&raw).into_owned())
+    }
+
+    /// The raw source of a message, as bytes.
+    pub(crate) async fn message_source_bytes(&self, message_id: i64) -> Result<Vec<u8>> {
         let account_id: i64 = self.db.read(|c| {
             Ok(c.query_row(
                 "SELECT account_id FROM messages WHERE id = ?",
@@ -906,12 +950,10 @@ impl Engine {
         })?;
         let account = self.account_row(account_id)?;
         if account.kind == AccountKind::Microsoft {
-            let raw = crate::sync::graph::message_source(self, account_id, message_id).await?;
-            return Ok(String::from_utf8_lossy(&raw).into_owned());
+            return crate::sync::graph::message_source(self, account_id, message_id).await;
         }
         if account.kind == AccountKind::Exchange {
-            let raw = crate::sync::ews::message_source(self, &account, message_id).await?;
-            return Ok(String::from_utf8_lossy(&raw).into_owned());
+            return crate::sync::ews::message_source(self, &account, message_id).await;
         }
         let location = self
             .db
@@ -919,17 +961,11 @@ impl Engine {
             .into_iter()
             .find(|l| l.uid.is_some())
             .ok_or_else(|| Error::NotFound("message is not on the server".into()))?;
-        let raw = self
-            .with_imap(account_id, async |_, client| {
-                crate::sync::imap::fetch_raw(
-                    client,
-                    &location.folder_remote,
-                    location.uid.unwrap_or(0),
-                )
+        self.with_imap(account_id, async |_, client| {
+            crate::sync::imap::fetch_raw(client, &location.folder_remote, location.uid.unwrap_or(0))
                 .await
-            })
-            .await?;
-        Ok(String::from_utf8_lossy(&raw).into_owned())
+        })
+        .await
     }
 
     // ----- contacts, identities -------------------------------------------------

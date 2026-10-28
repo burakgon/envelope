@@ -19,6 +19,8 @@
   import SnoozeMenu from './lib/components/SnoozeMenu.svelte';
   import MoveMenu from './lib/components/MoveMenu.svelte';
   import Settings from './lib/components/settings/Settings.svelte';
+  import PassphraseDialog from './lib/components/PassphraseDialog.svelte';
+  import { pgp } from './lib/stores/pgp.svelte';
   import Onboarding from './lib/components/Onboarding.svelte';
   import AskAi from './lib/components/AskAi.svelte';
   import CalendarView from './lib/components/calendar/CalendarView.svelte';
@@ -316,6 +318,7 @@
 {#if cal.editor}<EventEditor />{/if}
 {#if openedFiles.length}{#key openedFiles[0]}<FileViewer path={openedFiles[0]} onclose={() => (openedFiles = openedFiles.slice(1))} />{/key}{/if}
 {#if cal.scopeAsk}<ScopeDialog />{/if}
+{#if pgp.ask}<PassphraseDialog />{/if}
 
 {#if kbMenu}
   {@const ids = kbMenu.ids}

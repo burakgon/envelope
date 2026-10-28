@@ -1,0 +1,19 @@
+[package]
+name = "envelope-pgp"
+description = "OpenPGP for Envelope: keys, PGP/MIME, inline PGP, Autocrypt and Web Key Directory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+chrono = { workspace = true }
+mail-parser = "1.0.0"
+pgp = "0.21.0"
+rand = "0.8"
+sha1 = "0.10"
+smallvec = "1.10"
+thiserror = { workspace = true }
+tracing = { workspace = true }

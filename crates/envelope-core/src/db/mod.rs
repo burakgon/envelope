@@ -3,6 +3,7 @@
 
 pub mod calendar;
 pub mod contacts;
+pub mod crypto;
 pub mod mail;
 pub mod misc;
 
@@ -14,8 +15,12 @@ use rusqlite::{Connection, OpenFlags, Transaction};
 
 use crate::error::{Error, Result};
 
-const SCHEMA: &str = concat!(include_str!("schema.sql"), include_str!("contacts.sql"));
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA: &str = concat!(
+    include_str!("schema.sql"),
+    include_str!("contacts.sql"),
+    include_str!("crypto.sql")
+);
+const SCHEMA_VERSION: i64 = 5;
 
 /// Steps from one schema version to the next, applied in order to older databases.
 const MIGRATIONS: &[(i64, &str)] = &[
@@ -45,6 +50,8 @@ const MIGRATIONS: &[(i64, &str)] = &[
          );
          CREATE INDEX IF NOT EXISTS followups_due ON followups(notified, due_at);",
     ),
+    // OpenPGP keys, Autocrypt peers and encrypted or signed messages.
+    (5, include_str!("crypto.sql")),
 ];
 const MAX_READERS: usize = 6;
 

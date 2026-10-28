@@ -13,6 +13,9 @@
   import InviteCard from './InviteCard.svelte';
   import ImageViewer from './ImageViewer.svelte';
   import { printMessage } from '../utils/print';
+  import { isEncrypted, pgp } from '../stores/pgp.svelte';
+  import CryptoStatus from './CryptoStatus.svelte';
+  import CryptoNotice from './CryptoNotice.svelte';
   import { ai } from '../stores/ai.svelte';
   import { cal } from '../stores/calendar.svelte';
   import type { ExtractedEvent } from '../api';
@@ -58,7 +61,25 @@
   const fromMe = $derived(!!sender && mail.meEmails.has(sender.email.toLowerCase()));
   const trusted = $derived(!!sender && ui.settings.trustedSenders.includes(sender.email.toLowerCase()));
   const remote = $derived(allowRemote || trusted || ui.settings.loadRemoteImages === 'always');
-  const files = $derived(message.attachments.filter((a) => !a.inline));
+  // OpenPGP: encrypted messages show what was decrypted (or a copy kept
+  // from an earlier session); signed ones show their signature status.
+  const opened = $derived(message.crypto ? (pgp.opened[message.id] ?? null) : null);
+  $effect(() => {
+    if (expanded && message.crypto && !pgp.opened[message.id]) pgp.open(message.id);
+  });
+  const shown = $derived.by((): MessageView | null => {
+    if (opened?.body) {
+      const attachments = isEncrypted(message) ? opened.attachments : message.attachments;
+      return { ...message, body: opened.body, attachments };
+    }
+    if (!isEncrypted(message)) return message;
+    // A decrypted copy kept from an earlier session.
+    if (message.crypto === 'encrypted' && (message.body?.html || message.body?.text)) return message;
+    // Inline PGP that cannot be decrypted here reads as it was sent.
+    if (message.crypto === 'inline-encrypted' && (opened?.status === 'noKey' || opened?.status === 'error')) return message;
+    return null;
+  });
+  const files = $derived((shown ?? message).attachments.filter((a) => !a.inline));
   const images = $derived(files.filter((a) => fileIconKind(a.mimeType, a.filename) === 'image'));
 
   function nameOrMe(a: Address) {
@@ -124,6 +145,7 @@
           {/if}
         </div>
         <button class="row2" onclick={() => (showRecipients = !showRecipients)}>{recipientLine}</button>
+        {#if message.crypto}<CryptoStatus {message} {opened} />{/if}
         {#if showRecipients}
           <div class="recips selectable">
             <div><span>From</span>{sender ? `${displayName(sender)} <${sender.email}>` : ''}</div>
@@ -161,8 +183,10 @@
     {/if}
 
     <div class="content">
-      {#if message.body}
-        <MailFrame {message} allowRemote={remote} onstats={(s) => (stats = s)} onimage={(items, index) => (bodyImages = { items, index })} />
+      {#if message.crypto && !shown}
+        <CryptoNotice {message} {opened} />
+      {:else if shown?.body}
+        <MailFrame message={shown} allowRemote={remote} onstats={(s) => (stats = s)} onimage={(items, index) => (bodyImages = { items, index })} />
       {:else}
         <div class="loading">
           <span class="skeleton" style="width:72%;height:12px"></span>
@@ -231,7 +255,7 @@
           ui.open('settings', 'rules');
         }}><Filter size={15} />Create rule…</button>
     {/if}
-    <button class="menu-item" onclick={() => { menu = null; printMessage(message, remote); }}><Printer size={15} />Print…</button>
+    <button class="menu-item" onclick={() => { menu = null; printMessage(shown ?? message, remote); }}><Printer size={15} />Print…</button>
     <button class="menu-item" onclick={viewSource}><Code size={15} />View source</button>
   </Popover>
 {/if}

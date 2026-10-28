@@ -376,6 +376,8 @@ pub struct MessageMeta {
     pub list_id: Option<String>,
     pub is_auto: bool,
     pub calendar_method: Option<String>,
+    /// The `Autocrypt` header (only when the message has exactly one).
+    pub autocrypt: Option<String>,
 }
 
 /// Result of storing a message.
@@ -1597,7 +1599,8 @@ pub fn query_threads(c: &Connection, sql: &ListSql, offset: i64, limit: i64) -> 
 pub fn get_thread(c: &Connection, thread_id: i64) -> Result<ThreadDetail> {
     let thread = thread_summary(c, thread_id)?;
     let mut st = c.prepare_cached(
-        "SELECT m.*, (SELECT group_concat(folder_id) FROM message_folders x WHERE x.message_id = m.id) AS folder_ids
+        "SELECT m.*, (SELECT group_concat(folder_id) FROM message_folders x WHERE x.message_id = m.id) AS folder_ids,
+           (SELECT kind FROM message_crypto k WHERE k.message_id = m.id) AS crypto_kind
          FROM messages m WHERE m.thread_id = ? ORDER BY m.date ASC, m.id ASC",
     )?;
     let mut messages: Vec<MessageView> = st
@@ -1619,7 +1622,8 @@ pub fn get_thread(c: &Connection, thread_id: i64) -> Result<ThreadDetail> {
 pub fn get_message(c: &Connection, message_id: i64) -> Result<MessageView> {
     let mut m = c
         .query_row(
-            "SELECT m.*, (SELECT group_concat(folder_id) FROM message_folders x WHERE x.message_id = m.id) AS folder_ids
+            "SELECT m.*, (SELECT group_concat(folder_id) FROM message_folders x WHERE x.message_id = m.id) AS folder_ids,
+               (SELECT kind FROM message_crypto k WHERE k.message_id = m.id) AS crypto_kind
              FROM messages m WHERE m.id = ?",
             [message_id],
             message_from_row,
@@ -1665,6 +1669,7 @@ fn message_from_row(r: &Row<'_>) -> rusqlite::Result<MessageView> {
         unsubscribe: unsub.map(|u| crate::mime::parse_unsubscribe(&u, unsub_post != 0)),
         calendar_method: r.get("calendar_method")?,
         is_auto: r.get::<_, i64>("is_auto")? != 0,
+        crypto: r.get("crypto_kind")?,
     })
 }
 

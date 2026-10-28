@@ -11,6 +11,7 @@
   import Popover from './Popover.svelte';
   import AiComposeMenu from './AiComposeMenu.svelte';
   import TemplateMenu from './TemplateMenu.svelte';
+  import ComposerCrypto from './ComposerCrypto.svelte';
   import { sanitizeFragment } from '../utils/html';
   import type { Template } from '../stores/ui.svelte';
   import type { Editor as TipTap } from '@tiptap/core';
@@ -113,9 +114,13 @@
     addFiles(files);
   }
 
-  function send(at: number | null = null) {
+  let cryptoBar: ReturnType<typeof ComposerCrypto> | undefined = $state();
+
+  async function send(at: number | null = null) {
     c.data.html = body + quoted;
     sendMenu = null;
+    // Encryption: every recipient needs a key, a locked key its passphrase.
+    if (cryptoBar && !(await cryptoBar.prepareSend())) return;
     compose.send(c.key, at);
   }
 
@@ -285,6 +290,7 @@
       <button class="icon-btn" class:active={showFormat} title="Formatting" onclick={() => (showFormat = !showFormat)}><Type size={17} /></button>
       <button class="icon-btn" title="Templates" onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); tplMenu = { x: r.left, y: r.top - 8 }; }}><FileText size={17} /></button>
       <button class="icon-btn ai" title="Write with AI" onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); aiMenu = { x: r.left, y: r.top }; }}><Sparkles size={17} /></button>
+      <ComposerCrypto state={c} onchange={changed} bind:this={cryptoBar} />
       <span class="grow"></span>
       {#if c.inline}
         {#if c.saving}<span class="saved">Saving…</span>{:else if c.savedAt}<span class="saved">Draft saved</span>{/if}

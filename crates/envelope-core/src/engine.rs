@@ -68,6 +68,8 @@ pub struct Inner {
     pub(crate) contacts_wake: Notify,
     /// Wakes the contact photo worker.
     pub(crate) photos_wake: Notify,
+    /// OpenPGP session state: unlocked passphrases, decrypted messages.
+    pub(crate) crypto: crate::crypto::Session,
     pub(crate) shutdown: CancellationToken,
 }
 
@@ -89,6 +91,8 @@ impl Engine {
     pub fn start(paths: Paths, events: impl EventSink) -> Result<Engine> {
         std::fs::create_dir_all(&paths.data)?;
         std::fs::create_dir_all(&paths.cache)?;
+        // Attachments of encrypted messages opened in an earlier session.
+        let _ = std::fs::remove_dir_all(paths.cache.join("decrypted"));
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
         let db = Db::open(&paths.data.join("envelope.db"))?;
         let secrets = Arc::new(Secrets::new(paths.data.join("secrets.json")));
@@ -106,6 +110,7 @@ impl Engine {
                 calendar_wake: Notify::new(),
                 contacts_wake: Notify::new(),
                 photos_wake: Notify::new(),
+                crypto: crate::crypto::Session::default(),
                 shutdown: CancellationToken::new(),
             }),
         };
