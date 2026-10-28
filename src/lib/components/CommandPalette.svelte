@@ -1,13 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '../api';
-  import type { ThreadSummary } from '../api';
+  import type { Occurrence, ThreadSummary } from '../api';
   import { compose } from '../stores/compose.svelte';
   import { mail, roleLabels } from '../stores/mail.svelte';
   import { ui } from '../stores/ui.svelte';
+  import { cal } from '../stores/calendar.svelte';
+  import type { CalView } from '../stores/calendar.svelte';
   import { listDate, displayName } from '../utils/format';
   import {
-    Archive, Calendar, Compose, Folder, Inbox, Keyboard, Mail, Moon, Refresh, Search, Settings, Sparkles, Star, Sun, Tag, Trash, Clock, Send, File, Mails,
+    Archive, Calendar, CalendarPlus, Compose, Folder, Inbox, Keyboard, Mail, Moon, Refresh, Search, Settings, Sparkles, Star, Sun, Tag, Trash, Clock, Send, File, Mails,
   } from '../icons';
 
   interface Command {
@@ -17,6 +19,8 @@
     icon: typeof Inbox;
     hint?: string;
     keywords?: string;
+    /** Only listed when the query matches, not in the default list. */
+    searchOnly?: boolean;
     run: () => void;
   }
 
@@ -42,6 +46,17 @@
     { id: 'settings', label: 'Settings', group: 'Go to', icon: Settings, hint: 'Ctrl ,', run: () => ui.open('settings') },
     { id: 'ai-settings', label: 'AI settings', group: 'Go to', icon: Sparkles, keywords: 'openrouter openai model key', run: () => ui.open('settings', 'ai') },
     { id: 'shortcuts', label: 'Keyboard shortcuts', group: 'Help', icon: Keyboard, hint: '?', run: () => ui.open('shortcuts') },
+    { id: 'new-event', label: 'New event', group: 'Calendar', icon: CalendarPlus, keywords: 'meeting appointment schedule', run: () => { ui.view = 'calendar'; cal.newEvent(); } },
+    { id: 'cal-today', label: 'Calendar: today', group: 'Calendar', icon: Calendar, searchOnly: true, run: () => { ui.view = 'calendar'; cal.today(); } },
+    ...(['day', 'week', 'month', 'agenda'] as CalView[]).map((v) => ({
+      id: `cal-${v}`,
+      label: `Calendar: ${v} view`,
+      group: 'Calendar',
+      icon: Calendar,
+      searchOnly: true,
+      run: () => { ui.view = 'calendar'; cal.setView(v); },
+    })),
+    { id: 'cal-settings', label: 'Calendar settings', group: 'Go to', icon: Settings, keywords: 'week start reminder default', searchOnly: true, run: () => ui.open('settings', 'calendar') },
   ];
 
   const selectionCommands = $derived<Command[]>(
@@ -85,7 +100,7 @@
 
   const commands = $derived.by(() => {
     const all = [...selectionCommands, ...base, ...folderCommands];
-    if (!q.trim()) return [...selectionCommands, ...base];
+    if (!q.trim()) return [...selectionCommands, ...base.filter((c) => !c.searchOnly)];
     return all
       .map((c) => ({ c, s: score(c, q.trim()) }))
       .filter((x) => x.s > 0)
@@ -94,9 +109,24 @@
       .map((x) => x.c);
   });
 
-  type Row = { kind: 'cmd'; cmd: Command } | { kind: 'thread'; thread: ThreadSummary } | { kind: 'ask' };
+  // Upcoming (and recent) events, searchable by title and place.
+  let upcoming = $state<Occurrence[]>([]);
+  const events = $derived.by(() => {
+    const text = q.trim().toLowerCase();
+    if (text.length < 2) return [];
+    const now = Date.now();
+    return upcoming
+      .filter((o) => o.title.toLowerCase().includes(text) || o.location?.toLowerCase().includes(text))
+      .sort((a, b) => Number(a.end < now) - Number(b.end < now) || Math.abs(a.start - now) - Math.abs(b.start - now))
+      // One row per series: its nearest occurrence.
+      .filter((o, i, list) => list.findIndex((x) => x.eventId === o.eventId) === i)
+      .slice(0, 4);
+  });
+
+  type Row = { kind: 'cmd'; cmd: Command } | { kind: 'event'; event: Occurrence } | { kind: 'thread'; thread: ThreadSummary } | { kind: 'ask' };
   const rows = $derived<Row[]>([
     ...commands.map((cmd) => ({ kind: 'cmd' as const, cmd })),
+    ...events.map((event) => ({ kind: 'event' as const, event })),
     ...threads.map((thread) => ({ kind: 'thread' as const, thread })),
     ...(q.trim().length > 3 && ui.settings.aiEnabled ? [{ kind: 'ask' as const }] : []),
   ]);
@@ -116,19 +146,36 @@
     }, 90);
   });
 
-  onMount(() => input?.focus());
+  onMount(() => {
+    input?.focus();
+    const now = Date.now();
+    api.calendar
+      .occurrences(now - 30 * 86_400_000, now + 180 * 86_400_000)
+      .then((list) => (upcoming = list))
+      .catch(() => {});
+  });
 
   function run(row: Row | undefined) {
     if (!row) return;
     ui.close();
     if (row.kind === 'cmd') row.cmd.run();
-    else if (row.kind === 'thread') {
+    else if (row.kind === 'event') {
+      ui.view = 'calendar';
+      cal.view = 'day';
+      cal.goto(row.event.start);
+    } else if (row.kind === 'thread') {
       mail.setSearch(q.trim());
       mail.select(row.thread.id);
     } else {
       ui.askAi = q.trim();
       ui.open('ask');
     }
+  }
+
+  function eventWhen(o: Occurrence): string {
+    const d = new Date(o.allDay && o.startDate ? `${o.startDate}T00:00:00` : o.start);
+    const day = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    return o.allDay ? day : `${day}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
   }
 
   function key(e: KeyboardEvent) {
@@ -158,9 +205,11 @@
       <span class="kbd">Esc</span>
     </div>
     <div class="list" bind:this={listEl}>
-      {#each rows as row, i (row.kind === 'cmd' ? row.cmd.id : row.kind === 'thread' ? `t${row.thread.id}` : 'ask')}
+      {#each rows as row, i (row.kind === 'cmd' ? row.cmd.id : row.kind === 'thread' ? `t${row.thread.id}` : row.kind === 'event' ? `e${row.event.key}` : 'ask')}
         {#if row.kind === 'cmd' && (i === 0 || rows[i - 1].kind !== 'cmd' || (rows[i - 1] as { cmd: Command }).cmd.group !== row.cmd.group)}
           <div class="group">{row.cmd.group}</div>
+        {:else if row.kind === 'event' && rows[i - 1]?.kind !== 'event'}
+          <div class="group">Events</div>
         {:else if row.kind === 'thread' && rows[i - 1]?.kind !== 'thread'}
           <div class="group">Messages</div>
         {/if}
@@ -169,6 +218,10 @@
             <span class="ico"><row.cmd.icon size={16} /></span>
             <span class="label">{row.cmd.label}</span>
             {#if row.cmd.hint}<span class="hint">{row.cmd.hint}</span>{/if}
+          {:else if row.kind === 'event'}
+            <span class="ico"><span class="dot" style:background={row.event.color}></span></span>
+            <span class="label truncate">{row.event.title}{#if row.event.location}<span class="sub">&nbsp;· {row.event.location}</span>{/if}</span>
+            <span class="hint">{eventWhen(row.event)}</span>
           {:else if row.kind === 'thread'}
             <span class="ico"><Mail size={16} /></span>
             <span class="label truncate"><b>{displayName(row.thread.participants[row.thread.participants.length - 1])}</b> — {row.thread.subject}</span>
@@ -187,6 +240,14 @@
 </div>
 
 <style>
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+  }
+  .sub {
+    color: var(--text-3);
+  }
   .backdrop {
     position: fixed;
     inset: 0;

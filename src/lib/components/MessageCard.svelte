@@ -11,7 +11,10 @@
   import AttachmentTile from './AttachmentTile.svelte';
   import Popover from './Popover.svelte';
   import InviteCard from './InviteCard.svelte';
-  import { Code, Eye, Forward, Image, Mail, More, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
+  import ImageViewer from './ImageViewer.svelte';
+  import { printMessage } from '../utils/print';
+  import { fileIconKind } from '../utils/format';
+  import { Code, Eye, Forward, Image, Mail, More, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
 
   let { message, expanded, ontoggle }: { message: MessageView; expanded: boolean; ontoggle: () => void } = $props();
 
@@ -20,12 +23,14 @@
   let menu = $state<{ x: number; y: number } | null>(null);
   let showRecipients = $state(false);
   let source = $state<string | null>(null);
+  let viewing = $state<number | null>(null);
 
   const sender = $derived(message.from);
   const fromMe = $derived(!!sender && mail.meEmails.has(sender.email.toLowerCase()));
   const trusted = $derived(!!sender && ui.settings.trustedSenders.includes(sender.email.toLowerCase()));
   const remote = $derived(allowRemote || trusted || ui.settings.loadRemoteImages === 'always');
   const files = $derived(message.attachments.filter((a) => !a.inline));
+  const images = $derived(files.filter((a) => fileIconKind(a.mimeType, a.filename) === 'image'));
 
   function nameOrMe(a: Address) {
     return mail.meEmails.has(a.email.toLowerCase()) ? 'me' : displayName(a);
@@ -141,7 +146,7 @@
     {#if files.length}
       <div class="files">
         {#each files as a (a.id)}
-          <AttachmentTile att={a} />
+          <AttachmentTile att={a} onpreview={(x) => (viewing = images.findIndex((i) => i.id === x.id))} />
         {/each}
       </div>
     {/if}
@@ -150,6 +155,10 @@
       <div class="trackers"><ShieldCheck size={13} /> Blocked {stats.trackers} {stats.trackers === 1 ? 'tracker' : 'trackers'}</div>
     {/if}
   </article>
+{/if}
+
+{#if viewing != null && viewing >= 0}
+  <ImageViewer items={images} start={viewing} onclose={() => (viewing = null)} />
 {/if}
 
 {#if menu}
@@ -163,6 +172,7 @@
     </button>
     <button class="menu-item" onclick={() => { menu = null; allowRemote = true; }}><Eye size={15} />Load remote content</button>
     <button class="menu-item" onclick={() => { menu = null; navigator.clipboard.writeText(sender?.email ?? ''); toasts.show('Address copied'); }}><Copy size={15} />Copy sender address</button>
+    <button class="menu-item" onclick={() => { menu = null; printMessage(message, remote); }}><Printer size={15} />Print…</button>
     <button class="menu-item" onclick={viewSource}><Code size={15} />View source</button>
   </Popover>
 {/if}

@@ -126,7 +126,7 @@ class Cal {
     this.loading = true;
     try {
       const list = await api.calendar.occurrences(from - DAY, to + DAY);
-      if (seq === this.seq) this.occurrences = list;
+      if (seq === this.seq) this.occurrences = ui.settings.showDeclined ? list : list.filter((o) => o.myStatus !== 'declined');
     } catch (e) {
       toasts.error(errorMessage(e));
     } finally {
@@ -167,7 +167,13 @@ class Cal {
   }
 
   defaultCalendar(): CalendarInfo | undefined {
-    return this.writable.find((c) => c.isDefault && c.visible) ?? this.writable.find((c) => c.visible) ?? this.writable[0];
+    const chosen = ui.settings.defaultCalendarId;
+    return (
+      this.writable.find((c) => c.id === chosen) ??
+      this.writable.find((c) => c.isDefault && c.visible) ??
+      this.writable.find((c) => c.visible) ??
+      this.writable[0]
+    );
   }
 
   /** Opens the editor for a new event. */
@@ -182,7 +188,7 @@ class Cal {
       d.setMinutes(d.getMinutes() < 30 ? 30 : 60, 0, 0);
       return d.getTime();
     })();
-    const e = end ?? s + 60 * 60_000;
+    const e = end ?? s + ui.settings.defaultEventMinutes * 60_000;
     this.editor = {
       eventId: null,
       recurrenceId: null,
@@ -199,7 +205,7 @@ class Cal {
         endDate: allDay ? ymd(new Date(e)) : null,
         rrule: null,
         attendees: [],
-        alarms: [10],
+        alarms: ui.settings.defaultAlarm >= 0 ? [ui.settings.defaultAlarm] : [],
         transparent: false,
         addConference: false,
       },

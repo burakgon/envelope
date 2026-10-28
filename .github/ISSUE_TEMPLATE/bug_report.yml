@@ -1,0 +1,55 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? Screenshots help.
+    validations:
+      required: true
+  - type: dropdown
+    id: account
+    attributes:
+      label: Account type
+      multiple: true
+      options:
+        - Gmail / Google Workspace
+        - Microsoft 365 / Outlook.com
+        - iCloud
+        - Yahoo / AOL
+        - Fastmail
+        - Other IMAP server
+        - Not account related
+  - type: input
+    id: version
+    attributes:
+      label: Envelope version
+      placeholder: "e.g. 0.1.0 (Settings → About)"
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution and desktop
+      placeholder: "e.g. Fedora 43, GNOME 49, Wayland"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - .deb
+        - .rpm
+        - AppImage
+        - Flatpak
+        - Arch (PKGBUILD / AUR)
+        - Built from source
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Start Envelope from a terminal with `ENVELOPE_LOG=info envelope` and paste the relevant lines. Remove anything private.
+      render: text

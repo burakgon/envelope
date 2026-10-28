@@ -42,6 +42,35 @@
     <binary>envelope</binary>
     <mediatype>x-scheme-handler/mailto</mediatype>
   </provides>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Unified inbox with a conversation open</caption>
+      <image>https://raw.githubusercontent.com/burakgon/envelope/main/docs/screenshots/inbox-light.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Week view of the calendar</caption>
+      <image>https://raw.githubusercontent.com/burakgon/envelope/main/docs/screenshots/calendar-week.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Dark mode and the month view</caption>
+      <image>https://raw.githubusercontent.com/burakgon/envelope/main/docs/screenshots/calendar-month.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Optional AI summaries and suggested replies</caption>
+      <image>https://raw.githubusercontent.com/burakgon/envelope/main/docs/screenshots/ai-summary.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Writing a message</caption>
+      <image>https://raw.githubusercontent.com/burakgon/envelope/main/docs/screenshots/compose.png</image>
+    </screenshot>
+  </screenshots>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
   <branding>
     <color type="primary" scheme_preference="light">#b8b0ff</color>
     <color type="primary" scheme_preference="dark">#2a1f8f</color>

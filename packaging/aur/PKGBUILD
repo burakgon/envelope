@@ -1,0 +1,46 @@
+# Maintainer: Envelope contributors <https://github.com/burakgon/envelope>
+pkgname=envelope-mail
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='A fast, beautiful mail and calendar client'
+arch=('x86_64' 'aarch64')
+url='https://github.com/burakgon/envelope'
+license=('GPL-3.0-or-later')
+depends=('webkit2gtk-4.1' 'gtk3' 'hicolor-icon-theme')
+makedepends=('cargo' 'nodejs' 'npm')
+optdepends=('gnome-keyring: store passwords and tokens in a keyring'
+            'kwallet: store passwords and tokens in KWallet')
+options=('!lto')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+prepare() {
+  cd "envelope-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+  npm ci
+}
+
+build() {
+  cd "envelope-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  npm run build
+  # tauri/custom-protocol serves the bundled interface instead of the development server.
+  cargo build --frozen --release -p envelope --features tauri/custom-protocol
+}
+
+check() {
+  cd "envelope-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo test --frozen --release --workspace --exclude envelope
+}
+
+package() {
+  cd "envelope-$pkgver"
+  install -Dm755 target/release/envelope "$pkgdir/usr/bin/envelope"
+  install -Dm644 packaging/linux/io.github.burakgon.Envelope.desktop -t "$pkgdir/usr/share/applications"
+  install -Dm644 packaging/linux/io.github.burakgon.Envelope.metainfo.xml -t "$pkgdir/usr/share/metainfo"
+  install -d "$pkgdir/usr/share/icons"
+  cp -r packaging/icons/hicolor "$pkgdir/usr/share/icons/"
+}

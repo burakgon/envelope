@@ -9,14 +9,16 @@
   import Toggle from './Toggle.svelte';
   import Logo from '../Logo.svelte';
   import {
-    Bell, Info, Keyboard, Mail, Palette, Pen, Settings as Gear, ShieldCheck, Sparkles, Users, X, Plus, Trash, Moon, Sun, Lock, ExternalLink, Code,
+    Bell, Calendar, Info, Keyboard, Mail, Palette, Pen, Settings as Gear, ShieldCheck, Sparkles, Users, X, Plus, Trash, Moon, Sun, Lock, ExternalLink, Code,
   } from '../../icons';
+  import { cal } from '../../stores/calendar.svelte';
 
   const tabs = [
     { id: 'general', label: 'General', icon: Gear },
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'accounts', label: 'Accounts', icon: Users },
     { id: 'signatures', label: 'Signatures', icon: Pen },
+    { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'privacy', label: 'Privacy', icon: ShieldCheck },
     { id: 'ai', label: 'AI', icon: Sparkles },
@@ -31,6 +33,7 @@
   let editing = $state<Identity | null>(null);
 
   onMount(async () => {
+    if (!cal.calendars.length) cal.loadCalendars();
     info = await api.info().catch(() => null);
     google = { clientSecret: '', ...(await api.oauthClient('google').catch(() => ({ clientId: '' }))) };
     microsoft = { tenant: '', ...(await api.oauthClient('microsoft').catch(() => ({ clientId: '' }))) };
@@ -152,6 +155,60 @@
           <div class="row">
             <div class="txt"><b>Send and archive</b><span>Archive the conversation when you reply.</span></div>
             <Toggle checked={ui.settings.sendAndArchive} onchange={(v) => ui.set('sendAndArchive', v)} />
+          </div>
+        </div>
+      {:else if ui.settingsTab === 'calendar'}
+        <h2>Calendar</h2>
+        <div class="group">
+          <div class="row">
+            <div class="txt"><b>Week starts on</b></div>
+            <select class="input sel" value={String(ui.settings.weekStart)} onchange={(e) => { ui.set('weekStart', Number((e.currentTarget as HTMLSelectElement).value)); cal.load(); }}>
+              <option value="1">Monday</option>
+              <option value="0">Sunday</option>
+              <option value="6">Saturday</option>
+            </select>
+          </div>
+          <div class="row">
+            <div class="txt"><b>Default calendar</b><span>Where new events go.</span></div>
+            <select
+              class="input sel"
+              value={String(cal.defaultCalendar()?.id ?? '')}
+              onchange={(e) => ui.set('defaultCalendarId', Number((e.currentTarget as HTMLSelectElement).value) || null)}
+            >
+              {#each cal.writable as c (c.id)}<option value={String(c.id)}>{c.name}</option>{:else}<option value="">No calendars</option>{/each}
+            </select>
+          </div>
+          <div class="row">
+            <div class="txt"><b>Default event length</b></div>
+            <select class="input sel" value={String(ui.settings.defaultEventMinutes)} onchange={(e) => ui.set('defaultEventMinutes', Number((e.currentTarget as HTMLSelectElement).value))}>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="45">45 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="90">1.5 hours</option>
+              <option value="120">2 hours</option>
+            </select>
+          </div>
+          <div class="row">
+            <div class="txt"><b>Default reminder</b><span>Added to new events.</span></div>
+            <select class="input sel" value={String(ui.settings.defaultAlarm)} onchange={(e) => ui.set('defaultAlarm', Number((e.currentTarget as HTMLSelectElement).value))}>
+              <option value="-1">None</option>
+              <option value="0">At start</option>
+              <option value="5">5 minutes before</option>
+              <option value="10">10 minutes before</option>
+              <option value="15">15 minutes before</option>
+              <option value="30">30 minutes before</option>
+              <option value="60">1 hour before</option>
+              <option value="1440">1 day before</option>
+            </select>
+          </div>
+          <div class="row">
+            <div class="txt"><b>Show declined events</b></div>
+            <Toggle checked={ui.settings.showDeclined} onchange={(v) => { ui.set('showDeclined', v); cal.load(); }} />
+          </div>
+          <div class="row">
+            <div class="txt"><b>Event reminders</b><span>Notify before calendar events start.</span></div>
+            <Toggle checked={ui.settings.calendarNotifications} onchange={(v) => ui.set('calendarNotifications', v)} />
           </div>
         </div>
       {:else if ui.settingsTab === 'appearance'}

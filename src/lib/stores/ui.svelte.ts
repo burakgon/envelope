@@ -22,7 +22,11 @@ export interface Settings {
   previewLines: number;
   sendAndArchive: boolean;
   darkEmails: boolean;
-  weekStart: number; // 0 = Sunday, 1 = Monday
+  weekStart: number; // 0 = Sunday, 1 = Monday, 6 = Saturday
+  defaultCalendarId: number | null;
+  defaultEventMinutes: number;
+  defaultAlarm: number; // minutes before; -1 = none
+  showDeclined: boolean;
   sidebarWidth: number;
   listWidth: number;
   aiEnabled: boolean;
@@ -47,6 +51,10 @@ export const defaultSettings: Settings = {
   sendAndArchive: false,
   darkEmails: false,
   weekStart: 1,
+  defaultCalendarId: null,
+  defaultEventMinutes: 60,
+  defaultAlarm: 10,
+  showDeclined: true,
   sidebarWidth: 236,
   listWidth: 392,
   aiEnabled: true,

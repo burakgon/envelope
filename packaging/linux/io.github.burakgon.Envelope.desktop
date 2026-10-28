@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=Envelope
+GenericName=Mail and Calendar
+Comment=Fast, beautiful mail and calendar
+Exec=envelope %u
+Icon=io.github.burakgon.Envelope
+Terminal=false
+Categories=Network;Email;Office;Calendar;
+Keywords=mail;email;inbox;imap;smtp;gmail;outlook;calendar;caldav;
+MimeType=x-scheme-handler/mailto;message/rfc822;text/calendar;
+StartupWMClass=envelope
+StartupNotify=true
+Actions=compose;
+
+[Desktop Action compose]
+Name=Write a Message
+Exec=envelope --compose

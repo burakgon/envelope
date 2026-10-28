@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest an idea for Envelope
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the problem or workflow first — what's slow, missing or awkward today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could Envelope help?
+      description: Your idea for a solution, and how other mail clients handle it if you know.

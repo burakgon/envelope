@@ -5,7 +5,7 @@
   import { fileIconKind, fileSize } from '../utils/format';
   import { Download, File, FileArchive, FileSheet, FileSlides, FileText, Image, Music, Video, Calendar, Code, Spinner } from '../icons';
 
-  let { att }: { att: AttachmentInfo } = $props();
+  let { att, onpreview }: { att: AttachmentInfo; onpreview?: (att: AttachmentInfo) => void } = $props();
   let busy = $state(false);
 
   const kind = $derived(fileIconKind(att.mimeType, att.filename));
@@ -16,6 +16,7 @@
   const thumb = $derived(kind === 'image' && !api.isDemo ? api.attachmentUrl(att.id) : null);
 
   async function open() {
+    if (thumb && onpreview) return onpreview(att);
     busy = true;
     try {
       await api.attachmentOpen(att.id);

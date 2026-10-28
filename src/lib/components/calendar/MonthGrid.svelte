@@ -55,7 +55,7 @@
         class:over={over === d.getTime()}
         role="gridcell"
         tabindex="-1"
-        ondblclick={() => cal.newEvent(d.getTime() + 9 * 3_600_000, d.getTime() + 10 * 3_600_000)}
+        ondblclick={() => cal.newEvent(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9).getTime())}
         ondragover={(e) => { e.preventDefault(); over = d.getTime(); }}
         ondragleave={() => (over = null)}
         ondrop={() => drop(d)}
