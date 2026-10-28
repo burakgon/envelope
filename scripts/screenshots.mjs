@@ -17,6 +17,7 @@ async function shot(name, { theme = 'light', width = 1440, height = 900, actions
   await page.addInitScript((t) => {
     localStorage.setItem('envelope.theme', t);
     localStorage.setItem('envelope.demo.settings', JSON.stringify({ theme: t }));
+    sessionStorage.setItem('envelope.demo.banner', 'hidden');
   }, theme);
   await page.goto(url);
   await page.waitForSelector('.row', { timeout: 15000 });
