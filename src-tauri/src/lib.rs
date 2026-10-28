@@ -109,7 +109,17 @@ pub fn run() {
             show_main(app);
             handle_args(app, &argv, std::path::Path::new(&cwd));
         }))
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        // Size and position are restored; showing the window is left to
+        // `app_ready`, so that it appears once the interface has loaded and
+        // stays in the tray when started at login.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        - tauri_plugin_window_state::StateFlags::VISIBLE,
+                )
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .register_asynchronous_uri_scheme_protocol("att", protocol::handle)

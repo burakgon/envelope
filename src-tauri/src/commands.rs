@@ -61,6 +61,7 @@ type R<T> = Result<T, CmdError>;
 
 #[tauri::command]
 pub fn app_ready(app: AppHandle, state: State<'_, AppState>) {
+    tracing::debug!("interface ready");
     // Launched at login: stay in the tray.
     if state
         .start_hidden

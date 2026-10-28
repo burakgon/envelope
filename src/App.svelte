@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { api } from './lib/api';
   import { compose } from './lib/stores/compose.svelte';
   import { mail } from './lib/stores/mail.svelte';
@@ -50,7 +50,10 @@
       booted = true;
       cal.init();
       if (mail.accounts.length === 0) ui.open('onboarding');
-      requestAnimationFrame(() => api.ready());
+      // Not an animation frame: the window is still hidden, and hidden views
+      // get none, so the window would never be shown.
+      await tick();
+      api.ready();
     })().catch((e) => {
       booted = true;
       toasts.error(String(e?.message ?? e));
