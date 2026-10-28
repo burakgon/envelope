@@ -29,6 +29,7 @@ const MAX_FILE: u64 = 200 * 1024 * 1024;
 pub enum OpenedFile {
     Message(FileMessage),
     Calendar(FileCalendar),
+    Contacts(FileContacts),
 }
 
 /// A message read from a file.
@@ -83,6 +84,26 @@ pub struct FileEvent {
     pub exists: bool,
 }
 
+/// The people in a vCard file, ready to be added to an address book.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileContacts {
+    pub path: String,
+    pub contacts: Vec<FileContact>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileContact {
+    /// Position in the file, for choosing which to add.
+    pub index: usize,
+    pub name: String,
+    pub email: Option<String>,
+    pub organization: Option<String>,
+    /// Someone with this address is already in an address book.
+    pub exists: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportResult {
@@ -94,6 +115,7 @@ pub struct ImportResult {
 enum Kind {
     Message,
     Calendar,
+    Contacts,
 }
 
 fn kind_of(path: &Path, data: &[u8]) -> Option<Kind> {
@@ -104,12 +126,17 @@ fn kind_of(path: &Path, data: &[u8]) -> Option<Kind> {
     match ext.as_str() {
         "eml" | "mht" | "mhtml" => return Some(Kind::Message),
         "ics" | "ical" | "icalendar" | "ifb" | "vcs" => return Some(Kind::Calendar),
+        "vcf" | "vcard" => return Some(Kind::Contacts),
         _ => {}
     }
     let head = String::from_utf8_lossy(&data[..data.len().min(4096)]);
     let head = head.trim_start_matches('\u{feff}').trim_start();
-    if head.to_ascii_uppercase().starts_with("BEGIN:VCALENDAR") {
+    let upper = head.to_ascii_uppercase();
+    if upper.starts_with("BEGIN:VCALENDAR") {
         return Some(Kind::Calendar);
+    }
+    if upper.starts_with("BEGIN:VCARD") {
+        return Some(Kind::Contacts);
     }
     // A message starts with header lines.
     let first = head.lines().next().unwrap_or("");
@@ -282,8 +309,27 @@ impl Engine {
                     events,
                 }))
             }
+            Some(Kind::Contacts) => {
+                let contacts = file_contacts(&data)?;
+                let known = self.contacts_known(&contacts)?;
+                Ok(OpenedFile::Contacts(FileContacts {
+                    path: display,
+                    contacts: contacts
+                        .iter()
+                        .zip(known)
+                        .enumerate()
+                        .map(|(index, (c, exists))| FileContact {
+                            index,
+                            name: crate::contacts::display_name(c),
+                            email: c.emails.first().map(|e| e.value.clone()),
+                            organization: c.organization.clone(),
+                            exists,
+                        })
+                        .collect(),
+                }))
+            }
             None => Err(Error::Invalid(
-                "Envelope opens saved messages (.eml) and calendar files (.ics).".into(),
+                "Envelope opens saved messages (.eml), calendar files (.ics) and contact cards (.vcf).".into(),
             )),
         }
     }
@@ -331,6 +377,25 @@ impl Engine {
         Ok(result)
     }
 
+    /// Adds the people of a vCard file (or only those at `indices`) to an
+    /// address book, leaving out the ones already known.
+    pub async fn import_contacts_file(
+        &self,
+        path: &Path,
+        book_id: i64,
+        indices: Option<Vec<usize>>,
+    ) -> Result<ImportResult> {
+        let data = read(path).await?;
+        let chosen: Vec<_> = file_contacts(&data)?
+            .into_iter()
+            .enumerate()
+            .filter(|(i, _)| indices.as_ref().is_none_or(|wanted| wanted.contains(i)))
+            .map(|(_, c)| c)
+            .collect();
+        let (added, skipped) = self.import_contacts(book_id, chosen).await?;
+        Ok(ImportResult { added, skipped })
+    }
+
     /// Writes an attachment of a message file to the cache and returns its
     /// path, for opening or saving it.
     pub async fn file_part(&self, path: &Path, part_id: &str) -> Result<PathBuf> {
@@ -376,6 +441,42 @@ impl Engine {
         tokio::fs::write(&out, bytes).await?;
         Ok(out)
     }
+}
+
+/// The people of a vCard file (contact groups left out).
+fn file_contacts(data: &[u8]) -> Result<Vec<envelope_ical::Contact>> {
+    // Unfolded, with older cards' legacy character sets decoded.
+    let text = envelope_ical::decode_bytes(data);
+    let mut people = Vec::new();
+    for card in split_vcards(&text) {
+        if let Ok((contact, kind)) = envelope_ical::vcard::parse_vcard_with_kind(card)
+            && !kind.is_some_and(|k| k.eq_ignore_ascii_case("group"))
+        {
+            people.push(contact);
+        }
+    }
+    if people.is_empty() {
+        return Err(Error::Invalid("This file has no contacts.".into()));
+    }
+    Ok(people)
+}
+
+/// The `BEGIN:VCARD` … `END:VCARD` blocks of a file.
+fn split_vcards(text: &str) -> Vec<&str> {
+    let upper = text.to_ascii_uppercase();
+    let mut cards = Vec::new();
+    let mut from = 0;
+    while let Some(start) = upper[from..].find("BEGIN:VCARD").map(|i| from + i) {
+        let Some(end) = upper[start..]
+            .find("END:VCARD")
+            .map(|i| start + i + "END:VCARD".len())
+        else {
+            break;
+        };
+        cards.push(&text[start..end]);
+        from = end;
+    }
+    cards
 }
 
 /// A stable 64-bit FNV-1a hash, to give each opened file its own folder.

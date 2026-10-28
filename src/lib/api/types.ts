@@ -659,10 +659,21 @@ export interface FileEvent {
   exists: boolean;
 }
 
+export interface FileContact {
+  /** Position in the file, for choosing which to add. */
+  index: number;
+  name: string;
+  email: string | null;
+  organization: string | null;
+  /** Someone with this address is already in an address book. */
+  exists: boolean;
+}
+
 /** What a file opened with Envelope contains. */
 export type OpenedFile =
   | ({ kind: 'message' } & FileMessage)
-  | { kind: 'calendar'; path: string; name: string | null; events: FileEvent[] };
+  | { kind: 'calendar'; path: string; name: string | null; events: FileEvent[] }
+  | { kind: 'contacts'; path: string; contacts: FileContact[] };
 
 export interface ImportResult {
   added: number;

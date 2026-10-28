@@ -102,7 +102,7 @@ pub use mutate::{
     new_uid, remove_event, remove_override, truncate_series, truncate_series_at, upsert_event,
     upsert_event_at,
 };
-pub use parser::{parse_components, parse_components_bytes};
+pub use parser::{decode_bytes, parse_components, parse_components_bytes};
 pub use recur::{
     EventOccurrence, EventsExpansion, ExpandOptions, Expansion, Frequency, Occurrence, RecurRule,
     expand, expand_events,

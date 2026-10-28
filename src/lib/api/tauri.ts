@@ -114,6 +114,7 @@ export function createTauriApi(): Api {
     files: {
       open: (path) => invoke('file_open', { path }),
       importEvents: (path, calendarId, uids) => invoke('file_import_events', { path, calendarId, uids: uids ?? null }),
+      importContacts: (path, bookId, indices) => invoke('file_import_contacts', { path, bookId, indices: indices ?? null }),
       openPart: (path, partId) => invoke('file_part_open', { path, partId }),
       savePart: (path, partId, target) => invoke('file_part_save', { path, partId, target }),
     },

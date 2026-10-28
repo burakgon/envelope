@@ -40,7 +40,7 @@ pub fn parse_components_bytes(input: &[u8]) -> Vec<Component> {
 }
 
 /// Byte-level unfolding followed by per-line charset detection.
-pub(crate) fn decode_bytes(input: &[u8]) -> String {
+pub fn decode_bytes(input: &[u8]) -> String {
     let input = input.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(input);
     let mut unfolded = Vec::with_capacity(input.len());
     let mut i = 0;

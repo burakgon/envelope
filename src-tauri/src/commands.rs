@@ -579,6 +579,19 @@ pub async fn file_import_events(
 }
 
 #[tauri::command]
+pub async fn file_import_contacts(
+    state: State<'_, AppState>,
+    path: String,
+    book_id: i64,
+    indices: Option<Vec<usize>>,
+) -> R<envelope_core::files::ImportResult> {
+    Ok(state
+        .engine
+        .import_contacts_file(std::path::Path::new(&path), book_id, indices)
+        .await?)
+}
+
+#[tauri::command]
 pub async fn file_part_open(
     app: AppHandle,
     state: State<'_, AppState>,

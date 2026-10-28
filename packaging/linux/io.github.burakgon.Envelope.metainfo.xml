@@ -50,6 +50,7 @@
     <mediatype>x-scheme-handler/webcal</mediatype>
     <mediatype>message/rfc822</mediatype>
     <mediatype>text/calendar</mediatype>
+    <mediatype>text/vcard</mediatype>
   </provides>
   <screenshots>
     <screenshot type="default">

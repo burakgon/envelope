@@ -115,6 +115,8 @@ export interface Api {
     open(path: string): Promise<T.OpenedFile>;
     /** Adds the file's events (or only `uids`) to a calendar, skipping ones already there. */
     importEvents(path: string, calendarId: number, uids?: string[] | null): Promise<T.ImportResult>;
+    /** Adds the file's contacts (or only those at `indices`) to an address book, skipping people already there. */
+    importContacts(path: string, bookId: number, indices?: number[] | null): Promise<T.ImportResult>;
     openPart(path: string, partId: string): Promise<void>;
     savePart(path: string, partId: string, target: string): Promise<void>;
   };

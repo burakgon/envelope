@@ -398,6 +398,7 @@ export function createMockApi(): Api {
         throw { message: 'Opening files needs the desktop app', kind: 'invalid' };
       },
       importEvents: async () => ({ added: 0, skipped: 0 }),
+      importContacts: async () => ({ added: 0, skipped: 0 }),
       openPart: async () => {},
       savePart: async () => {},
     },

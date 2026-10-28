@@ -74,7 +74,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - **End-to-end encryption** with OpenPGP that sets itself up: keys are created and exchanged with Autocrypt and found in the recipient's Web Key Directory, the lock in the composer turns on when everyone has a key, and messages show who signed them. Experts can import, export and verify keys — see [docs/ENCRYPTION.md](docs/ENCRYPTION.md).
 - **Offline-first**: read, search, triage and write without a connection; changes sync when you're back.
 - **Push mail** via IMAP IDLE, CONDSTORE/QRESYNC for fast resyncs, Gmail extensions (labels, thread ids, `X-GM-RAW` search) when talking to Gmail.
-- Desktop notifications with Archive and Mark as Read buttons, unread badge, `mailto:` handling, and saved messages (`.eml`) and calendar files (`.ics`) open straight from your file manager.
+- Desktop notifications with Archive and Mark as Read buttons, unread badge, `mailto:` handling, and saved messages (`.eml`), calendar files (`.ics`) and contact cards (`.vcf`) open straight from your file manager.
 
 ### Calendar
 - Day, week, month and agenda views; mini month; per-calendar visibility and colors.

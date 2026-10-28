@@ -2,8 +2,9 @@
   import { onMount } from 'svelte';
   import { api } from '../api';
   import type { FileEvent, FileMessage, MessageView, OpenedFile } from '../api';
-  import { Calendar, Download, File, Lock, Mail, Reply, Spinner, X } from '../icons';
+  import { Calendar, Download, File, Lock, Mail, Reply, Spinner, Users, X } from '../icons';
   import { cal } from '../stores/calendar.svelte';
+  import { people } from '../stores/contacts.svelte';
   import { compose } from '../stores/compose.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
   import { displayName, fileSize, longDate } from '../utils/format';
@@ -18,6 +19,8 @@
   let blocked = $state(0);
   let chosen = $state<string[]>([]);
   let calendarId = $state<number | null>(null);
+  let picked = $state<number[]>([]);
+  let bookId = $state<number | null>(null);
   let adding = $state(false);
 
   const name = $derived(path.split('/').pop() ?? path);
@@ -27,6 +30,11 @@
     try {
       const opened = await api.files.open(path);
       file = opened;
+      if (opened.kind === 'contacts') {
+        picked = opened.contacts.filter((c) => !c.exists).map((c) => c.index);
+        if (!people.books.length) await people.loadBooks();
+        bookId = people.writable[0]?.id ?? null;
+      }
       if (opened.kind === 'calendar') {
         chosen = opened.events.filter((e) => !e.exists).map((e) => e.uid);
         if (!cal.calendars.length) await cal.loadCalendars();
@@ -130,6 +138,22 @@
     }
   }
 
+  async function addContacts() {
+    if (bookId == null || !picked.length || adding) return;
+    adding = true;
+    try {
+      const result = await api.files.importContacts(path, bookId, picked);
+      const added = result.added === 1 ? '1 contact' : `${result.added} contacts`;
+      toasts.show(result.skipped ? `Added ${added}; ${result.skipped} already in your contacts` : `Added ${added}`, { kind: 'success' });
+      people.load();
+      onclose();
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    } finally {
+      adding = false;
+    }
+  }
+
   function key(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.stopPropagation();
@@ -150,7 +174,7 @@
   >
     <header>
       <span class="kind">
-        {#if file?.kind === 'calendar'}<Calendar size={16} />{:else}<Mail size={16} />{/if}
+        {#if file?.kind === 'calendar'}<Calendar size={16} />{:else if file?.kind === 'contacts'}<Users size={16} />{:else}<Mail size={16} />{/if}
       </span>
       <span class="name" title={path}>{name}</span>
       <button class="icon-btn" aria-label="Close" onclick={onclose}><X size={16} /></button>
@@ -202,6 +226,54 @@
             {/each}
           </div>
         {/if}
+      </div>
+    {:else if file.kind === 'contacts'}
+      {@const list = file.contacts}
+      <div class="calendar">
+        <h2>{list.length === 1 ? list[0].name : `${list.length} contacts`}</h2>
+        <ul>
+          {#each list as p (p.index)}
+            <li class:exists={p.exists}>
+              <label>
+                <input
+                  type="checkbox"
+                  disabled={p.exists}
+                  checked={p.exists || picked.includes(p.index)}
+                  onchange={(ev) => {
+                    const on = (ev.currentTarget as HTMLInputElement).checked;
+                    picked = on ? [...picked, p.index] : picked.filter((i) => i !== p.index);
+                  }}
+                />
+                <span class="ev">
+                  <b>{p.name}</b>
+                  {#if p.email || p.organization}<span>{[p.email, p.organization].filter(Boolean).join(' · ')}</span>{/if}
+                  {#if p.exists}<span class="note">Already in your contacts</span>{/if}
+                </span>
+              </label>
+            </li>
+          {/each}
+        </ul>
+        <footer>
+          {#if list.every((p) => p.exists)}
+            <span class="all-there">Everyone here is already in your contacts.</span>
+            <span class="grow"></span>
+            <button class="btn primary" onclick={onclose}>Close</button>
+          {:else}
+            {#if people.writable.length > 1}
+              <select class="input sel" bind:value={bookId} aria-label="Address book">
+                {#each people.writable as b (b.id)}
+                  <option value={b.id}>{b.name}</option>
+                {/each}
+              </select>
+            {/if}
+            <span class="grow"></span>
+            <button class="btn" onclick={onclose}>Cancel</button>
+            <button class="btn primary" disabled={!picked.length || bookId == null || adding} onclick={addContacts}>
+              {#if adding}<span class="spin"><Spinner size={14} /></span>{/if}
+              {picked.length === 1 ? 'Add 1 contact' : `Add ${picked.length} contacts`}
+            </button>
+          {/if}
+        </footer>
       </div>
     {:else}
       {@const c = file}

@@ -233,6 +233,7 @@ pub fn run() {
             commands::auto_reply_set,
             commands::file_open,
             commands::file_import_events,
+            commands::file_import_contacts,
             commands::file_part_open,
             commands::file_part_save,
             commands::settings_get,

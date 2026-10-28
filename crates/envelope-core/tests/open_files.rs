@@ -100,3 +100,63 @@ Content-Type: multipart/mixed; boundary=x\r\n\r\n--x\r\nContent-Type: text/plain
     engine.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn contact_cards_are_added_once() {
+    unsafe { std::env::set_var("ENVELOPE_SECRETS", "file") };
+    let dir = std::env::temp_dir().join(format!("envelope-open-vcf-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let engine = Engine::start(
+        Paths {
+            data: dir.join("d"),
+            cache: dir.join("c"),
+        },
+        Quiet,
+    )
+    .unwrap();
+    engine.ensure_local_book().unwrap();
+    let book = engine.contact_books().unwrap()[0].id;
+
+    let path = dir.join("team.vcf");
+    std::fs::write(
+        &path,
+        "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Maya Chen\r\nEMAIL:maya@northwind.design\r\nORG:Northwind\r\nEND:VCARD\r\n\
+         BEGIN:VCARD\r\nVERSION:4.0\r\nKIND:group\r\nFN:Design team\r\nEND:VCARD\r\n\
+         BEGIN:VCARD\r\nVERSION:3.0\r\nN:Okafor;Daniel;;;\r\nEMAIL:daniel@lumen.dev\r\nTEL;TYPE=CELL:+44 7700 900461\r\nEND:VCARD\r\n",
+    )
+    .unwrap();
+    let OpenedFile::Contacts(file) = engine.open_file(&path).await.unwrap() else {
+        panic!("not contacts");
+    };
+    // The group card is left out; names come from N when FN is missing.
+    assert_eq!(
+        file.contacts
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect::<Vec<_>>(),
+        ["Maya Chen", "Daniel Okafor"]
+    );
+    assert!(file.contacts.iter().all(|c| !c.exists));
+
+    // Only Maya at first, then the whole file: she is not added twice.
+    let first = engine
+        .import_contacts_file(&path, book, Some(vec![0]))
+        .await
+        .unwrap();
+    assert_eq!((first.added, first.skipped), (1, 0));
+    let again = engine
+        .import_contacts_file(&path, book, None)
+        .await
+        .unwrap();
+    assert_eq!((again.added, again.skipped), (1, 1));
+    let OpenedFile::Contacts(file) = engine.open_file(&path).await.unwrap() else {
+        panic!("not contacts");
+    };
+    assert!(file.contacts.iter().all(|c| c.exists));
+    let page = engine.contacts_list("", None, 0, 10).await.unwrap();
+    assert_eq!(page.total, 2);
+
+    engine.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}

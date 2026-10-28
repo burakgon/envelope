@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::db::contacts::{self as cdb, ContactRow, Photo, PhotoEdit};
 use crate::engine::Engine;
 use crate::error::{Error, Result};
+use crate::model::EngineEvent;
 
 /// Name of the address book used when no account can store contacts.
 pub const LOCAL_BOOK_NAME: &str = "On this computer";
@@ -607,7 +608,117 @@ fn photo_edit(input: Option<&str>, current: Option<&Photo>) -> Result<PhotoEdit>
     }
 }
 
+/// Whether a contact with one of `emails` (lower-case) or with `uid` is
+/// already in an address book.
+fn already_known(c: &rusqlite::Connection, uid: &str, emails: &[String]) -> Result<bool> {
+    let mut st = c.prepare_cached(
+        "SELECT 1 FROM contacts WHERE local_state != ?1 AND (
+           (?2 != '' AND uid = ?2)
+           OR instr(char(10) || lower(emails) || char(10), char(10) || ?3 || char(10)) > 0)
+         LIMIT 1",
+    )?;
+    if !uid.is_empty() && st.exists(rusqlite::params![cdb::DELETED, uid, "\u{1}"])? {
+        return Ok(true);
+    }
+    for email in emails {
+        if st.exists(rusqlite::params![cdb::DELETED, "", email])? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 impl Engine {
+    /// Whether these contacts are already in an address book (same e-mail
+    /// address or UID), in order.
+    pub fn contacts_known(&self, contacts: &[Contact]) -> Result<Vec<bool>> {
+        self.db.read(|c| {
+            contacts
+                .iter()
+                .map(|contact| {
+                    let emails: Vec<String> = contact
+                        .emails
+                        .iter()
+                        .map(|e| e.value.trim().to_lowercase())
+                        .filter(|e| !e.is_empty())
+                        .collect();
+                    already_known(c, contact.uid.trim(), &emails)
+                })
+                .collect()
+        })
+    }
+
+    /// Adds contacts (from a vCard file) to an address book, leaving out the
+    /// ones already known. Returns how many were added and left out.
+    pub async fn import_contacts(
+        &self,
+        book_id: i64,
+        contacts: Vec<Contact>,
+    ) -> Result<(usize, usize)> {
+        let known = self.contacts_known(&contacts)?;
+        let (added, skipped, remote) = self
+            .db
+            .write_async(move |tx| {
+                let book = cdb::get_book(tx, book_id)?;
+                if book.read_only {
+                    return Err(Error::Invalid("This address book is read-only.".into()));
+                }
+                let remote = book.account_id.is_some();
+                let (mut added, mut skipped) = (0, 0);
+                for (mut contact, known) in contacts.into_iter().zip(known) {
+                    if known {
+                        skipped += 1;
+                        continue;
+                    }
+                    if contact.name.trim().is_empty() {
+                        contact.name = display_name(&contact);
+                    }
+                    // A fresh UID: the card may come from someone else's address book.
+                    let uid = uuid::Uuid::new_v4().to_string();
+                    contact.uid = uid.clone();
+                    let photo = match contact.photo.take() {
+                        Some(url) if url.starts_with("data:") => {
+                            photo_edit(Some(&url), None).unwrap_or(PhotoEdit::Unchanged)
+                        }
+                        _ => PhotoEdit::Unchanged,
+                    };
+                    let remote_id = match book.kind.as_str() {
+                        "carddav" => Some(
+                            envelope_dav::object_href(
+                                &book.remote_id,
+                                &uid,
+                                envelope_dav::ObjectKind::Contact,
+                            )
+                            .map_err(|e| Error::Other(e.to_string()))?,
+                        ),
+                        _ => None,
+                    };
+                    let state = if remote { cdb::CREATED } else { cdb::SYNCED };
+                    cdb::insert_local(
+                        tx,
+                        book.id,
+                        &uid,
+                        remote_id.as_deref(),
+                        &contact,
+                        state,
+                        &photo,
+                    )?;
+                    added += 1;
+                }
+                Ok((added, skipped, remote))
+            })
+            .await?;
+        if added > 0 {
+            if remote {
+                crate::sync::contacts::wake(self);
+            }
+            self.emit(EngineEvent::ContactsChanged {
+                book_ids: vec![book_id],
+            });
+        }
+        Ok((added, skipped))
+    }
+
     /// Makes sure contacts can be added: an address book on this computer
     /// exists while no account offers a writable one, and goes away (when
     /// empty) once one does.
