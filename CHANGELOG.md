@@ -23,7 +23,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Invitations in mail with RSVP, conflict check and join links; "Add to calendar" from any message with AI.
 
 ### Contacts
-- Address books from CardDAV, Google and Microsoft 365, plus a local book; contact cards with recent conversations.
+- Address books from CardDAV, Google, Microsoft 365 and Exchange, plus a local book; contact cards with recent conversations.
 
 ### AI (optional, bring your own provider)
 - Summaries, suggested replies, drafting, rewriting, translation and answers about your mail with citations.
@@ -31,6 +31,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 
 ### Platform
 - Light and dark themes, accent colors, density, keyboard shortcuts and a command palette.
+- Tray icon with the unread count, running in the background and starting at login (through the Background portal in Flatpak).
 - Packages: .deb, .rpm, AppImage, a Flatpak manifest and a PKGBUILD.
 
 [Unreleased]: https://github.com/burakgon/envelope/compare/v0.1.0...HEAD
