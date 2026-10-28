@@ -151,6 +151,8 @@ async fn refresh_one(engine: &Engine, client: &reqwest::Client, cal: &CalendarRo
             .cloned()
             .map(|mut e| {
                 crate::files::utc_where_unknown(&mut e, &data.tz);
+                // A feed's own alarms would remind of things nobody asked for.
+                e.alarms.clear();
                 e
             })
             .collect();
@@ -241,6 +243,8 @@ impl Engine {
             .cloned()
             .map(|mut e| {
                 crate::files::utc_where_unknown(&mut e, &data.tz);
+                // A feed's own alarms would remind of things nobody asked for.
+                e.alarms.clear();
                 e
             })
             .collect();
