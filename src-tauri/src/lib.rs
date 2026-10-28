@@ -213,6 +213,8 @@ pub fn run() {
             commands::attachment_open,
             commands::attachment_save,
             commands::attachment_reveal,
+            commands::auto_reply_get,
+            commands::auto_reply_set,
             commands::file_open,
             commands::file_import_events,
             commands::file_part_open,

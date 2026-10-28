@@ -586,6 +586,29 @@ export interface ExtractedEvent {
   confidence: number;
 }
 
+/** Who gets an automatic reply. */
+export type AutoReplyAudience = 'everyone' | 'contacts' | 'organization';
+
+/** An account's automatic reply ("out of office"). */
+export interface AutoReply {
+  enabled: boolean;
+  /** First and last day (inclusive), `YYYY-MM-DD`; both or neither. */
+  start: string | null;
+  end: string | null;
+  subject: string;
+  /** Plain text. */
+  message: string;
+  audience: AutoReplyAudience;
+}
+
+export interface AutoReplyInfo {
+  reply: AutoReply;
+  /** The audiences the account offers. */
+  audiences: AutoReplyAudience[];
+  /** The reply can have its own subject. */
+  subject: boolean;
+}
+
 /** A saved message (.eml) opened from a file. Inline pictures are `data:` URLs. */
 export interface FileMessage {
   path: string;

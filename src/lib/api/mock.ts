@@ -17,6 +17,7 @@ export function createMockApi(): Api {
   const drafts = new Map<number, T.Draft>();
   let draftSeq = 1;
   let autostart = false;
+  const autoReplies = new Map<number, T.AutoReply>();
   let outboxSeq = 1;
   const outbox = new Map<number, { item: T.OutboxItem; draftId: number | null; data: T.DraftInput; timer: number }>();
   let identities: T.Identity[] = data.accounts.map((a) => ({
@@ -362,6 +363,25 @@ export function createMockApi(): Api {
     onOpenFile: () => () => {},
     onOpenThread: () => () => {},
 
+    autoReply: {
+      get: async (accountId) => ({
+        reply: structuredClone(
+          autoReplies.get(accountId) ?? {
+            enabled: false,
+            start: null,
+            end: null,
+            subject: '',
+            message: '',
+            audience: 'everyone',
+          },
+        ),
+        audiences: ['everyone', 'contacts', 'organization'],
+        subject: true,
+      }),
+      set: async (accountId, reply) => {
+        autoReplies.set(accountId, structuredClone(reply));
+      },
+    },
     files: {
       open: async () => {
         throw { message: 'Opening files needs the desktop app', kind: 'invalid' };

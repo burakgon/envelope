@@ -502,6 +502,25 @@ pub async fn attachment_reveal(app: AppHandle, state: State<'_, AppState>, id: i
         .map_err(|e| CmdError::from(e.to_string()))
 }
 
+// ----- automatic replies -----------------------------------------------------------
+
+#[tauri::command]
+pub async fn auto_reply_get(
+    state: State<'_, AppState>,
+    account_id: i64,
+) -> R<envelope_core::auto_reply::AutoReplyInfo> {
+    Ok(state.engine.auto_reply(account_id).await?)
+}
+
+#[tauri::command]
+pub async fn auto_reply_set(
+    state: State<'_, AppState>,
+    account_id: i64,
+    reply: envelope_core::auto_reply::AutoReply,
+) -> R<()> {
+    Ok(state.engine.set_auto_reply(account_id, reply).await?)
+}
+
 // ----- opened files ----------------------------------------------------------------
 
 #[tauri::command]

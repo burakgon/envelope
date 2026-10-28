@@ -91,6 +91,12 @@ export interface Api {
     respondInvite(messageId: number, status: T.PartStat, comment?: string | null): Promise<void>;
   };
 
+  /** Automatic replies ("out of office"). Fails for accounts whose server has none. */
+  autoReply: {
+    get(accountId: number): Promise<T.AutoReplyInfo>;
+    set(accountId: number, reply: T.AutoReply): Promise<void>;
+  };
+
   /** Saved messages (.eml) and calendar files (.ics) opened from outside. */
   files: {
     open(path: string): Promise<T.OpenedFile>;

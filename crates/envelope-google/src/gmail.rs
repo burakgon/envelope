@@ -1,5 +1,7 @@
-//! Gmail API settings: send-as aliases and the account profile.
+//! Gmail API settings: send-as aliases, the vacation responder and the
+//! account profile.
 
+use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
 use crate::client::{ApiRequest, GoogleClient, Service};
@@ -71,6 +73,72 @@ pub struct GmailProfile {
     pub history_id: Option<String>,
 }
 
+/// The vacation responder (`users/me/settings/vacation`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VacationSettings {
+    /// Whether Gmail answers incoming mail automatically.
+    #[serde(default)]
+    pub enable_auto_reply: bool,
+    /// Subject of the reply; Gmail uses `Re: <subject>` of the incoming
+    /// message when empty.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_subject: Option<String>,
+    /// Plain-text body (used when there is no HTML body).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_body_plain_text: Option<String>,
+    /// HTML body.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_body_html: Option<String>,
+    /// Reply only to senders in the user's contacts.
+    #[serde(default)]
+    pub restrict_to_contacts: bool,
+    /// Reply only to senders in the user's Google Workspace domain.
+    #[serde(default)]
+    pub restrict_to_domain: bool,
+    /// Start of the period (unix ms); replies start right away when absent.
+    #[serde(
+        default,
+        with = "millis_string",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub start_time: Option<i64>,
+    /// End of the period (unix ms); replies continue until turned off when
+    /// absent.
+    #[serde(
+        default,
+        with = "millis_string",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub end_time: Option<i64>,
+}
+
+/// Gmail sends 64-bit times as decimal strings.
+mod millis_string {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(value: &Option<i64>, s: S) -> Result<S::Ok, S::Error> {
+        match value {
+            Some(v) => s.serialize_str(&v.to_string()),
+            None => s.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<i64>, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Text(String),
+            Number(i64),
+        }
+        Ok(match Option::<Raw>::deserialize(d)? {
+            Some(Raw::Text(t)) => t.trim().parse().ok(),
+            Some(Raw::Number(n)) => Some(n),
+            None => None,
+        })
+    }
+}
+
 impl GoogleClient {
     /// Lists the account's send-as aliases, the primary address included.
     pub async fn list_send_as(&self) -> Result<Vec<SendAsAlias>> {
@@ -103,6 +171,26 @@ impl GoogleClient {
                 })
             })
             .collect())
+    }
+
+    /// The vacation responder. Requires the
+    /// [`GMAIL_SETTINGS_BASIC`](crate::scopes::GMAIL_SETTINGS_BASIC) scope (or
+    /// a Gmail read scope).
+    pub async fn vacation(&self) -> Result<VacationSettings> {
+        let request = ApiRequest::get(Service::Gmail, &["users", "me", "settings", "vacation"]);
+        self.send_json(&request, "settings.getVacation").await
+    }
+
+    /// Replaces the vacation responder and returns it as stored. Requires the
+    /// [`GMAIL_SETTINGS_BASIC`](crate::scopes::GMAIL_SETTINGS_BASIC) scope.
+    pub async fn set_vacation(&self, settings: &VacationSettings) -> Result<VacationSettings> {
+        let request = ApiRequest::new(
+            Method::PUT,
+            Service::Gmail,
+            &["users", "me", "settings", "vacation"],
+        )
+        .json(settings)?;
+        self.send_json(&request, "settings.updateVacation").await
     }
 
     /// Returns the Gmail profile of the account. Requires a token with the

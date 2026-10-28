@@ -6,6 +6,7 @@
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
 pub mod ai;
+pub mod auto_reply;
 pub mod calendar;
 pub mod compose;
 pub mod contacts;
@@ -21,6 +22,7 @@ pub mod providers;
 pub mod rules;
 pub mod search;
 pub mod secrets;
+pub mod sieve;
 pub mod smtp;
 pub mod sync;
 

@@ -147,6 +147,53 @@ impl TokenSource for RefreshingToken {
 }
 
 #[tokio::test]
+async fn reads_and_replaces_the_vacation_responder() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/gmail/v1/users/me/settings/vacation"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "enableAutoReply": true,
+            "responseSubject": "Away",
+            "responseBodyHtml": "<p>Back on Monday</p>",
+            "restrictToContacts": false,
+            "restrictToDomain": false,
+            "startTime": "1793836800000",
+            "endTime": "1794441600000"
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/gmail/v1/users/me/settings/vacation"))
+        .and(body_partial_json(json!({
+            "enableAutoReply": false,
+            "responseBodyHtml": "<p>Back on Monday</p>",
+            "startTime": "1793836800000"
+        })))
+        .respond_with(|req: &Request| ResponseTemplate::new(200).set_body_bytes(req.body.clone()))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = client(&server);
+
+    let mut vacation = client.vacation().await.unwrap();
+    assert!(vacation.enable_auto_reply);
+    assert_eq!(vacation.start_time, Some(1_793_836_800_000));
+    assert_eq!(vacation.end_time, Some(1_794_441_600_000));
+    assert_eq!(vacation.response_body_plain_text, None);
+
+    vacation.enable_auto_reply = false;
+    vacation.end_time = None;
+    let stored = client.set_vacation(&vacation).await.unwrap();
+    assert_eq!(stored, vacation);
+    let sent: Value = serde_json::from_slice(
+        &requests_to(&server, "PUT", "/gmail/v1/users/me/settings/vacation").await[0].body,
+    )
+    .unwrap();
+    assert!(sent.get("endTime").is_none(), "{sent}");
+}
+
+#[tokio::test]
 async fn calendar_list_resolves_colors_and_access_roles() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))

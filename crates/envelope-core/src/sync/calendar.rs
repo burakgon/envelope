@@ -26,7 +26,7 @@ fn dav_err(e: envelope_dav::DavError) -> Error {
     }
 }
 
-fn google_err(e: envelope_google::Error) -> Error {
+pub(crate) fn google_err(e: envelope_google::Error) -> Error {
     if e.is_unauthorized() {
         Error::Auth(e.to_string())
     } else {
@@ -34,7 +34,7 @@ fn google_err(e: envelope_google::Error) -> Error {
     }
 }
 
-fn graph_err(e: envelope_graph::GraphError) -> Error {
+pub(crate) fn graph_err(e: envelope_graph::GraphError) -> Error {
     if e.is_transient() {
         Error::Network(e.to_string())
     } else {

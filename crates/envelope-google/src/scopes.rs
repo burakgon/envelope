@@ -40,7 +40,8 @@ pub const CONTACTS_OTHER_READONLY: &str = "https://www.googleapis.com/auth/conta
 /// Gmail settings.
 ///
 /// Needed to list send-as aliases (`users/me/settings/sendAs`) with their
-/// display names, reply-to addresses and HTML signatures.
+/// display names, reply-to addresses and HTML signatures, and to change the
+/// vacation responder (`users/me/settings/vacation`).
 pub const GMAIL_SETTINGS_BASIC: &str = "https://www.googleapis.com/auth/gmail.settings.basic";
 
 /// `https://mail.google.com/` — full mailbox access.

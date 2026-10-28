@@ -55,13 +55,15 @@ impl Provider {
         }
     }
 
-    /// Scopes requested for mail, calendar and contacts.
+    /// Scopes requested for mail, calendar, contacts and mail settings
+    /// (automatic replies).
     pub fn scopes(&self) -> &'static str {
         match self {
             Provider::Google => {
                 "https://mail.google.com/ https://www.googleapis.com/auth/calendar \
                  https://www.googleapis.com/auth/contacts \
-                 https://www.googleapis.com/auth/contacts.other.readonly openid email profile"
+                 https://www.googleapis.com/auth/contacts.other.readonly \
+                 https://www.googleapis.com/auth/gmail.settings.basic openid email profile"
             }
             Provider::Microsoft => {
                 "offline_access openid email profile User.Read Mail.ReadWrite Mail.Send \

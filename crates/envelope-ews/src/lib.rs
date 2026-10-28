@@ -98,6 +98,7 @@ mod items;
 mod messages;
 mod notifications;
 mod ntlm;
+mod oof;
 pub mod recurrence;
 mod soap;
 pub mod timezone;
@@ -139,6 +140,7 @@ pub use messages::{
 pub use notifications::{
     Notification, NotificationEvent, NotificationEventType, StreamingEvents, StreamingMessage,
 };
+pub use oof::{ExternalAudience, OofSettings, OofState};
 pub use recurrence::{DayOfWeek, DayOfWeekIndex, Recurrence, RecurrencePattern, RecurrenceRange};
 pub use types::{
     BaseShape, Body, BodyType, DistinguishedFolder, FolderId, FolderRef, Importance, ItemId,

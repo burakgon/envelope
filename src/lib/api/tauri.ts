@@ -104,6 +104,10 @@ export function createTauriApi(): Api {
     onOpenFile: (cb) => subscribe<string>('open-file', cb),
     onOpenThread: (cb) => subscribe<number | null>('open-thread', cb),
 
+    autoReply: {
+      get: (accountId) => invoke('auto_reply_get', { accountId }),
+      set: (accountId, reply) => invoke('auto_reply_set', { accountId, reply }),
+    },
     files: {
       open: (path) => invoke('file_open', { path }),
       importEvents: (path, calendarId, uids) => invoke('file_import_events', { path, calendarId, uids: uids ?? null }),

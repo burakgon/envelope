@@ -72,5 +72,5 @@ pub use calendar::{
 };
 pub use client::{ClientConfig, GoogleClient, RetryPolicy};
 pub use error::{ApiError, Error, Result};
-pub use gmail::{GmailProfile, SendAsAlias, SmtpRelay, VerificationStatus};
+pub use gmail::{GmailProfile, SendAsAlias, SmtpRelay, VacationSettings, VerificationStatus};
 pub use people::{ContactPage, ContactSource, ContactSync, GoogleContact};
