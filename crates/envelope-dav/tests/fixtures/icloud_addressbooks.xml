@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/1234567890/carddavhome/</href>
+    <propstat>
+      <prop>
+        <resourcetype>
+          <collection/>
+        </resourcetype>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+  <response>
+    <href>/1234567890/carddavhome/card/</href>
+    <propstat>
+      <prop>
+        <resourcetype>
+          <collection/>
+          <addressbook xmlns="urn:ietf:params:xml:ns:carddav"/>
+        </resourcetype>
+        <getctag xmlns="http://calendarserver.org/ns/">HwoQEgwAAAABcd0AAAAAAAAAAAAAAAAYACAo</getctag>
+        <sync-token>HwoQEgwAAAABcd0AAAAAAAAAAAAAAAAYACAo</sync-token>
+        <current-user-privilege-set>
+          <privilege><read/></privilege>
+          <privilege><write/></privilege>
+          <privilege><write-content/></privilege>
+          <privilege><bind/></privilege>
+          <privilege><unbind/></privilege>
+        </current-user-privilege-set>
+        <supported-report-set>
+          <supported-report><report><sync-collection/></report></supported-report>
+          <supported-report><report><addressbook-multiget xmlns="urn:ietf:params:xml:ns:carddav"/></report></supported-report>
+        </supported-report-set>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+    <propstat>
+      <prop>
+        <displayname/>
+        <addressbook-description xmlns="urn:ietf:params:xml:ns:carddav"/>
+      </prop>
+      <status>HTTP/1.1 404 Not Found</status>
+    </propstat>
+  </response>
+</multistatus>

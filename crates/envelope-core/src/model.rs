@@ -290,6 +290,8 @@ pub struct ThreadSummary {
     pub has_attachments: bool,
     pub draft_count: i64,
     pub participants: Vec<Address>,
+    /// Sender of the most recent message (for the avatar).
+    pub last_sender: Option<Address>,
     pub folder_ids: Vec<i64>,
     pub category: Option<String>,
     pub is_invite: bool,

@@ -1,0 +1,46 @@
+{
+  "connections": [
+    {
+      "resourceName": "people/c3141592653589793238",
+      "etag": "%EgcBAgkLLjc9GgQBAgUHIgxzT0h6SFhXc2ZjYz0=",
+      "metadata": {
+        "sources": [{ "type": "CONTACT", "id": "2b9a0f1e8d3c4b5a", "etag": "#sOHzHXWsfcc=" }],
+        "objectType": "PERSON"
+      },
+      "names": [
+        {
+          "metadata": { "primary": true, "source": { "type": "CONTACT", "id": "2b9a0f1e8d3c4b5a" } },
+          "displayName": "Ada Lovelace",
+          "familyName": "Lovelace",
+          "givenName": "Ada",
+          "displayNameLastFirst": "Lovelace, Ada",
+          "unstructuredName": "Ada Lovelace"
+        }
+      ],
+      "nicknames": [{ "metadata": { "primary": true }, "value": "Countess" }],
+      "emailAddresses": [
+        { "metadata": { "primary": true }, "value": "ada@example.com", "type": "work", "formattedType": "Work" },
+        { "metadata": { "primary": false }, "value": "ada@lovelace.example", "type": "home", "formattedType": "Home" }
+      ],
+      "phoneNumbers": [
+        { "metadata": { "primary": true }, "value": "(650) 555-0100", "canonicalForm": "+16505550100", "type": "mobile", "formattedType": "Mobile" }
+      ],
+      "organizations": [
+        { "metadata": { "primary": true }, "name": "Analytical Engines Ltd", "title": "Programmer", "type": "work", "current": true }
+      ],
+      "photos": [{ "metadata": { "primary": true }, "url": "https://lh3.googleusercontent.com/contacts/AdaPhoto=s100" }],
+      "birthdays": [{ "metadata": { "primary": true }, "date": { "year": 1815, "month": 12, "day": 10 } }],
+      "biographies": [{ "metadata": { "primary": true }, "value": "Wrote the first published program.", "contentType": "TEXT_PLAIN" }]
+    },
+    {
+      "resourceName": "people/c2718281828459045235",
+      "etag": "%EgcBAgkLLjc9GgQBAgUHIgxNQnB0TG5QdW1ZST0=",
+      "names": [{ "metadata": { "primary": true }, "displayName": "Grace Hopper", "givenName": "Grace", "familyName": "Hopper" }],
+      "emailAddresses": [{ "metadata": { "primary": true }, "value": "grace@example.com" }],
+      "photos": [{ "metadata": { "primary": true }, "url": "https://lh3.googleusercontent.com/cm/GraceDefault=s100", "default": true }]
+    }
+  ],
+  "nextPageToken": "connections-page-2",
+  "totalPeople": 3,
+  "totalItems": 3
+}

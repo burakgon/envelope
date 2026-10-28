@@ -1,0 +1,442 @@
+//! IPC commands called by the UI.
+
+use envelope_core::model::*;
+use envelope_core::oauth::{ClientConfig, Provider};
+use envelope_core::{AccountPatch, UndoToken};
+use serde::Serialize;
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_opener::OpenerExt;
+
+use crate::AppState;
+
+/// Error returned to the UI.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CmdError {
+    pub message: String,
+    pub kind: &'static str,
+}
+
+impl From<envelope_core::Error> for CmdError {
+    fn from(e: envelope_core::Error) -> Self {
+        use envelope_core::Error as E;
+        let kind = match &e {
+            E::Auth(_) => "auth",
+            E::NotFound(_) => "notFound",
+            E::Invalid(_) => "invalid",
+            E::Network(_) => "network",
+            E::Imap(i) if i.is_auth() => "auth",
+            E::Imap(i) if i.is_transient() => "network",
+            _ => "error",
+        };
+        CmdError {
+            message: e.to_string(),
+            kind,
+        }
+    }
+}
+
+impl From<String> for CmdError {
+    fn from(message: String) -> Self {
+        CmdError { message, kind: "error" }
+    }
+}
+
+type R<T> = Result<T, CmdError>;
+
+#[tauri::command]
+pub fn app_ready(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+#[tauri::command]
+pub fn app_info(state: State<'_, AppState>) -> serde_json::Value {
+    serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "dataDir": state.engine.paths.data,
+        "googleConfigured": !state.engine.oauth_client(Provider::Google).map(|c| c.client_id).unwrap_or_default().is_empty(),
+        "microsoftConfigured": !state.engine.oauth_client(Provider::Microsoft).map(|c| c.client_id).unwrap_or_default().is_empty(),
+    })
+}
+
+// ----- accounts ---------------------------------------------------------------
+
+#[tauri::command]
+pub fn accounts(state: State<'_, AppState>) -> R<Vec<Account>> {
+    Ok(state.engine.accounts()?)
+}
+
+#[tauri::command]
+pub async fn discover(email: String) -> R<Discovery> {
+    Ok(envelope_core::providers::discover(&email).await)
+}
+
+#[tauri::command]
+pub async fn account_add_password(state: State<'_, AppState>, input: NewAccount) -> R<Account> {
+    Ok(state.engine.add_password_account(input).await?)
+}
+
+#[tauri::command]
+pub async fn account_add_oauth(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    provider: Provider,
+    login_hint: Option<String>,
+) -> R<Account> {
+    let opener = app.clone();
+    let account = state
+        .engine
+        .add_oauth_account(provider, login_hint, move |url| {
+            opener
+                .opener()
+                .open_url(url, None::<&str>)
+                .map_err(|e| envelope_core::Error::Other(e.to_string()))
+        })
+        .await?;
+    // Bring Envelope back to the front after the browser round trip.
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.set_focus();
+    }
+    Ok(account)
+}
+
+#[tauri::command]
+pub async fn account_update(state: State<'_, AppState>, id: i64, patch: AccountPatch) -> R<Account> {
+    Ok(state.engine.update_account(id, patch).await?)
+}
+
+#[tauri::command]
+pub async fn account_remove(state: State<'_, AppState>, id: i64) -> R<()> {
+    Ok(state.engine.remove_account(id).await?)
+}
+
+#[tauri::command]
+pub fn accounts_reorder(state: State<'_, AppState>, ids: Vec<i64>) -> R<()> {
+    Ok(state.engine.reorder_accounts(&ids)?)
+}
+
+#[tauri::command]
+pub fn oauth_client_get(state: State<'_, AppState>, provider: Provider) -> R<ClientConfig> {
+    Ok(state.engine.oauth_client(provider)?)
+}
+
+#[tauri::command]
+pub fn oauth_client_set(state: State<'_, AppState>, provider: Provider, client: ClientConfig) -> R<()> {
+    Ok(state.engine.set_oauth_client(provider, client)?)
+}
+
+#[tauri::command]
+pub fn sync_now(state: State<'_, AppState>, account_id: Option<i64>) {
+    state.engine.sync_now(account_id);
+}
+
+// ----- mail ---------------------------------------------------------------------
+
+#[tauri::command]
+pub fn folders(state: State<'_, AppState>) -> R<Vec<Folder>> {
+    Ok(state.engine.folders()?)
+}
+
+#[tauri::command]
+pub fn threads(state: State<'_, AppState>, query: ThreadQuery) -> R<ThreadPage> {
+    Ok(state.engine.threads(&query)?)
+}
+
+#[tauri::command]
+pub fn thread(state: State<'_, AppState>, id: i64) -> R<ThreadDetail> {
+    Ok(state.engine.thread(id)?)
+}
+
+#[tauri::command]
+pub async fn load_bodies(state: State<'_, AppState>, ids: Vec<i64>) -> R<Vec<MessageView>> {
+    Ok(state.engine.load_bodies(ids).await?)
+}
+
+#[tauri::command]
+pub fn set_flags(
+    state: State<'_, AppState>,
+    thread_ids: Vec<i64>,
+    message_ids: Vec<i64>,
+    change: FlagChange,
+) -> R<()> {
+    Ok(state.engine.set_flags(&thread_ids, &message_ids, &change)?)
+}
+
+#[tauri::command]
+pub fn mark_folder_read(state: State<'_, AppState>, folder_id: i64) -> R<()> {
+    Ok(state.engine.mark_folder_read(folder_id)?)
+}
+
+#[tauri::command]
+pub fn move_threads(
+    state: State<'_, AppState>,
+    thread_ids: Vec<i64>,
+    source: Option<i64>,
+    target: MoveTarget,
+) -> R<UndoToken> {
+    Ok(state.engine.move_threads(&thread_ids, source, &target)?)
+}
+
+#[tauri::command]
+pub fn undo(state: State<'_, AppState>, token: UndoToken) -> R<()> {
+    Ok(state.engine.undo(&token)?)
+}
+
+#[tauri::command]
+pub fn delete_forever(state: State<'_, AppState>, thread_ids: Vec<i64>) -> R<()> {
+    Ok(state.engine.delete_forever(&thread_ids)?)
+}
+
+#[tauri::command]
+pub fn snooze(state: State<'_, AppState>, thread_ids: Vec<i64>, until: Option<i64>) -> R<()> {
+    Ok(state.engine.snooze(&thread_ids, until)?)
+}
+
+#[tauri::command]
+pub fn set_label(state: State<'_, AppState>, thread_ids: Vec<i64>, folder_id: i64, add: bool) -> R<()> {
+    Ok(state.engine.set_label(&thread_ids, folder_id, add)?)
+}
+
+#[tauri::command]
+pub async fn message_source(state: State<'_, AppState>, id: i64) -> R<String> {
+    Ok(state.engine.message_source(id).await?)
+}
+
+#[tauri::command]
+pub async fn unsubscribe(app: AppHandle, state: State<'_, AppState>, message_id: i64) -> R<bool> {
+    match state.engine.unsubscribe(message_id).await? {
+        Some(url) => {
+            app.opener()
+                .open_url(url, None::<&str>)
+                .map_err(|e| CmdError::from(e.to_string()))?;
+            Ok(false)
+        }
+        None => Ok(true),
+    }
+}
+
+// ----- compose ------------------------------------------------------------------
+
+#[tauri::command]
+pub fn drafts(state: State<'_, AppState>) -> R<Vec<Draft>> {
+    Ok(state.engine.drafts()?)
+}
+
+#[tauri::command]
+pub fn draft(state: State<'_, AppState>, id: i64) -> R<Draft> {
+    Ok(state.engine.draft(id)?)
+}
+
+#[tauri::command]
+pub fn save_draft(state: State<'_, AppState>, id: Option<i64>, data: DraftInput, upload: bool) -> R<i64> {
+    Ok(state.engine.save_draft(id, &data, upload)?)
+}
+
+#[tauri::command]
+pub fn delete_draft(state: State<'_, AppState>, id: i64) -> R<()> {
+    Ok(state.engine.delete_draft(id)?)
+}
+
+#[tauri::command]
+pub fn compose_reply(state: State<'_, AppState>, message_id: i64, mode: String) -> R<DraftInput> {
+    Ok(state.engine.compose_reply(message_id, &mode)?)
+}
+
+#[tauri::command]
+pub async fn send(
+    state: State<'_, AppState>,
+    draft_id: Option<i64>,
+    data: DraftInput,
+    delay_ms: i64,
+    send_at: Option<i64>,
+) -> R<i64> {
+    Ok(state.engine.send(draft_id, &data, delay_ms, send_at).await?)
+}
+
+#[tauri::command]
+pub fn cancel_send(state: State<'_, AppState>, outbox_id: i64) -> R<Option<i64>> {
+    Ok(state.engine.cancel_send(outbox_id)?)
+}
+
+#[tauri::command]
+pub fn retry_send(state: State<'_, AppState>, outbox_id: i64) -> R<()> {
+    Ok(state.engine.retry_send(outbox_id)?)
+}
+
+#[tauri::command]
+pub fn outbox(state: State<'_, AppState>) -> R<Vec<OutboxItem>> {
+    Ok(state.engine.outbox()?)
+}
+
+#[tauri::command]
+pub fn suggest_contacts(state: State<'_, AppState>, query: String) -> R<Vec<ContactSuggestion>> {
+    Ok(state.engine.suggest_contacts(&query, 8)?)
+}
+
+#[tauri::command]
+pub fn identities(state: State<'_, AppState>) -> R<Vec<Identity>> {
+    Ok(state.engine.identities()?)
+}
+
+#[tauri::command]
+pub fn identity_save(state: State<'_, AppState>, identity: Identity) -> R<i64> {
+    Ok(state.engine.save_identity(&identity)?)
+}
+
+#[tauri::command]
+pub fn identity_delete(state: State<'_, AppState>, id: i64) -> R<()> {
+    Ok(state.engine.delete_identity(id)?)
+}
+
+/// Metadata about a local file the user picked to attach.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileInfo {
+    pub path: String,
+    pub filename: String,
+    pub mime_type: String,
+    pub size: u64,
+}
+
+#[tauri::command]
+pub fn file_info(paths: Vec<String>) -> R<Vec<FileInfo>> {
+    let mut out = Vec::new();
+    for p in paths {
+        let meta = std::fs::metadata(&p).map_err(|e| CmdError::from(format!("{p}: {e}")))?;
+        if !meta.is_file() {
+            continue;
+        }
+        let path = std::path::Path::new(&p);
+        out.push(FileInfo {
+            filename: path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "file".into()),
+            mime_type: mime_for(path),
+            size: meta.len(),
+            path: p,
+        });
+    }
+    Ok(out)
+}
+
+fn mime_for(path: &std::path::Path) -> String {
+    let ext = path
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "pdf" => "application/pdf",
+        "txt" | "md" => "text/plain",
+        "html" | "htm" => "text/html",
+        "csv" => "text/csv",
+        "ics" => "text/calendar",
+        "zip" => "application/zip",
+        "doc" => "application/msword",
+        "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "xls" => "application/vnd.ms-excel",
+        "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "ppt" => "application/vnd.ms-powerpoint",
+        "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "odt" => "application/vnd.oasis.opendocument.text",
+        "ods" => "application/vnd.oasis.opendocument.spreadsheet",
+        "mp3" => "audio/mpeg",
+        "mp4" => "video/mp4",
+        "mov" => "video/quicktime",
+        "json" => "application/json",
+        "eml" => "message/rfc822",
+        _ => "application/octet-stream",
+    }
+    .to_string()
+}
+
+/// Writes clipboard/drag image data to a temporary file so it can be attached.
+#[tauri::command]
+pub fn stash_file(state: State<'_, AppState>, filename: String, data: Vec<u8>) -> R<FileInfo> {
+    let dir = state.engine.paths.cache.join("compose").join(uuid_like());
+    std::fs::create_dir_all(&dir).map_err(|e| CmdError::from(e.to_string()))?;
+    let safe: String = filename
+        .chars()
+        .map(|c| if c == '/' || c == '\\' { '_' } else { c })
+        .collect();
+    let path = dir.join(if safe.is_empty() { "pasted".to_string() } else { safe });
+    std::fs::write(&path, &data).map_err(|e| CmdError::from(e.to_string()))?;
+    Ok(FileInfo {
+        filename: path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+        mime_type: mime_for(&path),
+        size: data.len() as u64,
+        path: path.to_string_lossy().to_string(),
+    })
+}
+
+fn uuid_like() -> String {
+    format!(
+        "{:x}{:x}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default(),
+        std::process::id()
+    )
+}
+
+// ----- attachments -----------------------------------------------------------------
+
+#[tauri::command]
+pub async fn attachment_open(app: AppHandle, state: State<'_, AppState>, id: i64) -> R<()> {
+    let path = state.engine.attachment_file(id).await?;
+    app.opener()
+        .open_path(path.to_string_lossy(), None::<&str>)
+        .map_err(|e| CmdError::from(e.to_string()))
+}
+
+#[tauri::command]
+pub async fn attachment_save(state: State<'_, AppState>, id: i64, target: String) -> R<()> {
+    let path = state.engine.attachment_file(id).await?;
+    tokio::fs::copy(&path, &target)
+        .await
+        .map_err(|e| CmdError::from(format!("could not save: {e}")))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn attachment_reveal(app: AppHandle, state: State<'_, AppState>, id: i64) -> R<()> {
+    let path = state.engine.attachment_file(id).await?;
+    app.opener()
+        .reveal_item_in_dir(path)
+        .map_err(|e| CmdError::from(e.to_string()))
+}
+
+// ----- settings -------------------------------------------------------------------
+
+#[tauri::command]
+pub fn settings_get(state: State<'_, AppState>) -> R<serde_json::Map<String, serde_json::Value>> {
+    Ok(state.engine.settings()?)
+}
+
+#[tauri::command]
+pub fn settings_set(state: State<'_, AppState>, key: String, value: serde_json::Value) -> R<()> {
+    Ok(state.engine.set_setting(&key, &value)?)
+}
+
+#[tauri::command]
+pub fn set_decorations(app: AppHandle, native: bool) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.set_decorations(native);
+    }
+}
+
+#[tauri::command]
+pub fn set_unread_badge(app: AppHandle, count: i64) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.set_badge_count(if count > 0 { Some(count) } else { None });
+    }
+}

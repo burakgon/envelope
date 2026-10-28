@@ -998,6 +998,12 @@ pub fn refresh_threads(tx: &Transaction<'_>, thread_ids: &BTreeSet<i64>) -> Resu
             participants = std::iter::once(first).chain(tail).collect();
         }
 
+        let last_sender = rows
+            .iter()
+            .rev()
+            .find(|r| r.1 & Flags::DRAFT == 0 && r.4.is_some())
+            .or(rows.last())
+            .and_then(|r| r.4.clone().map(|e| Address::new(r.3.clone(), e)));
         let wrote_myself = rows
             .iter()
             .any(|r| r.4.as_ref().is_some_and(|e| my_addresses.contains(e)));
@@ -1012,7 +1018,8 @@ pub fn refresh_threads(tx: &Transaction<'_>, thread_ids: &BTreeSet<i64>) -> Resu
 
         tx.execute(
             "UPDATE threads SET subject = ?, snippet = ?, last_date = ?, message_count = ?, unread_count = ?,
-               flagged = ?, has_attachments = ?, draft_count = ?, participants = ?, category = ?, is_invite = ?
+               flagged = ?, has_attachments = ?, draft_count = ?, participants = ?, category = ?, is_invite = ?,
+               last_sender = ?
              WHERE id = ?",
             params![
                 subject,
@@ -1026,6 +1033,7 @@ pub fn refresh_threads(tx: &Transaction<'_>, thread_ids: &BTreeSet<i64>) -> Resu
                 serde_json::to_string(&participants)?,
                 category,
                 is_invite as i64,
+                last_sender.as_ref().map(|a| serde_json::to_string(a)).transpose()?,
                 tid
             ],
         )?;
@@ -1098,6 +1106,7 @@ pub fn classify(
 
 fn summary_from_row(r: &Row<'_>) -> rusqlite::Result<ThreadSummary> {
     let participants: String = r.get("participants")?;
+    let last_sender: Option<String> = r.get("last_sender")?;
     let folders: Option<String> = r.get("folder_ids")?;
     Ok(ThreadSummary {
         id: r.get("id")?,
@@ -1111,6 +1120,7 @@ fn summary_from_row(r: &Row<'_>) -> rusqlite::Result<ThreadSummary> {
         has_attachments: r.get::<_, i64>("has_attachments")? != 0,
         draft_count: r.get("draft_count")?,
         participants: parse_addrs(&participants),
+        last_sender: last_sender.and_then(|s| serde_json::from_str(&s).ok()),
         folder_ids: folders
             .map(|f| f.split(',').filter_map(|x| x.parse().ok()).collect())
             .unwrap_or_default(),
@@ -1121,7 +1131,7 @@ fn summary_from_row(r: &Row<'_>) -> rusqlite::Result<ThreadSummary> {
 }
 
 const SUMMARY_COLUMNS: &str = "t.id, t.account_id, t.subject, t.snippet, t.last_date, t.message_count, t.unread_count,
-    t.flagged, t.has_attachments, t.draft_count, t.participants, t.category, t.is_invite, t.snoozed_until,
+    t.flagged, t.has_attachments, t.draft_count, t.participants, t.last_sender, t.category, t.is_invite, t.snoozed_until,
     (SELECT group_concat(folder_id) FROM thread_folders x WHERE x.thread_id = t.id) AS folder_ids";
 
 pub fn thread_summary(c: &Connection, thread_id: i64) -> Result<ThreadSummary> {

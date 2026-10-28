@@ -1,0 +1,39 @@
+{
+  "kind": "calendar#events",
+  "etag": "\"p32cd7d9upikuk0h\"",
+  "summary": "ada@example.com",
+  "updated": "2024-01-25T07:00:00.000Z",
+  "timeZone": "Europe/Istanbul",
+  "accessRole": "owner",
+  "defaultReminders": [{ "method": "popup", "minutes": 30 }],
+  "nextSyncToken": "CPDAlvWDx70CEPDAlvWDx70CGAY=",
+  "items": [
+    {
+      "kind": "calendar#event",
+      "etag": "\"3407041218044100\"",
+      "id": "allday0001aa",
+      "status": "cancelled"
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3407041218044101\"",
+      "id": "weekly0003cc_20240129T060000Z",
+      "status": "cancelled",
+      "recurringEventId": "weekly0003cc",
+      "originalStartTime": { "dateTime": "2024-01-29T06:00:00Z" }
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3407041218044102\"",
+      "id": "timed0002bb",
+      "status": "tentative",
+      "summary": "Quarterly planning (agenda updated)",
+      "start": { "dateTime": "2024-01-15T17:00:00+03:00", "timeZone": "America/New_York" },
+      "end": { "dateTime": "2024-01-15T18:30:00+03:00", "timeZone": "America/New_York" },
+      "iCalUID": "timed0002bb@google.com",
+      "sequence": 3,
+      "reminders": { "useDefault": true },
+      "eventType": "default"
+    }
+  ]
+}

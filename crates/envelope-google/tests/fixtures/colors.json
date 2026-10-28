@@ -1,0 +1,16 @@
+{
+  "kind": "calendar#colors",
+  "updated": "2012-02-14T00:00:00.000Z",
+  "calendar": {
+    "1": { "background": "#ac725e", "foreground": "#1d1d1d" },
+    "3": { "background": "#f83a22", "foreground": "#1d1d1d" },
+    "7": { "background": "#42d692", "foreground": "#1d1d1d" },
+    "8": { "background": "#16a765", "foreground": "#1d1d1d" },
+    "14": { "background": "#9fe1e7", "foreground": "#1d1d1d" }
+  },
+  "event": {
+    "1": { "background": "#a4bdfc", "foreground": "#1d1d1d" },
+    "5": { "background": "#fbd75b", "foreground": "#1d1d1d" },
+    "11": { "background": "#dc2127", "foreground": "#1d1d1d" }
+  }
+}

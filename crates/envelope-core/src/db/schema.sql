@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS threads (
     has_attachments  INTEGER NOT NULL DEFAULT 0,
     draft_count      INTEGER NOT NULL DEFAULT 0,
     participants     TEXT NOT NULL DEFAULT '[]', -- JSON [{name,email}] of senders, oldest first
+    last_sender      TEXT,                       -- JSON {name,email} of the newest message's sender
     category         TEXT,                       -- people | newsletters | notifications
     is_invite        INTEGER NOT NULL DEFAULT 0,
     snoozed_until    INTEGER

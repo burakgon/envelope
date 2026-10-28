@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:card="urn:ietf:params:xml:ns:carddav">
+ <d:response>
+  <d:href>/dav.php/calendars/jane/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype>
+     <d:collection/>
+    </d:resourcetype>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/dav.php/calendars/jane/default/</d:href>
+  <d:propstat>
+   <d:prop>
+    <x1:calendar-color xmlns:x1="http://apple.com/ns/ical/"/>
+    <cal:supported-calendar-component-set/>
+    <cal:calendar-description/>
+   </d:prop>
+   <d:status>HTTP/1.1 404 Not Found</d:status>
+  </d:propstat>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype>
+     <d:collection/>
+     <cal:calendar/>
+    </d:resourcetype>
+    <d:displayname>Default calendar</d:displayname>
+    <cs:getctag>http://sabre.io/ns/sync/7</cs:getctag>
+    <d:sync-token>http://sabre.io/ns/sync/7</d:sync-token>
+    <d:current-user-privilege-set>
+     <d:privilege>
+      <d:write/>
+     </d:privilege>
+     <d:privilege>
+      <d:read/>
+     </d:privilege>
+    </d:current-user-privilege-set>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/dav.php/calendars/jane/inbox/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype>
+     <d:collection/>
+     <cal:schedule-inbox/>
+    </d:resourcetype>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+ <d:response>
+  <d:href>/dav.php/calendars/jane/outbox/</d:href>
+  <d:propstat>
+   <d:prop>
+    <d:resourcetype>
+     <d:collection/>
+     <cal:schedule-outbox/>
+    </d:resourcetype>
+   </d:prop>
+   <d:status>HTTP/1.1 200 OK</d:status>
+  </d:propstat>
+ </d:response>
+</d:multistatus>

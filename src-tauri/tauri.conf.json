@@ -1,0 +1,81 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Envelope",
+  "mainBinaryName": "envelope",
+  "version": "0.1.0",
+  "identifier": "io.github.burakgon.Envelope",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Envelope",
+        "width": 1400,
+        "height": 880,
+        "minWidth": 780,
+        "minHeight": 520,
+        "decorations": false,
+        "visible": false,
+        "center": true,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self' ipc: http://ipc.localhost",
+        "connect-src": "'self' ipc: http://ipc.localhost att: http://att.localhost",
+        "img-src": "'self' data: blob: att: http://att.localhost https: http:",
+        "media-src": "'self' data: blob: att: http://att.localhost",
+        "style-src": "'self' 'unsafe-inline'",
+        "font-src": "'self' data: https:",
+        "frame-src": "'self' about: blob: att: http://att.localhost",
+        "object-src": "'none'",
+        "script-src": "'self'"
+      },
+      "dangerousDisableAssetCspModification": ["style-src"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "rpm", "appimage"],
+    "category": "Productivity",
+    "shortDescription": "A fast, beautiful mail and calendar client",
+    "longDescription": "Envelope is a fast, keyboard-friendly mail and calendar client for Linux with support for Gmail, Microsoft 365, Outlook.com, iCloud, Yahoo, Fastmail and any IMAP server, plus optional AI assistance with your own provider.",
+    "copyright": "© Envelope contributors",
+    "license": "GPL-3.0-or-later",
+    "homepage": "https://github.com/burakgon/envelope",
+    "icon": [
+      "icons/32x32.png",
+      "icons/64x64.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png"
+    ],
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"],
+        "section": "mail",
+        "files": {
+          "/usr/share/metainfo/io.github.burakgon.Envelope.metainfo.xml": "../packaging/linux/io.github.burakgon.Envelope.metainfo.xml"
+        },
+        "desktopTemplate": "../packaging/linux/envelope.desktop.hbs"
+      },
+      "rpm": {
+        "depends": ["webkit2gtk4.1", "gtk3"],
+        "files": {
+          "/usr/share/metainfo/io.github.burakgon.Envelope.metainfo.xml": "../packaging/linux/io.github.burakgon.Envelope.metainfo.xml"
+        },
+        "desktopTemplate": "../packaging/linux/envelope.desktop.hbs"
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
+  }
+}

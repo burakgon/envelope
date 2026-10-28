@@ -1,0 +1,29 @@
+{
+  "sendAs": [
+    {
+      "sendAsEmail": "ada@example.com",
+      "displayName": "Ada Lovelace",
+      "replyToAddress": "",
+      "signature": "<div dir=\"ltr\">Ada Lovelace<br>Analytical Engines Ltd</div>",
+      "isPrimary": true,
+      "isDefault": true
+    },
+    {
+      "sendAsEmail": "ada@lovelace.example",
+      "displayName": "Ada (personal)",
+      "replyToAddress": "replies@lovelace.example",
+      "signature": "",
+      "isDefault": false,
+      "treatAsAlias": false,
+      "smtpMsa": { "host": "smtp.lovelace.example", "port": 587, "securityMode": "starttls" },
+      "verificationStatus": "accepted"
+    },
+    {
+      "sendAsEmail": "team@example.com",
+      "displayName": "",
+      "isDefault": false,
+      "treatAsAlias": true,
+      "verificationStatus": "pending"
+    }
+  ]
+}

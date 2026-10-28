@@ -1,0 +1,27 @@
+[package]
+name = "envelope-google"
+description = "Google Calendar and People API client for Envelope"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+envelope-ical = { path = "../envelope-ical" }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+async-trait = { workspace = true }
+url = { workspace = true }
+bytes = { workspace = true }
+uuid = { version = "1.29.0", features = ["v4"] }
+
+[dev-dependencies]
+tokio = { workspace = true }
+wiremock = "0.6"

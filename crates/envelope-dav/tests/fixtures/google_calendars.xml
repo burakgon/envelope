@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<D:multistatus xmlns:D="DAV:" xmlns:caldav="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:ical="http://apple.com/ns/ical/">
+ <D:response>
+  <D:href>/caldav/v2/jane.doe%40gmail.com/</D:href>
+  <D:propstat>
+   <D:status>HTTP/1.1 200 OK</D:status>
+   <D:prop>
+    <D:resourcetype><D:collection/></D:resourcetype>
+   </D:prop>
+  </D:propstat>
+ </D:response>
+ <D:response>
+  <D:href>/caldav/v2/jane.doe%40gmail.com/events/</D:href>
+  <D:propstat>
+   <D:status>HTTP/1.1 200 OK</D:status>
+   <D:prop>
+    <D:resourcetype><D:collection/><caldav:calendar/></D:resourcetype>
+    <D:displayname>Jane Doe</D:displayname>
+    <ical:calendar-color>#9FE1E7FF</ical:calendar-color>
+    <cs:getctag>63848503145</cs:getctag>
+    <D:sync-token>https://www.google.com/calendar/dav/sync/CNjPxbzJr4QDEAAYASDj_9YRKAA=</D:sync-token>
+    <caldav:supported-calendar-component-set><caldav:comp name="VEVENT"/></caldav:supported-calendar-component-set>
+    <D:current-user-privilege-set>
+     <D:privilege><D:read/></D:privilege>
+     <D:privilege><caldav:read-free-busy/></D:privilege>
+     <D:privilege><D:write/></D:privilege>
+    </D:current-user-privilege-set>
+    <caldav:calendar-timezone>BEGIN:VCALENDAR&#13;
+VERSION:2.0&#13;
+PRODID:-//Google Inc//Google Calendar 70.9054//EN&#13;
+BEGIN:VTIMEZONE&#13;
+TZID:Europe/Istanbul&#13;
+X-LIC-LOCATION:Europe/Istanbul&#13;
+BEGIN:STANDARD&#13;
+TZOFFSETFROM:+0300&#13;
+TZOFFSETTO:+0300&#13;
+TZNAME:+03&#13;
+DTSTART:19700101T000000&#13;
+END:STANDARD&#13;
+END:VTIMEZONE&#13;
+END:VCALENDAR&#13;
+</caldav:calendar-timezone>
+    <D:supported-report-set>
+     <D:supported-report><D:report><caldav:calendar-multiget/></D:report></D:supported-report>
+     <D:supported-report><D:report><caldav:calendar-query/></D:report></D:supported-report>
+     <D:supported-report><D:report><D:sync-collection/></D:report></D:supported-report>
+    </D:supported-report-set>
+   </D:prop>
+  </D:propstat>
+  <D:propstat>
+   <D:status>HTTP/1.1 404 Not Found</D:status>
+   <D:prop>
+    <ical:calendar-order/>
+    <caldav:calendar-description/>
+    <caldav:calendar-timezone-id/>
+   </D:prop>
+  </D:propstat>
+ </D:response>
+ <D:response>
+  <D:href>/caldav/v2/en.turkish%23holiday%40group.v.calendar.google.com/events/</D:href>
+  <D:propstat>
+   <D:status>HTTP/1.1 200 OK</D:status>
+   <D:prop>
+    <D:resourcetype><D:collection/><caldav:calendar/></D:resourcetype>
+    <D:displayname>Holidays in T&#xFC;rkiye</D:displayname>
+    <ical:calendar-color>#16A765FF</ical:calendar-color>
+    <cs:getctag>63848400000</cs:getctag>
+    <D:sync-token>https://www.google.com/calendar/dav/sync/CIDwjMjFr4QDEAAYASD3_9YRKAA=</D:sync-token>
+    <caldav:supported-calendar-component-set><caldav:comp name="VEVENT"/></caldav:supported-calendar-component-set>
+    <D:current-user-privilege-set>
+     <D:privilege><D:read/></D:privilege>
+     <D:privilege><caldav:read-free-busy/></D:privilege>
+    </D:current-user-privilege-set>
+   </D:prop>
+  </D:propstat>
+ </D:response>
+ <D:response>
+  <D:href>/caldav/v2/c_0123456789abcdef%40group.calendar.google.com/events/</D:href>
+  <D:propstat>
+   <D:status>HTTP/1.1 200 OK</D:status>
+   <D:prop>
+    <D:resourcetype><D:collection/><caldav:calendar/></D:resourcetype>
+    <D:displayname>Team</D:displayname>
+    <caldav:calendar-description>Team rota &amp; on-call</caldav:calendar-description>
+    <ical:calendar-color>#4986E7FF</ical:calendar-color>
+    <cs:getctag>63848501234</cs:getctag>
+    <caldav:supported-calendar-component-set><caldav:comp name="VEVENT"/></caldav:supported-calendar-component-set>
+    <D:current-user-privilege-set>
+     <D:privilege><D:all/></D:privilege>
+    </D:current-user-privilege-set>
+   </D:prop>
+  </D:propstat>
+ </D:response>
+</D:multistatus>

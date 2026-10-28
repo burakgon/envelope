@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/1234567890/calendars/home/0A1B2C3D-0001.ics</href>
+    <propstat>
+      <prop>
+        <getetag>"lr8m7cmy"</getetag>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+  <response>
+    <href>/1234567890/calendars/home/0A1B2C3D-0002.ics</href>
+    <propstat>
+      <prop>
+        <getetag>"lr8m7cn1"</getetag>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+  <response>
+    <href>/1234567890/calendars/home/</href>
+    <status>HTTP/1.1 507 Insufficient Storage</status>
+    <error>
+      <number-of-matches-within-limits/>
+    </error>
+  </response>
+  <sync-token>HwoQEgwAAAh4j8A2AAAAAAAAAAAAAAAAGAAgCB==</sync-token>
+</multistatus>

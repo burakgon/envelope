@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:card="urn:ietf:params:xml:ns:carddav" xmlns:cs="http://calendarserver.org/ns/" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"><d:response><d:href>/remote.php/dav/addressbooks/users/jane/contacts/7d0a6a6e-1f0b-4b8e-9a43-2f6a1f0e3c11.vcf</d:href><d:propstat><d:prop><d:getetag>&quot;8e3c6a2f1d7b4e5c9a0b1c2d3e4f5a6b&quot;</d:getetag><card:address-data>BEGIN:VCARD&#13;
+VERSION:3.0&#13;
+PRODID:-//Sabre//Sabre VObject 4.5.4//EN&#13;
+UID:7d0a6a6e-1f0b-4b8e-9a43-2f6a1f0e3c11&#13;
+FN:Ayşe Yılmaz&#13;
+N:Yılmaz;Ayşe;;;&#13;
+EMAIL;TYPE=work:ayse@example.com&#13;
+NOTE:Met at the R&amp;D summit &lt;2024&gt;&#13;
+END:VCARD&#13;
+</card:address-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response><d:response><d:href>/remote.php/dav/addressbooks/users/jane/contacts/gone.vcf</d:href><d:status>HTTP/1.1 404 Not Found</d:status></d:response></d:multistatus>

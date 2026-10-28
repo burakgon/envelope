@@ -1,0 +1,27 @@
+[package]
+name = "envelope-dav"
+description = "CalDAV and CardDAV client for Envelope"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+base64 = { workspace = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
+md-5 = "0.10"
+percent-encoding = "2"
+quick-xml = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+sha2 = "0.10"
+thiserror = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tokio = { workspace = true }

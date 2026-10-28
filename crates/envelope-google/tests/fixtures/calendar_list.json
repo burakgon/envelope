@@ -1,0 +1,74 @@
+{
+  "kind": "calendar#calendarList",
+  "etag": "\"p33c9vmtt4ruts0o\"",
+  "nextSyncToken": "CKCbrKvpn9MCEj5hZGFAZXhhbXBsZS5jb20=",
+  "items": [
+    {
+      "kind": "calendar#calendarListEntry",
+      "etag": "\"1704067200000000\"",
+      "id": "ada@example.com",
+      "summary": "ada@example.com",
+      "timeZone": "Europe/Istanbul",
+      "colorId": "14",
+      "backgroundColor": "#9fe1e7",
+      "foregroundColor": "#000000",
+      "selected": true,
+      "accessRole": "owner",
+      "defaultReminders": [
+        { "method": "popup", "minutes": 30 },
+        { "method": "email", "minutes": 1440 }
+      ],
+      "notificationSettings": {
+        "notifications": [
+          { "type": "eventCreation", "method": "email" },
+          { "type": "eventChange", "method": "email" }
+        ]
+      },
+      "primary": true,
+      "conferenceProperties": { "allowedConferenceSolutionTypes": ["hangoutsMeet"] }
+    },
+    {
+      "kind": "calendar#calendarListEntry",
+      "etag": "\"1704067200000001\"",
+      "id": "c_8f2a6b1e@group.calendar.google.com",
+      "summary": "Engineering",
+      "summaryOverride": "Eng team",
+      "description": "Shared engineering calendar",
+      "timeZone": "America/New_York",
+      "dataOwner": "grace@example.com",
+      "colorId": "7",
+      "backgroundColor": "#42d692",
+      "foregroundColor": "#000000",
+      "selected": true,
+      "accessRole": "writer",
+      "defaultReminders": [],
+      "conferenceProperties": { "allowedConferenceSolutionTypes": ["hangoutsMeet"] }
+    },
+    {
+      "kind": "calendar#calendarListEntry",
+      "etag": "\"1704067200000002\"",
+      "id": "en.usa#holiday@group.v.calendar.google.com",
+      "summary": "Holidays in United States",
+      "description": "Holidays and Observances in United States",
+      "timeZone": "America/New_York",
+      "colorId": "8",
+      "selected": true,
+      "accessRole": "reader",
+      "defaultReminders": [],
+      "conferenceProperties": { "allowedConferenceSolutionTypes": ["hangoutsMeet"] }
+    },
+    {
+      "kind": "calendar#calendarListEntry",
+      "etag": "\"1704067200000003\"",
+      "id": "linus@example.com",
+      "summary": "linus@example.com",
+      "timeZone": "Europe/Helsinki",
+      "colorId": "3",
+      "backgroundColor": "#f83a22",
+      "foregroundColor": "#000000",
+      "hidden": true,
+      "accessRole": "freeBusyReader",
+      "defaultReminders": []
+    }
+  ]
+}

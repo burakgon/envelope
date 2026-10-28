@@ -1,0 +1,208 @@
+{
+  "kind": "calendar#events",
+  "etag": "\"p32cd7d9upikuk0g\"",
+  "summary": "ada@example.com",
+  "description": "",
+  "updated": "2024-01-20T10:15:30.123Z",
+  "timeZone": "Europe/Istanbul",
+  "accessRole": "owner",
+  "defaultReminders": [{ "method": "popup", "minutes": 30 }],
+  "nextSyncToken": "CPDAlvWDx70CEPDAlvWDx70CGAU=",
+  "items": [
+    {
+      "kind": "calendar#event",
+      "etag": "\"3407041218044000\"",
+      "id": "allday0001aa",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=YWxsZGF5MDAwMWFh",
+      "created": "2024-01-02T08:00:00.000Z",
+      "updated": "2024-01-02T08:00:09.022Z",
+      "summary": "Company offsite",
+      "creator": { "email": "ada@example.com", "self": true },
+      "organizer": { "email": "ada@example.com", "self": true },
+      "start": { "date": "2024-02-01" },
+      "end": { "date": "2024-02-03" },
+      "transparency": "transparent",
+      "iCalUID": "allday0001aa@google.com",
+      "sequence": 0,
+      "reminders": { "useDefault": false },
+      "eventType": "default"
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3407041218044001\"",
+      "id": "timed0002bb",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=dGltZWQwMDAyYmI",
+      "created": "2024-01-03T09:00:00.000Z",
+      "updated": "2024-01-05T11:30:00.000Z",
+      "summary": "Quarterly planning",
+      "description": "Agenda:<br><ul><li>Review Q4</li><li>Plan Q1</li></ul>Notes: <a href=\"https://docs.example.com/plan\">planning doc</a>",
+      "location": "Room 5, 800 Howard St., San Francisco, CA 94103",
+      "colorId": "11",
+      "creator": { "email": "grace@example.com", "displayName": "Grace Hopper" },
+      "organizer": { "email": "grace@example.com", "displayName": "Grace Hopper" },
+      "start": { "dateTime": "2024-01-15T17:00:00+03:00", "timeZone": "America/New_York" },
+      "end": { "dateTime": "2024-01-15T18:30:00+03:00", "timeZone": "America/New_York" },
+      "visibility": "private",
+      "iCalUID": "timed0002bb@google.com",
+      "sequence": 2,
+      "attendees": [
+        { "email": "Grace@Example.com", "displayName": "Grace Hopper", "organizer": true, "responseStatus": "accepted" },
+        { "email": "ada@example.com", "displayName": "Ada Lovelace", "self": true, "responseStatus": "tentative", "comment": "Might be late" },
+        { "email": "alan@example.com", "optional": true, "responseStatus": "declined" },
+        { "email": "c_1888abcd@resource.calendar.google.com", "displayName": "Room 5", "resource": true, "responseStatus": "accepted" },
+        { "email": "linus@example.com", "responseStatus": "needsAction", "additionalGuests": 1 }
+      ],
+      "guestsCanModify": true,
+      "guestsCanSeeOtherGuests": false,
+      "reminders": { "useDefault": true },
+      "source": { "url": "https://mail.google.com/mail/u/0/#inbox/18c1f2", "title": "Planning thread" },
+      "attachments": [
+        {
+          "fileUrl": "https://drive.google.com/open?id=1aBcD",
+          "title": "Plan.pdf",
+          "mimeType": "application/pdf",
+          "iconLink": "https://drive-thirdparty.googleusercontent.com/16/type/application/pdf",
+          "fileId": "1aBcD"
+        }
+      ],
+      "extendedProperties": { "private": { "envelopeRef": "42" } },
+      "eventType": "default"
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3407041218044002\"",
+      "id": "weekly0003cc",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=d2Vla2x5MDAwM2Nj",
+      "created": "2023-12-20T08:00:00.000Z",
+      "updated": "2024-01-10T08:00:00.000Z",
+      "summary": "Team sync",
+      "creator": { "email": "ada@example.com", "self": true },
+      "organizer": { "email": "ada@example.com", "self": true },
+      "start": { "dateTime": "2024-01-01T09:00:00+03:00", "timeZone": "Europe/Istanbul" },
+      "end": { "dateTime": "2024-01-01T09:30:00+03:00", "timeZone": "Europe/Istanbul" },
+      "recurrence": [
+        "RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20240325T055959Z",
+        "EXDATE;TZID=Europe/Istanbul:20240108T090000"
+      ],
+      "iCalUID": "weekly0003cc@google.com",
+      "sequence": 1,
+      "attendees": [
+        { "email": "ada@example.com", "organizer": true, "self": true, "responseStatus": "accepted" },
+        { "email": "grace@example.com", "responseStatus": "accepted" }
+      ],
+      "hangoutLink": "https://meet.google.com/abc-defg-hij",
+      "conferenceData": {
+        "entryPoints": [
+          { "entryPointType": "video", "uri": "https://meet.google.com/abc-defg-hij", "label": "meet.google.com/abc-defg-hij" },
+          { "entryPointType": "more", "uri": "https://tel.meet/abc-defg-hij?pin=1234567890123", "pin": "1234567890123" },
+          { "entryPointType": "phone", "uri": "tel:+1-650-555-0100", "label": "+1 650-555-0100", "pin": "123456789", "regionCode": "US" }
+        ],
+        "conferenceSolution": {
+          "key": { "type": "hangoutsMeet" },
+          "name": "Google Meet",
+          "iconUri": "https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v6/web-512dp/logo_meet_2020q4_color_2x_web_512dp.png"
+        },
+        "conferenceId": "abc-defg-hij"
+      },
+      "reminders": {
+        "useDefault": false,
+        "overrides": [
+          { "method": "email", "minutes": 1440 },
+          { "method": "popup", "minutes": 10 }
+        ]
+      },
+      "eventType": "default"
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3407041218044003\"",
+      "id": "weekly0003cc_20240115T060000Z",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=d2Vla2x5MDAwM2NjXzIwMjQwMTE1",
+      "created": "2023-12-20T08:00:00.000Z",
+      "updated": "2024-01-12T08:00:00.000Z",
+      "summary": "Team sync (moved)",
+      "creator": { "email": "ada@example.com", "self": true },
+      "organizer": { "email": "ada@example.com", "self": true },
+      "start": { "dateTime": "2024-01-15T11:00:00+03:00", "timeZone": "Europe/Istanbul" },
+      "end": { "dateTime": "2024-01-15T11:30:00+03:00", "timeZone": "Europe/Istanbul" },
+      "recurringEventId": "weekly0003cc",
+      "originalStartTime": { "dateTime": "2024-01-15T09:00:00+03:00", "timeZone": "Europe/Istanbul" },
+      "iCalUID": "weekly0003cc@google.com",
+      "sequence": 2,
+      "reminders": { "useDefault": true },
+      "eventType": "default"
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3407041218044004\"",
+      "id": "weekly0003cc_20240122T060000Z",
+      "status": "cancelled",
+      "recurringEventId": "weekly0003cc",
+      "originalStartTime": { "dateTime": "2024-01-22T09:00:00+03:00", "timeZone": "Europe/Istanbul" }
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3407041218044005\"",
+      "id": "ooo0006ff",
+      "status": "confirmed",
+      "summary": "Out of office",
+      "creator": { "email": "ada@example.com", "self": true },
+      "organizer": { "email": "ada@example.com", "self": true },
+      "start": { "dateTime": "2024-02-05T00:00:00+03:00", "timeZone": "Europe/Istanbul" },
+      "end": { "dateTime": "2024-02-10T00:00:00+03:00", "timeZone": "Europe/Istanbul" },
+      "transparency": "opaque",
+      "visibility": "public",
+      "iCalUID": "ooo0006ff@google.com",
+      "sequence": 0,
+      "reminders": { "useDefault": false },
+      "eventType": "outOfOffice",
+      "outOfOfficeProperties": {
+        "autoDeclineMode": "declineAllConflictingInvitations",
+        "declineMessage": "Away until the 12th"
+      }
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3407041218044006\"",
+      "id": "focus0007gg",
+      "status": "confirmed",
+      "summary": "Focus time",
+      "start": { "dateTime": "2024-02-12T14:00:00+03:00", "timeZone": "Europe/Istanbul" },
+      "end": { "dateTime": "2024-02-12T16:00:00+03:00", "timeZone": "Europe/Istanbul" },
+      "iCalUID": "focus0007gg@google.com",
+      "reminders": { "useDefault": false },
+      "eventType": "focusTime",
+      "focusTimeProperties": {
+        "autoDeclineMode": "declineOnlyNewConflictingInvitations",
+        "chatStatus": "doNotDisturb"
+      }
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3407041218044007\"",
+      "id": "bday0008hh",
+      "status": "confirmed",
+      "summary": "Linus Pauling's birthday",
+      "start": { "date": "2024-02-28" },
+      "end": { "date": "2024-02-29" },
+      "recurrence": ["RRULE:FREQ=YEARLY"],
+      "transparency": "transparent",
+      "visibility": "private",
+      "iCalUID": "bday0008hh@google.com",
+      "reminders": { "useDefault": false },
+      "eventType": "birthday",
+      "birthdayProperties": { "type": "birthday", "contact": "people/c7700000000000000000" }
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3407041218044008\"",
+      "id": "broken0009ii",
+      "status": "confirmed",
+      "summary": "An event without times"
+    }
+  ]
+}

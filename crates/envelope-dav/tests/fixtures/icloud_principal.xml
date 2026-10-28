@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/1234567890/principal/</href>
+    <propstat>
+      <prop>
+        <calendar-home-set xmlns="urn:ietf:params:xml:ns:caldav">
+          <href xmlns="DAV:">{{HOME_ORIGIN}}/1234567890/calendars/</href>
+        </calendar-home-set>
+        <calendar-user-address-set xmlns="urn:ietf:params:xml:ns:caldav">
+          <href xmlns="DAV:">mailto:jane.appleseed@icloud.com</href>
+          <href xmlns="DAV:" preferred="1">mailto:jane@example.com</href>
+          <href xmlns="DAV:">urn:uuid:4f1a0c2e-7b9d-4e3a-8c6f-2d5b1a9e0c7d</href>
+          <href xmlns="DAV:">{{HOME_ORIGIN}}/1234567890/principal/</href>
+        </calendar-user-address-set>
+        <displayname>Jane Appleseed</displayname>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+    <propstat>
+      <prop>
+        <addressbook-home-set xmlns="urn:ietf:params:xml:ns:carddav"/>
+        <email-address-set xmlns="http://calendarserver.org/ns/"/>
+      </prop>
+      <status>HTTP/1.1 404 Not Found</status>
+    </propstat>
+  </response>
+</multistatus>

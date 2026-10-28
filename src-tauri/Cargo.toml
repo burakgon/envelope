@@ -8,5 +8,26 @@ repository.workspace = true
 authors.workspace = true
 default-run = "envelope"
 
+[lib]
+name = "envelope_app"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = "2"
+
 [dependencies]
 envelope-core = { path = "../crates/envelope-core" }
+notify-rust = "4.18.2"
+parking_lot = "0.13.0"
+percent-encoding = "2.3.2"
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "2"
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+url.workspace = true

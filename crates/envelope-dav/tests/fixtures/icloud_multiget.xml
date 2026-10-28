@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/1234567890/calendars/home/0A1B2C3D-0002.ics</href>
+    <propstat>
+      <prop>
+        <getetag>"lr8m9zzz"</getetag>
+        <calendar-data xmlns="urn:ietf:params:xml:ns:caldav"><![CDATA[BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Apple Inc.//iOS 17.4//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:0A1B2C3D-0002
+DTSTAMP:20240301T090000Z
+DTSTART;TZID=Europe/Istanbul:20240305T100000
+DTEND;TZID=Europe/Istanbul:20240305T110000
+SUMMARY:Design review <draft> & notes
+END:VEVENT
+END:VCALENDAR
+]]></calendar-data>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+  <response>
+    <href>/1234567890/calendars/home/0A1B2C3D-0003.ics</href>
+    <propstat>
+      <prop>
+        <getetag>"lr8m7cn5"</getetag>
+        <calendar-data xmlns="urn:ietf:params:xml:ns:caldav"><![CDATA[BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Apple Inc.//iOS 17.4//EN
+BEGIN:VEVENT
+UID:0A1B2C3D-0003
+DTSTAMP:20240301T090000Z
+DTSTART;VALUE=DATE:20240310
+SUMMARY:Holiday
+END:VEVENT
+END:VCALENDAR
+]]></calendar-data>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+  <response>
+    <href>/1234567890/calendars/home/0A1B2C3D-0009.ics</href>
+    <status>HTTP/1.1 404 Not Found</status>
+  </response>
+</multistatus>
