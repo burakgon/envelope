@@ -9,15 +9,36 @@
   import Toggle from './Toggle.svelte';
   import Logo from '../Logo.svelte';
   import {
-    Bell, Calendar, Info, Keyboard, Mail, Palette, Pen, Settings as Gear, ShieldCheck, Sparkles, Users, X, Plus, Trash, Moon, Sun, Lock, ExternalLink, Code,
+    Bell, Calendar, FileText, Info, Keyboard, Mail, Palette, Pen, Settings as Gear, ShieldCheck, Sparkles, Users, X, Plus, Trash, Moon, Sun, Lock, ExternalLink, Code,
   } from '../../icons';
   import { cal } from '../../stores/calendar.svelte';
+  import type { Template } from '../../stores/ui.svelte';
+  import { htmlToText } from '../../utils/html';
+  import Editor from '../Editor.svelte';
+
+  let tpl = $state<Template | null>(null);
+
+  function saveTemplate() {
+    if (!tpl || !tpl.name.trim()) return;
+    const t = { ...tpl, id: tpl.id || crypto.randomUUID(), name: tpl.name.trim() };
+    const list = ui.settings.templates;
+    ui.set('templates', list.some((x) => x.id === t.id) ? list.map((x) => (x.id === t.id ? t : x)) : [...list, t]);
+    tpl = null;
+  }
+
+  function deleteTemplate() {
+    if (!tpl) return;
+    const id = tpl.id;
+    ui.set('templates', ui.settings.templates.filter((x) => x.id !== id));
+    tpl = null;
+  }
 
   const tabs = [
     { id: 'general', label: 'General', icon: Gear },
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'accounts', label: 'Accounts', icon: Users },
     { id: 'signatures', label: 'Signatures', icon: Pen },
+    { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'privacy', label: 'Privacy', icon: ShieldCheck },
@@ -157,6 +178,41 @@
             <Toggle checked={ui.settings.sendAndArchive} onchange={(v) => ui.set('sendAndArchive', v)} />
           </div>
         </div>
+      {:else if ui.settingsTab === 'templates'}
+        <h2>Templates</h2>
+        <p class="desc">Messages you write once and insert from the composer with a click — for answers you send often.</p>
+        <div class="accounts">
+          {#each ui.settings.templates as t (t.id)}
+            <div class="acct">
+              <div class="acct-info">
+                <b>{t.name}</b>
+                <span class="acct-sub truncate">{t.subject || htmlToText(t.html).slice(0, 90)}</span>
+              </div>
+              <button class="btn sm" onclick={() => (tpl = { ...t })}>Edit</button>
+            </div>
+          {/each}
+        </div>
+        <button class="btn" onclick={() => (tpl = { id: '', name: '', subject: '', html: '' })}><Plus size={15} />New template</button>
+        {#if tpl}
+          <div class="editor-card">
+            <div class="two">
+              <div><label class="label" for="tpl-name">Name</label><input id="tpl-name" class="input" bind:value={tpl.name} placeholder="e.g. Meeting follow-up" /></div>
+              <div><label class="label" for="tpl-subject">Subject (optional)</label><input id="tpl-subject" class="input" bind:value={tpl.subject} /></div>
+            </div>
+            <div>
+              <span class="label">Message</span>
+              {#key tpl.id}
+                <div class="rich"><Editor html={tpl.html} onupdate={(h) => (tpl!.html = h)} showToolbar placeholder="Write the template…" /></div>
+              {/key}
+            </div>
+            <div class="btns">
+              {#if tpl.id}<button class="btn danger" onclick={deleteTemplate}>Delete</button>{/if}
+              <span class="grow"></span>
+              <button class="btn" onclick={() => (tpl = null)}>Cancel</button>
+              <button class="btn primary" disabled={!tpl.name.trim()} onclick={saveTemplate}>Save</button>
+            </div>
+          </div>
+        {/if}
       {:else if ui.settingsTab === 'calendar'}
         <h2>Calendar</h2>
         <div class="group">
@@ -302,8 +358,10 @@
             {/if}
             <div><label class="label" for="id-rt">Reply-to (optional)</label><input id="id-rt" class="input" bind:value={editing.replyTo} /></div>
             <div>
-              <label class="label" for="id-sig">Signature (HTML allowed)</label>
-              <textarea id="id-sig" class="input area" rows="5" bind:value={editing.signature}></textarea>
+              <span class="label">Signature</span>
+              {#key editing.id}
+                <div class="rich"><Editor html={editing.signature ?? ''} onupdate={(h) => (editing!.signature = h)} showToolbar placeholder="Your signature" /></div>
+              {/key}
             </div>
             <div class="btns">
               {#if editing.id > 0 && !editing.isDefault}
@@ -399,6 +457,16 @@
 </div>
 
 <style>
+  .rich {
+    min-height: 140px;
+    border-radius: var(--r);
+    background: var(--bg-input);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    padding: 2px 12px 8px;
+  }
+  .rich :global(.prose) {
+    min-height: 100px;
+  }
   .backdrop {
     position: fixed;
     inset: 0;
@@ -611,13 +679,6 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
-  }
-  .area {
-    height: auto;
-    padding: 8px 11px;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    resize: vertical;
   }
   .btns {
     display: flex;

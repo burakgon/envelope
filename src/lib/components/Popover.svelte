@@ -84,6 +84,8 @@
   .popover {
     position: fixed;
     z-index: 1000;
+    /* Popovers opened from the composer dock must not inherit its click-through. */
+    pointer-events: auto;
     max-height: calc(100vh - 16px);
     overflow-y: auto;
   }

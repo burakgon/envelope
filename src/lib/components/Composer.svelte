@@ -10,7 +10,10 @@
   import Editor from './Editor.svelte';
   import Popover from './Popover.svelte';
   import AiComposeMenu from './AiComposeMenu.svelte';
-  import { ChevronDown, Clock, Maximize, Minimize, Minus, More, Paperclip, Send, Sparkles, Trash, Type, X, File as FileIcon } from '../icons';
+  import TemplateMenu from './TemplateMenu.svelte';
+  import type { Template } from '../stores/ui.svelte';
+  import type { Editor as TipTap } from '@tiptap/core';
+  import { ChevronDown, Clock, FileText, Maximize, Minimize, Minus, More, Paperclip, Send, Sparkles, Trash, Type, X, File as FileIcon } from '../icons';
 
   let { state: c }: { state: ComposerState } = $props();
 
@@ -32,7 +35,19 @@
   let sendMenu = $state<{ x: number; y: number } | null>(null);
   let aiMenu = $state<{ x: number; y: number } | null>(null);
   let dragging = $state(false);
-  let editorRef = $state(null);
+  let editorRef = $state<TipTap | null>(null);
+  let tplMenu = $state<{ x: number; y: number } | null>(null);
+
+  function insertTemplate(t: Template) {
+    tplMenu = null;
+    if (t.subject && !c.data.subject.trim()) c.data.subject = t.subject;
+    if (editorRef) editorRef.chain().focus().insertContent(t.html).run();
+    else {
+      body = t.html + body;
+      editorKey++;
+    }
+    changed();
+  }
   let customAt = $state('');
 
   const identities = $derived(mail.identities);
@@ -257,6 +272,7 @@
       </div>
       <button class="icon-btn" title="Attach files" onclick={attach}><Paperclip size={17} /></button>
       <button class="icon-btn" class:active={showFormat} title="Formatting" onclick={() => (showFormat = !showFormat)}><Type size={17} /></button>
+      <button class="icon-btn" title="Templates" onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); tplMenu = { x: r.left, y: r.top - 8 }; }}><FileText size={17} /></button>
       <button class="icon-btn ai" title="Write with AI" onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); aiMenu = { x: r.left, y: r.top }; }}><Sparkles size={17} /></button>
       <span class="grow"></span>
       {#if c.inline}
@@ -287,6 +303,10 @@
       <button class="btn sm primary" disabled={!customAt} onclick={() => send(new Date(customAt).getTime())}>Schedule</button>
     </div>
   </Popover>
+{/if}
+
+{#if tplMenu}
+  <TemplateMenu x={tplMenu.x} y={tplMenu.y} subject={c.data.subject} {body} onclose={() => (tplMenu = null)} oninsert={insertTemplate} />
 {/if}
 
 {#if aiMenu}

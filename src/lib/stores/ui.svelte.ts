@@ -3,6 +3,14 @@ import { api } from '../api';
 export type Theme = 'system' | 'light' | 'dark';
 export type Density = 'comfortable' | 'compact';
 
+/** A reusable message body (with an optional subject). */
+export interface Template {
+  id: string;
+  name: string;
+  subject: string;
+  html: string;
+}
+
 /** User preferences persisted through the backend settings store. */
 export interface Settings {
   theme: Theme;
@@ -27,6 +35,7 @@ export interface Settings {
   defaultEventMinutes: number;
   defaultAlarm: number; // minutes before; -1 = none
   showDeclined: boolean;
+  templates: Template[];
   sidebarWidth: number;
   listWidth: number;
   aiEnabled: boolean;
@@ -55,6 +64,7 @@ export const defaultSettings: Settings = {
   defaultEventMinutes: 60,
   defaultAlarm: 10,
   showDeclined: true,
+  templates: [],
   sidebarWidth: 236,
   listWidth: 392,
   aiEnabled: true,
