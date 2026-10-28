@@ -899,7 +899,7 @@ impl Session {
             .collect();
         let state = state.clone();
         let my_email = self.account.email.to_lowercase();
-        let (threads, folders, fresh_unread, redrafted) = self
+        let (threads, folders, mut fresh_unread, redrafted, arrivals) = self
             .engine
             .db
             .write_async(move |tx| {
@@ -907,6 +907,7 @@ impl Session {
                 let mut threads = BTreeSet::new();
                 let mut fresh_unread = Vec::new();
                 let mut redrafted = Vec::new();
+                let mut arrivals = Vec::new();
                 for (mut meta, labels) in incoming {
                     let remote = meta.remote_id.clone().unwrap_or_default();
                     let stored = match mail::message_by_remote(tx, account_id, &remote)? {
@@ -948,6 +949,16 @@ impl Session {
                         if notify && meta.flags & (Flags::SEEN | Flags::DRAFT) == 0 && !from_me {
                             fresh_unread.push(stored.thread_id);
                         }
+                        if notify && meta.flags & Flags::DRAFT == 0 && !from_me {
+                            arrivals.push(crate::rules::Incoming {
+                                account_id,
+                                thread_id: stored.thread_id,
+                                from: meta.from.clone(),
+                                to: meta.to.clone(),
+                                cc: meta.cc.clone(),
+                                subject: meta.subject.clone(),
+                            });
+                        }
                     }
                     threads.insert(stored.thread_id);
                 }
@@ -962,9 +973,12 @@ impl Session {
                 let mut folders = mail::refresh_threads(tx, &threads)?;
                 folders.insert(folder_id);
                 mail::refresh_folder_counts(tx, &folders)?;
-                Ok((threads, folders, fresh_unread, redrafted))
+                Ok((threads, folders, fresh_unread, redrafted, arrivals))
             })
             .await?;
+        // The user's rules run on new inbox mail before anyone is notified.
+        let quiet = crate::rules::apply(&self.engine, &arrivals);
+        fresh_unread.retain(|t| !quiet.contains(t));
         for id in redrafted {
             let _ = tokio::fs::remove_file(source_path(&self.engine, account_id, id)).await;
         }

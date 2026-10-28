@@ -263,13 +263,26 @@ impl Session {
     async fn wait_for_changes(&mut self, wake: &Notify, stop: &CancellationToken) -> Result<()> {
         let remaining = FULL_SYNC_INTERVAL
             .saturating_sub(self.last_full.map(|t| t.elapsed()).unwrap_or_default());
+        // Changes queued with an undo window (or a retry delay) must go out when
+        // they come due, even if nothing else wakes us.
+        let account_id = self.id();
+        let op_due = self
+            .engine
+            .db
+            .read(|c| misc::next_op_time(c, account_id))?
+            .map(|at| Duration::from_millis((at - now_ms()).max(0) as u64 + 50));
+        if op_due.is_some_and(|d| d <= Duration::from_millis(50)) {
+            return Ok(());
+        }
         if self.client.has_cap("IDLE")
             && let Some(folder) = self.idle_folder()
         {
             if self.client.selected() != Some(folder.remote_id.as_str()) {
                 self.client.select(&folder.remote_id, None).await?;
             }
-            let max = remaining.max(Duration::from_secs(30)).min(IDLE_MAX);
+            let idle_max = remaining.max(Duration::from_secs(30)).min(IDLE_MAX);
+            let max = op_due.map_or(idle_max, |d| d.min(idle_max));
+            let for_ops = max < idle_max;
             let interrupt = async {
                 tokio::select! {
                     _ = wake.notified() => {}
@@ -282,6 +295,7 @@ impl Session {
                     // Give the server a moment to settle bursts of updates.
                     tokio::time::sleep(Duration::from_millis(300)).await;
                 }
+                IdleEnd::Timeout if for_ops => {}
                 IdleEnd::Timeout => self.last_full = None,
                 IdleEnd::Interrupted => {
                     if !stop.is_cancelled() {
@@ -290,10 +304,15 @@ impl Session {
                 }
             }
         } else {
+            let poll = remaining.max(Duration::from_secs(60));
             tokio::select! {
                 _ = stop.cancelled() => {}
                 _ = wake.notified() => { self.last_full = None; }
-                _ = tokio::time::sleep(remaining.max(Duration::from_secs(60))) => { self.last_full = None; }
+                _ = tokio::time::sleep(op_due.map_or(poll, |d| d.min(poll))) => {
+                    if op_due.is_none_or(|d| d >= poll) {
+                        self.last_full = None;
+                    }
+                }
             }
             // Keep the connection alive.
             self.client.noop().await?;
@@ -711,14 +730,32 @@ impl Session {
         let account_id = self.id();
         let folder_id = folder.id;
         let is_inbox_like = matches!(folder.role, Some(FolderRole::Inbox | FolderRole::All));
+        let is_inbox = folder.role == Some(FolderRole::Inbox);
+        let folder_remote = folder.remote_id.clone();
         let my_email = self.account.email.to_lowercase();
-        let (threads, fresh_unread) = self
+        let (threads, mut fresh_unread, arrivals) = self
             .engine
             .db
             .write_async(move |tx| {
+                // Messages with a queued move or delete are leaving this folder:
+                // seeing them here again before the server catches up must not
+                // bring them back as new mail.
+                let leaving: HashSet<u32> = misc::queued_ops(tx, account_id)?
+                    .into_iter()
+                    .flat_map(|op| match op {
+                        PendingOp::Move { items, .. } | PendingOp::Expunge { items } => items,
+                        _ => Vec::new(),
+                    })
+                    .filter(|i| i.folder == folder_remote)
+                    .filter_map(|i| i.uid)
+                    .collect();
                 let mut threads = BTreeSet::new();
                 let mut fresh_unread = Vec::new();
+                let mut arrivals = Vec::new();
                 for (uid, meta, attachments, labels) in prepared {
+                    if leaving.contains(&uid) {
+                        continue;
+                    }
                     let stored = mail::upsert_message(tx, account_id, folder_id, Some(uid), &meta)?;
                     if stored.is_new {
                         if !attachments.is_empty() {
@@ -738,15 +775,28 @@ impl Session {
                         if meta.flags & Flags::SEEN == 0 && !from_me {
                             fresh_unread.push(stored.thread_id);
                         }
+                        if notify_new && is_inbox && !from_me && meta.flags & Flags::DRAFT == 0 {
+                            arrivals.push(crate::rules::Incoming {
+                                account_id,
+                                thread_id: stored.thread_id,
+                                from: meta.from.clone(),
+                                to: meta.to.clone(),
+                                cc: meta.cc.clone(),
+                                subject: meta.subject.clone(),
+                            });
+                        }
                     }
                     if let Some(labels) = labels {
                         mail::set_message_labels(tx, stored.message_id, &labels)?;
                     }
                     threads.insert(stored.thread_id);
                 }
-                Ok((threads, fresh_unread))
+                Ok((threads, fresh_unread, arrivals))
             })
             .await?;
+        // The user's rules run on new inbox mail before anyone is notified.
+        let quiet = crate::rules::apply(&self.engine, &arrivals);
+        fresh_unread.retain(|t| !quiet.contains(t));
         if notify_new && is_inbox_like && !fresh_unread.is_empty() {
             let ids: Vec<i64> = fresh_unread;
             let engine = self.engine.clone();
@@ -951,6 +1001,7 @@ impl Session {
                                     .map(|i| (i.message_id, *dst))
                             })
                             .collect();
+                        let moved = map.clone();
                         self.engine.db.write(|tx| {
                             if let Some(f) = mail::folder_by_remote(tx, account_id, &dest)? {
                                 for (mid, uid) in map {
@@ -962,6 +1013,41 @@ impl Session {
                             }
                             Ok(())
                         })?;
+                        // Read/star changes made while the move was queued could not reach
+                        // the old location; carry them over to the new one.
+                        let (seen, flagged) = self.engine.db.read(|c| {
+                            let mut seen = Vec::new();
+                            let mut flagged = Vec::new();
+                            for (mid, uid) in &moved {
+                                let flags: i64 =
+                                    rusqlite::OptionalExtension::optional(c.query_row(
+                                        "SELECT flags FROM messages WHERE id = ?",
+                                        [mid],
+                                        |r| r.get(0),
+                                    ))?
+                                    .unwrap_or(0);
+                                if flags & Flags::SEEN != 0 {
+                                    seen.push(*uid);
+                                }
+                                if flags & Flags::FLAGGED != 0 {
+                                    flagged.push(*uid);
+                                }
+                            }
+                            Ok((seen, flagged))
+                        })?;
+                        if !seen.is_empty() || !flagged.is_empty() {
+                            self.select(dest_folder).await?;
+                            if !seen.is_empty() {
+                                self.client
+                                    .uid_store(&seen, "+FLAGS.SILENT", &["\\Seen"])
+                                    .await?;
+                            }
+                            if !flagged.is_empty() {
+                                self.client
+                                    .uid_store(&flagged, "+FLAGS.SILENT", &["\\Flagged"])
+                                    .await?;
+                            }
+                        }
                     }
                 }
                 Ok(())

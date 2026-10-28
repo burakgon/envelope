@@ -16,6 +16,7 @@ pub mod mime;
 pub mod model;
 pub mod oauth;
 pub mod providers;
+pub mod rules;
 pub mod search;
 pub mod secrets;
 pub mod smtp;
