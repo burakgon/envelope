@@ -82,7 +82,7 @@ export const defaultSettings: Settings = {
   splitInbox: true,
   conversationView: true,
   markReadDelayMs: 600,
-  undoSendSeconds: 6,
+  undoSendSeconds: 5,
   loadRemoteImages: 'ask',
   trustedSenders: [],
   defaultReply: 'reply',
