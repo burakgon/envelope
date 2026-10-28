@@ -801,9 +801,11 @@ impl Session {
             let ids: Vec<i64> = fresh_unread;
             let engine = self.engine.clone();
             let inbox = self.role_folder(FolderRole::Inbox).map(|f| f.id);
-            // Notify only for threads that actually landed in the inbox.
-            let summaries = engine.db.read(move |c| {
-                let mut list = mail::thread_summaries(c, &ids)?;
+            // Notify only for threads that actually landed in the inbox. The
+            // threads are refreshed first so that they name their senders.
+            let summaries = engine.db.write(move |tx| {
+                mail::refresh_threads(tx, &ids.iter().copied().collect())?;
+                let mut list = mail::thread_summaries(tx, &ids)?;
                 if let Some(inbox) = inbox {
                     list.retain(|t| t.folder_ids.contains(&inbox) || t.folder_ids.is_empty());
                 }

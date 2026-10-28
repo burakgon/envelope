@@ -1,6 +1,6 @@
 //! Desktop notifications (freedesktop.org) with click-to-open.
 
-use envelope_core::model::ThreadSummary;
+use envelope_core::model::{FlagChange, MoveTarget, ThreadSummary};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::AppState;
@@ -12,10 +12,15 @@ fn enabled(app: &AppHandle, key: &str) -> bool {
         .unwrap_or(true)
 }
 
+/// Whether the user is looking at the main window. A window hidden in the
+/// tray or minimized can still report focus, depending on the window
+/// manager, so those count as not looked at.
 fn main_focused(app: &AppHandle) -> bool {
-    app.get_webview_window("main")
-        .and_then(|w| w.is_focused().ok())
-        .unwrap_or(false)
+    app.get_webview_window("main").is_some_and(|w| {
+        w.is_visible().unwrap_or(false)
+            && !w.is_minimized().unwrap_or(false)
+            && w.is_focused().unwrap_or(false)
+    })
 }
 
 fn show(
@@ -24,7 +29,21 @@ fn show(
     body: String,
     on_click: impl FnOnce(&AppHandle) + Send + 'static,
 ) {
+    show_with(app, summary, body, &[], move |app, _| on_click(app));
+}
+
+/// Shows a notification with extra buttons (`(action id, label)`). Clicking
+/// the notification itself brings the window up and reports `"default"`;
+/// the buttons act without opening the window.
+fn show_with(
+    app: &AppHandle,
+    summary: String,
+    body: String,
+    buttons: &[(&'static str, &'static str)],
+    on_action: impl FnOnce(&AppHandle, &str) + Send + 'static,
+) {
     let app = app.clone();
+    let buttons = buttons.to_vec();
     std::thread::spawn(move || {
         let mut n = notify_rust::Notification::new();
         n.appname("Envelope")
@@ -35,6 +54,9 @@ fn show(
                 "io.github.burakgon.Envelope".into(),
             ))
             .action("default", "Open");
+        for (id, label) in &buttons {
+            n.action(id, label);
+        }
         if let Ok(handle) = n.show() {
             handle.wait_for_action(|action| {
                 if action == "default" {
@@ -43,15 +65,19 @@ fn show(
                         let _ = w.show();
                         let _ = w.set_focus();
                     }
-                    on_click(&app);
+                    on_action(&app, action);
+                } else if buttons.iter().any(|(id, _)| *id == action) {
+                    on_action(&app, action);
                 }
             });
         }
     });
 }
 
-pub fn new_mail(app: &AppHandle, _account_id: i64, threads: &[ThreadSummary]) {
-    if !enabled(app, "notifications") || main_focused(app) || threads.is_empty() {
+pub fn new_mail(app: &AppHandle, account_id: i64, threads: &[ThreadSummary]) {
+    let focused = main_focused(app);
+    tracing::debug!(account_id, threads = threads.len(), focused, "new mail");
+    if !enabled(app, "notifications") || focused || threads.is_empty() {
         return;
     }
     let (summary, body, thread) = if threads.len() == 1 {
@@ -61,7 +87,12 @@ pub fn new_mail(app: &AppHandle, _account_id: i64, threads: &[ThreadSummary]) {
             .last()
             .map(|p| p.name.clone().unwrap_or_else(|| p.email.clone()))
             .unwrap_or_default();
-        (from, format!("{}\n{}", t.subject, t.snippet), Some(t.id))
+        let body = if t.snippet.trim().is_empty() {
+            t.subject.clone()
+        } else {
+            format!("{}\n{}", t.subject, t.snippet)
+        };
+        (from, body, Some(t.id))
     } else {
         (
             format!("{} new messages", threads.len()),
@@ -74,8 +105,36 @@ pub fn new_mail(app: &AppHandle, _account_id: i64, threads: &[ThreadSummary]) {
             None,
         )
     };
-    show(app, summary, body, move |app| {
-        let _ = app.emit("open-thread", thread);
+    let buttons: &[(&str, &str)] = if thread.is_some() {
+        &[("archive", "Archive"), ("read", "Mark as Read")]
+    } else {
+        &[]
+    };
+    show_with(app, summary, body, buttons, move |app, action| {
+        let Some(state) = app.try_state::<AppState>() else {
+            return;
+        };
+        let result = match (action, thread) {
+            ("archive", Some(id)) => state
+                .engine
+                .move_threads(&[id], None, &MoveTarget::Archive)
+                .map(|_| ()),
+            ("read", Some(id)) => state.engine.set_flags(
+                &[id],
+                &[],
+                &FlagChange {
+                    seen: Some(true),
+                    flagged: None,
+                },
+            ),
+            _ => {
+                let _ = app.emit("open-thread", thread);
+                Ok(())
+            }
+        };
+        if let Err(e) = result {
+            tracing::warn!("notification action {action} failed: {e}");
+        }
     });
 }
 
