@@ -176,20 +176,52 @@ fn embed_inline_parts(html: &str, raw: &[u8], parts: &[mail::AttachmentMeta]) ->
                 part.mime_type,
                 base64::engine::general_purpose::STANDARD.encode(bytes)
             );
-            html = html.replace(&needle, &url);
+            html = replace_reference(&html, &needle, &url);
         }
     }
     html
+}
+
+/// Replaces `needle` where it is a whole reference: not where it only
+/// begins a longer one (`cid:part1` inside `cid:part10`).
+fn replace_reference(html: &str, needle: &str, with: &str) -> String {
+    let mut out = String::with_capacity(html.len());
+    let mut rest = html;
+    while let Some(i) = rest.find(needle) {
+        let after = rest[i + needle.len()..].chars().next();
+        let whole = !after.is_some_and(|c| c.is_alphanumeric() || "._@-$%+=".contains(c));
+        out.push_str(&rest[..i]);
+        out.push_str(if whole { with } else { needle });
+        rest = &rest[i + needle.len()..];
+    }
+    out.push_str(rest);
+    out
 }
 
 /// A copy of an imported event that cannot send anything: the guests and
 /// organizer are dropped (a calendar server would otherwise mail them
 /// invitations).
 fn importable(mut event: Event, tz: &envelope_ical::TzContext) -> Event {
+    // A changed occurrence without its series is an event of its own.
+    event.uid = import_uid(&event, tz);
+    event.recurrence_id = None;
     event.attendees.clear();
     event.organizer = None;
     utc_where_unknown(&mut event, tz);
     event
+}
+
+/// The UID an event is added under: its own, or for a lone changed
+/// occurrence one of its own (several can share their series' UID).
+fn import_uid(event: &Event, tz: &envelope_ical::TzContext) -> String {
+    match &event.recurrence_id {
+        Some(rid) => format!(
+            "{}-{}",
+            event.uid,
+            envelope_ical::to_utc(rid, tz, local_tz()).timestamp()
+        ),
+        None => event.uid.clone(),
+    }
 }
 
 /// Times in zones without an IANA name become UTC, so that they keep their
@@ -199,9 +231,14 @@ pub(crate) fn utc_where_unknown(event: &mut Event, tz: &envelope_ical::TzContext
         if let EventTime::Zoned { tzid, .. } = time
             && tzid.parse::<chrono_tz::Tz>().is_err()
         {
-            *time = EventTime::Utc {
-                at: envelope_ical::to_utc(time, tz, local_tz()),
-            };
+            // A known zone under another name keeps its clock changes.
+            if let Some(zone) = envelope_ical::resolve_tzid(tzid) {
+                *tzid = zone.name().to_owned();
+            } else {
+                *time = EventTime::Utc {
+                    at: envelope_ical::to_utc(time, tz, local_tz()),
+                };
+            }
         }
     };
     fix(&mut event.start);
@@ -224,20 +261,48 @@ fn file_events(data: &envelope_ical::CalendarData) -> Vec<&Event> {
 }
 
 impl Engine {
+    /// Whether an event from a file is already on one of the user's own
+    /// calendars (subscribed feeds do not count).
+    fn already_on_calendar(&self, event: &Event, tz: &envelope_ical::TzContext) -> Result<bool> {
+        let subscribed: std::collections::HashSet<i64> = self
+            .db
+            .read(cdb::list_calendars)?
+            .into_iter()
+            .filter(|c| c.kind == "subscription")
+            .map(|c| c.id)
+            .collect();
+        let own = |uid: &str| -> Result<Vec<cdb::EventRow>> {
+            Ok(self
+                .db
+                .read(|c| cdb::rows_by_uid(c, uid))?
+                .into_iter()
+                .filter(|r| !subscribed.contains(&r.calendar_id))
+                .collect())
+        };
+        if !own(&import_uid(event, tz))?.is_empty() {
+            return Ok(true);
+        }
+        // A lone occurrence whose whole series is already there.
+        Ok(event.recurrence_id.is_some()
+            && own(&event.uid)?.iter().any(|r| r.recurrence_id.is_none()))
+    }
+
     /// Reads a message or calendar file.
     pub async fn open_file(&self, path: &Path) -> Result<OpenedFile> {
         let data = read(path).await?;
         let display = path.to_string_lossy().into_owned();
         match kind_of(path, &data) {
             Some(Kind::Message) => {
-                let (meta, _) = mime::parse_full(&data)
-                    .ok_or_else(|| Error::Invalid("This file is not a readable message.".into()))?;
+                let unreadable = || Error::Invalid("This file is not a readable message.".into());
+                let (meta, outer_body) = mime::parse_full(&data).ok_or_else(unreadable)?;
                 // Encrypted mail is shown from its decrypted content, whose
                 // protected headers carry the real subject.
                 let decrypted = self.decrypt_file_message(&data).await?;
                 let content = decrypted.as_deref().unwrap_or(&data);
-                let (inner, body) = mime::parse_full(content)
-                    .ok_or_else(|| Error::Invalid("This file is not a readable message.".into()))?;
+                let (inner, body) = match &decrypted {
+                    Some(d) => mime::parse_full(d).ok_or_else(unreadable)?,
+                    None => (meta.clone(), outer_body),
+                };
                 let html = body
                     .html
                     .as_deref()
@@ -283,12 +348,9 @@ impl Engine {
                     .filter(|n| !n.is_empty());
                 let mut events = Vec::new();
                 for event in file_events(&cal) {
-                    let exists = !self
-                        .db
-                        .read(|c| cdb::rows_by_uid(c, &event.uid))?
-                        .is_empty();
+                    let exists = self.already_on_calendar(event, &cal.tz)?;
                     events.push(FileEvent {
-                        uid: event.uid.clone(),
+                        uid: import_uid(event, &cal.tz),
                         summary: event.summary.clone(),
                         start: envelope_ical::to_utc(&event.start, &cal.tz, local_tz())
                             .timestamp_millis(),
@@ -354,14 +416,13 @@ impl Engine {
             skipped: 0,
         };
         for event in file_events(&cal) {
-            if uids.as_ref().is_some_and(|u| !u.contains(&event.uid)) {
+            if uids
+                .as_ref()
+                .is_some_and(|u| !u.contains(&import_uid(event, &cal.tz)))
+            {
                 continue;
             }
-            if !self
-                .db
-                .read(|c| cdb::rows_by_uid(c, &event.uid))?
-                .is_empty()
-            {
+            if self.already_on_calendar(event, &cal.tz)? {
                 result.skipped += 1;
                 continue;
             }
@@ -539,8 +600,27 @@ mod tests {
         assert!(matches!(event.start, EventTime::Utc { .. }));
         assert!(matches!(event.end, EventTime::Utc { .. }));
         assert_eq!(event.rrule.as_deref(), Some("FREQ=WEEKLY"));
+        // The lone occurrence becomes an event of its own.
+        let lone = importable(events[1].clone(), &data.tz);
+        assert!(lone.uid.starts_with("o1-") && lone.recurrence_id.is_none());
         let event = importable(events[2].clone(), &data.tz);
         assert!(matches!(&event.start, EventTime::Zoned { tzid, .. } if tzid == "Europe/Istanbul"));
+    }
+
+    #[test]
+    fn replaces_whole_references_only() {
+        assert_eq!(
+            replace_reference(
+                r#"<img src="cid:part1"><img src="cid:part10">"#,
+                "cid:part1",
+                "data:x"
+            ),
+            r#"<img src="data:x"><img src="cid:part10">"#
+        );
+        assert_eq!(
+            replace_reference("url(cid:a@b)", "cid:a@b", "data:y"),
+            "url(data:y)"
+        );
     }
 
     #[test]

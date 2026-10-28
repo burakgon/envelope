@@ -3,7 +3,8 @@
 #   IMAP  127.0.0.1:1143 (STARTTLS) and 127.0.0.1:1993 (TLS, self-signed)
 #   SMTP  127.0.0.1:1587 (no TLS, any password)
 #   DAV   http://127.0.0.1:5232/ (Radicale CalDAV/CardDAV)
-#   Sieve 127.0.0.1:14190 (ManageSieve, STARTTLS; needs Pigeonhole)
+#   Sieve 127.0.0.1:14190 (ManageSieve, STARTTLS; needs Pigeonhole; run Envelope with
+#         ENVELOPE_SIEVE_PORT=14190 to use it for automatic replies)
 # Accounts: alex@envelope.test / password, sam@envelope.test / password
 # Data lives in .devserver/ (delete it to start fresh).
 set -euo pipefail

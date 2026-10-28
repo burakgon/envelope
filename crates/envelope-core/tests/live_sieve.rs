@@ -44,7 +44,11 @@ async fn automatic_replies_through_managesieve() {
     if std::env::var("ENVELOPE_TEST_IMAP").is_err() {
         return;
     }
-    unsafe { std::env::set_var("ENVELOPE_SECRETS", "file") };
+    unsafe {
+        std::env::set_var("ENVELOPE_SECRETS", "file");
+        // The development server's ManageSieve port.
+        std::env::set_var("ENVELOPE_SIEVE_PORT", "14190");
+    }
 
     // The user already filters mail with a script of their own.
     let mut client = server().await;

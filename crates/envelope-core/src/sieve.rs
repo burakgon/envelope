@@ -45,13 +45,25 @@ fn quote(text: &str) -> String {
     format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
+/// A tag for the block's markers, from its content, so that no text inside
+/// the block (the reply message) can look like its end.
+fn tag(settings: &str) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(settings.as_bytes())
+        .iter()
+        .take(4)
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
 /// The marked block holding the rule.
 fn block(v: &Vacation) -> String {
     let settings = serde_json::to_string(v).unwrap_or_default();
-    let mut out = format!("{BEGIN} (managed by Envelope)\n{SETTINGS} {settings}\n");
+    let tag = tag(&settings);
+    let end_line = format!("{END} {tag}\n");
+    let mut out = format!("{BEGIN} {tag} (managed by Envelope)\n{SETTINGS} {settings}\n");
     if !v.enabled {
-        out.push_str(END);
-        out.push('\n');
+        out.push_str(&end_line);
         return out;
     }
     let scheduled = v.start.is_some() || v.end.is_some();
@@ -91,17 +103,37 @@ fn block(v: &Vacation) -> String {
         out.push_str(&action);
         out.push('\n');
     }
-    out.push_str(END);
-    out.push('\n');
+    out.push_str(&end_line);
     out
+}
+
+/// Where Envelope's block starts (at the start of a line) and its tag.
+fn find_block(script: &str) -> Option<(usize, String)> {
+    let mut from = 0;
+    while let Some(i) = script[from..].find(BEGIN).map(|i| from + i) {
+        if i == 0 || script.as_bytes()[i - 1] == b'\n' {
+            let tag = script[i + BEGIN.len()..]
+                .split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .to_string();
+            return Some((i, tag));
+        }
+        from = i + BEGIN.len();
+    }
+    None
 }
 
 /// The script without Envelope's block.
 fn without_block(script: &str) -> String {
-    let Some(begin) = script.find(BEGIN) else {
+    let Some((begin, tag)) = find_block(script) else {
         return script.to_string();
     };
-    let Some(end) = script[begin..].find(END).map(|i| begin + i + END.len()) else {
+    let end_line = format!("\n{END} {tag}");
+    let Some(end) = script[begin..]
+        .find(&end_line)
+        .map(|i| begin + i + end_line.len())
+    else {
         return script.to_string();
     };
     let rest = script[end..]
@@ -113,11 +145,56 @@ fn without_block(script: &str) -> String {
 
 /// The settings kept in Envelope's block, if the script has one.
 pub fn read(script: &str) -> Option<Vacation> {
-    let begin = script.find(BEGIN)?;
-    let line = script[begin..]
-        .lines()
-        .find_map(|l| l.trim().strip_prefix(SETTINGS))?;
-    serde_json::from_str(line.trim()).ok()
+    let (begin, _) = find_block(script)?;
+    let line = script[begin..].lines().nth(1)?;
+    serde_json::from_str(line.trim().strip_prefix(SETTINGS)?.trim()).ok()
+}
+
+/// Whether the script has a `vacation` action of its own (one set up in
+/// webmail, say): Sieve allows only one.
+fn has_vacation(script: &str) -> bool {
+    let bytes = script.as_bytes();
+    let mut word = String::new();
+    let mut i = 0;
+    let mut found = false;
+    let mut check = |word: &mut String| {
+        if word.eq_ignore_ascii_case("vacation") {
+            found = true;
+        }
+        word.clear();
+    };
+    while i < bytes.len() {
+        match bytes[i] {
+            b'#' => {
+                while i < bytes.len() && bytes[i] != b'\n' {
+                    i += 1;
+                }
+                check(&mut word);
+            }
+            b'/' if bytes.get(i + 1) == Some(&b'*') => {
+                i = script[i + 2..]
+                    .find("*/")
+                    .map_or(bytes.len(), |e| i + 2 + e + 2);
+                check(&mut word);
+                continue;
+            }
+            b'"' => {
+                i += 1;
+                while i < bytes.len() && bytes[i] != b'"' {
+                    if bytes[i] == b'\\' {
+                        i += 1;
+                    }
+                    i += 1;
+                }
+                check(&mut word);
+            }
+            c if c.is_ascii_alphanumeric() || c == b'_' || c == b':' => word.push(c as char),
+            _ => check(&mut word),
+        }
+        i += 1;
+    }
+    check(&mut word);
+    found
 }
 
 /// Where `require` commands end: the block goes after the script's own,
@@ -159,11 +236,24 @@ fn after_requires(script: &str) -> usize {
             i += 1;
         }
         i = (i + 1).min(bytes.len());
-        // Keep the rest of the line (a trailing comment) with the require.
-        while i < bytes.len() && bytes[i] != b'\n' {
-            i += 1;
+        // A comment after the require stays with it; a command on the same
+        // line does not.
+        let mut j = i;
+        while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t') {
+            j += 1;
         }
-        i = (i + 1).min(bytes.len());
+        match bytes.get(j) {
+            Some(b'#') => {
+                while j < bytes.len() && bytes[j] != b'\n' {
+                    j += 1;
+                }
+                i = (j + 1).min(bytes.len());
+            }
+            Some(b'\r') if bytes.get(j + 1) == Some(&b'\n') => i = j + 2,
+            Some(b'\n') => i = j + 1,
+            None => i = j,
+            _ => {}
+        }
         end = i;
     }
 }
@@ -576,6 +666,12 @@ pub async fn save(login: &Login<'_>, vacation: &Vacation) -> Result<()> {
     match active {
         Some(name) => {
             let script = client.get(&name).await?;
+            if vacation.enabled && has_vacation(&without_block(&script)) {
+                client.logout().await;
+                return Err(Error::Invalid(
+                    "Your mail server already sends an automatic reply that was set up elsewhere, for example in webmail. Turn that one off there first.".into(),
+                ));
+            }
             let updated = apply(&script, Some(vacation));
             if updated != script {
                 client.put(&name, &updated).await?;
@@ -620,7 +716,12 @@ mod tests {
              vacation :days 4 :subject \"Out of office\" :addresses [\"alex@example.com\"] \
              \"Back on \\\"Monday\\\".\nUrgent? Call me.\";\n}\n"
         ), "{script}");
-        assert!(script.ends_with("# END Envelope automatic reply\nif header :contains \"subject\" \"[list]\" { fileinto \"Lists\"; }\n"));
+        assert!(script.contains("\n# END Envelope automatic reply "));
+        assert!(
+            script.ends_with(
+                "\nif header :contains \"subject\" \"[list]\" { fileinto \"Lists\"; }\n"
+            )
+        );
         assert_eq!(read(&script), Some(away()));
 
         // Changing the reply replaces the block; removing it restores the script.
@@ -645,9 +746,49 @@ mod tests {
     }
 
     #[test]
+    fn the_message_cannot_end_the_block() {
+        let tricky = Vacation {
+            message: "Away.\n# END Envelope automatic reply\nBack soon.".into(),
+            ..away()
+        };
+        let user = "require \"fileinto\";\nkeep;\n";
+        let script = apply(user, Some(&tricky));
+        assert_eq!(read(&script), Some(tricky.clone()));
+        assert_eq!(apply(&script, None), user);
+    }
+
+    #[test]
+    fn notices_vacation_rules_set_up_elsewhere() {
+        assert!(has_vacation(
+            "require [\"vacation\"];\nvacation :days 7 \"Away\";\n"
+        ));
+        assert!(has_vacation(
+            "require \"vacation\"; if true { Vacation \"x\"; }"
+        ));
+        // Mentions in strings and comments are not rules.
+        assert!(!has_vacation(
+            "require [\"vacation\", \"fileinto\"]; # vacation later\nfileinto \"vacation\";"
+        ));
+        assert!(!has_vacation("/* vacation */ keep;"));
+        // Envelope's own block is set aside before checking.
+        let ours = apply("keep;\n", Some(&away()));
+        assert!(has_vacation(&ours));
+        assert!(!has_vacation(&without_block(&ours)));
+    }
+
+    #[test]
     fn finds_the_end_of_the_requires() {
         assert_eq!(after_requires(""), 0);
         assert_eq!(after_requires("keep;\n"), 0);
+        // A command on the same line as the require stays after the block.
+        let one_line = "require \"fileinto\"; if true { fileinto \"X\"; }\n";
+        assert_eq!(
+            &one_line[after_requires(one_line)..],
+            " if true { fileinto \"X\"; }\n"
+        );
+        let script = apply(one_line, Some(&away()));
+        let block_at = script.find("# BEGIN").unwrap();
+        assert!(block_at < script.find("if true").unwrap());
         let s = "/* rules */\nrequire [\"a\", \"b;c\"];\n# x\nkeep;";
         assert_eq!(&s[after_requires(s)..], "# x\nkeep;");
     }

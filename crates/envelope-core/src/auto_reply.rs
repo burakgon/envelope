@@ -73,14 +73,18 @@ fn unsupported() -> Error {
     Error::Invalid("This account's mail server does not offer automatic replies.".into())
 }
 
-/// Local midnight at the start of `day`.
+/// Local midnight at the start of `day` (or the first moment of the day
+/// where a clock change skips midnight).
 fn day_start(day: NaiveDate) -> DateTime<Utc> {
     let tz = local_tz();
     let midnight = day.and_hms_opt(0, 0, 0).unwrap_or_default();
-    tz.from_local_datetime(&midnight)
-        .earliest()
-        .unwrap_or_else(|| tz.from_utc_datetime(&midnight))
-        .with_timezone(&Utc)
+    (0..=12)
+        .find_map(|half_hours| {
+            tz.from_local_datetime(&(midnight + Duration::minutes(30 * half_hours)))
+                .earliest()
+        })
+        .map(|t| t.with_timezone(&Utc))
+        .unwrap_or_else(|| midnight.and_utc())
 }
 
 fn local_day(at: DateTime<Utc>) -> NaiveDate {
@@ -88,16 +92,29 @@ fn local_day(at: DateTime<Utc>) -> NaiveDate {
 }
 
 /// The period of a reply as instants: from the first day's start to the end
-/// of the last day (exclusive).
-fn period(reply: &AutoReply) -> Result<Option<(DateTime<Utc>, DateTime<Utc>)>> {
-    match (reply.start, reply.end) {
-        (None, None) => Ok(None),
-        (Some(start), Some(end)) if start <= end => {
-            Ok(Some((day_start(start), day_start(end + Duration::days(1)))))
-        }
-        (Some(_), Some(_)) => Err(Error::Invalid(
+/// of the last day (exclusive). Either side may be open (Gmail and Sieve
+/// allow that; Exchange and Microsoft 365 want both).
+fn period(reply: &AutoReply) -> Result<(Option<DateTime<Utc>>, Option<DateTime<Utc>>)> {
+    if let (Some(start), Some(end)) = (reply.start, reply.end)
+        && start > end
+    {
+        return Err(Error::Invalid(
             "The last day of the automatic reply comes before the first.".into(),
-        )),
+        ));
+    }
+    Ok((
+        reply.start.map(day_start),
+        reply.end.map(|e| day_start(e + Duration::days(1))),
+    ))
+}
+
+/// Both ends of a period, for services that schedule only closed ones.
+fn closed(
+    period: (Option<DateTime<Utc>>, Option<DateTime<Utc>>),
+) -> Result<Option<(DateTime<Utc>, DateTime<Utc>)>> {
+    match period {
+        (None, None) => Ok(None),
+        (Some(start), Some(end)) => Ok(Some((start, end))),
         _ => Err(Error::Invalid(
             "Choose both the first and the last day of the automatic reply.".into(),
         )),
@@ -308,6 +325,7 @@ impl Engine {
                     .automatic_replies()
                     .await
                     .map_err(|e| graph_error(e, "Microsoft"))?;
+                let period = closed(period)?;
                 setting.status = match (reply.enabled, period) {
                     (false, _) => S::Disabled,
                     (true, None) => S::AlwaysEnabled,
@@ -338,6 +356,7 @@ impl Engine {
                     .oof_settings(&account.email)
                     .await
                     .map_err(crate::sync::ews::ews_error)?;
+                let period = closed(period)?;
                 settings.state = match (reply.enabled, period) {
                     (false, _) => S::Disabled,
                     (true, None) => S::Enabled,
@@ -376,8 +395,8 @@ impl Engine {
                     restrict_to_contacts: reply.audience == Audience::Contacts,
                     restrict_to_domain: reply.audience == Audience::Organization
                         && !is_consumer_gmail(&account.email),
-                    start_time: period.map(|(s, _)| s.timestamp_millis()),
-                    end_time: period.map(|(_, e)| e.timestamp_millis()),
+                    start_time: period.0.map(|s| s.timestamp_millis()),
+                    end_time: period.1.map(|e| e.timestamp_millis()),
                 };
                 client.set_vacation(&settings).await.map_err(google_error)?;
                 Ok(())
@@ -427,12 +446,11 @@ fn sieve_login<'a>(account: &'a AccountRow, password: &'a str) -> Result<sieve::
     let local = matches!(imap.host.as_str(), "localhost" | "127.0.0.1" | "::1");
     Ok(sieve::Login {
         host: &imap.host,
-        port: if local && imap.port != 143 && imap.port != 993 {
-            // The development server keeps its services on high ports.
-            14190
-        } else {
-            sieve::PORT
-        },
+        // The development server keeps its services on high ports.
+        port: std::env::var("ENVELOPE_SIEVE_PORT")
+            .ok()
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(sieve::PORT),
         user: if imap.username.is_empty() {
             &account.email
         } else {
@@ -482,7 +500,7 @@ mod tests {
             end: NaiveDate::from_ymd_opt(2026, 11, 6),
             ..Default::default()
         };
-        let (start, end) = period(&reply).unwrap().unwrap();
+        let (start, end) = closed(period(&reply).unwrap()).unwrap().unwrap();
         assert_eq!(end - start, Duration::days(5));
         assert_eq!(days(Some(start), Some(end)), (reply.start, reply.end));
         let backwards = AutoReply {
@@ -491,11 +509,14 @@ mod tests {
             ..Default::default()
         };
         assert!(period(&backwards).is_err());
+        // Open-ended periods are fine where the service allows them.
         let open = AutoReply {
             start: reply.start,
             ..Default::default()
         };
-        assert!(period(&open).is_err());
+        let (from, until) = period(&open).unwrap();
+        assert_eq!((from.is_some(), until.is_none()), (true, true));
+        assert!(closed((from, until)).is_err());
     }
 
     #[test]

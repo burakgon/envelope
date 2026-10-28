@@ -37,18 +37,27 @@ fn instant(ms: i64) -> Result<DateTime<Utc>> {
     DateTime::from_timestamp_millis(ms).ok_or_else(|| Error::Invalid("bad time".into()))
 }
 
-/// Overlapping or touching periods merged, sorted by start.
-fn merged(mut busy: Vec<Busy>) -> Vec<Busy> {
-    busy.sort_by_key(|b| (b.start, b.end));
+/// Overlapping or touching periods merged (busy and tentative ones each on
+/// their own), sorted by start.
+fn merged(busy: Vec<Busy>) -> Vec<Busy> {
     let mut out: Vec<Busy> = Vec::new();
-    for b in busy {
-        match out.last_mut() {
-            Some(last) if b.start <= last.end && b.tentative == last.tentative => {
-                last.end = last.end.max(b.end);
+    for tentative in [false, true] {
+        let mut list: Vec<Busy> = busy
+            .iter()
+            .copied()
+            .filter(|b| b.tentative == tentative)
+            .collect();
+        list.sort_by_key(|b| (b.start, b.end));
+        let mut joined: Vec<Busy> = Vec::new();
+        for b in list {
+            match joined.last_mut() {
+                Some(last) if b.start <= last.end => last.end = last.end.max(b.end),
+                _ => joined.push(b),
             }
-            _ => out.push(b),
         }
+        out.extend(joined);
     }
+    out.sort_by_key(|b| (b.start, b.end));
     out
 }
 
@@ -121,6 +130,33 @@ impl Engine {
         }
         let calendar = self.db.read(|c| cdb::get_calendar(c, calendar_id))?;
         let (start, end) = (instant(from)?, instant(to)?);
+        // Without the service's answer, the user's own times are still worth showing.
+        let found = match self.ask_free_busy(&calendar, &others, start, end).await {
+            Ok(found) => found,
+            Err(e) => {
+                tracing::info!(calendar = calendar_id, "free/busy not available: {e}");
+                Vec::new()
+            }
+        };
+        for (email, busy) in found {
+            if let Some(a) = answers
+                .iter_mut()
+                .find(|a| a.busy.is_none() && a.email.eq_ignore_ascii_case(&email))
+            {
+                a.busy = Some(merged(busy));
+            }
+        }
+        Ok(answers)
+    }
+
+    /// Busy periods of other people, from the calendar's own service.
+    async fn ask_free_busy(
+        &self,
+        calendar: &cdb::CalendarRow,
+        others: &[String],
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<(String, Vec<Busy>)>> {
         let mut found: Vec<(String, Vec<Busy>)> = Vec::new();
         match calendar.kind.as_str() {
             "google" => {
@@ -128,26 +164,29 @@ impl Engine {
                     .account_id
                     .ok_or_else(|| Error::NotFound("account".into()))?;
                 let client = crate::sync::calendar::google_client(self, account)?;
-                let result = client
-                    .free_busy(&envelope_google::FreeBusyRequest {
-                        time_min: start,
-                        time_max: end,
-                        calendar_ids: others.clone(),
-                    })
-                    .await
-                    .map_err(crate::sync::calendar::google_err)?;
-                for (email, cal) in result.calendars {
-                    if cal.errors.is_empty() {
-                        let busy = cal
-                            .busy
-                            .iter()
-                            .map(|b| Busy {
-                                start: b.start.timestamp_millis(),
-                                end: b.end.timestamp_millis(),
-                                tentative: false,
-                            })
-                            .collect();
-                        found.push((email, busy));
+                // Google answers for at most 50 calendars at a time.
+                for chunk in others.chunks(50) {
+                    let result = client
+                        .free_busy(&envelope_google::FreeBusyRequest {
+                            time_min: start,
+                            time_max: end,
+                            calendar_ids: chunk.to_vec(),
+                        })
+                        .await
+                        .map_err(crate::sync::calendar::google_err)?;
+                    for (email, cal) in result.calendars {
+                        if cal.errors.is_empty() {
+                            let busy = cal
+                                .busy
+                                .iter()
+                                .map(|b| Busy {
+                                    start: b.start.timestamp_millis(),
+                                    end: b.end.timestamp_millis(),
+                                    tentative: false,
+                                })
+                                .collect();
+                            found.push((email, busy));
+                        }
                     }
                 }
             }
@@ -217,15 +256,7 @@ impl Engine {
             // CalDAV and local calendars: nobody else's calendar to ask.
             _ => {}
         }
-        for (email, busy) in found {
-            if let Some(a) = answers
-                .iter_mut()
-                .find(|a| a.busy.is_none() && a.email.eq_ignore_ascii_case(&email))
-            {
-                a.busy = Some(merged(busy));
-            }
-        }
-        Ok(answers)
+        Ok(found)
     }
 }
 
@@ -249,6 +280,11 @@ mod tests {
                 b(50, 60, true)
             ]),
             [b(0, 25, false), b(30, 40, false), b(50, 60, true)]
+        );
+        // A tentative period in between does not keep busy ones apart.
+        assert_eq!(
+            merged(vec![b(0, 10, false), b(5, 8, true), b(9, 20, false)]),
+            [b(0, 20, false), b(5, 8, true)]
         );
     }
 }

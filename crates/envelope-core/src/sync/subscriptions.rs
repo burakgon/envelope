@@ -58,7 +58,7 @@ fn http() -> Result<reqwest::Client> {
 
 /// A fetched feed, or `None` when it did not change since `state`.
 struct Feed {
-    text: String,
+    bytes: Vec<u8>,
     etag: Option<String>,
     modified: Option<String>,
 }
@@ -101,27 +101,57 @@ async fn fetch(
             .map(str::to_owned)
     };
     let (etag, modified) = (header("etag"), header("last-modified"));
-    let bytes = response
-        .bytes()
+    let too_large = || Error::Invalid("This calendar is too large to subscribe to.".into());
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_FEED as u64)
+    {
+        return Err(too_large());
+    }
+    // Read in pieces, so that an endless answer is cut off early.
+    let mut bytes = Vec::new();
+    let mut response = response;
+    while let Some(chunk) = response
+        .chunk()
         .await
-        .map_err(|e| Error::Network(e.to_string()))?;
-    if bytes.len() > MAX_FEED {
-        return Err(Error::Invalid(
-            "This calendar is too large to subscribe to.".into(),
-        ));
+        .map_err(|e| Error::Network(e.to_string()))?
+    {
+        if bytes.len() + chunk.len() > MAX_FEED {
+            return Err(too_large());
+        }
+        bytes.extend_from_slice(&chunk);
     }
     Ok(Some(Feed {
-        text: String::from_utf8_lossy(&bytes).into_owned(),
+        bytes,
         etag,
         modified,
     }))
 }
 
-fn digest(text: &str) -> String {
-    Sha256::digest(text.as_bytes())
+fn digest(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect()
+}
+
+/// The parsed feed (legacy character sets decoded) and its events as they
+/// are stored: times in unnamed zones fixed, the feed's own alarms dropped.
+fn feed_calendar(feed: &Feed) -> Result<(envelope_ical::CalendarData, Vec<envelope_ical::Event>)> {
+    let data = envelope_ical::parse_calendar_bytes(&feed.bytes)
+        .map_err(|_| Error::Invalid("This address does not lead to a calendar.".into()))?;
+    let events = data
+        .events
+        .iter()
+        .cloned()
+        .map(|mut e| {
+            crate::files::utc_where_unknown(&mut e, &data.tz);
+            // A feed's own alarms would remind of things nobody asked for.
+            e.alarms.clear();
+            e
+        })
+        .collect();
+    Ok((data, events))
 }
 
 /// The feed's own name, if it has one.
@@ -144,22 +174,10 @@ async fn refresh_one(engine: &Engine, client: &reqwest::Client, cal: &CalendarRo
             .write(|tx| cdb::set_calendar_sync_state(tx, cal.id, &state))?;
         return Ok(false);
     };
-    let hash = digest(&feed.text);
+    let hash = digest(&feed.bytes);
     let changed = state.cursor.as_deref() != Some(hash.as_str());
     if changed {
-        let data = envelope_ical::parse_calendar(&feed.text)
-            .map_err(|_| Error::Invalid("This address does not lead to a calendar.".into()))?;
-        let events: Vec<_> = data
-            .events
-            .iter()
-            .cloned()
-            .map(|mut e| {
-                crate::files::utc_where_unknown(&mut e, &data.tz);
-                // A feed's own alarms would remind of things nobody asked for.
-                e.alarms.clear();
-                e
-            })
-            .collect();
+        let (_, events) = feed_calendar(&feed)?;
         engine.replace_events(cal.id, &events)?;
     }
     state.ctag = feed.etag;
@@ -237,8 +255,7 @@ impl Engine {
             Err(e) => return Err(e),
         };
         let feed = feed.ok_or_else(|| Error::Network("the calendar server sent nothing".into()))?;
-        let data = envelope_ical::parse_calendar(&feed.text)
-            .map_err(|_| Error::Invalid("This address does not lead to a calendar.".into()))?;
+        let (data, events) = feed_calendar(&feed)?;
         let name =
             feed_name(&data).unwrap_or_else(|| url.host_str().unwrap_or("Calendar").to_owned());
         let count = self.db.read(cdb::calendar_count)?;
@@ -248,22 +265,11 @@ impl Engine {
             .write(|tx| cdb::create_subscription(tx, &address, &name, color))?;
         let cal = self.db.read(|c| cdb::get_calendar(c, id))?;
         // Store what was just fetched instead of asking again.
-        let events: Vec<_> = data
-            .events
-            .iter()
-            .cloned()
-            .map(|mut e| {
-                crate::files::utc_where_unknown(&mut e, &data.tz);
-                // A feed's own alarms would remind of things nobody asked for.
-                e.alarms.clear();
-                e
-            })
-            .collect();
         self.replace_events(id, &events)?;
         let state = cdb::CalendarSyncState {
             ctag: feed.etag,
             sync_token: feed.modified,
-            cursor: Some(digest(&feed.text)),
+            cursor: Some(digest(&feed.bytes)),
             last_sync: Some(now_ms()),
         };
         self.db
