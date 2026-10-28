@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Body>
+    <s:Fault>
+      <faultcode xmlns:a="http://schemas.microsoft.com/exchange/services/2006/types">a:ErrorSchemaValidation</faultcode>
+      <faultstring xml:lang="en-US">The request failed schema validation: The 'Id' attribute is invalid - The value 'archive' is invalid according to its datatype 'http://schemas.microsoft.com/exchange/services/2006/types:DistinguishedFolderIdNameType' - The Enumeration constraint failed.</faultstring>
+      <detail>
+        <e:ResponseCode xmlns:e="http://schemas.microsoft.com/exchange/services/2006/errors">ErrorSchemaValidation</e:ResponseCode>
+        <e:Message xmlns:e="http://schemas.microsoft.com/exchange/services/2006/errors">The request failed schema validation.</e:Message>
+        <t:MessageXml xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+          <t:LineNumber>1</t:LineNumber>
+          <t:LinePosition>612</t:LinePosition>
+          <t:Violation>The 'Id' attribute is invalid - The value 'archive' is invalid according to its datatype 'http://schemas.microsoft.com/exchange/services/2006/types:DistinguishedFolderIdNameType' - The Enumeration constraint failed.</t:Violation>
+        </t:MessageXml>
+      </detail>
+    </s:Fault>
+  </s:Body>
+</s:Envelope>

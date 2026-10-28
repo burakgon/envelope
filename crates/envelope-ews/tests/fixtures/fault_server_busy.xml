@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Body>
+    <s:Fault>
+      <faultcode xmlns:a="http://schemas.microsoft.com/exchange/services/2006/types">a:ErrorServerBusy</faultcode>
+      <faultstring xml:lang="en-US">The server cannot service this request right now. Try again later.</faultstring>
+      <detail>
+        <e:ResponseCode xmlns:e="http://schemas.microsoft.com/exchange/services/2006/errors">ErrorServerBusy</e:ResponseCode>
+        <e:Message xmlns:e="http://schemas.microsoft.com/exchange/services/2006/errors">The server cannot service this request right now. Try again later.</e:Message>
+        <t:MessageXml xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+          <t:Value Name="BackOffMilliseconds">{{backoff}}</t:Value>
+        </t:MessageXml>
+      </detail>
+    </s:Fault>
+  </s:Body>
+</s:Envelope>

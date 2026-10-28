@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:FindItemResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:FindItemResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:RootFolder IndexedPagingOffset="2" TotalItemsInView="5" IncludesLastItemInRange="false">
+            <t:Items>
+              <t:Message>
+                <t:ItemId Id="AAMkADk1-page-1" ChangeKey="CQAAAB1"/>
+                <t:ItemClass>IPM.Note</t:ItemClass>
+                <t:Subject>Newest</t:Subject>
+                <t:DateTimeReceived>2024-05-02T10:00:00Z</t:DateTimeReceived>
+                <t:Size>1001</t:Size>
+                <t:Importance>Normal</t:Importance>
+                <t:HasAttachments>false</t:HasAttachments>
+                <t:DisplayTo>Jane Doe</t:DisplayTo>
+                <t:From><t:Mailbox><t:Name>Sender 1</t:Name><t:EmailAddress>sender1@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType></t:Mailbox></t:From>
+                <t:IsRead>false</t:IsRead>
+              </t:Message>
+              <t:Message>
+                <t:ItemId Id="AAMkADk1-page-2" ChangeKey="CQAAAB2"/>
+                <t:ItemClass>IPM.Note</t:ItemClass>
+                <t:Subject>Older</t:Subject>
+                <t:DateTimeReceived>2024-05-01T10:00:00Z</t:DateTimeReceived>
+                <t:Size>1002</t:Size>
+                <t:Importance>Normal</t:Importance>
+                <t:HasAttachments>false</t:HasAttachments>
+                <t:DisplayTo>Jane Doe</t:DisplayTo>
+                <t:From><t:Mailbox><t:Name>Sender 2</t:Name><t:EmailAddress>sender2@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType></t:Mailbox></t:From>
+                <t:IsRead>true</t:IsRead>
+              </t:Message>
+            </t:Items>
+          </m:RootFolder>
+        </m:FindItemResponseMessage>
+      </m:ResponseMessages>
+    </m:FindItemResponse>
+  </s:Body>
+</s:Envelope>

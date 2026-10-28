@@ -1,0 +1,36 @@
+[package]
+name = "envelope-ews"
+description = "Exchange Web Services (EWS) client for on-premises Exchange mail, calendar and contacts in Envelope"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+envelope-ical = { path = "../envelope-ical" }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+futures = { workspace = true }
+quick-xml = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }
+getrandom = "0.3"
+hickory-resolver = { version = "0.26.3", features = ["tokio"] }
+hmac = "0.12"
+md-5 = "0.10"
+md4 = "0.10"
+percent-encoding = "2"
+sha2 = "0.10"
+
+[dev-dependencies]
+tokio = { workspace = true }
+wiremock = "0.6.5"

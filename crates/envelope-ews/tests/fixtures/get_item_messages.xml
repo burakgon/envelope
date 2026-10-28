@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:GetItemResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:GetItemResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:Items>
+            <t:Message>
+              <t:MimeContent CharacterSet="UTF-8">RnJvbTogQWxpY2UgRXhhbXBsZSA8YWxpY2VAZXhhbXBsZS5jb20+DQpUbzogSmFuZSBEb2UgPGphbmVAZXhhbXBsZS5jb20+DQpTdWJqZWN0OiBRdWFydGVybHkgcmVwb3J0DQpEYXRlOiBXZWQsIDAxIE1heSAyMDI0IDA4OjAwOjAwICswMDAwDQpNZXNzYWdlLUlEOiA8cmVwb3J0LTFAZXhhbXBsZS5jb20+DQpNSU1FLVZlcnNpb246IDEuMA0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PSJ1dGYtOCINCg0KSGVsbG8gSmFuZSwNCnRoZSByZXBvcnQgaXMgYXR0YWNoZWQuDQo=</t:MimeContent>
+              <t:ItemId Id="AAMkADk1-msg-1" ChangeKey="CQAAABYAAAD1"/>
+              <t:ParentFolderId Id="inbox-id" ChangeKey="AQAAAA=="/>
+              <t:ItemClass>IPM.Note</t:ItemClass>
+              <t:Subject>Quarterly report</t:Subject>
+              <t:DateTimeReceived>2024-05-01T08:00:05Z</t:DateTimeReceived>
+              <t:Size>2048</t:Size>
+              <t:Categories><t:String>Finance</t:String><t:String>Red category</t:String></t:Categories>
+              <t:Importance>High</t:Importance>
+              <t:IsDraft>false</t:IsDraft>
+              <t:DateTimeSent>2024-05-01T08:00:00Z</t:DateTimeSent>
+              <t:DateTimeCreated>2024-05-01T08:00:06Z</t:DateTimeCreated>
+              <t:DisplayCc/>
+              <t:DisplayTo>Jane Doe</t:DisplayTo>
+              <t:HasAttachments>true</t:HasAttachments>
+              <t:Attachments>
+                <t:FileAttachment>
+                  <t:AttachmentId Id="AAMkADk1-att-1"/>
+                  <t:Name>report.pdf</t:Name>
+                  <t:ContentType>application/pdf</t:ContentType>
+                  <t:Size>1024</t:Size>
+                  <t:LastModifiedTime>2024-05-01T07:59:00</t:LastModifiedTime>
+                  <t:IsInline>false</t:IsInline>
+                  <t:IsContactPhoto>false</t:IsContactPhoto>
+                </t:FileAttachment>
+              </t:Attachments>
+              <t:ExtendedProperty><t:ExtendedFieldURI PropertyTag="0x1090" PropertyType="Integer"/><t:Value>2</t:Value></t:ExtendedProperty>
+              <t:LastModifiedTime>2024-05-01T08:01:00Z</t:LastModifiedTime>
+              <t:ConversationId Id="AAQkADk1-conv-1"/>
+              <t:Flag><t:FlagStatus>Flagged</t:FlagStatus><t:StartDate>2024-05-01T00:00:00Z</t:StartDate><t:DueDate>2024-05-03T00:00:00Z</t:DueDate></t:Flag>
+              <t:Preview>Hello Jane, the report is attached.</t:Preview>
+              <t:Sender><t:Mailbox><t:Name>Alice Example</t:Name><t:EmailAddress>alice@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType><t:MailboxType>OneOff</t:MailboxType></t:Mailbox></t:Sender>
+              <t:ToRecipients><t:Mailbox><t:Name>Jane Doe</t:Name><t:EmailAddress>jane@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType><t:MailboxType>Mailbox</t:MailboxType></t:Mailbox></t:ToRecipients>
+              <t:CcRecipients><t:Mailbox><t:Name>Team</t:Name><t:EmailAddress>team@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType><t:MailboxType>PublicDL</t:MailboxType></t:Mailbox></t:CcRecipients>
+              <t:ConversationTopic>Quarterly report</t:ConversationTopic>
+              <t:From><t:Mailbox><t:Name>Alice Example</t:Name><t:EmailAddress>alice@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType><t:MailboxType>OneOff</t:MailboxType></t:Mailbox></t:From>
+              <t:InternetMessageId>&lt;report-1@example.com&gt;</t:InternetMessageId>
+              <t:IsRead>false</t:IsRead>
+              <t:References>&lt;thread-0@example.com&gt;</t:References>
+              <t:ReplyTo><t:Mailbox><t:Name>Finance</t:Name><t:EmailAddress>finance@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType></t:Mailbox></t:ReplyTo>
+            </t:Message>
+          </m:Items>
+        </m:GetItemResponseMessage>
+        <m:GetItemResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:Items>
+            <t:MeetingRequest>
+              <t:ItemId Id="AAMkADk1-mr-1" ChangeKey="CwAAABYAAAD2"/>
+              <t:ItemClass>IPM.Schedule.Meeting.Request</t:ItemClass>
+              <t:Subject>Weekly sync</t:Subject>
+              <t:DateTimeReceived>2024-05-01T09:00:00Z</t:DateTimeReceived>
+              <t:From><t:Mailbox><t:Name>Bob</t:Name><t:EmailAddress>bob@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType></t:Mailbox></t:From>
+              <t:IsRead>true</t:IsRead>
+              <t:AssociatedCalendarItemId Id="AAMkADk1-cal-1" ChangeKey="DwAAABYAAAD7"/>
+            </t:MeetingRequest>
+          </m:Items>
+        </m:GetItemResponseMessage>
+        <m:GetItemResponseMessage ResponseClass="Error">
+          <m:MessageText>The specified object was not found in the store., The process failed to get the correct properties.</m:MessageText>
+          <m:ResponseCode>ErrorItemNotFound</m:ResponseCode>
+          <m:DescriptiveLinkKey>0</m:DescriptiveLinkKey>
+          <m:Items/>
+        </m:GetItemResponseMessage>
+      </m:ResponseMessages>
+    </m:GetItemResponse>
+  </s:Body>
+</s:Envelope>

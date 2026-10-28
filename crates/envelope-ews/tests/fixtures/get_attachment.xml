@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:GetAttachmentResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:GetAttachmentResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:Attachments>
+            <t:FileAttachment>
+              <t:AttachmentId Id="AAMkADk1-att-1"/>
+              <t:Name>report.pdf</t:Name>
+              <t:ContentType>application/pdf</t:ContentType>
+              <t:Size>20</t:Size>
+              <t:LastModifiedTime>2024-05-01T07:59:00</t:LastModifiedTime>
+              <t:IsInline>false</t:IsInline>
+              <t:IsContactPhoto>false</t:IsContactPhoto>
+              <t:Content>JVBERi0xLjQgZmFrZSByZXBvcnQ=</t:Content>
+            </t:FileAttachment>
+          </m:Attachments>
+        </m:GetAttachmentResponseMessage>
+      </m:ResponseMessages>
+    </m:GetAttachmentResponse>
+  </s:Body>
+</s:Envelope>

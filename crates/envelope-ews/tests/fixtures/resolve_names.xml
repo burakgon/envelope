@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:ResolveNamesResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:ResolveNamesResponseMessage ResponseClass="Warning">
+          <m:MessageText>Multiple results were found.</m:MessageText>
+          <m:ResponseCode>ErrorNameResolutionMultipleResults</m:ResponseCode>
+          <m:DescriptiveLinkKey>0</m:DescriptiveLinkKey>
+          <m:ResolutionSet TotalItemsInView="2" IncludesLastItemInRange="true">
+            <t:Resolution>
+              <t:Mailbox><t:Name>Alice Example</t:Name><t:EmailAddress>alice@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType><t:MailboxType>Mailbox</t:MailboxType></t:Mailbox>
+              <t:Contact>
+                <t:DisplayName>Alice Example</t:DisplayName>
+                <t:GivenName>Alice</t:GivenName>
+                <t:EmailAddresses><t:Entry Key="EmailAddress1">SMTP:alice@example.com</t:Entry></t:EmailAddresses>
+                <t:PhoneNumbers><t:Entry Key="BusinessPhone">+1 425 555 0100</t:Entry></t:PhoneNumbers>
+                <t:ContactSource>ActiveDirectory</t:ContactSource>
+                <t:CompanyName>Example Inc.</t:CompanyName>
+                <t:Department>Finance</t:Department>
+                <t:JobTitle>Controller</t:JobTitle>
+                <t:Surname>Example</t:Surname>
+              </t:Contact>
+            </t:Resolution>
+            <t:Resolution>
+              <t:Mailbox><t:Name>Alicia Contact</t:Name><t:EmailAddress>alicia@example.org</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType><t:MailboxType>Contact</t:MailboxType><t:ItemId Id="AAMkADk1-contact-1" ChangeKey="EQAAAB1"/></t:Mailbox>
+            </t:Resolution>
+          </m:ResolutionSet>
+        </m:ResolveNamesResponseMessage>
+      </m:ResponseMessages>
+    </m:ResolveNamesResponse>
+  </s:Body>
+</s:Envelope>

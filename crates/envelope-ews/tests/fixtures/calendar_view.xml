@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:FindItemResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:FindItemResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:RootFolder TotalItemsInView="3" IncludesLastItemInRange="true">
+            <t:Items>
+              <t:CalendarItem>
+                <t:ItemId Id="AAMkADk1-occ-2" ChangeKey="DwAAAB2"/>
+                <t:ItemClass>IPM.Appointment</t:ItemClass>
+                <t:Subject>Weekly sync</t:Subject>
+                <t:Sensitivity>Normal</t:Sensitivity>
+                <t:UID>040000008200E00074C5B7101A82E0080000000010A4D0E2D19BDA01000000000000000010000000A8E5F3B0E1E04B4CA0E1F0A0B0C0D0E0</t:UID>
+                <t:RecurrenceId>2024-07-08T08:00:00Z</t:RecurrenceId>
+                <t:Start>2024-07-08T08:00:00Z</t:Start>
+                <t:End>2024-07-08T08:30:00Z</t:End>
+                <t:IsAllDayEvent>false</t:IsAllDayEvent>
+                <t:LegacyFreeBusyStatus>Busy</t:LegacyFreeBusyStatus>
+                <t:Location>Room 1</t:Location>
+                <t:IsMeeting>true</t:IsMeeting>
+                <t:IsCancelled>false</t:IsCancelled>
+                <t:IsRecurring>true</t:IsRecurring>
+                <t:CalendarItemType>Occurrence</t:CalendarItemType>
+                <t:MyResponseType>Accept</t:MyResponseType>
+                <t:Organizer><t:Mailbox><t:Name>Jane Doe</t:Name><t:EmailAddress>jane@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType></t:Mailbox></t:Organizer>
+              </t:CalendarItem>
+              <t:CalendarItem>
+                <t:ItemId Id="AAMkADk1-occ-1" ChangeKey="DwAAAB1"/>
+                <t:ItemClass>IPM.Appointment</t:ItemClass>
+                <t:Subject>Weekly sync</t:Subject>
+                <t:Sensitivity>Normal</t:Sensitivity>
+                <t:UID>040000008200E00074C5B7101A82E0080000000010A4D0E2D19BDA01000000000000000010000000A8E5F3B0E1E04B4CA0E1F0A0B0C0D0E0</t:UID>
+                <t:RecurrenceId>2024-07-01T08:00:00Z</t:RecurrenceId>
+                <t:Start>2024-07-01T08:00:00Z</t:Start>
+                <t:End>2024-07-01T08:30:00Z</t:End>
+                <t:IsAllDayEvent>false</t:IsAllDayEvent>
+                <t:LegacyFreeBusyStatus>Busy</t:LegacyFreeBusyStatus>
+                <t:Location>Room 1</t:Location>
+                <t:IsMeeting>true</t:IsMeeting>
+                <t:IsCancelled>false</t:IsCancelled>
+                <t:IsRecurring>true</t:IsRecurring>
+                <t:CalendarItemType>Exception</t:CalendarItemType>
+                <t:MyResponseType>Accept</t:MyResponseType>
+                <t:Organizer><t:Mailbox><t:Name>Jane Doe</t:Name><t:EmailAddress>jane@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType></t:Mailbox></t:Organizer>
+              </t:CalendarItem>
+              <t:CalendarItem>
+                <t:ItemId Id="AAMkADk1-occ-3" ChangeKey="DwAAAB3"/>
+                <t:ItemClass>IPM.Appointment</t:ItemClass>
+                <t:Subject>Company holiday</t:Subject>
+                <t:Sensitivity>Normal</t:Sensitivity>
+                <t:UID>holiday-uid</t:UID>
+                <t:Start>2024-07-04T00:00:00Z</t:Start>
+                <t:End>2024-07-05T00:00:00Z</t:End>
+                <t:IsAllDayEvent>true</t:IsAllDayEvent>
+                <t:LegacyFreeBusyStatus>Busy</t:LegacyFreeBusyStatus>
+                <t:Location>Room 1</t:Location>
+                <t:IsMeeting>true</t:IsMeeting>
+                <t:IsCancelled>false</t:IsCancelled>
+                <t:IsRecurring>false</t:IsRecurring>
+                <t:CalendarItemType>Single</t:CalendarItemType>
+                <t:MyResponseType>Accept</t:MyResponseType>
+                <t:Organizer><t:Mailbox><t:Name>Jane Doe</t:Name><t:EmailAddress>jane@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType></t:Mailbox></t:Organizer>
+              </t:CalendarItem>
+            </t:Items>
+          </m:RootFolder>
+        </m:FindItemResponseMessage>
+      </m:ResponseMessages>
+    </m:FindItemResponse>
+  </s:Body>
+</s:Envelope>

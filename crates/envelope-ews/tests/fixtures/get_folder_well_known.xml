@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:GetFolderResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+      <m:GetFolderResponseMessage ResponseClass="Success">
+        <m:ResponseCode>NoError</m:ResponseCode>
+        <m:Folders>
+          <t:Folder>
+            <t:FolderId Id="inbox-id" ChangeKey="AQAAABYAAAAinbox"/>
+          </t:Folder>
+        </m:Folders>
+      </m:GetFolderResponseMessage>
+      <m:GetFolderResponseMessage ResponseClass="Success">
+        <m:ResponseCode>NoError</m:ResponseCode>
+        <m:Folders>
+          <t:Folder>
+            <t:FolderId Id="drafts-id" ChangeKey="AQAAABYAAAAdrafts"/>
+          </t:Folder>
+        </m:Folders>
+      </m:GetFolderResponseMessage>
+      <m:GetFolderResponseMessage ResponseClass="Success">
+        <m:ResponseCode>NoError</m:ResponseCode>
+        <m:Folders>
+          <t:Folder>
+            <t:FolderId Id="sentitems-id" ChangeKey="AQAAABYAAAAsentitems"/>
+          </t:Folder>
+        </m:Folders>
+      </m:GetFolderResponseMessage>
+      <m:GetFolderResponseMessage ResponseClass="Success">
+        <m:ResponseCode>NoError</m:ResponseCode>
+        <m:Folders>
+          <t:Folder>
+            <t:FolderId Id="deleteditems-id" ChangeKey="AQAAABYAAAAdeleteditems"/>
+          </t:Folder>
+        </m:Folders>
+      </m:GetFolderResponseMessage>
+      <m:GetFolderResponseMessage ResponseClass="Success">
+        <m:ResponseCode>NoError</m:ResponseCode>
+        <m:Folders>
+          <t:Folder>
+            <t:FolderId Id="junkemail-id" ChangeKey="AQAAABYAAAAjunkemail"/>
+          </t:Folder>
+        </m:Folders>
+      </m:GetFolderResponseMessage>
+      <m:GetFolderResponseMessage ResponseClass="Success">
+        <m:ResponseCode>NoError</m:ResponseCode>
+        <m:Folders>
+          <t:Folder>
+            <t:FolderId Id="outbox-id" ChangeKey="AQAAABYAAAAoutbox"/>
+          </t:Folder>
+        </m:Folders>
+      </m:GetFolderResponseMessage>
+      <m:GetFolderResponseMessage ResponseClass="Success">
+        <m:ResponseCode>NoError</m:ResponseCode>
+        <m:Folders>
+          <t:CalendarFolder>
+            <t:FolderId Id="calendar-id" ChangeKey="AQAAABYAAAAcalendar"/>
+          </t:CalendarFolder>
+        </m:Folders>
+      </m:GetFolderResponseMessage>
+      <m:GetFolderResponseMessage ResponseClass="Success">
+        <m:ResponseCode>NoError</m:ResponseCode>
+        <m:Folders>
+          <t:ContactsFolder>
+            <t:FolderId Id="contacts-id" ChangeKey="AQAAABYAAAAcontacts"/>
+          </t:ContactsFolder>
+        </m:Folders>
+      </m:GetFolderResponseMessage>
+      <m:GetFolderResponseMessage ResponseClass="Success">
+        <m:ResponseCode>NoError</m:ResponseCode>
+        <m:Folders>
+          <t:TasksFolder>
+            <t:FolderId Id="tasks-id" ChangeKey="AQAAABYAAAAtasks"/>
+          </t:TasksFolder>
+        </m:Folders>
+      </m:GetFolderResponseMessage>
+      <m:GetFolderResponseMessage ResponseClass="Error">
+        <m:MessageText>The specified folder could not be found in the store.</m:MessageText>
+        <m:ResponseCode>ErrorFolderNotFound</m:ResponseCode>
+        <m:DescriptiveLinkKey>0</m:DescriptiveLinkKey>
+        <m:Folders/>
+      </m:GetFolderResponseMessage>
+      <m:GetFolderResponseMessage ResponseClass="Success">
+        <m:ResponseCode>NoError</m:ResponseCode>
+        <m:Folders>
+          <t:Folder>
+            <t:FolderId Id="msgfolderroot-id" ChangeKey="AQAAABYAAAAmsgfolderroot"/>
+          </t:Folder>
+        </m:Folders>
+      </m:GetFolderResponseMessage>
+      </m:ResponseMessages>
+    </m:GetFolderResponse>
+  </s:Body>
+</s:Envelope>

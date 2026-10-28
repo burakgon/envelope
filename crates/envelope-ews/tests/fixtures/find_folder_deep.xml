@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:FindFolderResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:FindFolderResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:RootFolder IndexedPagingOffset="8" TotalItemsInView="8" IncludesLastItemInRange="true">
+            <t:Folders>
+            <t:Folder>
+              <t:FolderId Id="projects-id" ChangeKey="AQAAABYAAABprojects-id"/>
+              <t:ParentFolderId Id="inbox-id" ChangeKey="AQAAAA=="/>
+              <t:FolderClass>IPF.Note</t:FolderClass>
+              <t:DisplayName>Projects &amp; Plans</t:DisplayName>
+              <t:TotalCount>3</t:TotalCount>
+              <t:ChildFolderCount>0</t:ChildFolderCount>
+              <t:UnreadCount>1</t:UnreadCount>
+            </t:Folder>
+            <t:Folder>
+              <t:FolderId Id="inbox-id" ChangeKey="AQAAABYAAABinbox-id"/>
+              <t:ParentFolderId Id="msgfolderroot-id" ChangeKey="AQAAAA=="/>
+              <t:FolderClass>IPF.Note</t:FolderClass>
+              <t:DisplayName>Inbox</t:DisplayName>
+              <t:TotalCount>42</t:TotalCount>
+              <t:ChildFolderCount>1</t:ChildFolderCount>
+              <t:UnreadCount>5</t:UnreadCount>
+            </t:Folder>
+            <t:Folder>
+              <t:FolderId Id="sentitems-id" ChangeKey="AQAAABYAAABsentitems-id"/>
+              <t:ParentFolderId Id="msgfolderroot-id" ChangeKey="AQAAAA=="/>
+              <t:FolderClass>IPF.Note</t:FolderClass>
+              <t:DisplayName>Sent Items</t:DisplayName>
+              <t:TotalCount>10</t:TotalCount>
+              <t:ChildFolderCount>0</t:ChildFolderCount>
+              <t:UnreadCount>0</t:UnreadCount>
+            </t:Folder>
+            <t:Folder>
+              <t:FolderId Id="deleteditems-id" ChangeKey="AQAAABYAAABdeleteditems-id"/>
+              <t:ParentFolderId Id="msgfolderroot-id" ChangeKey="AQAAAA=="/>
+              <t:FolderClass>IPF.Note</t:FolderClass>
+              <t:DisplayName>Deleted Items</t:DisplayName>
+              <t:TotalCount>2</t:TotalCount>
+              <t:ChildFolderCount>0</t:ChildFolderCount>
+              <t:UnreadCount>0</t:UnreadCount>
+            </t:Folder>
+            <t:Folder>
+              <t:FolderId Id="archive-folder-id" ChangeKey="AQAAABYAAABarchive-folder-id"/>
+              <t:ParentFolderId Id="msgfolderroot-id" ChangeKey="AQAAAA=="/>
+              <t:FolderClass>IPF.Note</t:FolderClass>
+              <t:DisplayName>Archive</t:DisplayName>
+              <t:TotalCount>7</t:TotalCount>
+              <t:ChildFolderCount>0</t:ChildFolderCount>
+              <t:UnreadCount>0</t:UnreadCount>
+            </t:Folder>
+            <t:CalendarFolder>
+              <t:FolderId Id="calendar-id" ChangeKey="AQAAABYAAABcalendar-id"/>
+              <t:ParentFolderId Id="msgfolderroot-id" ChangeKey="AQAAAA=="/>
+              <t:FolderClass>IPF.Appointment</t:FolderClass>
+              <t:DisplayName>Calendar</t:DisplayName>
+              <t:TotalCount>30</t:TotalCount>
+              <t:ChildFolderCount>0</t:ChildFolderCount>
+            </t:CalendarFolder>
+            <t:ContactsFolder>
+              <t:FolderId Id="contacts-id" ChangeKey="AQAAABYAAABcontacts-id"/>
+              <t:ParentFolderId Id="msgfolderroot-id" ChangeKey="AQAAAA=="/>
+              <t:FolderClass>IPF.Contact</t:FolderClass>
+              <t:DisplayName>Contacts</t:DisplayName>
+              <t:TotalCount>12</t:TotalCount>
+              <t:ChildFolderCount>0</t:ChildFolderCount>
+            </t:ContactsFolder>
+            <t:Folder>
+              <t:FolderId Id="cas-id" ChangeKey="AQAAABYAAABcas-id"/>
+              <t:ParentFolderId Id="msgfolderroot-id" ChangeKey="AQAAAA=="/>
+              <t:FolderClass>IPF.Configuration</t:FolderClass>
+              <t:DisplayName>Conversation Action Settings</t:DisplayName>
+              <t:TotalCount>0</t:TotalCount>
+              <t:ChildFolderCount>0</t:ChildFolderCount>
+              <t:ExtendedProperty><t:ExtendedFieldURI PropertyTag="0x10f4" PropertyType="Boolean"/><t:Value>true</t:Value></t:ExtendedProperty>
+              <t:UnreadCount>0</t:UnreadCount>
+            </t:Folder>
+            </t:Folders>
+          </m:RootFolder>
+        </m:FindFolderResponseMessage>
+      </m:ResponseMessages>
+    </m:FindFolderResponse>
+  </s:Body>
+</s:Envelope>

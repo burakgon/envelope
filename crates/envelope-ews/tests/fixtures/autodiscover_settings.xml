@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Autodiscover xmlns="http://schemas.microsoft.com/exchange/autodiscover/responseschema/2006">
+  <Response xmlns="http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a">
+    <User>
+      <DisplayName>Jane Doe</DisplayName>
+      <LegacyDN>/o=Example/ou=Exchange Administrative Group (FYDIBOHF23SPDLT)/cn=Recipients/cn=jane</LegacyDN>
+      <AutoDiscoverSMTPAddress>jane.doe@example.com</AutoDiscoverSMTPAddress>
+      <DeploymentId>b2d8a1e4-0000-4000-8000-000000000001</DeploymentId>
+    </User>
+    <Account>
+      <AccountType>email</AccountType>
+      <Action>settings</Action>
+      <MicrosoftOnline>False</MicrosoftOnline>
+      <Protocol>
+        <Type>EXCH</Type>
+        <Server>c0ffee00-0000-4000-8000-000000000001@example.com</Server>
+        <ServerDN>/o=Example/ou=Exchange Administrative Group (FYDIBOHF23SPDLT)/cn=Configuration/cn=Servers/cn=c0ffee00</ServerDN>
+        <ServerVersion>73C28C08</ServerVersion>
+        <AuthPackage>Kerb</AuthPackage>
+        <ASUrl>https://mail.internal.example.com/EWS/Exchange.asmx</ASUrl>
+        <EwsUrl>{{internal}}</EwsUrl>
+        <EmwsUrl>https://mail.internal.example.com/EWS/Exchange.asmx</EmwsUrl>
+        <OOFUrl>https://mail.internal.example.com/EWS/Exchange.asmx</OOFUrl>
+        <OABUrl>https://mail.internal.example.com/OAB/0000/</OABUrl>
+      </Protocol>
+      <Protocol>
+        <Type>EXPR</Type>
+        <Server>mail.example.com</Server>
+        <SSL>On</SSL>
+        <AuthPackage>Negotiate</AuthPackage>
+        <ASUrl>https://mail.example.com/EWS/Exchange.asmx</ASUrl>
+        <EwsUrl>{{external}}</EwsUrl>
+        <EmwsUrl>https://mail.example.com/EWS/Exchange.asmx</EmwsUrl>
+      </Protocol>
+      <Protocol>
+        <Type>WEB</Type>
+        <Internal><OWAUrl AuthenticationMethod="Basic, Fba">https://mail.internal.example.com/owa/</OWAUrl></Internal>
+      </Protocol>
+    </Account>
+  </Response>
+</Autodiscover>

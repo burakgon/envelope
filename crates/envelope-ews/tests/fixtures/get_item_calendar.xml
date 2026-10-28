@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:GetItemResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:GetItemResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:Items>
+            <t:CalendarItem>
+              <t:MimeContent CharacterSet="UTF-8">QkVHSU46VkNBTEVOREFSDQpNRVRIT0Q6UFVCTElTSA0KUFJPRElEOk1pY3Jvc29mdCBFeGNoYW5nZSBTZXJ2ZXIgMjAxMA0KVkVSU0lPTjoyLjANCkJFR0lOOlZUSU1FWk9ORQ0KVFpJRDpXLiBFdXJvcGUgU3RhbmRhcmQgVGltZQ0KQkVHSU46U1RBTkRBUkQNCkRUU1RBUlQ6MTYwMTAxMDFUMDMwMDAwDQpUWk9GRlNFVEZST006KzAyMDANClRaT0ZGU0VUVE86KzAxMDANClJSVUxFOkZSRVE9WUVBUkxZO0lOVEVSVkFMPTE7QllEQVk9LTFTVTtCWU1PTlRIPTEwDQpFTkQ6U1RBTkRBUkQNCkJFR0lOOkRBWUxJR0hUDQpEVFNUQVJUOjE2MDEwMTAxVDAyMDAwMA0KVFpPRkZTRVRGUk9NOiswMTAwDQpUWk9GRlNFVFRPOiswMjAwDQpSUlVMRTpGUkVRPVlFQVJMWTtJTlRFUlZBTD0xO0JZREFZPS0xU1U7QllNT05USD0zDQpFTkQ6REFZTElHSFQNCkVORDpWVElNRVpPTkUNCkJFR0lOOlZFVkVOVA0KT1JHQU5JWkVSO0NOPUphbmUgRG9lOm1haWx0bzpqYW5lQGV4YW1wbGUuY29tDQpBVFRFTkRFRTtST0xFPVJFUS1QQVJUSUNJUEFOVDtQQVJUU1RBVD1BQ0NFUFRFRDtSU1ZQPVRSVUU7Q049QWxpY2UgRXhhbXBsZTptYWlsdG86YWxpY2VAZXhhbXBsZS5jb20NCkRFU0NSSVBUSU9OO0xBTkdVQUdFPWVuLVVTOldlZWtseSBwbGFubmluZ1xuDQpSUlVMRTpGUkVRPVdFRUtMWTtCWURBWT1NTztXS1NUPU1PDQpVSUQ6MDQwMDAwMDA4MjAwRTAwMDc0QzVCNzEwMUE4MkUwMDgwMDAwMDAwMDEwQTREMEUyRDE5QkRBMDEwMDAwMDAwMDAwMDAwMDAwMTAwMDAwMDBBOEU1RjNCMEUxRTA0QjRDQTBFMUYwQTBCMEMwRDBFMA0KU1VNTUFSWTtMQU5HVUFHRT1lbi1VUzpXZWVrbHkgc3luYw0KRFRTVEFSVDtUWklEPVcuIEV1cm9wZSBTdGFuZGFyZCBUaW1lOjIwMjQwNzAxVDEwMDAwMA0KRFRFTkQ7VFpJRD1XLiBFdXJvcGUgU3RhbmRhcmQgVGltZToyMDI0MDcwMVQxMDMwMDANCkNMQVNTOlBVQkxJQw0KUFJJT1JJVFk6NQ0KRFRTVEFNUDoyMDI0MDYyMFQwOTAwMDBaDQpUUkFOU1A6T1BBUVVFDQpTVEFUVVM6Q09ORklSTUVEDQpTRVFVRU5DRToyDQpMT0NBVElPTjtMQU5HVUFHRT1lbi1VUzpSb29tIDENCkVORDpWRVZFTlQNCkVORDpWQ0FMRU5EQVINCg==</t:MimeContent>
+              <t:ItemId Id="AAMkADk1-master-1" ChangeKey="DwAAABYAAAD-master"/>
+              <t:ParentFolderId Id="calendar-id" ChangeKey="AQAAAA=="/>
+              <t:ItemClass>IPM.Appointment</t:ItemClass>
+              <t:Subject>Weekly sync</t:Subject>
+              <t:Sensitivity>Normal</t:Sensitivity>
+              <t:Importance>Normal</t:Importance>
+              <t:ReminderIsSet>true</t:ReminderIsSet>
+              <t:ReminderMinutesBeforeStart>15</t:ReminderMinutesBeforeStart>
+              <t:LastModifiedTime>2024-06-20T09:00:00Z</t:LastModifiedTime>
+              <t:UID>040000008200E00074C5B7101A82E0080000000010A4D0E2D19BDA01000000000000000010000000A8E5F3B0E1E04B4CA0E1F0A0B0C0D0E0</t:UID>
+              <t:DateTimeStamp>2024-06-20T09:00:00Z</t:DateTimeStamp>
+              <t:Start>2024-07-01T08:00:00Z</t:Start>
+              <t:End>2024-07-01T08:30:00Z</t:End>
+              <t:IsAllDayEvent>false</t:IsAllDayEvent>
+              <t:LegacyFreeBusyStatus>Busy</t:LegacyFreeBusyStatus>
+              <t:Location>Room 1</t:Location>
+              <t:IsMeeting>true</t:IsMeeting>
+              <t:IsCancelled>false</t:IsCancelled>
+              <t:IsRecurring>true</t:IsRecurring>
+              <t:CalendarItemType>RecurringMaster</t:CalendarItemType>
+              <t:MyResponseType>Organizer</t:MyResponseType>
+              <t:Organizer><t:Mailbox><t:Name>Jane Doe</t:Name><t:EmailAddress>jane@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType></t:Mailbox></t:Organizer>
+              <t:RequiredAttendees>
+                <t:Attendee><t:Mailbox><t:Name>Alice Example</t:Name><t:EmailAddress>alice@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType><t:MailboxType>Mailbox</t:MailboxType></t:Mailbox><t:ResponseType>Accept</t:ResponseType><t:LastResponseTime>2024-06-21T10:00:00Z</t:LastResponseTime></t:Attendee>
+              </t:RequiredAttendees>
+              <t:OptionalAttendees>
+                <t:Attendee><t:Mailbox><t:Name>Bob</t:Name><t:EmailAddress>bob@example.com</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType></t:Mailbox><t:ResponseType>NoResponseReceived</t:ResponseType></t:Attendee>
+              </t:OptionalAttendees>
+              <t:AppointmentSequenceNumber>2</t:AppointmentSequenceNumber>
+              <t:TimeZone>(UTC+01:00) Amsterdam, Berlin, Bern, Rome, Stockholm, Vienna</t:TimeZone>
+              <t:Recurrence>
+                <t:WeeklyRecurrence><t:Interval>1</t:Interval><t:DaysOfWeek>Monday</t:DaysOfWeek><t:FirstDayOfWeek>Monday</t:FirstDayOfWeek></t:WeeklyRecurrence>
+                <t:NoEndRecurrence><t:StartDate>2024-07-01+02:00</t:StartDate></t:NoEndRecurrence>
+              </t:Recurrence>
+              <t:ModifiedOccurrences>
+                <t:Occurrence><t:ItemId Id="AAMkADk1-occ-1" ChangeKey="DwAAAB1"/><t:Start>2024-07-01T08:00:00Z</t:Start><t:End>2024-07-01T08:30:00Z</t:End><t:OriginalStart>2024-07-01T08:00:00Z</t:OriginalStart></t:Occurrence>
+              </t:ModifiedOccurrences>
+              <t:DeletedOccurrences>
+                <t:DeletedOccurrence><t:Start>2024-07-15T08:00:00Z</t:Start></t:DeletedOccurrence>
+              </t:DeletedOccurrences>
+              <t:StartTimeZone Id="W. Europe Standard Time" Name="(UTC+01:00) Amsterdam, Berlin, Bern, Rome, Stockholm, Vienna"/>
+              <t:EndTimeZone Id="W. Europe Standard Time" Name="(UTC+01:00) Amsterdam, Berlin, Bern, Rome, Stockholm, Vienna"/>
+              <t:IsOnlineMeeting>false</t:IsOnlineMeeting>
+            </t:CalendarItem>
+          </m:Items>
+        </m:GetItemResponseMessage>
+      </m:ResponseMessages>
+    </m:GetItemResponse>
+  </s:Body>
+</s:Envelope>

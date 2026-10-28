@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:SyncFolderItemsResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:SyncFolderItemsResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:SyncState>H4sIAAAAAAAEAO29B2AcSZYlJi9tynt/SvVK1+B0oQiAYBMk2JBAEOzBiM3mkuwdaUcjKasqgcplVmVdZhZAzO2dvPfee++999577733zjudTif33/8/XGZkAWz2zkrayZ4hgKrIHz9+fB8/frw8iYPa</m:SyncState>
+          <m:IncludesLastItemInRange>false</m:IncludesLastItemInRange>
+          <m:Changes>
+            <t:Create>
+              <t:Message>
+                <t:ItemId Id="AAMkADk1-msg-1" ChangeKey="CQAAABYAAAD1"/>
+                <t:ItemClass>IPM.Note</t:ItemClass>
+                <t:DateTimeReceived>2024-05-01T08:00:00Z</t:DateTimeReceived>
+              </t:Message>
+            </t:Create>
+            <t:Create>
+              <t:MeetingRequest>
+                <t:ItemId Id="AAMkADk1-mr-1" ChangeKey="CwAAABYAAAD2"/>
+                <t:ItemClass>IPM.Schedule.Meeting.Request</t:ItemClass>
+                <t:DateTimeReceived>2024-05-01T09:00:00Z</t:DateTimeReceived>
+              </t:MeetingRequest>
+            </t:Create>
+            <t:Update>
+              <t:Message>
+                <t:ItemId Id="AAMkADk1-msg-0" ChangeKey="CQAAABYAAAD3"/>
+                <t:ItemClass>IPM.Note</t:ItemClass>
+                <t:DateTimeReceived>2024-04-30T17:45:00Z</t:DateTimeReceived>
+              </t:Message>
+            </t:Update>
+            <t:ReadFlagChange>
+              <t:ItemId Id="AAMkADk1-msg-9" ChangeKey="CQAAABYAAAD4"/>
+              <t:IsRead>true</t:IsRead>
+            </t:ReadFlagChange>
+            <t:Delete>
+              <t:ItemId Id="AAMkADk1-msg-gone" ChangeKey="CQAAABYAAAD5"/>
+            </t:Delete>
+          </m:Changes>
+        </m:SyncFolderItemsResponseMessage>
+      </m:ResponseMessages>
+    </m:SyncFolderItemsResponse>
+  </s:Body>
+</s:Envelope>
