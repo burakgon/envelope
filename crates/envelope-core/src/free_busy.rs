@@ -79,11 +79,20 @@ impl Engine {
             .filter(|&i| me.contains(&answers[i].email.to_lowercase()))
             .collect();
         if !own.is_empty() {
+            // Subscribed calendars (holidays, sports) say nothing about the user's time.
+            let subscribed: std::collections::HashSet<i64> = self
+                .db
+                .read(cdb::list_calendars)?
+                .into_iter()
+                .filter(|c| c.kind == "subscription")
+                .map(|c| c.id)
+                .collect();
             let busy: Vec<Busy> = self
                 .occurrences(from, to)?
                 .into_iter()
                 .filter(|o| {
-                    !o.transparent
+                    !subscribed.contains(&o.calendar_id)
+                        && !o.transparent
                         && o.status != EventStatus::Cancelled
                         && o.my_status != Some(PartStat::Declined)
                 })
