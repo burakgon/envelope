@@ -89,6 +89,8 @@ export interface Api {
     respond(eventId: number, status: T.PartStat, comment?: string | null): Promise<void>;
     invite(messageId: number): Promise<T.InviteInfo>;
     respondInvite(messageId: number, status: T.PartStat, comment?: string | null): Promise<void>;
+    /** When people are busy, asked through the service of the calendar the meeting goes on. */
+    freeBusy(calendarId: number, emails: string[], from: number, to: number): Promise<T.Availability[]>;
   };
 
   /** Automatic replies ("out of office"). Fails for accounts whose server has none. */

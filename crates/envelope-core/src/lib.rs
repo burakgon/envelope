@@ -14,6 +14,7 @@ pub mod db;
 pub mod engine;
 pub mod error;
 pub mod files;
+pub mod free_busy;
 pub mod mail_api;
 pub mod mime;
 pub mod model;

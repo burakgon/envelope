@@ -89,6 +89,7 @@
 
 mod auth;
 pub mod autodiscover;
+mod availability;
 mod calendar;
 mod client;
 mod contacts;
@@ -112,6 +113,7 @@ pub use autodiscover::{
     Autodiscover, AutodiscoverBuilder, AutodiscoverEndpoint, AutodiscoverOptions,
     AutodiscoverResult,
 };
+pub use availability::{BusyKind, BusyPeriod};
 pub use calendar::{
     Attendee, CalendarItem, CalendarItemType, CalendarItemUpdate, EventTiming, FreeBusyStatus,
     GetCalendarItemsOptions, MeetingResponse, NewCalendarItem, OccurrenceInfo, ResponseType,

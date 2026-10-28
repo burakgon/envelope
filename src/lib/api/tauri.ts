@@ -134,6 +134,7 @@ export function createTauriApi(): Api {
       respond: (eventId, status, comment) => invoke('event_respond', { eventId, status, comment: comment ?? null }),
       invite: (messageId) => invoke('invite_info', { messageId }),
       respondInvite: (messageId, status, comment) => invoke('invite_respond', { messageId, status, comment: comment ?? null }),
+      freeBusy: (calendarId, emails, from, to) => invoke('free_busy', { calendarId, emails, from, to }),
     },
 
     ai: {

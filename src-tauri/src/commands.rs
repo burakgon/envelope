@@ -503,6 +503,22 @@ pub async fn attachment_reveal(app: AppHandle, state: State<'_, AppState>, id: i
         .map_err(|e| CmdError::from(e.to_string()))
 }
 
+// ----- free/busy -------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn free_busy(
+    state: State<'_, AppState>,
+    calendar_id: i64,
+    emails: Vec<String>,
+    from: i64,
+    to: i64,
+) -> R<Vec<envelope_core::free_busy::Availability>> {
+    Ok(state
+        .engine
+        .free_busy(calendar_id, emails, from, to)
+        .await?)
+}
+
 // ----- automatic replies -----------------------------------------------------------
 
 #[tauri::command]

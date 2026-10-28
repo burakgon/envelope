@@ -193,3 +193,30 @@ export function invite(): T.InviteInfo {
     attendees: team.map((a) => ({ name: a.name, email: a.email })), myStatus: s.myStatus ?? 'needsAction', eventId: s.id, conferenceUrl: s.conference ?? null, recurring: true,
   };
 }
+
+/** Made-up but stable busy times for other people in the demo; the user's own come from the calendar. */
+export function freeBusy(emails: string[], from: number, to: number, own: Set<string>): T.Availability[] {
+  const day = 86_400_000;
+  return emails.map((email) => {
+    if (own.has(email.toLowerCase())) {
+      const busy = occurrences(from, to)
+        .filter((o) => !o.transparent && !o.allDay)
+        .map((o) => ({ start: o.start, end: o.end, tentative: o.myStatus === 'tentative' || o.myStatus === 'needsAction' }));
+      return { email, busy };
+    }
+    let seed = [...email].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+    const busy: T.Busy[] = [];
+    const first = new Date(from);
+    first.setHours(0, 0, 0, 0);
+    for (let d = first.getTime(); d < to; d += day) {
+      const weekday = new Date(d).getDay();
+      if (weekday === 0 || weekday === 6) continue;
+      for (let k = 0; k < 3; k++) {
+        seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
+        const start = d + (9 + (seed % 8)) * 3_600_000 + ((seed >> 4) % 2) * 1_800_000;
+        busy.push({ start, end: start + (seed % 3 === 0 ? 60 : 30) * 60_000, tentative: seed % 5 === 0 });
+      }
+    }
+    return { email, busy: busy.filter((b) => b.end > from && b.start < to).sort((a, b) => a.start - b.start) };
+  });
+}

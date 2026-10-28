@@ -586,6 +586,20 @@ export interface ExtractedEvent {
   confidence: number;
 }
 
+/** A busy period (unix ms). */
+export interface Busy {
+  start: number;
+  end: number;
+  /** Not yet answered or tentatively accepted. */
+  tentative: boolean;
+}
+
+/** One person's availability; `busy` is null when their calendar cannot be seen. */
+export interface Availability {
+  email: string;
+  busy: Busy[] | null;
+}
+
 /** Who gets an automatic reply. */
 export type AutoReplyAudience = 'everyone' | 'contacts' | 'organization';
 

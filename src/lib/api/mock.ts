@@ -443,6 +443,8 @@ export function createMockApi(): Api {
         cal.respond(cal.invite().eventId!, status);
         emit({ type: 'calendarChanged', calendarIds: [] });
       },
+      freeBusy: async (_calendarId, emails, from, to) =>
+        cal.freeBusy(emails, from, to, new Set(data.accounts.map((a) => a.email.toLowerCase()))),
     },
 
     ai: {

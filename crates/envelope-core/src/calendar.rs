@@ -178,7 +178,7 @@ fn date_str(t: &EventTime) -> Option<String> {
 }
 
 impl Engine {
-    fn my_emails(&self) -> Result<Vec<String>> {
+    pub(crate) fn my_emails(&self) -> Result<Vec<String>> {
         Ok(self
             .identities()?
             .into_iter()
