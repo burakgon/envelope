@@ -351,15 +351,35 @@ impl Engine {
         Ok(token)
     }
 
-    /// Mutes conversations (archiving them, like Gmail) or unmutes them.
-    /// Returns the undo token of the archive when muting.
-    pub fn mute_threads(&self, thread_ids: &[i64], muted: bool) -> Result<Option<UndoToken>> {
+    /// Archives conversations out of their accounts' inboxes, leaving any
+    /// other folder they are in alone (from a notification, a rule, muting).
+    pub fn archive_from_inbox(&self, thread_ids: &[i64]) -> Result<Vec<UndoToken>> {
+        let mut by_account: std::collections::BTreeMap<i64, Vec<i64>> = Default::default();
+        for t in self.db.read(|c| mail::thread_summaries(c, thread_ids))? {
+            by_account.entry(t.account_id).or_default().push(t.id);
+        }
+        let mut tokens = Vec::new();
+        for (account, ids) in by_account {
+            let inbox = self
+                .db
+                .read(|c| mail::list_folder_rows(c, account))?
+                .into_iter()
+                .find(|f| f.role == Some(FolderRole::Inbox))
+                .map(|f| f.id);
+            tokens.push(self.move_threads(&ids, inbox, &MoveTarget::Archive)?);
+        }
+        Ok(tokens)
+    }
+
+    /// Mutes conversations (archiving them from the inbox, like Gmail) or
+    /// unmutes them. Muting returns the undo tokens of the archive.
+    pub fn mute_threads(&self, thread_ids: &[i64], muted: bool) -> Result<Vec<UndoToken>> {
         let ids = thread_ids.to_vec();
         self.db.write(|tx| mail::set_muted(tx, &ids, muted))?;
-        let token = if muted {
-            Some(self.move_threads(thread_ids, None, &MoveTarget::Archive)?)
+        let tokens = if muted {
+            self.archive_from_inbox(thread_ids)?
         } else {
-            None
+            Vec::new()
         };
         let threads: BTreeSet<i64> = thread_ids.iter().copied().collect();
         let accounts: Vec<i64> = self
@@ -373,7 +393,7 @@ impl Engine {
             .into_iter()
             .collect();
         self.after_local_change(&accounts, &threads)?;
-        Ok(token)
+        Ok(tokens)
     }
 
     /// Reverts an action from its undo token.

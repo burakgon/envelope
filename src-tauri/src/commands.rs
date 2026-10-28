@@ -271,7 +271,7 @@ pub fn mute_threads(
     state: State<'_, AppState>,
     thread_ids: Vec<i64>,
     muted: bool,
-) -> R<Option<UndoToken>> {
+) -> R<Vec<UndoToken>> {
     Ok(state.engine.mute_threads(&thread_ids, muted)?)
 }
 

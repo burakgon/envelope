@@ -237,7 +237,7 @@ pub fn apply(engine: &Engine, incoming: &[Incoming]) -> HashSet<i64> {
         .read(|c| crate::db::mail::muted_among(c, &threads))
         .unwrap_or_default();
     if !muted.is_empty() {
-        if let Err(e) = engine.move_threads(&muted, None, &MoveTarget::Archive) {
+        if let Err(e) = engine.archive_from_inbox(&muted) {
             tracing::warn!("muted conversations not archived: {e}");
         }
         quiet.extend(muted);
@@ -269,9 +269,7 @@ pub fn apply(engine: &Engine, incoming: &[Incoming]) -> HashSet<i64> {
             ActionKey::Move(folder) => engine
                 .move_threads(&ids, None, &MoveTarget::Folder { id: folder })
                 .map(|_| ()),
-            ActionKey::Archive => engine
-                .move_threads(&ids, None, &MoveTarget::Archive)
-                .map(|_| ()),
+            ActionKey::Archive => engine.archive_from_inbox(&ids).map(|_| ()),
             ActionKey::Spam => engine
                 .move_threads(&ids, None, &MoveTarget::Junk)
                 .map(|_| ()),

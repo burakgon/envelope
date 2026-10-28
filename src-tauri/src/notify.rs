@@ -1,6 +1,6 @@
 //! Desktop notifications (freedesktop.org) with click-to-open.
 
-use envelope_core::model::{FlagChange, MoveTarget, ThreadSummary};
+use envelope_core::model::{FlagChange, ThreadSummary};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::AppState;
@@ -125,10 +125,7 @@ pub fn new_mail(app: &AppHandle, account_id: i64, threads: &[ThreadSummary]) {
             return;
         };
         let result = match (action, thread) {
-            ("archive", Some(id)) => state
-                .engine
-                .move_threads(&[id], None, &MoveTarget::Archive)
-                .map(|_| ()),
+            ("archive", Some(id)) => state.engine.archive_from_inbox(&[id]).map(|_| ()),
             ("read", Some(id)) => state.engine.set_flags(
                 &[id],
                 &[],

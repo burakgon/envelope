@@ -245,9 +245,9 @@ export function createMockApi(): Api {
       threads.filter((t) => threadIds.includes(t.id)).forEach((t) => (t.muted = muted));
       if (!muted) {
         changed(threadIds);
-        return null;
+        return [];
       }
-      return this.moveThreads(threadIds, null, { kind: 'archive' });
+      return [await this.moveThreads(threadIds, null, { kind: 'archive' })];
     },
     setLabel: async (threadIds, folderId, add) => {
       for (const t of threads.filter((x) => threadIds.includes(x.id))) {
