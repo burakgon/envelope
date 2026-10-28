@@ -578,3 +578,75 @@ pub fn draft_delete(tx: &Transaction<'_>, id: i64) -> Result<Option<DraftRow>> {
     tx.execute("DELETE FROM drafts WHERE id = ?", [id])?;
     Ok(row)
 }
+
+// ----- follow-up reminders ---------------------------------------------------------
+
+/// Starts watching a sent message for replies.
+pub fn followup_add(
+    tx: &Transaction<'_>,
+    message_id: &str,
+    account_id: i64,
+    subject: &str,
+    since: i64,
+    due_at: i64,
+) -> Result<()> {
+    tx.execute(
+        "INSERT INTO followups (message_id, account_id, subject, since, due_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (message_id) DO UPDATE SET since = excluded.since, due_at = excluded.due_at, notified = 0",
+        params![message_id.trim_matches(['<', '>']), account_id, subject, since, due_at],
+    )?;
+    Ok(())
+}
+
+pub fn followup_remove(tx: &Transaction<'_>, message_id: &str) -> Result<()> {
+    tx.execute(
+        "DELETE FROM followups WHERE message_id = ?",
+        [message_id.trim_matches(['<', '>'])],
+    )?;
+    Ok(())
+}
+
+/// A watched message, with its conversation once the sent copy has synced.
+#[derive(Debug, Clone)]
+pub struct FollowUp {
+    pub message_id: String,
+    pub subject: String,
+    pub notified: bool,
+    pub thread_id: Option<i64>,
+    /// Someone other than the user wrote in the conversation since.
+    pub replied: bool,
+}
+
+/// Watched messages that are due (or already notified, to notice late replies).
+pub fn followups_to_check(c: &Connection, now: i64) -> Result<Vec<FollowUp>> {
+    let mut st = c.prepare_cached(
+        "SELECT f.message_id, f.subject, f.notified, m.thread_id,
+                EXISTS (SELECT 1 FROM messages r
+                        WHERE r.thread_id = m.thread_id AND r.date > f.since
+                          AND r.from_email IS NOT NULL
+                          AND r.from_email NOT IN (SELECT lower(email) FROM accounts
+                                                   UNION SELECT lower(email) FROM identities))
+         FROM followups f
+         LEFT JOIN messages m ON m.account_id = f.account_id AND m.message_id = f.message_id
+         WHERE f.notified = 1 OR f.due_at <= ?
+         GROUP BY f.message_id",
+    )?;
+    let rows = st.query_map([now], |r| {
+        Ok(FollowUp {
+            message_id: r.get(0)?,
+            subject: r.get(1)?,
+            notified: r.get::<_, i64>(2)? != 0,
+            thread_id: r.get(3)?,
+            replied: r.get::<_, Option<bool>>(4)?.unwrap_or(false),
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+pub fn followup_mark_notified(tx: &Transaction<'_>, message_id: &str) -> Result<()> {
+    tx.execute(
+        "UPDATE followups SET notified = 1 WHERE message_id = ?",
+        [message_id],
+    )?;
+    Ok(())
+}

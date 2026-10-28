@@ -82,6 +82,8 @@ export function createMockApi(): Api {
       items = items.filter((t) => t.flagged);
     } else if (mb.kind === 'snoozed') {
       items = items.filter((t) => t.snoozedUntil);
+    } else if (mb.kind === 'followUp') {
+      items = items.filter((t) => /contract renewal/i.test(t.subject)).slice(0, 1);
     } else {
       const trash = data.folders.filter((f) => f.role === 'trash' || f.role === 'junk').map((f) => f.id);
       items = items.filter((t) => !t.folderIds.some((f) => trash.includes(f)) && t.folderIds.length > 0);

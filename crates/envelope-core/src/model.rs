@@ -319,6 +319,8 @@ pub enum Mailbox {
     Starred,
     /// Snoozed threads.
     Snoozed,
+    /// Sent conversations whose follow-up reminder came due without a reply.
+    FollowUp,
     /// Everything except trash and junk.
     Everything,
 }
@@ -468,6 +470,8 @@ pub struct DraftInput {
     /// `reply`, `replyAll`, `forward` or `new`.
     pub mode: Option<String>,
     pub request_read_receipt: bool,
+    /// Remind me if nobody replies within this many days.
+    pub follow_up_days: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -575,6 +579,11 @@ pub enum EngineEvent {
         title: String,
         start: i64,
         location: Option<String>,
+    },
+    /// Nobody replied to a sent message before its follow-up reminder.
+    FollowUpDue {
+        thread_id: i64,
+        subject: String,
     },
 }
 

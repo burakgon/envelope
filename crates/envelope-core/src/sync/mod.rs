@@ -130,6 +130,7 @@ pub(crate) fn spawn_housekeeping(engine: Engine) {
                 _ = engine.shutdown.cancelled() => return,
                 _ = tokio::time::sleep(Duration::from_secs(20)) => {}
             }
+            check_followups(&engine);
             let now = crate::db::now_ms();
             let due = match engine.db.read(|c| mail::due_snoozes(c, now)) {
                 Ok(d) => d,
@@ -163,6 +164,42 @@ pub(crate) fn spawn_housekeeping(engine: Engine) {
             }
         }
     });
+}
+
+/// Follow-up reminders: tells the user about sent messages nobody answered in
+/// time, and stops watching once someone replies.
+fn check_followups(engine: &Engine) {
+    let now = crate::db::now_ms();
+    let Ok(list) = engine.db.read(|c| misc::followups_to_check(c, now)) else {
+        return;
+    };
+    for f in list {
+        // The sent copy hasn't synced yet: look again later.
+        let Some(thread_id) = f.thread_id else {
+            continue;
+        };
+        if f.replied {
+            let _ = engine
+                .db
+                .write(|tx| misc::followup_remove(tx, &f.message_id));
+            if f.notified {
+                engine.emit(EngineEvent::FollowUpDue {
+                    thread_id,
+                    subject: String::new(),
+                });
+            }
+        } else if !f.notified
+            && engine
+                .db
+                .write(|tx| misc::followup_mark_notified(tx, &f.message_id))
+                .is_ok()
+        {
+            engine.emit(EngineEvent::FollowUpDue {
+                thread_id,
+                subject: f.subject,
+            });
+        }
+    }
 }
 
 /// Sender identity for a draft.

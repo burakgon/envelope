@@ -621,6 +621,16 @@ impl Engine {
                 Some(id) => Some(misc::draft_save(tx, Some(id), data)?),
                 None => Some(misc::draft_save(tx, None, data)?),
             };
+            if let Some(days) = data.follow_up_days.filter(|d| *d > 0) {
+                misc::followup_add(
+                    tx,
+                    &rendered.message_id,
+                    data.account_id,
+                    &data.subject,
+                    when,
+                    when + i64::from(days) * 86_400_000,
+                )?;
+            }
             misc::outbox_add(tx, data.account_id, draft_id, &rendered.mime, &meta, when)
         })?;
         self.outbox_wake.notify_one();
@@ -635,6 +645,7 @@ impl Engine {
             match &row {
                 Some(r) if r.state == "queued" || r.state == "failed" => {
                     misc::outbox_delete(tx, outbox_id)?;
+                    misc::followup_remove(tx, &r.meta.message_id)?;
                     Ok(row)
                 }
                 Some(_) => Err(Error::Invalid("The message is already being sent".into())),

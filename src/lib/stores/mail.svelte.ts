@@ -46,6 +46,8 @@ class Mail {
   folders = $state<Folder[]>([]);
   identities = $state<Identity[]>([]);
   outbox = $state<OutboxItem[]>([]);
+  /** Sent conversations still waiting for a reply after their reminder came due. */
+  followUpCount = $state(0);
 
   mailbox = $state<Mailbox>({ kind: 'unified', role: 'inbox' });
   search = $state('');
@@ -94,6 +96,8 @@ class Mail {
         return 'Starred';
       case 'snoozed':
         return 'Snoozed';
+      case 'followUp':
+        return 'Follow up';
       case 'everything':
         return 'All Mail';
     }
@@ -123,6 +127,18 @@ class Mail {
     await this.refresh();
     this.ready = true;
     this.loadOutbox();
+    this.loadFollowUps();
+  }
+
+  private followUpsSoon = debounce(() => this.loadFollowUps(), 400);
+
+  async loadFollowUps() {
+    try {
+      const page = await api.threads({ mailbox: { kind: 'followUp' }, offset: 0, limit: 1 });
+      this.followUpCount = page.total;
+    } catch {
+      this.followUpCount = 0;
+    }
   }
 
   async loadAccounts() {
@@ -153,6 +169,7 @@ class Mail {
       case 'mailChanged':
         this.refreshSoon();
         this.foldersSoon();
+        if (this.followUpCount) this.followUpsSoon();
         if (this.detail && e.threadIds.includes(this.detail.thread.id)) this.reloadDetail();
         break;
       case 'syncStatus': {
@@ -162,6 +179,10 @@ class Mail {
       }
       case 'outboxChanged':
         this.loadOutbox();
+        break;
+      case 'followUpDue':
+        this.followUpsSoon();
+        if (this.isMailbox({ kind: 'followUp' })) this.refreshSoon();
         break;
       case 'sendFailed':
         toasts.error(`Message not sent: ${e.error}`);

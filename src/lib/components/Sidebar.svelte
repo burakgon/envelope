@@ -6,7 +6,7 @@
   import { toasts } from '../stores/toasts.svelte';
   import {
     AlertCircle, Archive, Calendar, ChevronDown, Clock, Compose, File, Folder as FolderIcon, Inbox, Mail,
-    Mails, PanelLeft, Plus, Send, Settings, ShieldAlert, Spinner, Star, Tag, Trash, WifiOff, Flag, BookUser, UserPlus, Users,
+    Mails, PanelLeft, Plus, Send, Settings, ShieldAlert, Spinner, Star, Tag, Trash, WifiOff, Flag, BookUser, UserPlus, Users, BellRing,
   } from '../icons';
   import Logo from './Logo.svelte';
   import OutboxMenu from './OutboxMenu.svelte';
@@ -206,6 +206,12 @@
       <button class="item" class:active={mail.isMailbox({ kind: 'snoozed' })} onclick={() => go({ kind: 'snoozed' })}>
         <Clock size={16} /><span class="name">Snoozed</span>
       </button>
+      {#if mail.followUpCount > 0 || mail.isMailbox({ kind: 'followUp' })}
+        <button class="item" class:active={mail.isMailbox({ kind: 'followUp' })} onclick={() => go({ kind: 'followUp' })}>
+          <BellRing size={16} /><span class="name">Follow up</span>
+          {#if mail.followUpCount > 0}<span class="count unread">{mail.followUpCount}</span>{/if}
+        </button>
+      {/if}
       <button class="item" class:active={mail.isMailbox({ kind: 'unified', role: 'drafts' })} onclick={() => go({ kind: 'unified', role: 'drafts' })}>
         <File size={16} /><span class="name">Drafts</span>
         {#if unified.drafts > 0}<span class="count">{unified.drafts}</span>{/if}

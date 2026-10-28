@@ -15,7 +15,7 @@ use rusqlite::{Connection, OpenFlags, Transaction};
 use crate::error::{Error, Result};
 
 const SCHEMA: &str = concat!(include_str!("schema.sql"), include_str!("contacts.sql"));
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 /// Steps from one schema version to the next, applied in order to older databases.
 const MIGRATIONS: &[(i64, &str)] = &[
@@ -31,6 +31,19 @@ const MIGRATIONS: &[(i64, &str)] = &[
             "DROP TABLE IF EXISTS contacts;\n",
             include_str!("contacts.sql")
         ),
+    ),
+    // Follow-up reminders.
+    (
+        4,
+        "CREATE TABLE IF NOT EXISTS followups (
+             message_id TEXT PRIMARY KEY,
+             account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+             subject TEXT NOT NULL DEFAULT '',
+             since INTEGER NOT NULL,
+             due_at INTEGER NOT NULL,
+             notified INTEGER NOT NULL DEFAULT 0
+         );
+         CREATE INDEX IF NOT EXISTS followups_due ON followups(notified, due_at);",
     ),
 ];
 const MAX_READERS: usize = 6;
@@ -239,6 +252,139 @@ mod tests {
         for suffix in ["", "-wal", "-shm"] {
             let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
         }
+    }
+
+    #[test]
+    fn follow_ups_wait_for_a_reply() {
+        use crate::db::{mail, misc};
+        use crate::model::{AccountConfig, AccountKind, Address, FolderRole};
+
+        let db = Db::open(Path::new(":memory:")).unwrap();
+        let (account, sent) = db
+            .write(|tx| {
+                let account = mail::insert_account(
+                    tx,
+                    AccountKind::Imap,
+                    "generic",
+                    "me@example.com",
+                    "Me",
+                    "#000",
+                    &AccountConfig::default(),
+                )?;
+                let folders = mail::sync_folders(
+                    tx,
+                    account,
+                    &[mail::FolderUpsert {
+                        remote_id: "Sent".into(),
+                        name: "Sent".into(),
+                        path: "Sent".into(),
+                        parent_remote_id: None,
+                        role: Some(FolderRole::Sent),
+                        kind: "folder".into(),
+                        delimiter: None,
+                        selectable: true,
+                        sort_order: 0,
+                        color: None,
+                    }],
+                )?;
+                Ok((account, folders["Sent"]))
+            })
+            .unwrap();
+        let message = |id: &str, from: &str, date: i64, reply_to: Option<&str>| mail::MessageMeta {
+            message_id: Some(id.into()),
+            in_reply_to: reply_to.map(Into::into),
+            references: reply_to.map(|r| vec![r.to_string()]).unwrap_or_default(),
+            subject: "Proposal".into(),
+            from: Some(Address::new(None, from)),
+            date,
+            ..Default::default()
+        };
+        let thread = db
+            .write(|tx| {
+                misc::followup_add(
+                    tx,
+                    "<sent-1@example.com>",
+                    account,
+                    "Proposal",
+                    1_000,
+                    2_000,
+                )?;
+                let stored = mail::upsert_message(
+                    tx,
+                    account,
+                    sent,
+                    Some(1),
+                    &message("sent-1@example.com", "me@example.com", 1_000, None),
+                )?;
+                mail::refresh_threads(tx, &[stored.thread_id].into())?;
+                Ok(stored.thread_id)
+            })
+            .unwrap();
+        // Not due yet.
+        assert!(
+            db.read(|c| misc::followups_to_check(c, 1_500))
+                .unwrap()
+                .is_empty()
+        );
+        // Due without a reply (the user's own follow-up doesn't count).
+        db.write(|tx| {
+            mail::upsert_message(
+                tx,
+                account,
+                sent,
+                Some(2),
+                &message(
+                    "own@example.com",
+                    "ME@example.com",
+                    1_500,
+                    Some("sent-1@example.com"),
+                ),
+            )?;
+            Ok(())
+        })
+        .unwrap();
+        let due = db.read(|c| misc::followups_to_check(c, 2_500)).unwrap();
+        assert_eq!(due.len(), 1);
+        assert_eq!(
+            (due[0].thread_id, due[0].replied, due[0].notified),
+            (Some(thread), false, false)
+        );
+        db.write(|tx| misc::followup_mark_notified(tx, &due[0].message_id))
+            .unwrap();
+        let listed = db
+            .read(|c| {
+                let sql = mail::list_sql(
+                    c,
+                    &crate::model::Mailbox::FollowUp,
+                    &Default::default(),
+                    None,
+                )?;
+                mail::query_threads(c, &sql, 0, 10)
+            })
+            .unwrap();
+        assert_eq!(
+            listed.items.iter().map(|t| t.id).collect::<Vec<_>>(),
+            vec![thread]
+        );
+        // A reply from someone else ends the reminder.
+        db.write(|tx| {
+            mail::upsert_message(
+                tx,
+                account,
+                sent,
+                Some(3),
+                &message(
+                    "reply@other.example",
+                    "them@other.example",
+                    3_000,
+                    Some("sent-1@example.com"),
+                ),
+            )?;
+            Ok(())
+        })
+        .unwrap();
+        let after = db.read(|c| misc::followups_to_check(c, 3_500)).unwrap();
+        assert!(after[0].replied);
     }
 
     #[test]

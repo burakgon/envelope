@@ -245,3 +245,14 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS events_range ON events(calendar_id, start_ts);
 CREATE INDEX IF NOT EXISTS events_uid ON events(calendar_id, uid);
 CREATE INDEX IF NOT EXISTS events_remote ON events(calendar_id, remote_id);
+
+-- "Remind me if no reply": one row per sent message being watched.
+CREATE TABLE IF NOT EXISTS followups (
+    message_id  TEXT PRIMARY KEY,          -- Message-ID of the sent message, no brackets
+    account_id  INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    subject     TEXT NOT NULL DEFAULT '',
+    since       INTEGER NOT NULL,          -- when it was sent (unix ms)
+    due_at      INTEGER NOT NULL,
+    notified    INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS followups_due ON followups(notified, due_at);

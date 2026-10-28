@@ -117,6 +117,8 @@ export type Mailbox =
   | { kind: 'folder'; id: number }
   | { kind: 'starred' }
   | { kind: 'snoozed' }
+  /** Sent conversations with a follow-up reminder that came due without a reply. */
+  | { kind: 'followUp' }
   | { kind: 'everything' };
 
 export interface ListFilter {
@@ -228,6 +230,8 @@ export interface DraftInput {
   replyToMessageId?: number | null;
   mode?: 'new' | 'reply' | 'replyAll' | 'forward' | null;
   requestReadReceipt?: boolean;
+  /** Remind me if nobody replies within this many days. */
+  followUpDays?: number | null;
 }
 
 export interface Draft {
@@ -365,6 +369,7 @@ export type EngineEvent =
   | { type: 'newMail'; accountId: number; threads: ThreadSummary[] }
   | { type: 'calendarChanged'; calendarIds: number[] }
   | { type: 'contactsChanged'; bookIds: number[] }
+  | { type: 'followUpDue'; threadId: number; subject: string }
   | { type: 'outboxChanged' }
   | { type: 'sendFailed'; outboxId: number; error: string }
   | { type: 'reminder'; eventId: number; title: string; start: number; location: string | null };

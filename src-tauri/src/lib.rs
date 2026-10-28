@@ -35,6 +35,11 @@ impl EventSink for TauriSink {
         {
             notify::reminder(&self.app, *event_id, title, *start, location.as_deref());
         }
+        if let EngineEvent::FollowUpDue { thread_id, subject } = &event
+            && !subject.is_empty()
+        {
+            notify::follow_up(&self.app, *thread_id, subject);
+        }
         let _ = self.app.emit("engine", &event);
     }
 }

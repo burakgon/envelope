@@ -79,6 +79,21 @@ pub fn new_mail(app: &AppHandle, _account_id: i64, threads: &[ThreadSummary]) {
     });
 }
 
+/// A sent message got no reply before its follow-up reminder.
+pub fn follow_up(app: &AppHandle, thread_id: i64, subject: &str) {
+    if !enabled(app, "notifications") {
+        return;
+    }
+    show(
+        app,
+        "No reply yet".to_string(),
+        format!("{subject}\nFollow up on this conversation?"),
+        move |app| {
+            let _ = app.emit("open-thread", Some(thread_id));
+        },
+    );
+}
+
 pub fn reminder(app: &AppHandle, event_id: i64, title: &str, start: i64, location: Option<&str>) {
     if !enabled(app, "calendarNotifications") {
         return;

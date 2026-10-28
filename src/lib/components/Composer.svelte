@@ -300,7 +300,7 @@
 </div>
 
 {#if sendMenu}
-  <Popover x={sendMenu.x} y={sendMenu.y - 8} onclose={() => (sendMenu = null)} width={250}>
+  <Popover x={sendMenu.x} y={sendMenu.y - 8} onclose={() => (sendMenu = null)} width={320}>
     <div class="menu-label">Schedule send</div>
     {#each laterOptions() as o (o.label)}
       <button class="menu-item" onclick={() => send(o.when.getTime())}>
@@ -312,6 +312,15 @@
     <div class="custom">
       <input class="input" type="datetime-local" bind:value={customAt} />
       <button class="btn sm primary" disabled={!customAt} onclick={() => send(new Date(customAt).getTime())}>Schedule</button>
+    </div>
+    <div class="divider"></div>
+    <div class="menu-label">Remind me if no reply</div>
+    <div class="followup">
+      {#each [[null, 'Off'], [1, '1 day'], [3, '3 days'], [7, '1 week']] as [days, label] (label)}
+        <button
+          class:on={(c.data.followUpDays ?? null) === days}
+          onclick={() => { c.data.followUpDays = days as number | null; changed(); }}>{label}</button>
+      {/each}
     </div>
     <div class="divider"></div>
     <label class="menu-item receipt">
@@ -462,6 +471,28 @@
     letter-spacing: 1px;
     color: var(--text-3);
     background: var(--bg-active);
+  }
+  .followup {
+    display: flex;
+    gap: 4px;
+    padding: 2px 8px 6px;
+  }
+  .followup button {
+    flex: 1;
+    height: 28px;
+    border-radius: 7px;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--text-2);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .followup button:hover {
+    background: var(--bg-hover);
+  }
+  .followup button.on {
+    color: var(--accent-fg);
+    background: var(--accent);
+    box-shadow: none;
   }
   .receipt input {
     accent-color: var(--accent);

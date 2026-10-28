@@ -1504,6 +1504,14 @@ pub fn list_sql(
             wheres.push("t.flagged = 1".into());
             wheres.push(NOT_TRASH.into());
         }
+        Mailbox::FollowUp => {
+            wheres.push(
+                "t.id IN (SELECT m.thread_id FROM followups f
+                          JOIN messages m ON m.account_id = f.account_id AND m.message_id = f.message_id
+                          WHERE f.notified = 1)"
+                    .into(),
+            );
+        }
         Mailbox::Snoozed => {
             wheres.push("t.snoozed_until IS NOT NULL".into());
             order = "t.snoozed_until ASC".into();
