@@ -2,6 +2,7 @@
 //! lets them run concurrently), migrations, and typed query modules.
 
 pub mod calendar;
+pub mod contacts;
 pub mod mail;
 pub mod misc;
 
@@ -13,15 +14,25 @@ use rusqlite::{Connection, OpenFlags, Transaction};
 
 use crate::error::{Error, Result};
 
-const SCHEMA: &str = include_str!("schema.sql");
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA: &str = concat!(include_str!("schema.sql"), include_str!("contacts.sql"));
+const SCHEMA_VERSION: i64 = 3;
 
 /// Steps from one schema version to the next, applied in order to older databases.
-const MIGRATIONS: &[(i64, &str)] = &[(
-    2,
-    "CREATE INDEX IF NOT EXISTS messages_reply ON messages(account_id, in_reply_to) WHERE in_reply_to IS NOT NULL;
-     CREATE INDEX IF NOT EXISTS thread_folders_unread ON thread_folders(folder_id, last_date DESC) WHERE unread > 0;",
-)];
+const MIGRATIONS: &[(i64, &str)] = &[
+    (
+        2,
+        "CREATE INDEX IF NOT EXISTS messages_reply ON messages(account_id, in_reply_to) WHERE in_reply_to IS NOT NULL;
+         CREATE INDEX IF NOT EXISTS thread_folders_unread ON thread_folders(folder_id, last_date DESC) WHERE unread > 0;",
+    ),
+    // Address books. The draft `contacts` table of version 1 was never filled.
+    (
+        3,
+        concat!(
+            "DROP TABLE IF EXISTS contacts;\n",
+            include_str!("contacts.sql")
+        ),
+    ),
+];
 const MAX_READERS: usize = 6;
 
 /// Handle to the local database. Cheap to clone.
@@ -189,6 +200,45 @@ mod tests {
             .read(|c| Ok(c.query_row("SELECT count(*) FROM accounts", [], |r| r.get(0))?))
             .unwrap();
         assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn migrates_version_2_contacts() {
+        let path = std::env::temp_dir().join(format!("envelope-v2-{}.db", uuid::Uuid::new_v4()));
+        {
+            // A version 2 database, with the draft contacts table.
+            let db = Db::open(&path).unwrap();
+            db.write(|tx| {
+                tx.execute_batch(
+                    "DROP TABLE contacts; DROP TABLE address_books;
+                     CREATE TABLE contacts (id INTEGER PRIMARY KEY, account_id INTEGER, book TEXT NOT NULL DEFAULT '',
+                       remote_id TEXT NOT NULL, etag TEXT, name TEXT NOT NULL DEFAULT '', emails TEXT NOT NULL DEFAULT '',
+                       data TEXT NOT NULL, raw TEXT, UNIQUE (account_id, book, remote_id));
+                     PRAGMA user_version = 2;",
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        }
+        let db = Db::open(&path).unwrap();
+        let (version, books, has_book_id): (i64, i64, i64) = db
+            .read(|c| {
+                Ok((
+                    c.query_row("PRAGMA user_version", [], |r| r.get(0))?,
+                    c.query_row("SELECT count(*) FROM address_books", [], |r| r.get(0))?,
+                    c.query_row(
+                        "SELECT count(*) FROM pragma_table_info('contacts') WHERE name = 'book_id'",
+                        [],
+                        |r| r.get(0),
+                    )?,
+                ))
+            })
+            .unwrap();
+        assert_eq!((version, books, has_book_id), (SCHEMA_VERSION, 0, 1));
+        drop(db);
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
     }
 
     #[test]

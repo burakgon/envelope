@@ -113,6 +113,23 @@ impl Error {
     pub fn is_rate_limited(&self) -> bool {
         self.api_error().is_some_and(ApiError::is_rate_limited)
     }
+
+    /// True when a write quoted an outdated etag: `412`, or the People API's
+    /// `400 FAILED_PRECONDITION` ("person.etag is different than the current
+    /// person.etag"). Fetch the resource again, re-apply the change and
+    /// retry.
+    pub fn is_stale_etag(&self) -> bool {
+        self.is_precondition_failed()
+            || self.api_error().is_some_and(|e| {
+                e.status == 400 && e.status_text.as_deref() == Some("FAILED_PRECONDITION")
+            })
+    }
+
+    /// True when the credentials lack the permission (scope) the request
+    /// needs, as when writing with a read-only grant.
+    pub fn is_forbidden(&self) -> bool {
+        self.status() == Some(403) && !self.is_rate_limited()
+    }
 }
 
 /// An error response from a Google API.

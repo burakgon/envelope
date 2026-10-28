@@ -8,6 +8,7 @@
 pub mod ai;
 pub mod calendar;
 pub mod compose;
+pub mod contacts;
 pub mod db;
 pub mod engine;
 pub mod error;

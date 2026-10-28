@@ -15,8 +15,9 @@
 //!   calendar, paging for the others), event CRUD, meeting responses,
 //!   instances and free/busy. Events are mapped onto the provider-neutral
 //!   [`envelope_ical::Event`], with Graph specifics kept in [`GraphEvent`].
-//! * **Contacts** — contact paging and delta plus people search, mapped onto
-//!   [`envelope_ical::Contact`].
+//! * **Contacts** — contact paging and per-folder delta, writes (create,
+//!   field-level update, delete), contact photos and people search, mapped
+//!   onto [`envelope_ical::Contact`].
 //!
 //! All requests go to `/me`, the signed-in user.
 

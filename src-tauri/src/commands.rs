@@ -664,3 +664,45 @@ pub async fn invite_respond(
         .respond_invite(message_id, status, comment)
         .await?)
 }
+
+// ----- contacts ----------------------------------------------------------------------
+
+use envelope_core::contacts::{ContactBook, ContactInput, ContactPage, ContactView};
+
+#[tauri::command]
+pub async fn contact_books(state: State<'_, AppState>) -> R<Vec<ContactBook>> {
+    let engine = state.engine.clone();
+    tauri::async_runtime::spawn_blocking(move || engine.contact_books())
+        .await
+        .map_err(|e| CmdError::from(e.to_string()))?
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn contacts_list(
+    state: State<'_, AppState>,
+    query: String,
+    book_id: Option<i64>,
+    offset: i64,
+    limit: i64,
+) -> R<ContactPage> {
+    Ok(state
+        .engine
+        .contacts_list(&query, book_id, offset, limit)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn contact_get(state: State<'_, AppState>, id: i64) -> R<ContactView> {
+    Ok(state.engine.contact(id).await?)
+}
+
+#[tauri::command]
+pub async fn contact_save(state: State<'_, AppState>, contact: ContactInput) -> R<i64> {
+    Ok(state.engine.save_contact(contact).await?)
+}
+
+#[tauri::command]
+pub async fn contact_delete(state: State<'_, AppState>, id: i64) -> R<()> {
+    Ok(state.engine.delete_contact(id).await?)
+}

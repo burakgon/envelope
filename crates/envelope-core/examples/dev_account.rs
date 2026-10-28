@@ -52,6 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     username: String::new(),
                 }),
                 caldav_url: Some("http://127.0.0.1:5232/".into()),
+                carddav_url: Some("http://127.0.0.1:5232/".into()),
                 accept_invalid_certs: true,
                 ..Default::default()
             },

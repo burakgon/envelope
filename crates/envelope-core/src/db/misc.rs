@@ -135,7 +135,9 @@ pub fn record_addresses(
     Ok(())
 }
 
-/// Ranked address suggestions for a prefix (name or e-mail).
+/// Ranked address suggestions for a prefix (name or e-mail): address book
+/// contacts (every address, primary first) merged with the addresses seen in
+/// mail, ranked by how much the user writes to them.
 pub fn suggest_addresses(
     c: &Connection,
     query: &str,
@@ -149,23 +151,29 @@ pub fn suggest_addresses(
     let word = format!("% {}%", q.replace(['%', '_'], ""));
     let now = now_ms();
     let mut out: Vec<ContactSuggestion> = Vec::new();
-    // Address book contacts first.
-    {
-        let mut st = c.prepare_cached(
-            "SELECT name, emails FROM contacts WHERE lower(name) LIKE ?1 OR lower(name) LIKE ?2 OR emails LIKE ?1 OR emails LIKE ?2 LIMIT 50",
-        )?;
-        let rows = st.query_map(params![like, word], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
-        })?;
-        for row in rows {
-            let (name, emails) = row?;
-            for email in emails.split_whitespace() {
-                out.push(ContactSuggestion {
-                    name: Some(name.clone()).filter(|n| !n.is_empty()),
-                    email: email.to_string(),
-                    score: 50.0,
-                });
+    // Address book contacts first: a saved contact outranks an address that
+    // was only seen in mail, but not one the user writes to all the time.
+    for found in crate::db::contacts::email_matches(c, &q, 50)? {
+        for (i, email) in found.emails.iter().enumerate() {
+            if out.iter().any(|s| s.email.eq_ignore_ascii_case(email)) {
+                continue;
             }
+            let local_part = email.split('@').next().unwrap_or("");
+            let address_match = email.starts_with(&q)
+                || local_part
+                    .split(|ch: char| !ch.is_alphanumeric())
+                    .any(|w| w.starts_with(&q));
+            if !found.name_match && !address_match {
+                continue;
+            }
+            let name_bonus = if found.name_match { 10.0 } else { 0.0 };
+            let primary_bonus = if i == 0 { 5.0 } else { 0.0 };
+            let score = 40.0 + name_bonus + primary_bonus - (i as f64).min(5.0);
+            out.push(ContactSuggestion {
+                name: Some(found.name.clone()).filter(|n| !n.is_empty() && !n.contains('@')),
+                email: email.clone(),
+                score,
+            });
         }
     }
     let mut st = c.prepare_cached(

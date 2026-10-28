@@ -1,22 +1,28 @@
 //! People API: the user's contacts and "other contacts" (people they
-//! e-mailed), mapped into [`Contact`], with incremental sync and the search
-//! endpoints used for address autocomplete.
+//! e-mailed), mapped into [`Contact`], with incremental sync, the search
+//! endpoints used for address autocomplete, and contact writes (create,
+//! update, delete and photos).
 
 use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 
-use chrono::NaiveDate;
-use envelope_ical::{Contact, ContactField};
+use base64::Engine as _;
+use chrono::{Datelike, NaiveDate};
+use envelope_ical::vcard::NO_YEAR;
+use envelope_ical::{Contact, ContactAddress, ContactField};
+use reqwest::Method;
 use serde::Deserialize;
+use serde_json::{Map, Value, json};
 
 use crate::client::{ApiRequest, GoogleClient, Service};
-use crate::error::{Result, ensure_page_progress};
+use crate::error::{Error, Result, ensure_page_progress};
 use crate::html;
 use crate::serde_util::{non_empty, null_default};
 
-/// `personFields` requested for `people/me/connections`. `metadata` is
-/// needed to recognise deletions during incremental syncs.
-pub const CONNECTION_PERSON_FIELDS: &str = "names,nicknames,emailAddresses,phoneNumbers,organizations,photos,birthdays,biographies,metadata";
+/// `personFields` requested for `people/me/connections` and returned by
+/// contact writes. `metadata` is needed to recognise deletions during
+/// incremental syncs.
+pub const CONNECTION_PERSON_FIELDS: &str = "names,nicknames,emailAddresses,phoneNumbers,addresses,organizations,urls,photos,birthdays,biographies,metadata";
 
 /// `readMask` requested for `otherContacts`.
 pub const OTHER_CONTACTS_READ_MASK: &str = "names,emailAddresses,metadata";
@@ -26,6 +32,41 @@ const CONTACT_SEARCH_READ_MASK: &str =
 const OTHER_CONTACT_SEARCH_READ_MASK: &str = "names,emailAddresses,phoneNumbers";
 const PAGE_SIZE: &str = "1000";
 const MAX_SEARCH_RESULTS: u32 = 30;
+
+/// The person fields Envelope writes, in `updatePersonFields` spelling.
+const EDITABLE_FIELDS: [&str; 9] = [
+    "names",
+    "nicknames",
+    "emailAddresses",
+    "phoneNumbers",
+    "addresses",
+    "organizations",
+    "urls",
+    "birthdays",
+    "biographies",
+];
+
+/// A saved contact together with what is needed to change it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct GoogleContact {
+    /// The mapped contact; `uid` is the resource name (`people/c123`) and
+    /// `photo` the URL of a photo the user set (default avatars are left
+    /// out).
+    pub contact: Contact,
+    /// The person's etag, which updates must quote.
+    pub etag: Option<String>,
+    /// The person resource as Google returned it. Updates start from it so
+    /// that details the [`Contact`] model does not cover survive.
+    pub person: Value,
+}
+
+impl GoogleContact {
+    /// Maps a person resource as the People API returns it, for example one
+    /// kept from an earlier sync.
+    pub fn from_person(person: Value) -> Result<GoogleContact> {
+        google_contact(person)
+    }
+}
 
 /// Which contact collection to read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -43,10 +84,10 @@ pub enum ContactSource {
 /// page only) for the next incremental run. People API sync tokens expire
 /// after seven days, which surfaces as
 /// [`Error::SyncTokenExpired`](crate::Error::SyncTokenExpired).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ContactPage {
     /// New or changed contacts (`uid` is the resource name, e.g. `people/c123`).
-    pub contacts: Vec<Contact>,
+    pub contacts: Vec<GoogleContact>,
     /// Resource names of deleted contacts (incremental syncs only).
     pub deleted: Vec<String>,
     /// Token of the next page, if any.
@@ -142,13 +183,127 @@ impl GoogleClient {
                     continue;
                 }
             };
+            let etag = non_empty(person.etag.clone());
             match map_person(person) {
-                Some(Mapped::Contact(contact)) => page.contacts.push(*contact),
+                Some(Mapped::Contact(contact)) => page.contacts.push(GoogleContact {
+                    contact: *contact,
+                    etag,
+                    person: item,
+                }),
                 Some(Mapped::Deleted(resource_name)) => page.deleted.push(resource_name),
                 None => {}
             }
         }
         Ok(page)
+    }
+
+    /// Fetches one saved contact by resource name (`people/c123`).
+    pub async fn get_contact(&self, resource_name: &str) -> Result<GoogleContact> {
+        let segments = person_path(resource_name, "")?;
+        let segments: Vec<&str> = segments.iter().map(String::as_str).collect();
+        let request = ApiRequest::get(Service::People, &segments)
+            .query("personFields", CONNECTION_PERSON_FIELDS);
+        let person: Value = self.send_json(&request, "people.get").await?;
+        google_contact(person)
+    }
+
+    /// Creates a contact (in "My Contacts") and returns it as stored.
+    pub async fn create_contact(&self, contact: &Contact) -> Result<GoogleContact> {
+        let mut body = Map::new();
+        for field in EDITABLE_FIELDS {
+            let items = field_items(field, contact, None);
+            if items.as_array().is_some_and(|a| !a.is_empty()) {
+                body.insert(field.to_owned(), items);
+            }
+        }
+        let request = ApiRequest::new(Method::POST, Service::People, &["people:createContact"])
+            .query("personFields", CONNECTION_PERSON_FIELDS)
+            .json(&Value::Object(body))?;
+        let person: Value = self.send_json(&request, "people.createContact").await?;
+        google_contact(person)
+    }
+
+    /// Writes the fields of `contact` that differ from `base`, the version
+    /// last read from Google, and returns the updated contact. Entries that
+    /// did not change are sent back as Google returned them, so labels and
+    /// details outside the [`Contact`] model survive; nothing is sent when
+    /// nothing changed.
+    ///
+    /// When the contact changed on Google since `base` was read, the update
+    /// fails with an error for which [`Error::is_stale_etag`] is true: fetch
+    /// the contact again, merge, and retry.
+    pub async fn update_contact(
+        &self,
+        base: &GoogleContact,
+        contact: &Contact,
+    ) -> Result<GoogleContact> {
+        let changed = changed_fields(&base.contact, contact);
+        if changed.is_empty() {
+            return Ok(base.clone());
+        }
+        let resource_name = base.contact.uid.as_str();
+        let segments = person_path(resource_name, ":updateContact")?;
+        let segments: Vec<&str> = segments.iter().map(String::as_str).collect();
+        let mut body = Map::new();
+        body.insert(
+            "resourceName".into(),
+            Value::String(resource_name.to_owned()),
+        );
+        if let Some(etag) = &base.etag {
+            body.insert("etag".into(), Value::String(etag.clone()));
+        }
+        for field in &changed {
+            body.insert(
+                (*field).to_owned(),
+                field_items(field, contact, Some(&base.person)),
+            );
+        }
+        let request = ApiRequest::new(Method::PATCH, Service::People, &segments)
+            .query("updatePersonFields", changed.join(","))
+            .query("personFields", CONNECTION_PERSON_FIELDS)
+            .json(&Value::Object(body))?;
+        let person: Value = self.send_json(&request, "people.updateContact").await?;
+        google_contact(person)
+    }
+
+    /// Deletes a saved contact.
+    pub async fn delete_contact(&self, resource_name: &str) -> Result<()> {
+        let segments = person_path(resource_name, ":deleteContact")?;
+        let segments: Vec<&str> = segments.iter().map(String::as_str).collect();
+        let request = ApiRequest::new(Method::DELETE, Service::People, &segments);
+        self.execute(&request).await.map(drop)
+    }
+
+    /// Sets a contact's photo (JPEG or PNG bytes) and returns the updated
+    /// contact.
+    pub async fn update_contact_photo(
+        &self,
+        resource_name: &str,
+        photo: &[u8],
+    ) -> Result<GoogleContact> {
+        let segments = person_path(resource_name, ":updateContactPhoto")?;
+        let segments: Vec<&str> = segments.iter().map(String::as_str).collect();
+        let body = json!({
+            "photoBytes": base64::engine::general_purpose::STANDARD.encode(photo),
+            "personFields": CONNECTION_PERSON_FIELDS,
+        });
+        let request = ApiRequest::new(Method::PATCH, Service::People, &segments).json(&body)?;
+        let response: PhotoResponse = self
+            .send_json(&request, "people.updateContactPhoto")
+            .await?;
+        google_contact(response.person)
+    }
+
+    /// Removes a contact's photo and returns the updated contact.
+    pub async fn delete_contact_photo(&self, resource_name: &str) -> Result<GoogleContact> {
+        let segments = person_path(resource_name, ":deleteContactPhoto")?;
+        let segments: Vec<&str> = segments.iter().map(String::as_str).collect();
+        let request = ApiRequest::new(Method::DELETE, Service::People, &segments)
+            .query("personFields", CONNECTION_PERSON_FIELDS);
+        let response: PhotoResponse = self
+            .send_json(&request, "people.deleteContactPhoto")
+            .await?;
+        google_contact(response.person)
     }
 
     /// Searches the user's saved contacts by name, nickname, e-mail address,
@@ -231,34 +386,23 @@ fn map_person(person: Person) -> Option<Mapped> {
     let emails: Vec<ContactField> = person
         .email_addresses
         .iter()
-        .filter_map(|email| {
-            let value = non_empty(email.value.clone())?.trim().to_owned();
-            seen.insert(value.to_lowercase()).then(|| ContactField {
-                value,
-                kind: non_empty(email.kind.clone()).map(|k| k.to_lowercase()),
-                preferred: is_primary(&email.metadata),
-            })
-        })
+        .filter_map(email_field)
+        .filter(|f| seen.insert(f.value.to_lowercase()))
         .collect();
     let mut seen = HashSet::new();
     let phones: Vec<ContactField> = person
         .phone_numbers
         .iter()
-        .filter_map(|phone| {
-            let value = non_empty(phone.value.clone())
-                .or_else(|| non_empty(phone.canonical_form.clone()))?
-                .trim()
-                .to_owned();
-            seen.insert(value.clone()).then(|| ContactField {
-                value,
-                kind: phone
-                    .kind
-                    .as_deref()
-                    .filter(|k| !k.is_empty())
-                    .map(phone_kind),
-                preferred: is_primary(&phone.metadata),
-            })
-        })
+        .filter_map(phone_field)
+        .filter(|f| seen.insert(f.value.clone()))
+        .collect();
+    let addresses: Vec<ContactAddress> = person.addresses.iter().filter_map(address_of).collect();
+    let mut seen = HashSet::new();
+    let urls: Vec<ContactField> = person
+        .urls
+        .iter()
+        .filter_map(url_field)
+        .filter(|f| seen.insert(f.value.clone()))
         .collect();
     let name = primary(&person.names, |n| &n.metadata);
     let given_name = name.and_then(|n| non_empty(n.given_name.clone()));
@@ -277,17 +421,7 @@ fn map_person(person: Person) -> Option<Mapped> {
         })
         .or_else(|| emails.first().map(|e| e.value.clone()))
         .unwrap_or_default();
-    let organization = person
-        .organizations
-        .iter()
-        .find(|o| is_primary(&o.metadata))
-        .or_else(|| {
-            person
-                .organizations
-                .iter()
-                .find(|o| o.current == Some(true))
-        })
-        .or_else(|| person.organizations.first());
+    let organization = primary_organization(&person.organizations);
     let note = primary(&person.biographies, |b| &b.metadata).and_then(|bio| {
         let value = non_empty(bio.value.clone())?;
         if bio.content_type.as_deref() == Some("TEXT_HTML") {
@@ -296,11 +430,12 @@ fn map_person(person: Person) -> Option<Mapped> {
             Some(value)
         }
     });
-    let birthday = person.birthdays.iter().find_map(|b| {
-        let date = b.date.as_ref()?;
-        let year = date.year.filter(|y| *y > 0)?;
-        NaiveDate::from_ymd_opt(year, date.month?, date.day?)
-    });
+    let birthday = person
+        .birthdays
+        .iter()
+        .filter_map(|b| birthday_date(b.date.as_ref()?))
+        // A full date wins over a year-less one.
+        .max_by_key(|d| d.year() != NO_YEAR);
     let photo = person
         .photos
         .iter()
@@ -320,7 +455,74 @@ fn map_person(person: Person) -> Option<Mapped> {
         note,
         birthday,
         photo,
+        addresses,
+        urls,
     })))
+}
+
+fn email_field(email: &EmailAddress) -> Option<ContactField> {
+    Some(ContactField {
+        value: non_empty(email.value.clone())?.trim().to_owned(),
+        kind: non_empty(email.kind.clone()).map(|k| k.to_lowercase()),
+        preferred: is_primary(&email.metadata),
+    })
+}
+
+fn phone_field(phone: &PhoneNumber) -> Option<ContactField> {
+    Some(ContactField {
+        value: non_empty(phone.value.clone())
+            .or_else(|| non_empty(phone.canonical_form.clone()))?
+            .trim()
+            .to_owned(),
+        kind: phone
+            .kind
+            .as_deref()
+            .filter(|k| !k.is_empty())
+            .map(phone_kind),
+        preferred: is_primary(&phone.metadata),
+    })
+}
+
+fn url_field(url: &UrlEntry) -> Option<ContactField> {
+    Some(ContactField {
+        value: non_empty(url.value.clone())?.trim().to_owned(),
+        kind: non_empty(url.kind.clone()).map(|k| k.to_lowercase()),
+        preferred: is_primary(&url.metadata),
+    })
+}
+
+fn address_of(address: &Address) -> Option<ContactAddress> {
+    let part = |v: &Option<String>| v.as_deref().map(str::trim).unwrap_or("").to_owned();
+    let mut out = ContactAddress {
+        kind: non_empty(address.kind.clone()).map(|k| k.to_lowercase()),
+        preferred: is_primary(&address.metadata),
+        po_box: part(&address.po_box),
+        extended: part(&address.extended_address),
+        street: part(&address.street_address),
+        locality: part(&address.city),
+        region: part(&address.region),
+        postal_code: part(&address.postal_code),
+        country: part(&address.country),
+    };
+    if out.is_empty() {
+        // Addresses typed as one block of text only have a formatted value.
+        let text = non_empty(address.formatted_value.clone())?;
+        out = ContactAddress::from_text(&text, out.kind);
+    }
+    (!out.is_empty()).then_some(out)
+}
+
+fn birthday_date(date: &DateParts) -> Option<NaiveDate> {
+    let year = date.year.filter(|y| *y > 0).unwrap_or(NO_YEAR);
+    NaiveDate::from_ymd_opt(year, date.month?, date.day?)
+}
+
+fn primary_organization(organizations: &[Organization]) -> Option<&Organization> {
+    organizations
+        .iter()
+        .find(|o| is_primary(&o.metadata))
+        .or_else(|| organizations.iter().find(|o| o.current == Some(true)))
+        .or_else(|| organizations.first())
 }
 
 /// Maps Google's phone types to vCard-style labels.
@@ -334,6 +536,24 @@ fn phone_kind(kind: &str) -> String {
     }
 }
 
+/// Google's phone type for a vCard-style label.
+fn google_phone_type(kind: &str) -> String {
+    match kind {
+        "cell" | "mobile" | "iphone" => "mobile".to_owned(),
+        "fax" => "otherFax".to_owned(),
+        other => other.to_owned(),
+    }
+}
+
+/// Google's URL type for a vCard-style label.
+fn google_url_type(kind: &str) -> String {
+    match kind {
+        "homepage" => "homePage".to_owned(),
+        "appinstallpage" => "appInstallPage".to_owned(),
+        other => other.to_owned(),
+    }
+}
+
 fn is_primary(metadata: &Option<FieldMetadata>) -> bool {
     metadata.as_ref().and_then(|m| m.primary).unwrap_or(false)
 }
@@ -343,6 +563,235 @@ fn primary<T>(items: &[T], metadata: impl Fn(&T) -> &Option<FieldMetadata>) -> O
         .iter()
         .find(|item| is_primary(metadata(item)))
         .or_else(|| items.first())
+}
+
+// ---------------------------------------------------------------------------
+// Writes
+
+/// Path segments for `people/c123` plus an optional `:method` suffix.
+fn person_path(resource_name: &str, method: &str) -> Result<Vec<String>> {
+    match resource_name.split_once('/') {
+        Some(("people", id)) if !id.is_empty() && !id.contains('/') => {
+            Ok(vec!["people".to_owned(), format!("{id}{method}")])
+        }
+        _ => Err(Error::InvalidInput(format!(
+            "{resource_name:?} is not a contact resource name"
+        ))),
+    }
+}
+
+/// Maps a person returned by a read or write.
+fn google_contact(person: Value) -> Result<GoogleContact> {
+    let parsed = Person::deserialize(&person)
+        .map_err(|e| Error::InvalidResponse(format!("malformed person: {e}")))?;
+    let etag = non_empty(parsed.etag.clone());
+    match map_person(parsed) {
+        Some(Mapped::Contact(contact)) => Ok(GoogleContact {
+            contact: *contact,
+            etag,
+            person,
+        }),
+        _ => Err(Error::InvalidResponse(
+            "Google returned a contact without a resource name".to_owned(),
+        )),
+    }
+}
+
+/// Which person fields differ between two versions of a contact.
+fn changed_fields(old: &Contact, new: &Contact) -> Vec<&'static str> {
+    EDITABLE_FIELDS
+        .into_iter()
+        .filter(|field| match *field {
+            "names" => {
+                old.given_name != new.given_name
+                    || old.family_name != new.family_name
+                    || old.name != new.name
+            }
+            "nicknames" => old.nickname != new.nickname,
+            "emailAddresses" => old.emails != new.emails,
+            "phoneNumbers" => old.phones != new.phones,
+            "addresses" => old.addresses != new.addresses,
+            "organizations" => old.organization != new.organization || old.title != new.title,
+            "urls" => old.urls != new.urls,
+            "birthdays" => old.birthday != new.birthday,
+            "biographies" => old.note != new.note,
+            _ => false,
+        })
+        .collect()
+}
+
+/// The entries of a person field `base` had, without their metadata.
+fn base_items<'a>(base: Option<&'a Value>, field: &str) -> Vec<&'a Value> {
+    base.and_then(|p| p.get(field))
+        .and_then(Value::as_array)
+        .map(|items| items.iter().collect())
+        .unwrap_or_default()
+}
+
+fn without_metadata(item: &Value) -> Value {
+    let mut item = item.clone();
+    if let Some(map) = item.as_object_mut() {
+        map.remove("metadata");
+    }
+    item
+}
+
+/// Builds a list field: entries equal to one in `base` are sent back as
+/// Google returned them, new ones are built from the model.
+fn reuse_or_build<T: PartialEq, W: for<'de> Deserialize<'de>>(
+    base: &[&Value],
+    wanted: &[T],
+    map: impl Fn(&W) -> Option<T>,
+    build: impl Fn(&T) -> Value,
+) -> Value {
+    let mapped: Vec<Option<T>> = base
+        .iter()
+        .map(|item| W::deserialize(*item).ok().as_ref().and_then(&map))
+        .collect();
+    let mut used = vec![false; base.len()];
+    let items = wanted
+        .iter()
+        .map(|item| {
+            let found = mapped
+                .iter()
+                .enumerate()
+                .position(|(i, m)| !used[i] && m.as_ref() == Some(item));
+            match found {
+                Some(i) => {
+                    used[i] = true;
+                    without_metadata(base[i])
+                }
+                None => build(item),
+            }
+        })
+        .collect();
+    Value::Array(items)
+}
+
+/// Inserts `key: value` unless the value is blank.
+fn put(map: &mut Map<String, Value>, key: &str, value: Option<&str>) {
+    match value.map(str::trim).filter(|v| !v.is_empty()) {
+        Some(v) => {
+            map.insert(key.to_owned(), Value::String(v.to_owned()));
+        }
+        None => {
+            map.remove(key);
+        }
+    }
+}
+
+/// The value of one editable person field for `contact`.
+fn field_items(field: &str, contact: &Contact, base: Option<&Value>) -> Value {
+    let base_list = base_items(base, field);
+    match field {
+        "names" => {
+            let mut name = base_list
+                .iter()
+                .find(|n| n.pointer("/metadata/primary") == Some(&Value::Bool(true)))
+                .or(base_list.first())
+                .map(|n| without_metadata(n))
+                .and_then(|n| n.as_object().cloned())
+                .unwrap_or_default();
+            for key in ["displayName", "displayNameLastFirst", "unstructuredName"] {
+                name.remove(key);
+            }
+            put(&mut name, "givenName", contact.given_name.as_deref());
+            put(&mut name, "familyName", contact.family_name.as_deref());
+            if contact.given_name.is_none() && contact.family_name.is_none() {
+                put(&mut name, "unstructuredName", Some(&contact.name));
+            }
+            let has_name = ["givenName", "familyName", "middleName", "unstructuredName"]
+                .iter()
+                .any(|k| name.contains_key(*k));
+            Value::Array(if has_name {
+                vec![Value::Object(name)]
+            } else {
+                Vec::new()
+            })
+        }
+        "nicknames" => Value::Array(
+            contact
+                .nickname
+                .iter()
+                .filter(|n| !n.trim().is_empty())
+                .map(|n| json!({ "value": n.trim() }))
+                .collect(),
+        ),
+        "emailAddresses" => reuse_or_build(&base_list, &contact.emails, email_field, |f| {
+            typed_value(&f.value, f.kind.as_deref().map(str::to_owned))
+        }),
+        "phoneNumbers" => reuse_or_build(&base_list, &contact.phones, phone_field, |f| {
+            typed_value(&f.value, f.kind.as_deref().map(google_phone_type))
+        }),
+        "urls" => reuse_or_build(&base_list, &contact.urls, url_field, |f| {
+            typed_value(&f.value, f.kind.as_deref().map(google_url_type))
+        }),
+        "addresses" => reuse_or_build(&base_list, &contact.addresses, address_of, |a| {
+            let mut map = Map::new();
+            put(&mut map, "type", a.kind.as_deref());
+            put(&mut map, "poBox", Some(&a.po_box));
+            put(&mut map, "extendedAddress", Some(&a.extended));
+            put(&mut map, "streetAddress", Some(&a.street));
+            put(&mut map, "city", Some(&a.locality));
+            put(&mut map, "region", Some(&a.region));
+            put(&mut map, "postalCode", Some(&a.postal_code));
+            put(&mut map, "country", Some(&a.country));
+            put(&mut map, "formattedValue", Some(&a.formatted()));
+            Value::Object(map)
+        }),
+        "organizations" => {
+            // Edit the primary organization in place (keeping department,
+            // dates, …) and leave the others alone.
+            let primary_index = base_list
+                .iter()
+                .position(|o| o.pointer("/metadata/primary") == Some(&Value::Bool(true)))
+                .or_else(|| (!base_list.is_empty()).then_some(0));
+            let mut org = primary_index
+                .and_then(|i| without_metadata(base_list[i]).as_object().cloned())
+                .unwrap_or_default();
+            put(&mut org, "name", contact.organization.as_deref());
+            put(&mut org, "title", contact.title.as_deref());
+            let mut items = Vec::new();
+            if org.contains_key("name") || org.contains_key("title") {
+                items.push(Value::Object(org));
+            }
+            for (i, other) in base_list.iter().enumerate() {
+                if Some(i) != primary_index {
+                    items.push(without_metadata(other));
+                }
+            }
+            Value::Array(items)
+        }
+        "birthdays" => Value::Array(
+            contact
+                .birthday
+                .map(|date| {
+                    let mut parts = json!({ "month": date.month(), "day": date.day() });
+                    if date.year() != NO_YEAR {
+                        parts["year"] = json!(date.year());
+                    }
+                    json!({ "date": parts })
+                })
+                .into_iter()
+                .collect(),
+        ),
+        "biographies" => Value::Array(
+            contact
+                .note
+                .iter()
+                .filter(|n| !n.trim().is_empty())
+                .map(|n| json!({ "value": n, "contentType": "TEXT_PLAIN" }))
+                .collect(),
+        ),
+        _ => Value::Array(Vec::new()),
+    }
+}
+
+fn typed_value(value: &str, kind: Option<String>) -> Value {
+    let mut map = Map::new();
+    map.insert("value".into(), Value::String(value.trim().to_owned()));
+    put(&mut map, "type", kind.as_deref());
+    Value::Object(map)
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -369,10 +818,16 @@ struct SearchResult {
     person: Option<Person>,
 }
 
+#[derive(Debug, Deserialize)]
+struct PhotoResponse {
+    person: Value,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Person {
     resource_name: Option<String>,
+    etag: Option<String>,
     metadata: Option<PersonMetadata>,
     #[serde(default, deserialize_with = "null_default")]
     names: Vec<Name>,
@@ -383,7 +838,11 @@ struct Person {
     #[serde(default, deserialize_with = "null_default")]
     phone_numbers: Vec<PhoneNumber>,
     #[serde(default, deserialize_with = "null_default")]
+    addresses: Vec<Address>,
+    #[serde(default, deserialize_with = "null_default")]
     organizations: Vec<Organization>,
+    #[serde(default, deserialize_with = "null_default")]
+    urls: Vec<UrlEntry>,
     #[serde(default, deserialize_with = "null_default")]
     photos: Vec<Photo>,
     #[serde(default, deserialize_with = "null_default")]
@@ -432,6 +891,30 @@ struct PhoneNumber {
     metadata: Option<FieldMetadata>,
     value: Option<String>,
     canonical_form: Option<String>,
+    #[serde(rename = "type")]
+    kind: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Address {
+    metadata: Option<FieldMetadata>,
+    formatted_value: Option<String>,
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    po_box: Option<String>,
+    street_address: Option<String>,
+    extended_address: Option<String>,
+    city: Option<String>,
+    region: Option<String>,
+    postal_code: Option<String>,
+    country: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct UrlEntry {
+    metadata: Option<FieldMetadata>,
+    value: Option<String>,
     #[serde(rename = "type")]
     kind: Option<String>,
 }
@@ -535,5 +1018,164 @@ mod tests {
             Some(Mapped::Deleted(name)) if name == "people/c2"
         ));
         assert!(person(json!({"names": [{"displayName": "No id"}]})).is_none());
+    }
+
+    fn ada() -> GoogleContact {
+        google_contact(json!({
+            "resourceName": "people/c1",
+            "etag": "%Ada1",
+            "names": [{"metadata": {"primary": true}, "displayName": "Ada Lovelace", "givenName": "Ada",
+                       "familyName": "Lovelace", "middleName": "King", "unstructuredName": "Ada King Lovelace"}],
+            "emailAddresses": [
+                {"metadata": {"primary": true}, "value": "ada@example.com", "type": "work", "formattedType": "Work",
+                 "displayName": "Ada (work)"},
+                {"value": "ada@home.example", "type": "home"}
+            ],
+            "phoneNumbers": [{"value": "+44 20 1234", "type": "workMobile", "formattedType": "Work Mobile"}],
+            "addresses": [
+                {"type": "home", "streetAddress": "12 St James's Square", "city": "London", "postalCode": "SW1Y 4JH",
+                 "country": "United Kingdom", "countryCode": "GB", "formattedValue": "12 St James's Square\nLondon SW1Y 4JH"},
+                {"type": "work", "formattedValue": "Analytical Engine Works\nMarylebone"}
+            ],
+            "urls": [{"value": "https://ada.example", "type": "homePage"}],
+            "organizations": [
+                {"metadata": {"primary": true}, "name": "Analytical Engines", "title": "Programmer", "department": "R&D"},
+                {"name": "Royal Society", "title": "Fellow"}
+            ],
+            "birthdays": [{"date": {"month": 12, "day": 10}}],
+            "biographies": [{"value": "First programmer", "contentType": "TEXT_PLAIN"}]
+        }))
+        .expect("contact")
+    }
+
+    #[test]
+    fn maps_addresses_urls_and_yearless_birthdays() {
+        let ada = ada();
+        assert_eq!(ada.etag.as_deref(), Some("%Ada1"));
+        let contact = &ada.contact;
+        assert_eq!(contact.phones[0].kind.as_deref(), Some("cell"));
+        assert_eq!(contact.addresses.len(), 2);
+        assert_eq!(
+            contact.addresses[0].formatted(),
+            "12 St James's Square\nSW1Y 4JH London\nUnited Kingdom"
+        );
+        assert_eq!(contact.addresses[1].kind.as_deref(), Some("work"));
+        assert_eq!(
+            contact.addresses[1].formatted(),
+            "Analytical Engine Works\nMarylebone",
+            "free-text addresses come from formattedValue"
+        );
+        assert_eq!(contact.urls[0].kind.as_deref(), Some("homepage"));
+        assert_eq!(contact.birthday, NaiveDate::from_ymd_opt(NO_YEAR, 12, 10));
+        assert_eq!(contact.organization.as_deref(), Some("Analytical Engines"));
+    }
+
+    #[test]
+    fn updates_send_only_changed_fields_and_keep_unchanged_entries() {
+        let base = ada();
+        let mut edited = base.contact.clone();
+        edited.emails.push(ContactField {
+            value: "countess@example.com".into(),
+            kind: Some("other".into()),
+            preferred: false,
+        });
+        edited.title = Some("Analyst".into());
+        assert_eq!(
+            changed_fields(&base.contact, &edited),
+            ["emailAddresses", "organizations"]
+        );
+        let emails = field_items("emailAddresses", &edited, Some(&base.person));
+        assert_eq!(
+            emails,
+            json!([
+                {"value": "ada@example.com", "type": "work", "formattedType": "Work", "displayName": "Ada (work)"},
+                {"value": "ada@home.example", "type": "home"},
+                {"value": "countess@example.com", "type": "other"}
+            ]),
+            "unchanged entries keep their Google details"
+        );
+        let orgs = field_items("organizations", &edited, Some(&base.person));
+        assert_eq!(
+            orgs,
+            json!([
+                {"name": "Analytical Engines", "title": "Analyst", "department": "R&D"},
+                {"name": "Royal Society", "title": "Fellow"}
+            ])
+        );
+
+        let mut renamed = base.contact.clone();
+        renamed.given_name = Some("Augusta".into());
+        renamed.name = "Augusta Lovelace".into();
+        assert_eq!(changed_fields(&base.contact, &renamed), ["names"]);
+        assert_eq!(
+            field_items("names", &renamed, Some(&base.person)),
+            json!([{"givenName": "Augusta", "familyName": "Lovelace", "middleName": "King"}])
+        );
+        assert!(changed_fields(&base.contact, &base.contact).is_empty());
+    }
+
+    #[test]
+    fn new_contacts_map_every_field() {
+        let contact = Contact {
+            name: "Acme Corp".into(),
+            phones: vec![ContactField {
+                value: "+1 555 0100".into(),
+                kind: Some("cell".into()),
+                preferred: false,
+            }],
+            addresses: vec![ContactAddress::from_text(
+                "1 Main St\nSpringfield",
+                Some("work".into()),
+            )],
+            urls: vec![ContactField {
+                value: "https://acme.example".into(),
+                kind: None,
+                preferred: false,
+            }],
+            birthday: NaiveDate::from_ymd_opt(1990, 1, 31),
+            note: Some("Supplier".into()),
+            ..Contact::default()
+        };
+        assert_eq!(
+            field_items("names", &contact, None),
+            json!([{"unstructuredName": "Acme Corp"}])
+        );
+        assert_eq!(
+            field_items("phoneNumbers", &contact, None),
+            json!([{"value": "+1 555 0100", "type": "mobile"}])
+        );
+        assert_eq!(
+            field_items("addresses", &contact, None),
+            json!([{"type": "work", "streetAddress": "1 Main St\nSpringfield",
+                    "formattedValue": "1 Main St\nSpringfield"}])
+        );
+        assert_eq!(
+            field_items("urls", &contact, None),
+            json!([{"value": "https://acme.example"}])
+        );
+        assert_eq!(
+            field_items("birthdays", &contact, None),
+            json!([{"date": {"year": 1990, "month": 1, "day": 31}}])
+        );
+        let yearless = Contact {
+            birthday: NaiveDate::from_ymd_opt(NO_YEAR, 2, 29),
+            ..Contact::default()
+        };
+        assert_eq!(
+            field_items("birthdays", &yearless, None),
+            json!([{"date": {"month": 2, "day": 29}}])
+        );
+        assert_eq!(field_items("nicknames", &contact, None), json!([]));
+    }
+
+    #[test]
+    fn resource_paths() {
+        assert_eq!(
+            person_path("people/c42", ":updateContact").expect("path"),
+            ["people", "c42:updateContact"]
+        );
+        assert!(person_path("otherContacts/c1", "").is_err());
+        assert!(person_path("people/", "").is_err());
+        assert!(person_path("people/a/b", "").is_err());
     }
 }

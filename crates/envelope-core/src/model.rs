@@ -528,9 +528,14 @@ pub struct NewAccount {
     pub config: AccountConfig,
 }
 
-/// Events pushed from the engine to the UI.
+/// Events pushed from the engine to the UI, e.g.
+/// `{ "type": "mailChanged", "accountId": 1, "folderIds": [..], "threadIds": [..] }`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type")]
+#[serde(
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    tag = "type"
+)]
 pub enum EngineEvent {
     AccountsChanged,
     FoldersChanged {
@@ -554,6 +559,10 @@ pub enum EngineEvent {
     CalendarChanged {
         calendar_ids: Vec<i64>,
     },
+    /// Contacts (or the list of address books) changed.
+    ContactsChanged {
+        book_ids: Vec<i64>,
+    },
     OutboxChanged,
     /// A message failed to send.
     SendFailed {
@@ -567,4 +576,46 @@ pub enum EngineEvent {
         start: i64,
         location: Option<String>,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn contacts_changed_wire_format() {
+        let json = serde_json::to_value(EngineEvent::ContactsChanged {
+            book_ids: vec![3, 7],
+        })
+        .unwrap_or_default();
+        assert_eq!(
+            json,
+            serde_json::json!({ "type": "contactsChanged", "bookIds": [3, 7] })
+        );
+    }
+}
+
+#[cfg(test)]
+mod event_tests {
+    use super::*;
+
+    #[test]
+    fn events_use_camel_case_fields() {
+        let json = serde_json::to_value(EngineEvent::MailChanged {
+            account_id: 1,
+            folder_ids: vec![2],
+            thread_ids: vec![3],
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({ "type": "mailChanged", "accountId": 1, "folderIds": [2], "threadIds": [3] })
+        );
+        let json =
+            serde_json::to_value(EngineEvent::ContactsChanged { book_ids: vec![4] }).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({ "type": "contactsChanged", "bookIds": [4] })
+        );
+    }
 }

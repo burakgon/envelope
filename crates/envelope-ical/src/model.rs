@@ -243,6 +243,12 @@ pub struct Contact {
     pub birthday: Option<NaiveDate>,
     /// Photo as a `data:` URI or remote URL.
     pub photo: Option<String>,
+    /// Postal addresses (`ADR`).
+    #[serde(default)]
+    pub addresses: Vec<ContactAddress>,
+    /// Web sites (`URL`), typed like e-mail addresses.
+    #[serde(default)]
+    pub urls: Vec<ContactField>,
 }
 
 /// A typed value of a contact (an e-mail address or phone number).
@@ -253,4 +259,97 @@ pub struct ContactField {
     /// Lower-cased type label such as `work`, `home`, `cell`.
     pub kind: Option<String>,
     pub preferred: bool,
+}
+
+/// A postal address with the components of a vCard `ADR`. Absent components
+/// are empty strings.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ContactAddress {
+    /// Lower-cased type label such as `home` or `work`.
+    pub kind: Option<String>,
+    pub preferred: bool,
+    pub po_box: String,
+    /// Apartment, suite, building.
+    pub extended: String,
+    /// Street address; may span several lines.
+    pub street: String,
+    /// City.
+    pub locality: String,
+    /// State or province.
+    pub region: String,
+    pub postal_code: String,
+    pub country: String,
+}
+
+impl ContactAddress {
+    /// An address typed as free text: every line goes into the street, which
+    /// keeps the text exactly as written ([`formatted`](Self::formatted)
+    /// gives it back) and is how most clients store unstructured addresses.
+    pub fn from_text(text: &str, kind: Option<String>) -> Self {
+        ContactAddress {
+            kind,
+            street: clean_lines(text),
+            ..ContactAddress::default()
+        }
+    }
+
+    /// True when every component is blank.
+    pub fn is_empty(&self) -> bool {
+        [
+            &self.po_box,
+            &self.extended,
+            &self.street,
+            &self.locality,
+            &self.region,
+            &self.postal_code,
+            &self.country,
+        ]
+        .iter()
+        .all(|c| c.trim().is_empty())
+    }
+
+    /// The address as multi-line text: street lines, then the city line
+    /// (`Cupertino, CA 95014` when there is a region, `34710 Kadıköy`
+    /// otherwise), then the country.
+    pub fn formatted(&self) -> String {
+        let mut lines: Vec<String> = Vec::new();
+        for part in [&self.po_box, &self.extended, &self.street] {
+            let part = clean_lines(part);
+            if !part.is_empty() {
+                lines.push(part);
+            }
+        }
+        let join = |parts: &[&str], sep: &str| {
+            parts
+                .iter()
+                .map(|p| p.trim())
+                .filter(|p| !p.is_empty())
+                .collect::<Vec<_>>()
+                .join(sep)
+        };
+        let city = if self.region.trim().is_empty() {
+            join(&[&self.postal_code, &self.locality], " ")
+        } else {
+            let place = join(&[&self.locality, &self.region], ", ");
+            join(&[&place, &self.postal_code], " ")
+        };
+        if !city.is_empty() {
+            lines.push(city);
+        }
+        let country = clean_lines(&self.country);
+        if !country.is_empty() {
+            lines.push(country);
+        }
+        lines.join("\n")
+    }
+}
+
+/// Trims every line, drops blank ones and normalizes line breaks to `\n`.
+fn clean_lines(text: &str) -> String {
+    text.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
 }

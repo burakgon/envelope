@@ -17,7 +17,7 @@ use chrono::{Datelike, NaiveDate};
 use crate::charset;
 use crate::component::{Component, Param, Property};
 use crate::error::{Error, Result};
-use crate::model::{Contact, ContactField};
+use crate::model::{Contact, ContactAddress, ContactField};
 use crate::mutate::PRODID;
 use crate::parser::{ParseOptions, decode_bytes, parse_with};
 use crate::text::{escape_text, split_unescaped, text_list, unescape_text};
@@ -65,6 +65,20 @@ pub fn parse_vcard(text: &str) -> Result<Contact> {
         .first()
         .map(contact_from_vcard)
         .ok_or(Error::NoVCard)
+}
+
+/// Like [`parse_vcard`], but also returns the card's lower-cased `KIND`
+/// (`individual`, `group`, `org`, …; Apple's `X-ADDRESSBOOKSERVER-KIND` is
+/// recognised too), so that contact groups can be told apart from people.
+pub fn parse_vcard_with_kind(text: &str) -> Result<(Contact, Option<String>)> {
+    let cards = parse_cards(text);
+    let card = cards.first().ok_or(Error::NoVCard)?;
+    let kind = card
+        .value("KIND")
+        .or_else(|| card.value("X-ADDRESSBOOKSERVER-KIND"))
+        .map(|k| k.trim().to_ascii_lowercase())
+        .filter(|k| !k.is_empty());
+    Ok((contact_from_vcard(card), kind))
 }
 
 fn is_quoted_printable(property: &Property) -> bool {
@@ -171,24 +185,42 @@ fn apple_label(label: &str) -> String {
     }
 }
 
-fn field(
+/// The kind of a typed property, which decides the `TYPE` values that are
+/// not labels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Typed {
+    Email,
+    Phone,
+    Address,
+    Url,
+}
+
+impl Typed {
+    fn ignored(self) -> &'static [&'static str] {
+        match self {
+            Typed::Phone => &["pref", "voice", "msg", "text", "video", "internet"],
+            Typed::Address => &["pref", "dom", "intl", "postal", "parcel", "internet"],
+            Typed::Email | Typed::Url => &["pref", "internet", "x400"],
+        }
+    }
+}
+
+/// Kind label and preference of a typed property (`TYPE`, `PREF` and Apple
+/// group labels).
+fn kind_of(
     property: &Property,
-    value: String,
     labels: &HashMap<String, String>,
-    telephone: bool,
-) -> ContactField {
+    typed: Typed,
+) -> (Option<String>, bool) {
     let types = types_of(property);
     let preferred = types.iter().any(|t| t == "pref")
         || property.param("PREF").is_some_and(|p| p.trim() == "1");
-    let ignored: &[&str] = if telephone {
-        &["pref", "voice", "msg", "text", "video", "internet"]
-    } else {
-        &["pref", "internet", "x400"]
-    };
+    let ignored = typed.ignored();
     let meaningful: Vec<&String> = types
         .iter()
         .filter(|t| !ignored.contains(&t.as_str()))
         .collect();
+    let telephone = typed == Typed::Phone;
     let kind = if telephone
         && meaningful
             .iter()
@@ -208,11 +240,75 @@ fn field(
             .map(|l| apple_label(l))
             .filter(|l| !l.is_empty())
     });
+    (kind, preferred)
+}
+
+fn field(
+    property: &Property,
+    value: String,
+    labels: &HashMap<String, String>,
+    typed: Typed,
+) -> ContactField {
+    let (kind, preferred) = kind_of(property, labels, typed);
     ContactField {
         value,
         kind,
         preferred,
     }
+}
+
+/// The value of an `EMAIL`, `TEL` or `URL` property as stored in a
+/// [`ContactField`].
+fn field_value(property: &Property, typed: Typed) -> String {
+    let value = text_of(property);
+    let stripped = match typed {
+        Typed::Email => value
+            .strip_prefix("mailto:")
+            .or_else(|| value.strip_prefix("MAILTO:")),
+        Typed::Phone => value
+            .strip_prefix("tel:")
+            .or_else(|| value.strip_prefix("TEL:")),
+        Typed::Address | Typed::Url => None,
+    };
+    stripped.unwrap_or(&value).trim().to_owned()
+}
+
+/// One component of an `ADR` value.
+fn address_component(raw: &str) -> String {
+    unescape_text(raw)
+        .replace("\r\n", "\n")
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn parse_address(property: &Property, labels: &HashMap<String, String>) -> Option<ContactAddress> {
+    let raw = raw_value(property);
+    let parts: Vec<String> = split_unescaped(&raw, ';')
+        .into_iter()
+        .map(address_component)
+        .collect();
+    let part = |i: usize| parts.get(i).cloned().unwrap_or_default();
+    let (kind, preferred) = kind_of(property, labels, Typed::Address);
+    let mut address = ContactAddress {
+        kind,
+        preferred,
+        po_box: part(0),
+        extended: part(1),
+        street: part(2),
+        locality: part(3),
+        region: part(4),
+        postal_code: part(5),
+        country: part(6),
+    };
+    if address.is_empty() {
+        // vCard 4.0 may carry only the formatted label (`ADR;LABEL="…":;;;;;;`).
+        let label = property.param("LABEL").map(|l| l.replace("\\n", "\n"))?;
+        address.street = address_component(&label);
+    }
+    (!address.is_empty()).then_some(address)
 }
 
 fn parse_birthday(property: &Property) -> Option<NaiveDate> {
@@ -350,27 +446,32 @@ pub fn contact_from_vcard(card: &Component) -> Contact {
                 contact.nickname = text_list(&raw_value(property)).into_iter().next();
             }
             "EMAIL" => {
-                let value = text_of(property);
-                let value = value
-                    .strip_prefix("mailto:")
-                    .or_else(|| value.strip_prefix("MAILTO:"))
-                    .unwrap_or(&value)
-                    .trim()
-                    .to_owned();
+                let value = field_value(property, Typed::Email);
                 if !value.is_empty() {
-                    contact.emails.push(field(property, value, &labels, false));
+                    contact
+                        .emails
+                        .push(field(property, value, &labels, Typed::Email));
                 }
             }
             "TEL" => {
-                let value = text_of(property);
-                let value = value
-                    .strip_prefix("tel:")
-                    .or_else(|| value.strip_prefix("TEL:"))
-                    .unwrap_or(&value)
-                    .trim()
-                    .to_owned();
+                let value = field_value(property, Typed::Phone);
                 if !value.is_empty() {
-                    contact.phones.push(field(property, value, &labels, true));
+                    contact
+                        .phones
+                        .push(field(property, value, &labels, Typed::Phone));
+                }
+            }
+            "URL" => {
+                let value = field_value(property, Typed::Url);
+                if !value.is_empty() {
+                    contact
+                        .urls
+                        .push(field(property, value, &labels, Typed::Url));
+                }
+            }
+            "ADR" => {
+                if let Some(address) = parse_address(property, &labels) {
+                    contact.addresses.push(address);
                 }
             }
             "ORG" if contact.organization.is_none() => {
@@ -425,11 +526,35 @@ enum Version {
     V4,
 }
 
-fn is_simple_token(kind: &str) -> bool {
-    !kind.is_empty() && kind.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+/// `TYPE` values other clients understand. Other labels are written as
+/// Apple-style group labels (`item1.X-ABLabel`), which Apple, Google and
+/// most CardDAV clients show.
+fn is_standard_type(kind: &str) -> bool {
+    matches!(
+        kind.to_ascii_lowercase().as_str(),
+        "home"
+            | "work"
+            | "other"
+            | "cell"
+            | "fax"
+            | "pager"
+            | "voice"
+            | "text"
+            | "textphone"
+            | "video"
+            | "main"
+            | "iphone"
+            | "msg"
+            | "internet"
+            | "x400"
+            | "dom"
+            | "intl"
+            | "postal"
+            | "parcel"
+    )
 }
 
-/// Builds `EMAIL`/`TEL` properties. Kinds that are not simple tokens
+/// Builds `EMAIL`/`TEL`/`URL` properties. Kinds that are not simple tokens
 /// become Apple-style group labels, which most clients display.
 fn field_properties(
     name: &str,
@@ -437,19 +562,68 @@ fn field_properties(
     version: Version,
     next_group: &mut usize,
 ) -> Vec<Property> {
-    let mut property = Property::text(name, &field.value);
+    let property = if name == "URL" {
+        // URIs are not TEXT values: commas and semicolons stay unescaped.
+        Property::new(name, field.value.replace(['\r', '\n'], ""))
+    } else {
+        Property::text(name, &field.value)
+    };
+    typed_properties(
+        property,
+        field.kind.as_deref(),
+        field.preferred,
+        version,
+        next_group,
+    )
+}
+
+/// The `ADR` value of an address.
+fn address_value(address: &ContactAddress) -> String {
+    [
+        &address.po_box,
+        &address.extended,
+        &address.street,
+        &address.locality,
+        &address.region,
+        &address.postal_code,
+        &address.country,
+    ]
+    .iter()
+    .map(|c| escape_text(c.trim()))
+    .collect::<Vec<_>>()
+    .join(";")
+}
+
+fn address_properties(
+    address: &ContactAddress,
+    version: Version,
+    next_group: &mut usize,
+) -> Vec<Property> {
+    typed_properties(
+        Property::new("ADR", address_value(address)),
+        address.kind.as_deref(),
+        address.preferred,
+        version,
+        next_group,
+    )
+}
+
+/// Adds `TYPE`/`PREF` parameters (or a group label for free-text kinds) to
+/// a property.
+fn typed_properties(
+    mut property: Property,
+    kind: Option<&str>,
+    preferred: bool,
+    version: Version,
+    next_group: &mut usize,
+) -> Vec<Property> {
     let mut extra = Vec::new();
     let mut types: Vec<String> = Vec::new();
-    if name == "EMAIL" && version == Version::V3 {
+    if property.name == "EMAIL" && version == Version::V3 {
         types.push("INTERNET".to_owned());
     }
-    match field
-        .kind
-        .as_deref()
-        .map(str::trim)
-        .filter(|k| !k.is_empty())
-    {
-        Some(kind) if is_simple_token(kind) => types.push(match version {
+    match kind.map(str::trim).filter(|k| !k.is_empty()) {
+        Some(kind) if is_standard_type(kind) => types.push(match version {
             Version::V3 => kind.to_ascii_uppercase(),
             Version::V4 => kind.to_ascii_lowercase(),
         }),
@@ -463,13 +637,13 @@ fn field_properties(
         }
         None => {}
     }
-    if field.preferred && version == Version::V3 {
+    if preferred && version == Version::V3 {
         types.push("PREF".to_owned());
     }
     if !types.is_empty() {
         property.params.push(Param::with_values("TYPE", types));
     }
-    if field.preferred && version == Version::V4 {
+    if preferred && version == Version::V4 {
         property.set_param("PREF", "1");
     }
     let mut out = vec![property];
@@ -551,6 +725,14 @@ pub fn contact_to_vcard(contact: &Contact) -> String {
     for phone in &contact.phones {
         card.properties
             .extend(field_properties("TEL", phone, Version::V3, &mut group));
+    }
+    for address in &contact.addresses {
+        card.properties
+            .extend(address_properties(address, Version::V3, &mut group));
+    }
+    for url in &contact.urls {
+        card.properties
+            .extend(field_properties("URL", url, Version::V3, &mut group));
     }
     if let Some(org) = contact.organization.as_deref().filter(|o| !o.is_empty()) {
         card.push(Property::new("ORG", escape_text(org)));
@@ -695,9 +877,7 @@ pub fn upsert_contact(existing: &str, contact: &Contact) -> Result<String> {
             }
         }
     }
-    if old.emails != contact.emails || old.phones != contact.phones {
-        merge_fields(card, &contact.emails, &contact.phones, version);
-    }
+    merge_lists(card, &old, contact, version);
     if old.organization != contact.organization {
         match contact.organization.as_deref().filter(|o| !o.is_empty()) {
             Some(org) => {
@@ -757,15 +937,10 @@ pub fn upsert_contact(existing: &str, contact: &Contact) -> Result<String> {
     Ok(write_components(&cards))
 }
 
-/// Rewrites `EMAIL`/`TEL` properties: entries that did not change keep
-/// their original property (group, label, parameters); orphaned group
-/// labels are removed.
-fn merge_fields(
-    card: &mut Component,
-    emails: &[ContactField],
-    phones: &[ContactField],
-    version: Version,
-) {
+/// Rewrites the `EMAIL`, `TEL`, `URL` and `ADR` properties whose lists
+/// changed: entries that did not change keep their original property
+/// (group, label, parameters); orphaned group labels are removed.
+fn merge_lists(card: &mut Component, old: &Contact, contact: &Contact, version: Version) {
     let labels: HashMap<String, String> = card
         .properties
         .iter()
@@ -785,42 +960,37 @@ fn merge_fields(
         .max()
         .unwrap_or(0)
         + 1;
-    for (name, wanted) in [("EMAIL", emails), ("TEL", phones)] {
-        let existing: Vec<Property> = card.properties_named(name).cloned().collect();
-        let mut used = vec![false; existing.len()];
-        let mut out = Vec::new();
-        for field_value in wanted {
-            let reuse = existing.iter().enumerate().position(|(i, p)| {
-                if used[i] {
-                    return false;
-                }
-                let value = text_of(p);
-                let value = value
-                    .strip_prefix("mailto:")
-                    .or_else(|| value.strip_prefix("tel:"))
-                    .unwrap_or(&value)
-                    .trim()
-                    .to_owned();
-                field(p, value, &labels, name == "TEL") == *field_value
-            });
-            match reuse {
-                Some(i) => {
-                    used[i] = true;
-                    out.push(existing[i].clone());
-                }
-                None => out.extend(field_properties(
-                    name,
-                    field_value,
-                    version,
-                    &mut next_group,
-                )),
-            }
+    let mut changed = false;
+    for (name, typed, old_list, wanted) in [
+        ("EMAIL", Typed::Email, &old.emails, &contact.emails),
+        ("TEL", Typed::Phone, &old.phones, &contact.phones),
+        ("URL", Typed::Url, &old.urls, &contact.urls),
+    ] {
+        if old_list != wanted {
+            changed = true;
+            merge_property_list(
+                card,
+                name,
+                wanted,
+                |p| Some(field(p, field_value(p, typed), &labels, typed)),
+                |f, group| field_properties(name, f, version, group),
+                &mut next_group,
+            );
         }
-        // Labels are separate properties; keep them out of the field list.
-        let (fields, new_labels): (Vec<Property>, Vec<Property>) =
-            out.into_iter().partition(|p| p.name == name);
-        card.set_all(name, fields);
-        card.properties.extend(new_labels);
+    }
+    if old.addresses != contact.addresses {
+        changed = true;
+        merge_property_list(
+            card,
+            "ADR",
+            &contact.addresses,
+            |p| parse_address(p, &labels),
+            |a, group| address_properties(a, version, group),
+            &mut next_group,
+        );
+    }
+    if !changed {
+        return;
     }
     // Drop labels whose group no longer has any other property.
     let groups_in_use: Vec<String> = card
@@ -835,6 +1005,40 @@ fn merge_fields(
                 .as_ref()
                 .is_none_or(|g| groups_in_use.contains(&g.to_ascii_lowercase()))
     });
+}
+
+/// Replaces the properties called `name` by ones for `wanted`, reusing every
+/// existing property that already says the same.
+fn merge_property_list<T: PartialEq>(
+    card: &mut Component,
+    name: &str,
+    wanted: &[T],
+    parse: impl Fn(&Property) -> Option<T>,
+    build: impl Fn(&T, &mut usize) -> Vec<Property>,
+    next_group: &mut usize,
+) {
+    let existing: Vec<Property> = card.properties_named(name).cloned().collect();
+    let parsed: Vec<Option<T>> = existing.iter().map(&parse).collect();
+    let mut used = vec![false; existing.len()];
+    let mut out = Vec::new();
+    for item in wanted {
+        let reuse = parsed
+            .iter()
+            .enumerate()
+            .position(|(i, p)| !used[i] && p.as_ref() == Some(item));
+        match reuse {
+            Some(i) => {
+                used[i] = true;
+                out.push(existing[i].clone());
+            }
+            None => out.extend(build(item, next_group)),
+        }
+    }
+    // Labels are separate properties; keep them out of the list.
+    let (fields, new_labels): (Vec<Property>, Vec<Property>) =
+        out.into_iter().partition(|p| p.name == name);
+    card.set_all(name, fields);
+    card.properties.extend(new_labels);
 }
 
 #[cfg(test)]
@@ -913,12 +1117,37 @@ mod tests {
             note: Some("Line 1\nLine 2".into()),
             birthday: NaiveDate::from_ymd_opt(NO_YEAR, 2, 29),
             photo: Some("data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==".into()),
+            addresses: vec![
+                ContactAddress {
+                    kind: Some("home".into()),
+                    preferred: true,
+                    street: "Bağdat Cd. 123; Daire 4\nKat 2".into(),
+                    locality: "Kadıköy".into(),
+                    region: "İstanbul".into(),
+                    postal_code: "34710".into(),
+                    country: "Türkiye".into(),
+                    ..ContactAddress::default()
+                },
+                ContactAddress::from_text("Somewhere, far away", Some("summer house".into())),
+            ],
+            urls: vec![ContactField {
+                value: "https://example.com/a,b;c".into(),
+                kind: Some("work".into()),
+                preferred: false,
+            }],
         };
         let text = contact_to_vcard(&contact);
         assert!(text.contains("VERSION:3.0\r\n"));
         assert!(text.contains("EMAIL;TYPE=INTERNET,WORK,PREF:ayse@example.com\r\n"));
         assert!(text.contains("item1.X-ABLABEL:Personal mail\r\n"));
         assert!(text.contains("PHOTO;ENCODING=b;TYPE=PNG:iVBORw0KGgoAAAANSUhEUg==\r\n"));
+        let unfolded = text.replace("\r\n ", "");
+        assert!(unfolded.contains(
+            "ADR;TYPE=HOME,PREF:;;Bağdat Cd. 123\\; Daire 4\\nKat 2;Kadıköy;İstanbul;34710;Türkiye\r\n"
+        ));
+        assert!(unfolded.contains("item2.ADR:;;Somewhere\\, far away;;;;\r\n"));
+        assert!(unfolded.contains("item2.X-ABLABEL:summer house\r\n"));
+        assert!(unfolded.contains("URL;TYPE=WORK:https://example.com/a,b;c\r\n"));
         let parsed = parse_vcard(&text).expect("card");
         assert_eq!(
             parsed,
@@ -948,5 +1177,110 @@ mod tests {
         )
         .expect("card");
         assert!(created.contains("FN:X\r\n"));
+    }
+
+    #[test]
+    fn addresses_and_urls() {
+        let text = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:A\r\n\
+item1.ADR;type=HOME;type=pref:;;Bağdat Cd. 123;Kadıköy;İstanbul;34710;Türkiye\r\n\
+item1.X-ABADR:tr\r\n\
+ADR;TYPE=WORK,POSTAL:PO Box 7;Suite 9;1 Infinite Loop;Cupertino;CA;95014;USA\r\n\
+item2.ADR:;;Ferienhaus\\nAm See 3;;;;\r\n\
+item2.X-ABLabel:Summer\r\n\
+ADR:;;;;;;\r\n\
+item3.URL:https\\://kaya-hukuk.com.tr\r\n\
+item3.X-ABLabel:_$!<HomePage>!$_\r\n\
+URL;TYPE=WORK:https://example.com/?a=1,2\r\n\
+END:VCARD\r\n";
+        let contact = parse_vcard(text).expect("card");
+        assert_eq!(contact.addresses.len(), 3, "empty ADR values are skipped");
+        let home = &contact.addresses[0];
+        assert_eq!(home.kind.as_deref(), Some("home"));
+        assert!(home.preferred);
+        assert_eq!(home.street, "Bağdat Cd. 123");
+        assert_eq!(home.locality, "Kadıköy");
+        assert_eq!(
+            home.formatted(),
+            "Bağdat Cd. 123\nKadıköy, İstanbul 34710\nTürkiye"
+        );
+        let work = &contact.addresses[1];
+        assert_eq!(work.kind.as_deref(), Some("work"), "POSTAL is not a label");
+        assert_eq!(
+            work.formatted(),
+            "PO Box 7\nSuite 9\n1 Infinite Loop\nCupertino, CA 95014\nUSA"
+        );
+        let summer = &contact.addresses[2];
+        assert_eq!(summer.kind.as_deref(), Some("summer"));
+        assert_eq!(summer.formatted(), "Ferienhaus\nAm See 3");
+        assert_eq!(
+            contact.urls,
+            [
+                ContactField {
+                    value: "https://kaya-hukuk.com.tr".into(),
+                    kind: Some("homepage".into()),
+                    preferred: false,
+                },
+                ContactField {
+                    value: "https://example.com/?a=1,2".into(),
+                    kind: Some("work".into()),
+                    preferred: false,
+                },
+            ]
+        );
+
+        // Editing one address keeps the other properties untouched.
+        let mut edited = contact.clone();
+        edited.addresses[1] = ContactAddress::from_text("Moda Cd. 12\n34710 Kadıköy", None);
+        edited.urls.remove(1);
+        let updated = upsert_contact(text, &edited).expect("upsert");
+        let unfolded = updated.replace("\r\n ", "");
+        assert!(unfolded.contains("item1.ADR;TYPE=HOME;TYPE=pref:;;Bağdat Cd. 123;"));
+        assert!(unfolded.contains("item1.X-ABADR:tr"));
+        assert!(unfolded.contains("ADR:;;Moda Cd. 12\\n34710 Kadıköy;;;;\r\n"));
+        assert!(unfolded.contains("item2.X-ABLABEL:Summer"));
+        assert!(unfolded.contains("item3.URL:https\\://kaya-hukuk.com.tr"));
+        assert!(!unfolded.contains("example.com"));
+        assert_eq!(parse_vcard(&updated).expect("card"), edited);
+
+        // vCard 4.0: an address given only as a label.
+        let v4 = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:B\r\n\
+ADR;TYPE=home;LABEL=\"Hauptstr. 1\\n10115 Berlin\":;;;;;;\r\nEND:VCARD\r\n";
+        let contact = parse_vcard(v4).expect("card");
+        assert_eq!(
+            contact.addresses[0].formatted(),
+            "Hauptstr. 1\n10115 Berlin"
+        );
+    }
+
+    #[test]
+    fn free_text_addresses_keep_their_text() {
+        let address = ContactAddress::from_text("  Line one \r\n\r\nLine two\n", None);
+        assert_eq!(address.formatted(), "Line one\nLine two");
+        assert!(ContactAddress::from_text(" \n ", None).is_empty());
+        let region_less = ContactAddress {
+            street: "Rosenthaler Str. 40".into(),
+            locality: "Berlin".into(),
+            postal_code: "10178".into(),
+            ..ContactAddress::default()
+        };
+        assert_eq!(region_less.formatted(), "Rosenthaler Str. 40\n10178 Berlin");
+    }
+
+    #[test]
+    fn group_cards_are_recognised() {
+        let (group, kind) = parse_vcard_with_kind(
+            "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Family\r\nX-ADDRESSBOOKSERVER-KIND:group\r\nEND:VCARD\r\n",
+        )
+        .expect("card");
+        assert_eq!(group.name, "Family");
+        assert_eq!(kind.as_deref(), Some("group"));
+        let (_, kind) = parse_vcard_with_kind(
+            "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:X\r\nKIND:Individual\r\nEND:VCARD\r\n",
+        )
+        .expect("card");
+        assert_eq!(kind.as_deref(), Some("individual"));
+        let (_, kind) =
+            parse_vcard_with_kind("BEGIN:VCARD\r\nFN:Y\r\nEND:VCARD\r\n").expect("card");
+        assert_eq!(kind, None);
     }
 }

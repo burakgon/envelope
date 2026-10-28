@@ -302,6 +302,15 @@ impl GraphRequest {
         self
     }
 
+    /// Sets a binary body, such as a photo, with its content type.
+    pub fn bytes(mut self, content_type: &'static str, body: impl Into<Bytes>) -> Self {
+        self.body = Some(RequestBody {
+            content_type,
+            bytes: body.into(),
+        });
+        self
+    }
+
     /// The HTTP method.
     pub fn method(&self) -> &Method {
         &self.method

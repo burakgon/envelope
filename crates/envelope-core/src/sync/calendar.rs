@@ -65,6 +65,16 @@ async fn dav_client(engine: &Engine, account: &AccountRow) -> Result<envelope_da
         .caldav_url
         .clone()
         .ok_or_else(|| Error::Invalid("no CalDAV server configured".into()))?;
+    dav_client_at(engine, account, &url).await
+}
+
+/// A DAV client for one of the account's servers (CalDAV or CardDAV), with
+/// the account's credentials.
+pub(crate) async fn dav_client_at(
+    engine: &Engine,
+    account: &AccountRow,
+    url: &str,
+) -> Result<envelope_dav::DavClient> {
     let auth = match account.config.auth {
         AuthMethod::Password => {
             let user = account
@@ -83,7 +93,7 @@ async fn dav_client(engine: &Engine, account: &AccountRow) -> Result<envelope_da
         }
         _ => envelope_dav::Auth::Bearer(AccountTokens::new(engine, account.id)),
     };
-    envelope_dav::DavClient::builder(&url)
+    envelope_dav::DavClient::builder(url)
         .auth(auth)
         .accept_invalid_certs(account.config.accept_invalid_certs)
         .build()

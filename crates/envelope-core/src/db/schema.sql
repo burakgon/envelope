@@ -169,18 +169,7 @@ CREATE TABLE IF NOT EXISTS addresses (
     last_used      INTEGER NOT NULL DEFAULT 0
 ) WITHOUT ROWID;
 
-CREATE TABLE IF NOT EXISTS contacts (
-    id          INTEGER PRIMARY KEY,
-    account_id  INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
-    book        TEXT NOT NULL DEFAULT '',   -- address book remote id
-    remote_id   TEXT NOT NULL,
-    etag        TEXT,
-    name        TEXT NOT NULL DEFAULT '',
-    emails      TEXT NOT NULL DEFAULT '',   -- space separated, lower-case, for lookup
-    data        TEXT NOT NULL,              -- JSON envelope_ical::Contact
-    raw         TEXT,
-    UNIQUE (account_id, book, remote_id)
-);
+-- Address books and contacts live in contacts.sql.
 
 -- Local changes waiting to be replayed against the server.
 CREATE TABLE IF NOT EXISTS pending_ops (

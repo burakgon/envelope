@@ -60,14 +60,26 @@ impl Provider {
         match self {
             Provider::Google => {
                 "https://mail.google.com/ https://www.googleapis.com/auth/calendar \
-                 https://www.googleapis.com/auth/contacts.readonly \
+                 https://www.googleapis.com/auth/contacts \
                  https://www.googleapis.com/auth/contacts.other.readonly openid email profile"
             }
             Provider::Microsoft => {
                 "offline_access openid email profile User.Read Mail.ReadWrite Mail.Send \
-                 Calendars.ReadWrite Contacts.Read People.Read MailboxSettings.ReadWrite"
+                 Calendars.ReadWrite Contacts.ReadWrite People.Read MailboxSettings.ReadWrite"
             }
         }
+    }
+
+    /// Scopes to ask for when refreshing `tokens`. Microsoft refuses refreshes
+    /// that ask for more than was consented, so grants from before contacts
+    /// became writable keep asking for read access only (signing in again
+    /// upgrades them).
+    fn refresh_scopes(tokens: &TokenSet) -> String {
+        let scopes = tokens.provider.scopes();
+        if tokens.provider == Provider::Microsoft && !contacts_writable(tokens) {
+            return scopes.replace("Contacts.ReadWrite", "Contacts.Read");
+        }
+        scopes.to_owned()
     }
 
     pub fn name(&self) -> &'static str {
@@ -113,6 +125,18 @@ impl Provider {
             },
         }
     }
+}
+
+/// Whether a grant covers writing contacts, judged by the scopes the
+/// provider reported granting.
+fn contacts_writable(tokens: &TokenSet) -> bool {
+    let granted = tokens.scope.as_deref().unwrap_or("");
+    granted
+        .split_whitespace()
+        .any(|scope| match tokens.provider {
+            Provider::Google => scope == "https://www.googleapis.com/auth/contacts",
+            Provider::Microsoft => scope.to_ascii_lowercase().ends_with("contacts.readwrite"),
+        })
 }
 
 /// Stored tokens for an account.
@@ -404,6 +428,15 @@ impl TokenManager {
             .await
     }
 
+    /// Whether the account's grant lets Envelope change contacts (`None`:
+    /// not an OAuth account, or no tokens are stored).
+    pub async fn contacts_writable(&self, account_id: i64) -> Option<bool> {
+        self.load(account_id)
+            .await
+            .ok()
+            .map(|tokens| contacts_writable(&tokens))
+    }
+
     async fn load(&self, account_id: i64) -> Result<TokenSet> {
         let raw = self
             .secrets
@@ -446,7 +479,7 @@ impl TokenManager {
             form.push(("client_secret", secret.clone()));
         }
         if tokens.provider == Provider::Microsoft {
-            form.push(("scope", tokens.provider.scopes().to_string()));
+            form.push(("scope", Provider::refresh_scopes(&tokens)));
         }
         let resp = token_request(&tokens.provider.token_url(&client), &form)
             .await
@@ -466,5 +499,52 @@ impl TokenManager {
         }
         self.store(account_id, &tokens).await?;
         Ok(tokens.access_token)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tokens(provider: Provider, scope: Option<&str>) -> TokenSet {
+        TokenSet {
+            provider,
+            access_token: "a".into(),
+            refresh_token: Some("r".into()),
+            expires_at: 0,
+            scope: scope.map(str::to_owned),
+            client: ClientConfig::default(),
+        }
+    }
+
+    #[test]
+    fn contact_write_access_follows_the_grant() {
+        let google = |s| contacts_writable(&tokens(Provider::Google, s));
+        assert!(google(Some(
+            "openid https://www.googleapis.com/auth/contacts https://mail.google.com/"
+        )));
+        assert!(!google(Some(
+            "https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly"
+        )));
+        assert!(!google(None));
+        let microsoft = |s| contacts_writable(&tokens(Provider::Microsoft, s));
+        assert!(microsoft(Some(
+            "https://graph.microsoft.com/Contacts.ReadWrite https://graph.microsoft.com/Mail.Send"
+        )));
+        assert!(microsoft(Some("Contacts.ReadWrite User.Read")));
+        assert!(!microsoft(Some("Contacts.Read User.Read")));
+    }
+
+    #[test]
+    fn older_microsoft_grants_refresh_with_what_was_consented() {
+        let old = Provider::refresh_scopes(&tokens(Provider::Microsoft, Some("Contacts.Read")));
+        assert!(old.contains(" Contacts.Read "));
+        assert!(!old.contains("Contacts.ReadWrite"));
+        let new = Provider::refresh_scopes(&tokens(
+            Provider::Microsoft,
+            Some("Contacts.ReadWrite Mail.ReadWrite"),
+        ));
+        assert_eq!(new, Provider::Microsoft.scopes());
+        assert!(Provider::Google.scopes().contains("auth/contacts "));
     }
 }

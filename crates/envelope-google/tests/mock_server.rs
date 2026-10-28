@@ -986,7 +986,15 @@ async fn people_connections_sync_with_paging_and_expiry() {
     }
     assert_eq!(contacts.len(), 3);
     assert_eq!(sync_token.as_deref(), Some("people-sync-1"));
-    let ada = &contacts[0];
+    assert_eq!(
+        contacts[0].etag.as_deref(),
+        Some("%EgcBAgkLLjc9GgQBAgUHIgxzT0h6SFhXc2ZjYz0=")
+    );
+    assert_eq!(
+        contacts[0].person["resourceName"],
+        json!("people/c3141592653589793238")
+    );
+    let ada = &contacts[0].contact;
     assert_eq!(ada.uid, "people/c3141592653589793238");
     assert_eq!(ada.name, "Ada Lovelace");
     assert_eq!(ada.nickname.as_deref(), Some("Countess"));
@@ -1003,7 +1011,10 @@ async fn people_connections_sync_with_paging_and_expiry() {
         ada.photo.as_deref(),
         Some("https://lh3.googleusercontent.com/contacts/AdaPhoto=s100")
     );
-    assert_eq!(contacts[1].photo, None, "default avatars are ignored");
+    assert_eq!(
+        contacts[1].contact.photo, None,
+        "default avatars are ignored"
+    );
 
     let incremental = client
         .contacts_page(ContactSource::Connections, Some("people-sync-1"), None)
@@ -1088,7 +1099,7 @@ async fn other_contacts_and_search_with_warm_up() {
         .contacts_page(ContactSource::OtherContacts, None, None)
         .await
         .expect("other contacts");
-    assert_eq!(page.contacts[0].name, "katherine@example.com");
+    assert_eq!(page.contacts[0].contact.name, "katherine@example.com");
     assert_eq!(page.next_sync_token.as_deref(), Some("other-sync-1"));
     assert_eq!(page.total_items, Some(1));
 
@@ -1108,6 +1119,191 @@ async fn other_contacts_and_search_with_warm_up() {
         .await
         .expect("search other contacts");
     assert_eq!(others[0].emails[0].value, "katherine@example.com");
+}
+
+#[tokio::test]
+async fn contact_writes() {
+    let server = MockServer::start().await;
+    let ada = json!({
+        "resourceName": "people/c1",
+        "etag": "%E1",
+        "names": [{ "metadata": { "primary": true }, "displayName": "Ada Lovelace", "givenName": "Ada", "familyName": "Lovelace" }],
+        "emailAddresses": [{ "metadata": { "primary": true }, "value": "ada@example.com", "type": "work", "formattedType": "Work" }]
+    });
+    Mock::given(method("POST"))
+        .and(path("/v1/people:createContact"))
+        .and(query_param("personFields", CONNECTION_PERSON_FIELDS))
+        .and(body_partial_json(json!({
+            "names": [{ "givenName": "Ada", "familyName": "Lovelace" }],
+            "emailAddresses": [{ "value": "ada@example.com", "type": "work" }]
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(ada.clone()))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let mut updated = ada.clone();
+    updated["etag"] = json!("%E2");
+    updated["phoneNumbers"] = json!([{ "value": "+44 20 1234", "type": "mobile" }]);
+    Mock::given(method("PATCH"))
+        .and(path("/v1/people/c1:updateContact"))
+        .and(query_param("updatePersonFields", "phoneNumbers"))
+        .and(body_partial_json(json!({
+            "resourceName": "people/c1",
+            "etag": "%E1",
+            "phoneNumbers": [{ "value": "+44 20 1234", "type": "mobile" }]
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(updated.clone()))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("PATCH"))
+        .and(path("/v1/people/c1:updateContactPhoto"))
+        .and(body_partial_json(json!({ "photoBytes": "AQID" })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "person": {
+            "resourceName": "people/c1",
+            "etag": "%E3",
+            "photos": [{ "url": "https://lh3.googleusercontent.com/contacts/new=s100" }]
+        }})))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path("/v1/people/c1:deleteContactPhoto"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "person": {
+            "resourceName": "people/c1",
+            "etag": "%E4",
+            "photos": [{ "url": "https://lh3.googleusercontent.com/cm/default=s100", "default": true }]
+        }})))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path("/v1/people/c1:deleteContact"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/people/c1"))
+        .and(query_param("personFields", CONNECTION_PERSON_FIELDS))
+        .respond_with(ResponseTemplate::new(200).set_body_json(updated))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = client(&server);
+
+    let new = envelope_ical::Contact {
+        name: "Ada Lovelace".into(),
+        given_name: Some("Ada".into()),
+        family_name: Some("Lovelace".into()),
+        emails: vec![envelope_ical::ContactField {
+            value: "ada@example.com".into(),
+            kind: Some("work".into()),
+            preferred: false,
+        }],
+        ..Default::default()
+    };
+    let created = client.create_contact(&new).await.expect("create");
+    assert_eq!(created.contact.uid, "people/c1");
+    assert_eq!(created.etag.as_deref(), Some("%E1"));
+
+    // Nothing changed: no request.
+    let same = client
+        .update_contact(&created, &created.contact)
+        .await
+        .expect("no-op update");
+    assert_eq!(same, created);
+
+    let mut edited = created.contact.clone();
+    edited.phones.push(envelope_ical::ContactField {
+        value: "+44 20 1234".into(),
+        kind: Some("cell".into()),
+        preferred: false,
+    });
+    let saved = client
+        .update_contact(&created, &edited)
+        .await
+        .expect("update");
+    assert_eq!(saved.etag.as_deref(), Some("%E2"));
+    assert_eq!(saved.contact.phones[0].kind.as_deref(), Some("cell"));
+    let body: Value = requests_to(&server, "PATCH", "/v1/people/c1:updateContact").await[0]
+        .body_json()
+        .expect("json body");
+    assert!(
+        body.get("emailAddresses").is_none(),
+        "unchanged fields are not sent"
+    );
+
+    let with_photo = client
+        .update_contact_photo("people/c1", &[1, 2, 3])
+        .await
+        .expect("photo");
+    assert_eq!(
+        with_photo.contact.photo.as_deref(),
+        Some("https://lh3.googleusercontent.com/contacts/new=s100")
+    );
+    let without = client
+        .delete_contact_photo("people/c1")
+        .await
+        .expect("photo removal");
+    assert_eq!(without.contact.photo, None);
+    assert_eq!(without.etag.as_deref(), Some("%E4"));
+
+    let fetched = client.get_contact("people/c1").await.expect("get");
+    assert_eq!(fetched.etag.as_deref(), Some("%E2"));
+    client.delete_contact("people/c1").await.expect("delete");
+    assert!(client.delete_contact("otherContacts/c1").await.is_err());
+}
+
+#[tokio::test]
+async fn stale_contact_etags_are_recognised() {
+    let server = MockServer::start().await;
+    Mock::given(method("PATCH"))
+        .and(path("/v1/people/c1:updateContact"))
+        .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+            "error": {
+                "code": 400,
+                "message": "Request person.etag is different than the current person.etag. Clear local cache and get the latest person.",
+                "status": "FAILED_PRECONDITION"
+            }
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path("/v1/people/c2:deleteContact"))
+        .respond_with(google_error(
+            403,
+            "insufficientPermissions",
+            "Request had insufficient authentication scopes.",
+        ))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = client(&server);
+    let base = envelope_google::GoogleContact {
+        contact: envelope_ical::Contact {
+            uid: "people/c1".into(),
+            name: "A".into(),
+            ..Default::default()
+        },
+        etag: Some("%old".into()),
+        person: json!({ "resourceName": "people/c1" }),
+    };
+    let mut edited = base.contact.clone();
+    edited.note = Some("changed".into());
+    let err = client
+        .update_contact(&base, &edited)
+        .await
+        .expect_err("stale");
+    assert!(err.is_stale_etag(), "got {err:?}");
+    assert!(!err.is_forbidden());
+    let err = client
+        .delete_contact("people/c2")
+        .await
+        .expect_err("read-only grant");
+    assert!(err.is_forbidden(), "got {err:?}");
+    assert!(!err.is_stale_etag());
 }
 
 #[test]
@@ -1153,6 +1349,14 @@ fn public_futures_are_send() {
     assert_send(&client.search_contacts("a", 5));
     assert_send(&client.search_other_contacts("a", 5));
     assert_send(&client.warm_up_contact_search());
+    let contact = envelope_ical::Contact::default();
+    let saved = envelope_google::GoogleContact::default();
+    assert_send(&client.get_contact("people/c1"));
+    assert_send(&client.create_contact(&contact));
+    assert_send(&client.update_contact(&saved, &contact));
+    assert_send(&client.delete_contact("people/c1"));
+    assert_send(&client.update_contact_photo("people/c1", b"x"));
+    assert_send(&client.delete_contact_photo("people/c1"));
     assert_send(&client.list_send_as());
     assert_send(&client.gmail_profile());
 }

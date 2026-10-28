@@ -1,6 +1,7 @@
 //! Background synchronization: per-account workers and schedulers.
 
 pub mod calendar;
+pub mod contacts;
 pub mod graph;
 pub mod imap;
 pub mod outbox;

@@ -64,6 +64,10 @@ pub struct Inner {
     pub(crate) interactive: Mutex<HashMap<i64, ImapSlot>>,
     pub(crate) outbox_wake: Notify,
     pub(crate) calendar_wake: Notify,
+    /// Wakes the contacts sync (local edits, account changes, manual sync).
+    pub(crate) contacts_wake: Notify,
+    /// Wakes the contact photo worker.
+    pub(crate) photos_wake: Notify,
     pub(crate) shutdown: CancellationToken,
 }
 
@@ -100,6 +104,8 @@ impl Engine {
                 interactive: Mutex::new(HashMap::new()),
                 outbox_wake: Notify::new(),
                 calendar_wake: Notify::new(),
+                contacts_wake: Notify::new(),
+                photos_wake: Notify::new(),
                 shutdown: CancellationToken::new(),
             }),
         };
@@ -110,6 +116,7 @@ impl Engine {
         }
         crate::sync::outbox::spawn_scheduler(engine.clone());
         crate::sync::calendar::spawn_scheduler(engine.clone());
+        crate::sync::contacts::spawn_scheduler(engine.clone());
         crate::sync::spawn_housekeeping(engine.clone());
         Ok(engine)
     }
@@ -182,6 +189,7 @@ impl Engine {
 
     pub fn sync_now(&self, account_id: Option<i64>) {
         self.calendar_wake.notify_one();
+        self.contacts_wake.notify_one();
         match account_id {
             Some(id) => self.wake(id),
             None => {
@@ -295,7 +303,14 @@ impl Engine {
                 let _ = c.logout().await;
                 user = local;
             }
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(explain_setup_error(
+                    "incoming (IMAP)",
+                    &imap.host,
+                    imap.port,
+                    e,
+                ));
+            }
         }
         if let Some(imap_cfg) = config.imap.as_mut() {
             imap_cfg.username = if user == email { String::new() } else { user };
@@ -314,7 +329,8 @@ impl Engine {
                 },
                 config.accept_invalid_certs,
             )
-            .await?;
+            .await
+            .map_err(|e| explain_setup_error("outgoing (SMTP)", &smtp.host, smtp.port, e))?;
         }
 
         let color = self.next_color()?;
@@ -339,6 +355,7 @@ impl Engine {
             .await?;
         self.start_worker(id);
         self.calendar_wake.notify_one();
+        self.contacts_wake.notify_one();
         self.emit(EngineEvent::AccountsChanged);
         self.account(id)
     }
@@ -401,6 +418,7 @@ impl Engine {
         self.tokens.store(id, &auth.tokens).await?;
         self.start_worker(id);
         self.calendar_wake.notify_one();
+        self.contacts_wake.notify_one();
         self.emit(EngineEvent::AccountsChanged);
         self.account(id)
     }
@@ -481,6 +499,7 @@ impl Engine {
                 self.start_worker(id);
             }
             self.calendar_wake.notify_one();
+            self.contacts_wake.notify_one();
         }
         self.emit(EngineEvent::AccountsChanged);
         self.account(id)
@@ -557,4 +576,48 @@ pub struct AccountPatch {
     pub enabled: Option<bool>,
     pub config: Option<AccountConfig>,
     pub password: Option<String>,
+}
+
+/// Turns a connection or login failure while adding an account into advice
+/// that says which server failed and what to check.
+fn explain_setup_error(server: &str, host: &str, port: u16, e: Error) -> Error {
+    if e.is_auth() {
+        return Error::Auth(format!(
+            "The {server} server rejected the e-mail and password. Check them, or use an app password if your provider requires one."
+        ));
+    }
+    let detail = e.to_string();
+    let lower = detail.to_lowercase();
+    let message = if lower.contains("refused") {
+        format!(
+            "Nothing answered at {host}:{port}. Check the {server} server name, port and security."
+        )
+    } else if lower.contains("certificate")
+        || lower.contains("unknownissuer")
+        || lower.contains("invalid peer")
+    {
+        format!(
+            "The {server} server's certificate isn't trusted. If this is your own server, tick “Accept self-signed certificates”."
+        )
+    } else if lower.contains("lookup")
+        || lower.contains("resolve")
+        || lower.contains("name or service")
+        || lower.contains("dns")
+    {
+        format!("Couldn't find the {server} server {host}. Check its name.")
+    } else if lower.contains("timed out") || lower.contains("timeout") {
+        format!(
+            "The {server} server {host}:{port} didn't answer in time. Check the port and security, or try again."
+        )
+    } else if lower.contains("tls")
+        || lower.contains("handshake")
+        || lower.contains("wrong version")
+    {
+        format!(
+            "Couldn't start a secure connection with {host}:{port}. The {server} security setting (SSL/TLS or STARTTLS) may not match the port."
+        )
+    } else {
+        return e;
+    };
+    Error::Invalid(message)
 }

@@ -32,7 +32,7 @@ Envelope receives the sign-in result on a temporary loopback address (`http://12
    - Add these scopes under **Data access**:
      - `https://mail.google.com/`
      - `https://www.googleapis.com/auth/calendar`
-     - `https://www.googleapis.com/auth/contacts.readonly`
+     - `https://www.googleapis.com/auth/contacts`
      - `https://www.googleapis.com/auth/contacts.other.readonly`
      - `openid`, `email`, `profile`
    - While the app is in *Testing*, add the Google accounts you want to use under **Audience → Test users**. (`https://mail.google.com/` is a restricted scope; publishing an app with it for everyone requires Google's verification.)
@@ -46,7 +46,7 @@ Envelope receives the sign-in result on a temporary loopback address (`http://12
    - Redirect URI: platform **Public client/native (mobile & desktop)**, URI `http://localhost`.
 2. In the new registration, **Authentication**: make sure `http://localhost` is listed under *Mobile and desktop applications* and set **Allow public client flows** to *Yes*. No client secret is needed.
 3. **API permissions → Add a permission → Microsoft Graph → Delegated permissions**, add:
-   `offline_access`, `openid`, `email`, `profile`, `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.ReadWrite`, `Calendars.ReadWrite`, `Contacts.Read`, `People.Read`.
+   `offline_access`, `openid`, `email`, `profile`, `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.ReadWrite`, `Calendars.ReadWrite`, `Contacts.ReadWrite`, `People.Read`.
    For work or school tenants that require it, an administrator can **Grant admin consent** here.
 4. Copy the **Application (client) id** from the overview page into `ENVELOPE_MICROSOFT_CLIENT_ID`.
 

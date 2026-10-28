@@ -197,6 +197,11 @@ pub fn run() {
             commands::event_respond,
             commands::invite_info,
             commands::invite_respond,
+            commands::contact_books,
+            commands::contacts_list,
+            commands::contact_get,
+            commands::contact_save,
+            commands::contact_delete,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

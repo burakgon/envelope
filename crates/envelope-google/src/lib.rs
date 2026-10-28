@@ -11,8 +11,10 @@
 //!   [`envelope_ical::Event`] and wrapped in a [`GoogleEvent`] that keeps the
 //!   Google-only data (event id, etag, event type, conference details, …).
 //! * **People API** — the user's contacts and "other contacts" (people they
-//!   e-mailed) mapped into [`envelope_ical::Contact`], with incremental sync
-//!   and the search endpoints used for address autocomplete.
+//!   e-mailed) mapped into [`envelope_ical::Contact`], with incremental sync,
+//!   the search endpoints used for address autocomplete, and contact writes
+//!   (create, field-level update keeping what the model does not cover,
+//!   delete, photos).
 //! * **Gmail API settings** — send-as aliases (display names, reply-to,
 //!   signatures) and the account profile.
 //!
@@ -71,4 +73,4 @@ pub use calendar::{
 pub use client::{ClientConfig, GoogleClient, RetryPolicy};
 pub use error::{ApiError, Error, Result};
 pub use gmail::{GmailProfile, SendAsAlias, SmtpRelay, VerificationStatus};
-pub use people::{ContactPage, ContactSource, ContactSync};
+pub use people::{ContactPage, ContactSource, ContactSync, GoogleContact};

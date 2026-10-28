@@ -12,11 +12,20 @@
 /// the calendar list, so the full scope is requested.
 pub const CALENDAR: &str = "https://www.googleapis.com/auth/calendar";
 
+/// `https://www.googleapis.com/auth/contacts` — see, edit, download and
+/// delete the user's contacts.
+///
+/// Needed for contact writes (`people:createContact`, `updateContact`,
+/// `deleteContact` and the photo methods); it also covers everything
+/// [`CONTACTS_READONLY`] allows.
+pub const CONTACTS: &str = "https://www.googleapis.com/auth/contacts";
+
 /// `https://www.googleapis.com/auth/contacts.readonly` — read the user's
 /// contacts.
 ///
 /// Needed for `people/me/connections` (contact sync) and
-/// `people:searchContacts` (address autocomplete).
+/// `people:searchContacts` (address autocomplete) when [`CONTACTS`] was not
+/// granted.
 pub const CONTACTS_READONLY: &str = "https://www.googleapis.com/auth/contacts.readonly";
 
 /// `https://www.googleapis.com/auth/contacts.other.readonly` — read the
@@ -45,7 +54,7 @@ pub const MAIL: &str = "https://mail.google.com/";
 /// Every scope this crate's Calendar, People and send-as requests need.
 pub const ALL: [&str; 4] = [
     CALENDAR,
-    CONTACTS_READONLY,
+    CONTACTS,
     CONTACTS_OTHER_READONLY,
     GMAIL_SETTINGS_BASIC,
 ];

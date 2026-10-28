@@ -3,10 +3,10 @@
 
 mod common;
 
-use common::{fixture, prefer_contains, setup};
+use common::{fixture, json_body, prefer_contains, setup};
 use envelope_graph::DeltaCursor;
 use serde_json::json;
-use wiremock::matchers::{method, path, query_param};
+use wiremock::matchers::{header, method, path, query_param};
 use wiremock::{Mock, ResponseTemplate};
 
 #[tokio::test]
@@ -161,4 +161,135 @@ async fn searches_people_for_autocomplete() {
             .expect("blank")
             .is_empty()
     );
+}
+
+#[tokio::test]
+async fn writes_contacts_and_photos() {
+    let (server, client, _) = setup().await;
+    let created = json!({
+        "id": "AAMkNew=",
+        "displayName": "Ada Lovelace",
+        "givenName": "Ada",
+        "surname": "Lovelace",
+        "emailAddresses": [{"name": "Ada Lovelace", "address": "ada@example.com"}],
+        "mobilePhone": "+44 20 1234",
+        "homeAddress": {"street": "12 St James's Square", "city": "London"}
+    });
+    Mock::given(method("POST"))
+        .and(path("/v1.0/me/contactFolders/AAMkFolder=/contacts"))
+        .and(json_body(json!({
+            "displayName": "Ada Lovelace",
+            "givenName": "Ada",
+            "surname": "Lovelace",
+            "emailAddresses": [{"address": "ada@example.com", "name": "Ada Lovelace"}],
+            "mobilePhone": "+44 20 1234",
+            "homeAddress": {"street": "12 St James's Square", "city": "London"}
+        })))
+        .respond_with(ResponseTemplate::new(201).set_body_json(created.clone()))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let mut updated = created.clone();
+    updated["jobTitle"] = json!("Programmer");
+    Mock::given(method("PATCH"))
+        .and(path("/v1.0/me/contacts/AAMkNew="))
+        .and(json_body(
+            json!({"jobTitle": "Programmer", "displayName": "Ada Lovelace"}),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(updated))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/v1.0/me/contacts/AAMkNew=/photo/$value"))
+        .and(header("content-type", "image/png"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1.0/me/contacts/AAMkNew=/photo/$value"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_raw(vec![0x89, b'P', b'N', b'G'], "image/png"),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1.0/me/contacts/AAMkNone=/photo/$value"))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({
+            "error": {"code": "ImageNotFound", "message": "The photo wasn't found."}
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path("/v1.0/me/contacts/AAMkNew="))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let ada = envelope_ical::Contact {
+        name: "Ada Lovelace".into(),
+        given_name: Some("Ada".into()),
+        family_name: Some("Lovelace".into()),
+        emails: vec![envelope_ical::ContactField {
+            value: "ada@example.com".into(),
+            kind: None,
+            preferred: false,
+        }],
+        phones: vec![envelope_ical::ContactField {
+            value: "+44 20 1234".into(),
+            kind: Some("cell".into()),
+            preferred: false,
+        }],
+        addresses: vec![envelope_ical::ContactAddress {
+            kind: Some("home".into()),
+            street: "12 St James's Square".into(),
+            locality: "London".into(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let saved = client
+        .create_contact(Some("AAMkFolder="), &ada)
+        .await
+        .expect("create");
+    assert_eq!(saved.uid, "AAMkNew=");
+    assert_eq!(saved.phones[0].kind.as_deref(), Some("cell"));
+
+    // Unchanged: no request at all.
+    let same = client
+        .update_contact("AAMkNew=", &saved, &saved)
+        .await
+        .expect("no-op");
+    assert_eq!(same, saved);
+    let mut edited = saved.clone();
+    edited.title = Some("Programmer".into());
+    let stored = client
+        .update_contact("AAMkNew=", &saved, &edited)
+        .await
+        .expect("update");
+    assert_eq!(stored.title.as_deref(), Some("Programmer"));
+
+    client
+        .set_contact_photo("AAMkNew=", vec![1u8, 2, 3], "image/png")
+        .await
+        .expect("photo upload");
+    let (bytes, mime) = client
+        .contact_photo("AAMkNew=")
+        .await
+        .expect("photo")
+        .expect("has a photo");
+    assert_eq!(mime, "image/png");
+    assert_eq!(bytes.len(), 4);
+    assert!(
+        client
+            .contact_photo("AAMkNone=")
+            .await
+            .expect("no photo")
+            .is_none()
+    );
+    client.delete_contact("AAMkNew=").await.expect("delete");
 }

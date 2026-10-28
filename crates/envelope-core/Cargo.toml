@@ -26,6 +26,7 @@ futures = "0.3.34"
 hickory-resolver = { version = "0.26.3", features = ["tokio"] }
 html-escape = "0.3.0"
 iana-time-zone = "0.1.65"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 imap-proto = "0.17.0"
 lettre = { version = "0.11.23", default-features = false, features = ["tokio1", "tokio1-rustls", "smtp-transport", "builder", "rustls-native-certs", "aws-lc-rs"] }
 mail-builder = "2.0.0"
