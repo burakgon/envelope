@@ -48,6 +48,7 @@ cargo fmt --all
 cargo clippy --workspace --all-targets
 cargo test --workspace
 npm run check                       # svelte-check / TypeScript
+npm run build:demo && npm run e2e   # walks through the main screens of the demo in Chromium
 
 # end-to-end tests against the local server (resets .devserver state)
 ENVELOPE_TEST_IMAP=1 cargo test -p envelope-core --test live_imap --test live_calendar --test live_pgp
