@@ -16,8 +16,9 @@ export default defineConfig(({ mode }) => ({
   },
   envPrefix: ['VITE_', 'TAURI_ENV_'],
   build: {
+    // WebKitGTK 2.4x is roughly Safari 16+.
     target: 'safari16',
-    minify: 'esbuild',
+    minify: true,
     sourcemap: false,
     chunkSizeWarningLimit: 2000,
   },

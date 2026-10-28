@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { api } from '../api';
   import { onMount, tick } from 'svelte';
   import type { ThreadSummary } from '../api';
   import { compose } from '../stores/compose.svelte';
@@ -144,7 +145,7 @@
     menu = null;
     if (!t) return;
     mail.select(t.id);
-    const d = await import('../api').then(({ api }) => api.thread(t.id));
+    const d = await api.thread(t.id);
     const last = d.messages[d.messages.length - 1];
     if (last) compose.reply(last.id, mode, mode !== 'forward');
   }
@@ -193,7 +194,7 @@
         <button class="icon-btn ask" title="Ask your inbox" onclick={() => { ui.askAi = ''; ui.open('ask'); }}><Sparkles size={16} /></button>
       {/if}
       <button class="icon-btn" class:active={filterActive} title="Filter" onclick={(e) => (filterAt = bulkRect(e))}><Filter size={16} /></button>
-      <button class="icon-btn" title="Refresh" onclick={() => import('../api').then(({ api }) => api.syncNow(null))}><Refresh size={16} /></button>
+      <button class="icon-btn" title="Refresh" onclick={() => api.syncNow(null)}><Refresh size={16} /></button>
     </div>
   </header>
 
