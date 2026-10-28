@@ -31,9 +31,13 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 
 - **Instant.** Lists are read from a local database with precomputed thread aggregates, so opening a folder, switching tabs and searching take milliseconds — online or offline. Every action is optimistic and queued, so the UI never waits for the server.
 - **Keyboard-first.** Gmail-style shortcuts (`j`/`k`, `e`, `#`, `r`, `c`, `g i` …) and a command palette (`Ctrl K`) that can do everything the mouse can.
-- **A real calendar.** Day, week, month and agenda views, drag to create, move and resize, recurring events with "this / following / all" edits, invitations with RSVP and conflict detection, reminders — synced both ways with CalDAV, Google Calendar and Microsoft 365.
-- **Private by design.** No telemetry, no proxy servers, no account with us. Your mail goes straight from your provider to your disk. Remote images and trackers are blocked until you allow them, and messages render in a locked-down sandbox.
+- **A real calendar.** Day, week, month and agenda views, drag to create, move and resize, recurring events with "this / following / all" edits, invitations with RSVP and conflict detection, a scheduling assistant, subscriptions and reminders — synced both ways with CalDAV, Google Calendar, Microsoft 365 and Exchange.
+- **Private by design.** No telemetry, no proxy servers, no account with us. Your mail goes straight from your provider to your disk. Remote images and trackers are blocked until you allow them, messages render in a locked-down sandbox, and OpenPGP encryption sets itself up with Autocrypt.
 - **AI you control.** Summaries, smart replies, writing help, translation and "ask your inbox" — using OpenRouter, OpenAI, Anthropic, Google Gemini, Groq, Mistral, a local Ollama or LM Studio model, or any OpenAI-compatible endpoint. Off until you turn it on, and your API keys live in the system keyring.
+
+<p align="center">
+  <img src="docs/screenshots/tour.gif" alt="A quick tour: reading and archiving with the keyboard, the command palette, and planning a meeting around the guests' availability" width="100%">
+</p>
 
 ## Features
 
