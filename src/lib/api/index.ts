@@ -67,6 +67,15 @@ export interface Api {
   onMailto(cb: (url: string) => void): () => void;
   onOpenThread(cb: (threadId: number | null) => void): () => void;
 
+  ai: {
+    config(): Promise<T.AiConfig>;
+    setConfig(settings: T.AiSettings, apiKey?: string | null): Promise<void>;
+    presets(): Promise<T.AiPreset[]>;
+    models(settings?: T.AiSettings | null, apiKey?: string | null): Promise<T.AiModel[]>;
+    test(settings: T.AiSettings, apiKey?: string | null): Promise<string>;
+    run(task: T.AiTask, onEvent?: (e: T.AiEvent) => void): T.AiRun;
+  };
+
   window: {
     minimize(): Promise<void>;
     toggleMaximize(): Promise<void>;

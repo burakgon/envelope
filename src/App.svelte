@@ -5,6 +5,7 @@
   import { mail } from './lib/stores/mail.svelte';
   import { toasts } from './lib/stores/toasts.svelte';
   import { ui } from './lib/stores/ui.svelte';
+  import { ai } from './lib/stores/ai.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import ThreadList from './lib/components/ThreadList.svelte';
   import Reader from './lib/components/Reader.svelte';
@@ -40,6 +41,7 @@
     (async () => {
       await ui.load();
       await mail.init();
+      await ai.load();
       booted = true;
       if (mail.accounts.length === 0) ui.open('onboarding');
       requestAnimationFrame(() => api.ready());

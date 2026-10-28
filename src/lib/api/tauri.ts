@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
@@ -88,6 +88,21 @@ export function createTauriApi(): Api {
     onEvent: (cb) => subscribe<T.EngineEvent>('engine', cb),
     onMailto: (cb) => subscribe<string>('mailto', cb),
     onOpenThread: (cb) => subscribe<number | null>('open-thread', cb),
+
+    ai: {
+      config: () => invoke('ai_config'),
+      setConfig: (settings, apiKey) => invoke('ai_set_config', { settings, apiKey: apiKey ?? null }),
+      presets: () => invoke('ai_presets'),
+      models: (settings, apiKey) => invoke('ai_models', { settings: settings ?? null, apiKey: apiKey ?? null }),
+      test: (settings, apiKey) => invoke('ai_test', { settings, apiKey: apiKey ?? null }),
+      run: (task, onEvent) => {
+        const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const channel = new Channel<T.AiEvent>();
+        channel.onmessage = (e) => onEvent?.(e);
+        const promise = invoke<string>('ai_run', { runId, task, onEvent: channel });
+        return { promise, cancel: () => void invoke('ai_cancel', { runId }) };
+      },
+    },
 
     window: {
       minimize: () => win.minimize(),

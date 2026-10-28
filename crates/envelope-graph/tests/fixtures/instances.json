@@ -1,0 +1,73 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('bb8775a4-4d8c-42cf-a1d4-4d58c2bb668f')/events('AAMkAGUzYRgWAAA%3D')/instances(subject,bodyPreview,seriesMasterId,type,recurrence,start,end)",
+  "value": [
+    {
+      "@odata.etag": "W/\"x3IAvB5fbUWf4XNcBFLNUwAAKuA3yQ==\"",
+      "id": "AAMkAGUzYAgI1sE1TatAAEYAAAAAlNFb2CNPe0ucP9you",
+      "subject": "Review strategy for Q3",
+      "bodyPreview": "Changing meeting from 4/15 to 4/16.",
+      "seriesMasterId": "AAMkAGUzYRgWAAA=",
+      "type": "exception",
+      "recurrence": null,
+      "start": {
+        "dateTime": "2019-04-16T20:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2019-04-16T21:00:00.0000000",
+        "timeZone": "UTC"
+      }
+    },
+    {
+      "@odata.etag": "W/\"x3IAvB5fbUWf4XNcBFLNUwAAKuA3yQ==\"",
+      "id": "AAMkAGUzYAgI1ru1JMcAAEYAAAAAlNFb2CNPe0ucP9you",
+      "subject": "Review strategy for Q3",
+      "bodyPreview": "",
+      "seriesMasterId": "AAMkAGUzYRgWAAA=",
+      "type": "occurrence",
+      "recurrence": null,
+      "start": {
+        "dateTime": "2019-04-08T20:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2019-04-08T21:00:00.0000000",
+        "timeZone": "UTC"
+      }
+    },
+    {
+      "@odata.etag": "W/\"x3IAvB5fbUWf4XNcBFLNUwAAKuA3yQ==\"",
+      "id": "AAMkAGUzYAgI1sa1do_AAEYAAAAAlNFb2CNPe0ucP9you",
+      "subject": "Review strategy for Q3",
+      "bodyPreview": "",
+      "seriesMasterId": "AAMkAGUzYRgWAAA=",
+      "type": "occurrence",
+      "recurrence": null,
+      "start": {
+        "dateTime": "2019-04-22T20:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2019-04-22T21:00:00.0000000",
+        "timeZone": "UTC"
+      }
+    },
+    {
+      "@odata.etag": "W/\"x3IAvB5fbUWf4XNcBFLNUwAAKuA3yQ==\"",
+      "id": "AAMkAGUzYAgI1sw1n3PAAEYAAAAAlNFb2CNPe0ucP9you",
+      "subject": "Review strategy for Q3",
+      "bodyPreview": "",
+      "seriesMasterId": "AAMkAGUzYRgWAAA=",
+      "type": "occurrence",
+      "recurrence": null,
+      "start": {
+        "dateTime": "2019-04-29T20:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2019-04-29T21:00:00.0000000",
+        "timeZone": "UTC"
+      }
+    }
+  ]
+}

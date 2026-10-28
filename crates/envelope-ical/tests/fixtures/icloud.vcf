@@ -1,0 +1,32 @@
+BEGIN:VCARD
+VERSION:3.0
+PRODID:-//Apple Inc.//iPhone OS 17.4//EN
+N:Yılmaz;Zeynep;;;
+FN:Zeynep Yılmaz
+NICKNAME:Zeyno
+ORG:Acme Teknoloji A.Ş.;Ürün Geliştirme
+TITLE:Kıdemli Mühendis
+item1.EMAIL;type=INTERNET;type=pref:zeynep@icloud.com
+item1.X-ABLabel:_$!<Home>!$_
+item2.EMAIL;type=INTERNET:zeynep.yilmaz@acme.com.tr
+item2.X-ABLabel:_$!<Work>!$_
+item3.EMAIL;type=INTERNET:zeynep.blog@example.org
+item3.X-ABLabel:Blog
+TEL;type=CELL;type=VOICE;type=pref:+90 532 111 22 33
+TEL;type=IPHONE;type=CELL;type=VOICE:+90 555 444 33 22
+item4.TEL:+90 212 999 88 77
+item4.X-ABLabel:_$!<Work>!$_
+item5.ADR;type=HOME;type=pref:;;Bağdat Cd. 123;Kadıköy;İstanbul;34710;T
+ ürkiye
+item5.X-ABADR:tr
+BDAY;X-APPLE-OMIT-YEAR=1604:1604-08-17
+NOTE:Kahve sever.\nTercihen Türk kahvesi.
+X-SOCIALPROFILE;type=twitter:https://twitter.com/zeyno
+PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJ
+ CQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wA
+ ALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/
+ 2gAIAQEAAD8AVN//2Q==
+UID:4C1D3E2F-1A2B-4C5D-8E9F-0A1B2C3D4E5F
+X-ADDRESSBOOKSERVER-KIND:individual
+REV:2024-03-01T10:00:00Z
+END:VCARD

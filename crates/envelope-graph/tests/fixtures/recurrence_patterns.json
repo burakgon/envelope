@@ -1,0 +1,319 @@
+[
+  {
+    "name": "daily, every day, ten times",
+    "start": {
+      "kind": "zoned",
+      "local": "2017-04-02T09:00:00",
+      "tzid": "Pacific Standard Time"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "daily",
+        "interval": 1
+      },
+      "range": {
+        "type": "numbered",
+        "startDate": "2017-04-02",
+        "numberOfOccurrences": 10
+      }
+    },
+    "rrule": "FREQ=DAILY;COUNT=10"
+  },
+  {
+    "name": "daily, every three days, until a date (Windows zone, unresolved)",
+    "start": {
+      "kind": "zoned",
+      "local": "2017-07-01T09:00:00",
+      "tzid": "Pacific Standard Time"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "daily",
+        "interval": 3
+      },
+      "range": {
+        "type": "endDate",
+        "startDate": "2017-07-01",
+        "endDate": "2017-07-31"
+      }
+    },
+    "rrule": "FREQ=DAILY;INTERVAL=3;UNTIL=20170731T235959Z"
+  },
+  {
+    "name": "weekly on Thursday",
+    "start": {
+      "kind": "zoned",
+      "local": "2017-05-18T10:00:00",
+      "tzid": "W. Europe Standard Time"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "weekly",
+        "interval": 1,
+        "daysOfWeek": [
+          "Thursday"
+        ]
+      },
+      "range": {
+        "type": "noEnd",
+        "startDate": "2017-05-18"
+      }
+    },
+    "rrule": "FREQ=WEEKLY;BYDAY=TH"
+  },
+  {
+    "name": "every other week on Monday and Tuesday, weeks start Sunday",
+    "start": {
+      "kind": "zoned",
+      "local": "2017-05-15T10:00:00",
+      "tzid": "W. Europe Standard Time"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "weekly",
+        "interval": 2,
+        "daysOfWeek": [
+          "Monday",
+          "Tuesday"
+        ],
+        "firstDayOfWeek": "sunday"
+      },
+      "range": {
+        "type": "noEnd",
+        "startDate": "2017-05-15"
+      }
+    },
+    "rrule": "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TU;WKST=SU"
+  },
+  {
+    "name": "monthly on the 15th",
+    "start": {
+      "kind": "zoned",
+      "local": "2017-05-15T08:30:00",
+      "tzid": "Tokyo Standard Time"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "absoluteMonthly",
+        "interval": 1,
+        "dayOfMonth": 15
+      },
+      "range": {
+        "type": "noEnd",
+        "startDate": "2017-05-15"
+      }
+    },
+    "rrule": "FREQ=MONTHLY;BYMONTHDAY=15"
+  },
+  {
+    "name": "quarterly on the 7th, four times",
+    "start": {
+      "kind": "utc",
+      "at": "2017-04-07T08:00:00Z"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "absoluteMonthly",
+        "interval": 3,
+        "dayOfMonth": 7
+      },
+      "range": {
+        "type": "numbered",
+        "startDate": "2017-04-07",
+        "numberOfOccurrences": 4
+      }
+    },
+    "rrule": "FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=7;COUNT=4"
+  },
+  {
+    "name": "monthly on the second Wednesday",
+    "start": {
+      "kind": "zoned",
+      "local": "2017-04-12T09:00:00",
+      "tzid": "Europe/Istanbul"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "relativeMonthly",
+        "interval": 1,
+        "daysOfWeek": [
+          "Wednesday"
+        ],
+        "index": "second"
+      },
+      "range": {
+        "type": "noEnd",
+        "startDate": "2017-04-12"
+      }
+    },
+    "rrule": "FREQ=MONTHLY;BYDAY=2WE"
+  },
+  {
+    "name": "monthly on the first Thursday or Friday",
+    "start": {
+      "kind": "zoned",
+      "local": "2017-04-06T09:00:00",
+      "tzid": "Europe/Istanbul"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "relativeMonthly",
+        "interval": 1,
+        "daysOfWeek": [
+          "Thursday",
+          "Friday"
+        ],
+        "index": "first"
+      },
+      "range": {
+        "type": "noEnd",
+        "startDate": "2017-04-06"
+      }
+    },
+    "rrule": "FREQ=MONTHLY;BYDAY=TH,FR;BYSETPOS=1"
+  },
+  {
+    "name": "every other month on the first Thursday",
+    "start": {
+      "kind": "zoned",
+      "local": "2017-08-03T09:00:00",
+      "tzid": "Europe/Istanbul"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "relativeMonthly",
+        "interval": 2,
+        "daysOfWeek": [
+          "Thursday"
+        ],
+        "index": "first"
+      },
+      "range": {
+        "type": "noEnd",
+        "startDate": "2017-08-03"
+      }
+    },
+    "rrule": "FREQ=MONTHLY;INTERVAL=2;BYDAY=1TH"
+  },
+  {
+    "name": "yearly on April 15 (all day)",
+    "start": {
+      "kind": "date",
+      "date": "2017-04-15"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "absoluteYearly",
+        "interval": 1,
+        "dayOfMonth": 15,
+        "month": 4
+      },
+      "range": {
+        "type": "noEnd",
+        "startDate": "2017-04-15"
+      }
+    },
+    "rrule": "FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=15"
+  },
+  {
+    "name": "yearly on the last Wednesday of November until 2025 (all day)",
+    "start": {
+      "kind": "date",
+      "date": "2017-11-29"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "relativeYearly",
+        "interval": 1,
+        "daysOfWeek": [
+          "Wednesday"
+        ],
+        "index": "last",
+        "month": 11
+      },
+      "range": {
+        "type": "endDate",
+        "startDate": "2017-11-29",
+        "endDate": "2025-11-30"
+      }
+    },
+    "rrule": "FREQ=YEARLY;BYMONTH=11;BYDAY=-1WE;UNTIL=20251130"
+  },
+  {
+    "name": "every two years on the third Monday of January",
+    "start": {
+      "kind": "zoned",
+      "local": "2018-01-15T12:00:00",
+      "tzid": "UTC"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "relativeYearly",
+        "interval": 2,
+        "daysOfWeek": [
+          "Monday"
+        ],
+        "index": "third",
+        "month": 1
+      },
+      "range": {
+        "type": "numbered",
+        "startDate": "2018-01-15",
+        "numberOfOccurrences": 3
+      }
+    },
+    "rrule": "FREQ=YEARLY;INTERVAL=2;BYMONTH=1;BYDAY=3MO;COUNT=3"
+  },
+  {
+    "name": "weekly on Monday until the end of the year (IANA zone, exact UNTIL)",
+    "start": {
+      "kind": "zoned",
+      "local": "2017-09-04T12:00:00",
+      "tzid": "America/Los_Angeles"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "weekly",
+        "interval": 1,
+        "daysOfWeek": [
+          "Monday"
+        ],
+        "firstDayOfWeek": "sunday"
+      },
+      "range": {
+        "type": "endDate",
+        "startDate": "2017-09-04",
+        "endDate": "2017-12-31",
+        "recurrenceTimeZone": "America/Los_Angeles"
+      }
+    },
+    "rrule": "FREQ=WEEKLY;BYDAY=MO;WKST=SU;UNTIL=20180101T075959Z"
+  },
+  {
+    "name": "every weekday until a date in a zone east of UTC",
+    "start": {
+      "kind": "zoned",
+      "local": "2024-01-08T09:00:00",
+      "tzid": "Asia/Tokyo"
+    },
+    "recurrence": {
+      "pattern": {
+        "type": "weekly",
+        "interval": 1,
+        "daysOfWeek": [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday"
+        ]
+      },
+      "range": {
+        "type": "endDate",
+        "startDate": "2024-01-08",
+        "endDate": "2024-02-29"
+      }
+    },
+    "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20240229T145959Z"
+  }
+]

@@ -1,6 +1,7 @@
 //! Envelope's engine: local storage, synchronization, sending, search and the
 //! glue between protocol crates and the user interface.
 
+pub mod ai;
 pub mod compose;
 pub mod db;
 pub mod engine;

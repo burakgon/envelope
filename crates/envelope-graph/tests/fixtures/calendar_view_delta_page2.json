@@ -1,0 +1,13 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(event)",
+  "@odata.deltaLink": "{{base}}/me/calendarView/delta?$deltatoken=R0usmci39OQxqJrxK4",
+  "value": [
+    {
+      "@odata.type": "#microsoft.graph.event",
+      "id": "AAMkCancelledLunch=",
+      "@removed": {
+        "reason": "deleted"
+      }
+    }
+  ]
+}

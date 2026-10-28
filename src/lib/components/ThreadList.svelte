@@ -4,6 +4,7 @@
   import { compose } from '../stores/compose.svelte';
   import { mail } from '../stores/mail.svelte';
   import { ui } from '../stores/ui.svelte';
+  import { ai } from '../stores/ai.svelte';
   import ThreadRow from './ThreadRow.svelte';
   import Popover from './Popover.svelte';
   import SnoozeMenu from './SnoozeMenu.svelte';
@@ -11,7 +12,7 @@
   import EmptyState from './EmptyState.svelte';
   import {
     Archive, Check, CheckCircle, Clock, Filter, Folder, Forward, Mail, MailOpen, More, Newspaper, PanelLeft, Paperclip,
-    Bell, Reply, ReplyAll, Search, ShieldAlert, Star, Tag, Trash, Users, X, Refresh,
+    Bell, Reply, ReplyAll, Search, ShieldAlert, Star, Tag, Trash, Users, X, Refresh, Sparkles,
   } from '../icons';
 
   let viewport: HTMLDivElement | undefined = $state();
@@ -80,6 +81,22 @@
   function onSearchInput() {
     if (searchTimer) clearTimeout(searchTimer);
     searchTimer = setTimeout(() => mail.setSearch(query.trim()), 140);
+  }
+
+  let aiBusy = $state(false);
+  async function aiSearch() {
+    aiBusy = true;
+    try {
+      const q = await ai.run({ kind: 'searchQuery', question: query }).promise;
+      if (q.trim()) {
+        query = q.trim();
+        mail.setSearch(query);
+      }
+    } catch {
+      /* keep the plain query */
+    } finally {
+      aiBusy = false;
+    }
   }
 
   function clearSearch() {
@@ -172,6 +189,9 @@
       {/if}
     </div>
     <div class="tools">
+      {#if ai.ready}
+        <button class="icon-btn ask" title="Ask your inbox" onclick={() => { ui.askAi = ''; ui.open('ask'); }}><Sparkles size={16} /></button>
+      {/if}
       <button class="icon-btn" class:active={filterActive} title="Filter" onclick={(e) => (filterAt = bulkRect(e))}><Filter size={16} /></button>
       <button class="icon-btn" title="Refresh" onclick={() => import('../api').then(({ api }) => api.syncNow(null))}><Refresh size={16} /></button>
     </div>
@@ -190,6 +210,9 @@
       spellcheck="false"
       aria-label="Search mail"
     />
+    {#if query && ai.ready && /\s/.test(query.trim()) && !/\w+:/.test(query)}
+      <button class="ai-search" title="Turn into a search with AI" onclick={aiSearch} disabled={aiBusy}><Sparkles size={13} />{aiBusy ? '…' : 'AI'}</button>
+    {/if}
     {#if query}
       <button class="clear" aria-label="Clear search" onclick={clearSearch}><X size={13} /></button>
     {:else}
@@ -390,6 +413,21 @@
     border-radius: 5px;
     background: var(--bg-active);
     color: var(--text-3);
+  }
+  .ai-search {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 7px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent-text);
+    background: var(--accent-soft);
+  }
+  .ask {
+    color: var(--accent-text);
   }
   .clear {
     display: grid;

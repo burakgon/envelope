@@ -1,0 +1,26 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(message)",
+  "@odata.deltaLink": "{{base}}/me/mailfolders('AQMkADNkNAAAgEMAAAA')/messages/delta?$deltatoken=GwcBoTmPuoGNlgXgF1nyUNMXY",
+  "value": [
+    {
+      "@odata.type": "#microsoft.graph.message",
+      "id": "AAMkADk0MGFkODE3LWE4MmYtNDRhOS0Dh_6qB-pB2Sa2pUum19a6YAAKnLuxoAAA=",
+      "@removed": {
+        "reason": "deleted"
+      }
+    },
+    {
+      "@odata.type": "#microsoft.graph.message",
+      "@odata.etag": "W/\"CQAAABYAAAARn2vdzPFjSbaPPxzjlzOTAAASsKZz\"",
+      "subject": "Holiday hours update",
+      "isRead": "true",
+      "sender": {
+        "emailAddress": {
+          "name": "Dana Swope",
+          "address": "danas@contoso.com"
+        }
+      },
+      "id": "AAMkADNkNAAASq35xAAA="
+    }
+  ]
+}

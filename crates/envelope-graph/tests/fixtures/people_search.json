@@ -1,0 +1,99 @@
+{
+  "value": [
+    {
+      "id": "E3C5B235-DE15-4566-B7B1-7A8E32426540",
+      "displayName": "Jan Travis",
+      "givenName": "Jan",
+      "surname": "Travis",
+      "birthday": "",
+      "personNotes": "",
+      "isFavorite": false,
+      "jobTitle": "VP Sales",
+      "companyName": null,
+      "yomiCompany": "",
+      "department": "Sales & Marketing",
+      "officeLocation": "19/3123",
+      "profession": "",
+      "userPrincipalName": "JanT@contoso.com",
+      "imAddress": "sip:JanT@contoso.com",
+      "scoredEmailAddresses": [
+        {
+          "address": "JanT@contoso.com",
+          "relevanceScore": -12.297347783416837
+        }
+      ],
+      "phones": [
+        {
+          "type": "Business",
+          "number": "+1 732 555 0102"
+        }
+      ],
+      "postalAddresses": [],
+      "websites": [],
+      "personType": {
+        "class": "Person",
+        "subclass": "OrganizationUser"
+      }
+    },
+    {
+      "id": "C43BF05E-5B6B-4DCF-B2FC-0837B09E0FA9",
+      "displayName": "Jacob Cazares (TAILSPIN)",
+      "givenName": null,
+      "surname": null,
+      "birthday": "",
+      "personNotes": "",
+      "isFavorite": false,
+      "jobTitle": null,
+      "companyName": null,
+      "yomiCompany": "",
+      "department": null,
+      "officeLocation": null,
+      "profession": "",
+      "userPrincipalName": "",
+      "imAddress": null,
+      "scoredEmailAddresses": [
+        {
+          "address": "JacobC@tailspintoys.com",
+          "relevanceScore": -12.298154282019846
+        }
+      ],
+      "phones": [],
+      "postalAddresses": [],
+      "websites": [],
+      "personType": {
+        "class": "Person",
+        "subclass": "PersonalContact"
+      }
+    },
+    {
+      "id": "6BB9CC1F-418D-4DDF-AB0C-6A1C4ABCDBF4",
+      "displayName": "Jewell Montgomery",
+      "givenName": "Jewell",
+      "surname": "Montgomery",
+      "birthday": "",
+      "personNotes": "",
+      "isFavorite": false,
+      "jobTitle": null,
+      "companyName": null,
+      "yomiCompany": "",
+      "department": null,
+      "officeLocation": null,
+      "profession": "",
+      "userPrincipalName": "JewellM@contoso.com",
+      "imAddress": null,
+      "scoredEmailAddresses": [
+        {
+          "address": "JewellM@contoso.com",
+          "relevanceScore": -12.531408487977451
+        }
+      ],
+      "phones": [],
+      "postalAddresses": [],
+      "websites": [],
+      "personType": {
+        "class": "Person",
+        "subclass": "OrganizationUser"
+      }
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Ahmet Kaya
+N:Kaya;Ahmet;;;
+EMAIL;TYPE=INTERNET;TYPE=HOME:ahmet.kaya@gmail.com
+EMAIL;TYPE=INTERNET;TYPE=WORK:ahmet@kaya-hukuk.com.tr
+TEL;TYPE=CELL:+905321234567
+TEL;TYPE=WORK:+902161234567
+ADR;TYPE=WORK:;;Atatürk Cd. 1;Ankara;;06000;Turkey
+ORG:Kaya Hukuk Bürosu
+TITLE:Avukat
+BDAY:1984-11-03
+item1.URL:https\://kaya-hukuk.com.tr
+item1.X-ABLabel:PROFILE
+PHOTO:https://lh3.googleusercontent.com/contacts/AG6tpzE5mFx2kQ=s100
+CATEGORIES:myContacts,Clients
+NOTE:Met at the Istanbul tech meetup.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:John Smith
+N:Smith;John;;;
+EMAIL;TYPE=INTERNET:john.smith@example.com
+TEL;TYPE=CELL:+1 415 555 0100
+item1.TEL:+1 415 555 0199
+item1.X-ABLabel:Grandma's house
+CATEGORIES:myContacts
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:
+N:;;;;
+EMAIL;TYPE=INTERNET;TYPE=OTHER:noname@example.com
+END:VCARD

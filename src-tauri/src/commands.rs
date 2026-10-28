@@ -440,3 +440,58 @@ pub fn set_unread_badge(app: AppHandle, count: i64) {
         let _ = w.set_badge_count(if count > 0 { Some(count) } else { None });
     }
 }
+
+// ----- AI -------------------------------------------------------------------------
+
+use envelope_core::ai::{AiConfigView, AiEvent, AiModel, AiPresetView, AiSettings, AiTask};
+use tauri::ipc::Channel;
+
+#[tauri::command]
+pub async fn ai_config(state: State<'_, AppState>) -> R<AiConfigView> {
+    Ok(state.engine.ai_config().await?)
+}
+
+#[tauri::command]
+pub async fn ai_set_config(state: State<'_, AppState>, settings: AiSettings, api_key: Option<String>) -> R<()> {
+    Ok(state.engine.set_ai_config(settings, api_key).await?)
+}
+
+#[tauri::command]
+pub fn ai_presets() -> Vec<AiPresetView> {
+    envelope_core::Engine::ai_presets()
+}
+
+#[tauri::command]
+pub async fn ai_models(state: State<'_, AppState>, settings: Option<AiSettings>, api_key: Option<String>) -> R<Vec<AiModel>> {
+    Ok(state.engine.ai_models(settings, api_key).await?)
+}
+
+#[tauri::command]
+pub async fn ai_test(state: State<'_, AppState>, settings: AiSettings, api_key: Option<String>) -> R<String> {
+    Ok(state.engine.ai_test(settings, api_key).await?)
+}
+
+#[tauri::command]
+pub async fn ai_run(state: State<'_, AppState>, run_id: String, task: AiTask, on_event: Channel<AiEvent>) -> R<String> {
+    let engine = state.engine.clone();
+    let handle = tauri::async_runtime::spawn(async move {
+        engine.ai_run(task, move |e| {
+            let _ = on_event.send(e);
+        })
+        .await
+    });
+    state.ai_runs.lock().insert(run_id.clone(), handle.inner().abort_handle());
+    let result = handle.await;
+    state.ai_runs.lock().remove(&run_id);
+    match result {
+        Ok(r) => Ok(r?),
+        Err(_) => Err(CmdError { message: "Cancelled".into(), kind: "cancelled" }),
+    }
+}
+
+#[tauri::command]
+pub fn ai_cancel(state: State<'_, AppState>, run_id: String) {
+    if let Some(h) = state.ai_runs.lock().remove(&run_id) {
+        h.abort();
+    }
+}

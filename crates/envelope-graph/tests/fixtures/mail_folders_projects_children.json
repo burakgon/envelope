@@ -1,0 +1,14 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('68ca8ec0-11f8-456b-a785-70d9936650d5')/mailFolders('AAMkADYProjects%3D%3D')/childFolders",
+  "value": [
+    {
+      "id": "AAMkADYEnvelope==",
+      "displayName": "Envelope",
+      "parentFolderId": "AAMkADYProjects==",
+      "childFolderCount": 0,
+      "unreadItemCount": 0,
+      "totalItemCount": 0,
+      "isHidden": false
+    }
+  ]
+}

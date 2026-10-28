@@ -1,0 +1,38 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(contact)",
+  "@odata.deltaLink": "{{base}}/me/contactfolders('AAMkADContactsRoot=')/contacts/delta?$deltatoken=v1Dfg0AiCBEQ",
+  "value": [
+    {
+      "@odata.etag": "W/\"EQAAABYAAACsH5XPCjdKQqzYn+fjr0dbAAAZAmXA\"",
+      "id": "AAMkADh6v5AAAvgTCEAAA=",
+      "displayName": "Pavel Bansky",
+      "givenName": "Pavel",
+      "surname": "Bansky",
+      "nickName": null,
+      "emailAddresses": [
+        {
+          "name": "Pavel Bansky",
+          "address": "pavelb@contoso.com",
+          "type": "unknown"
+        }
+      ],
+      "businessPhones": [
+        "+1 732 555 0102"
+      ],
+      "homePhones": [],
+      "mobilePhone": null,
+      "companyName": "Contoso",
+      "jobTitle": null,
+      "personalNotes": "",
+      "birthday": null,
+      "parentFolderId": "AAMkADContactsRoot="
+    },
+    {
+      "@odata.type": "#microsoft.graph.contact",
+      "id": "AAMkADh6v5AAAvgTCHAAA=",
+      "@removed": {
+        "reason": "deleted"
+      }
+    }
+  ]
+}

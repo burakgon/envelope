@@ -1,0 +1,42 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('68ca8ec0-11f8-456b-a785-70d9936650d5')/mailFolders(id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden)",
+  "@odata.nextLink": "{{base}}/me/mailFolders?$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden&$top=4&$skip=4",
+  "value": [
+    {
+      "id": "AQMkADYAAAIBXQAAAA==",
+      "displayName": "Archive",
+      "parentFolderId": "AQMkADYAAAIBCAAAAA==",
+      "childFolderCount": 0,
+      "unreadItemCount": 0,
+      "totalItemCount": 0,
+      "isHidden": false
+    },
+    {
+      "id": "AQMkADYAAAIBFQAAAA==",
+      "displayName": "Conversation History",
+      "parentFolderId": "AQMkADYAAAIBCAAAAA==",
+      "childFolderCount": 1,
+      "unreadItemCount": 0,
+      "totalItemCount": 0,
+      "isHidden": false
+    },
+    {
+      "id": "AQMkADYAAAIBCgAAAA==",
+      "displayName": "Deleted Items",
+      "parentFolderId": "AQMkADYAAAIBCAAAAA==",
+      "childFolderCount": 0,
+      "unreadItemCount": 0,
+      "totalItemCount": 3,
+      "isHidden": false
+    },
+    {
+      "id": "AQMkADYAAAIBDwAAAA==",
+      "displayName": "Drafts",
+      "parentFolderId": "AQMkADYAAAIBCAAAAA==",
+      "childFolderCount": 0,
+      "unreadItemCount": 0,
+      "totalItemCount": 1,
+      "isHidden": false
+    }
+  ]
+}

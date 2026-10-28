@@ -3,6 +3,7 @@
 import type { Api } from './index';
 import type * as T from './types';
 import * as data from './mockdata';
+import { mockAiRun, mockPresets } from './mock-ai';
 
 type Listener = (e: T.EngineEvent) => void;
 
@@ -19,6 +20,8 @@ export function createMockApi(): Api {
     id: a.id, accountId: a.id, name: a.name, email: a.email, replyTo: null,
     signature: a.id === 1 ? '<p>— Alex<br><span style="color:#888">Product Lead · Lumen</span></p>' : null, isDefault: true,
   }));
+
+  let aiSettings: T.AiSettings = { enabled: true, provider: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1', model: 'openrouter/auto', customInstructions: '', language: null };
 
   const delay = <V>(v: V, ms = 0): Promise<V> => new Promise((r) => setTimeout(() => r(structuredClone(v)), ms));
 
@@ -342,6 +345,19 @@ export function createMockApi(): Api {
     },
     onMailto: () => () => {},
     onOpenThread: () => () => {},
+
+    ai: {
+      config: async () => ({ ...aiSettings, hasKey: true, local: false }),
+      setConfig: async (s) => { aiSettings = { ...s }; },
+      presets: async () => mockPresets,
+      models: async () => [
+        { id: 'openrouter/auto', name: 'Auto (best for prompt)', contextLength: 2_000_000, inputPrice: null, outputPrice: null },
+        { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick', contextLength: 1_000_000, inputPrice: 0.15, outputPrice: 0.6 },
+        { id: 'mistralai/mistral-medium-3', name: 'Mistral Medium 3', contextLength: 128_000, inputPrice: 0.4, outputPrice: 2 },
+      ],
+      test: async () => 'Connected · demo model answered in 210 ms',
+      run: (task, onEvent) => mockAiRun(task, onEvent),
+    },
 
     window: {
       minimize: async () => {},

@@ -1,0 +1,48 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#me/calendars",
+  "value": [
+    {
+      "@odata.id": "https://graph.microsoft.com/v1.0/users('ddfcd489-628b-40d7-b48b-57002df800e5@1717622f-1d94-4d0c-9d74-709fad664b77')/calendars('AAMkAGI2TGuLAAA=')",
+      "id": "AAMkAGI2TGuLAAA=",
+      "name": "Calendar",
+      "color": "auto",
+      "changeKey": "nfZyf7VcrEKLNoU37KWlkQAAA0x0+w==",
+      "canShare": true,
+      "canViewPrivateItems": true,
+      "hexColor": "",
+      "isSharedWithMe": false,
+      "canEdit": true,
+      "allowedOnlineMeetingProviders": [
+        "teamsForBusiness"
+      ],
+      "defaultOnlineMeetingProvider": "teamsForBusiness",
+      "isTallyingResponses": true,
+      "isRemovable": false,
+      "owner": {
+        "name": "Samantha Booth",
+        "address": "samanthab@contoso.com"
+      },
+      "isDefaultCalendar": true
+    },
+    {
+      "id": "AAMkShared=",
+      "name": "Team vacations",
+      "color": "lightRed",
+      "changeKey": "nfZyf7VcrEKLNoU37KWlkQAAA0x0+x==",
+      "canShare": false,
+      "canViewPrivateItems": false,
+      "hexColor": "#E3008C",
+      "isSharedWithMe": true,
+      "canEdit": false,
+      "isDefaultCalendar": false,
+      "allowedOnlineMeetingProviders": [],
+      "defaultOnlineMeetingProvider": "unknown",
+      "isTallyingResponses": false,
+      "isRemovable": true,
+      "owner": {
+        "name": "Alex Wilber",
+        "address": "AlexW@contoso.com"
+      }
+    }
+  ]
+}

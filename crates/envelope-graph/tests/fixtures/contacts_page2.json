@@ -1,0 +1,28 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('bb8775a4')/contacts",
+  "value": [
+    {
+      "@odata.etag": "W/\"EQAAABYAAACsH5XPCjdKQqzYn+fjr0dbAAAZAmXA\"",
+      "id": "AAMkADh6v5AAAvgTCGAAA=",
+      "displayName": "Lidia Holloway",
+      "givenName": "Lidia",
+      "surname": "Holloway",
+      "nickName": null,
+      "emailAddresses": [
+        {
+          "name": "Lidia Holloway",
+          "address": "lidiah@contoso.com",
+          "type": "unknown"
+        }
+      ],
+      "businessPhones": [],
+      "homePhones": [],
+      "mobilePhone": null,
+      "companyName": null,
+      "jobTitle": null,
+      "personalNotes": "",
+      "birthday": null,
+      "parentFolderId": "AAMkADContactsRoot="
+    }
+  ]
+}

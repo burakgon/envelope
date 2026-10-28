@@ -1,0 +1,90 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('bb8775a4-4d8c-42cf-a1d4-4d58c2bb668f')/mailFolders('inbox')/messages",
+  "@odata.nextLink": "{{base}}/me/mailFolders/inbox/messages?$top=2&$skip=2",
+  "value": [
+    {
+      "@odata.type": "#microsoft.graph.message",
+      "@odata.etag": "W/\"CQAAABYAAAARn2vdzPFjSbaPPxzjlzOTAAASsKZz\"",
+      "id": "AAMkADNkNAAASq35xAAA=",
+      "internetMessageId": "<MWHPR1301MB2286D5D1EB4BFA1A0D7C7F2FB0D30@MWHPR1301MB2286.namprd13.prod.outlook.com>",
+      "conversationId": "AAQkADNkNAAQAJpTkQ7OTEJSuvNuQ8Bbb5Y=",
+      "subject": "Holiday hours update",
+      "bodyPreview": "The office will be closed on Friday.",
+      "from": {
+        "emailAddress": {
+          "name": "Dana Swope",
+          "address": "danas@contoso.com"
+        }
+      },
+      "sender": {
+        "emailAddress": {
+          "name": "Dana Swope",
+          "address": "danas@contoso.com"
+        }
+      },
+      "toRecipients": [
+        {
+          "emailAddress": {
+            "name": "Megan Bowen",
+            "address": "MeganB@contoso.com"
+          }
+        }
+      ],
+      "ccRecipients": [
+        {
+          "emailAddress": {
+            "name": "Alex Wilber",
+            "address": "AlexW@contoso.com"
+          }
+        }
+      ],
+      "bccRecipients": [],
+      "replyTo": [],
+      "receivedDateTime": "2017-07-22T01:53:57Z",
+      "sentDateTime": "2017-07-22T01:53:55Z",
+      "isRead": false,
+      "isDraft": false,
+      "flag": {
+        "flagStatus": "flagged",
+        "startDateTime": {
+          "dateTime": "2017-07-22T00:00:00.0000000",
+          "timeZone": "UTC"
+        },
+        "dueDateTime": {
+          "dateTime": "2017-07-29T00:00:00.0000000",
+          "timeZone": "UTC"
+        }
+      },
+      "hasAttachments": true,
+      "importance": "high",
+      "categories": [
+        "Red category"
+      ],
+      "parentFolderId": "AQMkADNkNAAAgEMAAAA",
+      "inferenceClassification": "focused",
+      "changeKey": "CQAAABYAAAARn2vdzPFjSbaPPxzjlzOTAAASsKZz"
+    },
+    {
+      "@odata.etag": "W/\"CQAAABYAAADHcgC8Hl9tRZ/hc1wEUs1TAAAwR4Hg\"",
+      "id": "AAMkAGUAAAwTW09AAA=",
+      "subject": "You have late tasks!",
+      "isRead": true,
+      "isDraft": false,
+      "receivedDateTime": "2017-06-26T00:03:39Z",
+      "sender": {
+        "emailAddress": {
+          "name": "Microsoft Planner",
+          "address": "noreply@Planner.Office365.com"
+        }
+      },
+      "from": {
+        "emailAddress": {
+          "name": "Microsoft Planner",
+          "address": "noreply@Planner.Office365.com"
+        }
+      },
+      "toRecipients": null,
+      "importance": "normal"
+    }
+  ]
+}

@@ -51,6 +51,13 @@
     return out;
   }
 
+  const single = $derived(mail.accounts.length === 1 ? mail.accounts[0] : null);
+  const singleRoles = $derived.by(() => {
+    if (!single) return [];
+    const roles: FolderRole[] = single.kind === 'gmail' ? ['all', 'junk', 'trash'] : ['archive', 'junk', 'trash'];
+    return roles.map((r) => mail.roleFolder(single.id, r)).filter((f): f is Folder => !!f);
+  });
+
   function go(mb: Mailbox) {
     mail.setMailbox(mb);
   }
@@ -165,18 +172,42 @@
       <button class="item" class:active={mail.isMailbox({ kind: 'unified', role: 'sent' })} onclick={() => go({ kind: 'unified', role: 'sent' })}>
         <Send size={16} /><span class="name">Sent</span>
       </button>
-      <button class="item" class:active={mail.isMailbox({ kind: 'everything' })} onclick={() => go({ kind: 'everything' })}>
-        <Mails size={16} /><span class="name">All Mail</span>
-      </button>
+      {#if single}
+        {#each singleRoles as f (f.id)}
+          {@const Icon = roleIcon[f.role!]}
+          <button
+            class="item"
+            class:active={mail.isMailbox({ kind: 'folder', id: f.id })}
+            class:drop={dragOver === f.id}
+            onclick={() => go({ kind: 'folder', id: f.id })}
+            ondragover={(e) => onDragOver(e, f.id)}
+            ondragleave={() => (dragOver = null)}
+            ondrop={(e) => onDrop(e, f)}
+          >
+            <Icon size={16} /><span class="name">{f.role === 'junk' ? 'Spam' : f.role === 'all' ? 'All Mail' : f.name}</span>
+            {#if f.role === 'junk' && f.unreadCount > 0}<span class="count">{f.unreadCount}</span>{/if}
+          </button>
+        {/each}
+      {:else}
+        <button class="item" class:active={mail.isMailbox({ kind: 'everything' })} onclick={() => go({ kind: 'everything' })}>
+          <Mails size={16} /><span class="name">All Mail</span>
+        </button>
+      {/if}
     </div>
 
     {#each mail.accounts as account (account.id)}
       {@const open = !collapsedAccounts[account.id]}
+      {@const list = accountFolders(account).filter((x) => !single || !x.folder.role)}
+      {#if !single || list.length > 0}
       <div class="group account">
         <div class="account-head">
           <button class="account-title" onclick={() => (collapsedAccounts[account.id] = open)}>
-            <span class="dot" style:background={account.color}></span>
-            <span class="label truncate" title={account.email}>{account.label ?? account.email}</span>
+            {#if single}
+              <span class="label truncate">Folders</span>
+            {:else}
+              <span class="dot" style:background={account.color}></span>
+              <span class="label truncate" class:email={!account.label} title={account.email}>{account.label ?? account.email}</span>
+            {/if}
             <span class="chev" class:closed={!open}><ChevronDown size={13} /></span>
           </button>
           <span class="status" title={syncLabel(account)}>
@@ -191,7 +222,7 @@
         </div>
         {#if open}
           <div class="folders">
-            {#each accountFolders(account) as { folder, depth } (folder.id)}
+            {#each list as { folder, depth } (folder.id)}
               {@const Icon = folder.role ? roleIcon[folder.role] : folder.kind === 'label' ? Tag : FolderIcon}
               <button
                 class="item"
@@ -219,6 +250,7 @@
           </div>
         {/if}
       </div>
+      {/if}
     {/each}
 
     <button class="item add" onclick={() => ui.open('addAccount')}>
@@ -418,6 +450,11 @@
   }
   .account-title .label {
     max-width: 100%;
+  }
+  .account-title .label.email {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: var(--text-sm);
   }
   .dot {
     width: 8px;

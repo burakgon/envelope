@@ -1,0 +1,30 @@
+﻿begin:vcalendar
+version:2.0
+prodid:-//Lowercase Producer//EN
+begin:vevent
+uid:lower-1@example.com
+dtstamp:20240101T000000Z
+dtstart;tzid=europe/istanbul:20240110T100000
+dtend;tzid=europe/istanbul:20240110T110000
+summary:Lowercase everything
+x-custom-prop;x-param="a,b";x-other=c:Unknown value\, kept
+end:vevent
+end:vcalendar
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Second Calendar//EN
+BEGIN:VEVENT
+UID:second-1@example.com
+DTSTAMP:20240101T000000Z
+DTSTART:20240111T090000Z
+DTEND:20240111T100000Z
+SUMMARY:From the second calendar
+BEGIN:X-VENDOR-WIDGET
+X-WIDGET-ID:42
+END:X-VENDOR-WIDGET
+END:VEVENT
+BEGIN:VEVENT
+UID:second-2@example.com
+DTSTAMP:20240101T000000Z
+DTSTART:20240112T090000Z
+SUMMARY:Missing END lines follow

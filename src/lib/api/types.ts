@@ -320,3 +320,68 @@ export interface ApiError {
   message: string;
   kind: 'auth' | 'notFound' | 'invalid' | 'network' | 'error';
 }
+
+// ----- AI --------------------------------------------------------------------
+
+export interface AiSettings {
+  enabled: boolean;
+  provider: string;
+  baseUrl: string;
+  model: string;
+  customInstructions: string;
+  language: string | null;
+}
+
+export interface AiConfig extends AiSettings {
+  hasKey: boolean;
+  local: boolean;
+}
+
+export interface AiPreset {
+  id: string;
+  name: string;
+  kind: string;
+  baseUrl: string;
+  requiresKey: boolean;
+  keyUrl: string | null;
+  defaultModel: string | null;
+  local: boolean;
+}
+
+export interface AiModel {
+  id: string;
+  name: string;
+  contextLength: number | null;
+  inputPrice: number | null;
+  outputPrice: number | null;
+}
+
+export type AiTask =
+  | { kind: 'summarize'; threadId: number }
+  | { kind: 'quickReplies'; threadId: number }
+  | { kind: 'draftReply'; threadId: number; instruction: string }
+  | { kind: 'compose'; instruction: string; recipients: string[] }
+  | { kind: 'rewrite'; text: string; style: string }
+  | { kind: 'translate'; text: string; language: string }
+  | { kind: 'ask'; question: string }
+  | { kind: 'searchQuery'; question: string }
+  | { kind: 'extractEvents'; messageId: number };
+
+export interface AiSource {
+  index: number;
+  messageId: number;
+  threadId: number;
+  subject: string;
+  from: string;
+  date: number;
+}
+
+export type AiEvent =
+  | { type: 'delta'; text: string }
+  | { type: 'sources'; sources: AiSource[] }
+  | { type: 'done'; text: string };
+
+export interface AiRun {
+  promise: Promise<string>;
+  cancel(): void;
+}

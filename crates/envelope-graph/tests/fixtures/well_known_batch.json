@@ -1,0 +1,88 @@
+{
+  "responses": [
+    {
+      "id": "sentitems",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('68ca8ec0')/mailFolders(id)/$entity",
+        "id": "AQMkADYAAAIBCQAAAA=="
+      }
+    },
+    {
+      "id": "inbox",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('68ca8ec0')/mailFolders(id)/$entity",
+        "id": "AQMkADYAAAIBDAAAAA=="
+      }
+    },
+    {
+      "id": "drafts",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('68ca8ec0')/mailFolders(id)/$entity",
+        "id": "AQMkADYAAAIBDwAAAA=="
+      }
+    },
+    {
+      "id": "archive",
+      "status": 404,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "error": {
+          "code": "ErrorItemNotFound",
+          "message": "The specified object was not found in the store.",
+          "innerError": {
+            "date": "2024-05-01T10:00:00",
+            "request-id": "6f6f5a43-1b5e-4b4c-9d4e-6a3f0c2f9d11",
+            "client-request-id": "6f6f5a43-1b5e-4b4c-9d4e-6a3f0c2f9d12"
+          }
+        }
+      }
+    },
+    {
+      "id": "deleteditems",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('68ca8ec0')/mailFolders(id)/$entity",
+        "id": "AQMkADYAAAIBCgAAAA=="
+      }
+    },
+    {
+      "id": "junkemail",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('68ca8ec0')/mailFolders(id)/$entity",
+        "id": "AQMkADYAAAIBIgAAAA=="
+      }
+    },
+    {
+      "id": "outbox",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('68ca8ec0')/mailFolders(id)/$entity",
+        "id": "AQMkADYAAAIBCwAAAA=="
+      }
+    }
+  ]
+}

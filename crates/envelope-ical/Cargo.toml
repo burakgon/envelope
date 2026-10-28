@@ -1,0 +1,22 @@
+[package]
+name = "envelope-ical"
+description = "iCalendar and vCard parsing, serialization, recurrence expansion and iTIP for Envelope"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tokio = { workspace = true }
+# Independent RRULE implementation used as a differential-testing oracle for
+# the crate's own recurrence engine.
+rrule = "0.14"

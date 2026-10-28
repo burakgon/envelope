@@ -1281,6 +1281,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "dirs",
+ "envelope-ai",
  "envelope-imap",
  "futures",
  "hickory-resolver",

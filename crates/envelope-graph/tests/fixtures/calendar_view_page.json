@@ -1,0 +1,23 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('bb8775a4')/calendars('AAMkShared%3D')/calendarView",
+  "@odata.nextLink": "{{base}}/me/calendars/AAMkShared=/calendarView?startDateTime=2024-03-01T00:00:00Z&endDateTime=2024-04-01T00:00:00Z&$top=1&$skip=1",
+  "value": [
+    {
+      "id": "AAMkSharedEvent1=",
+      "type": "singleInstance",
+      "subject": "Dentist",
+      "iCalUId": "dentist-123@example.org",
+      "isAllDay": false,
+      "showAs": "oof",
+      "sensitivity": "private",
+      "start": {
+        "dateTime": "2024-03-14T08:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2024-03-14T09:00:00.0000000",
+        "timeZone": "UTC"
+      }
+    }
+  ]
+}

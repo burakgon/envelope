@@ -10,6 +10,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 pub struct AppState {
     pub engine: Engine,
+    pub ai_runs: parking_lot::Mutex<std::collections::HashMap<String, tokio::task::AbortHandle>>,
 }
 
 struct TauriSink {
@@ -77,7 +78,7 @@ pub fn run() {
             let engine = tauri::async_runtime::block_on(async {
                 Engine::start(Paths::standard(), TauriSink { app: handle.clone() })
             })?;
-            app.manage(AppState { engine });
+            app.manage(AppState { engine, ai_runs: Default::default() });
             // Respect the user's title bar preference before the window shows.
             if let Some(w) = app.get_webview_window("main") {
                 let native = app
@@ -155,6 +156,13 @@ pub fn run() {
             commands::settings_set,
             commands::set_decorations,
             commands::set_unread_badge,
+            commands::ai_config,
+            commands::ai_set_config,
+            commands::ai_presets,
+            commands::ai_models,
+            commands::ai_test,
+            commands::ai_run,
+            commands::ai_cancel,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

@@ -1,0 +1,54 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('bb8775a4')/contacts",
+  "@odata.nextLink": "{{base}}/me/contacts?$select=id&$top=2&$skip=2",
+  "value": [
+    {
+      "@odata.etag": "W/\"EQAAABYAAACsH5XPCjdKQqzYn+fjr0dbAAAZAmXA\"",
+      "id": "AAMkADh6v5AAAvgTCEAAA=",
+      "displayName": "Pavel Bansky",
+      "givenName": "Pavel",
+      "surname": "Bansky",
+      "nickName": null,
+      "emailAddresses": [
+        {
+          "name": "Pavel Bansky",
+          "address": "pavelb@contoso.com",
+          "type": "unknown"
+        }
+      ],
+      "businessPhones": [
+        "+1 732 555 0102"
+      ],
+      "homePhones": [],
+      "mobilePhone": null,
+      "companyName": "Contoso",
+      "jobTitle": null,
+      "personalNotes": "",
+      "birthday": null,
+      "parentFolderId": "AAMkADContactsRoot="
+    },
+    {
+      "@odata.etag": "W/\"EQAAABYAAACsH5XPCjdKQqzYn+fjr0dbAAAZAmXA\"",
+      "id": "AAMkADh6v5AAAvgTCFAAA=",
+      "displayName": "Isaiah Langer",
+      "givenName": "Isaiah",
+      "surname": "Langer",
+      "nickName": null,
+      "emailAddresses": [
+        {
+          "name": "Isaiah Langer",
+          "address": "isaiahl@contoso.com",
+          "type": "unknown"
+        }
+      ],
+      "businessPhones": [],
+      "homePhones": [],
+      "mobilePhone": null,
+      "companyName": null,
+      "jobTitle": null,
+      "personalNotes": "",
+      "birthday": null,
+      "parentFolderId": "AAMkADContactsRoot="
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('7f180cbb-a5ae-457c-b7e8-6f5b42ba33e7')/messages(internetMessageHeaders)/$entity",
+  "@odata.etag": "W/\"CQAAABYAAAC4ofQHEIqCSbQPot83AFcbAAAnjjuE\"",
+  "id": "AAMkADhAAAW-VPeAAA=",
+  "internetMessageHeaders": [
+    {
+      "name": "Received",
+      "value": "from BYAPR15MB2453.namprd15.prod.outlook.com (::1) by BYAPR15MB2453.namprd15.prod.outlook.com with HTTPS"
+    },
+    {
+      "name": "List-Unsubscribe",
+      "value": "<mailto:unsubscribe@contoso.com>"
+    },
+    {
+      "name": "Authentication-Results",
+      "value": "spf=pass smtp.mailfrom=contoso.com; dkim=pass header.d=contoso.com"
+    }
+  ]
+}
