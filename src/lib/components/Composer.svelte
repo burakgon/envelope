@@ -313,6 +313,11 @@
       <input class="input" type="datetime-local" bind:value={customAt} />
       <button class="btn sm primary" disabled={!customAt} onclick={() => send(new Date(customAt).getTime())}>Schedule</button>
     </div>
+    <div class="divider"></div>
+    <label class="menu-item receipt">
+      <input type="checkbox" checked={!!c.data.requestReadReceipt} onchange={(e) => { c.data.requestReadReceipt = (e.currentTarget as HTMLInputElement).checked; changed(); }} />
+      Request a read receipt
+    </label>
   </Popover>
 {/if}
 
@@ -457,6 +462,11 @@
     letter-spacing: 1px;
     color: var(--text-3);
     background: var(--bg-active);
+  }
+  .receipt input {
+    accent-color: var(--accent);
+    width: 15px;
+    height: 15px;
   }
   .quoted {
     margin-top: 8px;
