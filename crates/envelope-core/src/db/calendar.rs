@@ -358,6 +358,36 @@ pub fn calendar_count(c: &Connection) -> Result<i64> {
     Ok(c.query_row("SELECT count(*) FROM calendars", [], |r| r.get(0))?)
 }
 
+pub fn writable_calendar_count(c: &Connection) -> Result<i64> {
+    Ok(c.query_row(
+        "SELECT count(*) FROM calendars WHERE read_only = 0",
+        [],
+        |r| r.get(0),
+    )?)
+}
+
+/// A read-only calendar fed from an iCalendar URL.
+pub fn create_subscription(
+    tx: &Transaction<'_>,
+    url: &str,
+    name: &str,
+    color: &str,
+) -> Result<i64> {
+    tx.execute(
+        "INSERT INTO calendars (account_id, kind, remote_id, name, color, read_only, is_default)
+         VALUES (NULL, 'subscription', ?, ?, ?, 1, 0)",
+        params![url, name, color],
+    )?;
+    Ok(tx.last_insert_rowid())
+}
+
+/// Removes a calendar with its events.
+pub fn delete_calendar(tx: &Transaction<'_>, id: i64) -> Result<()> {
+    tx.execute("DELETE FROM events WHERE calendar_id = ?", [id])?;
+    tx.execute("DELETE FROM calendars WHERE id = ?", [id])?;
+    Ok(())
+}
+
 pub fn create_local_calendar(tx: &Transaction<'_>, name: &str, color: &str) -> Result<i64> {
     let remote = format!("local-{}", uuid::Uuid::new_v4());
     tx.execute(

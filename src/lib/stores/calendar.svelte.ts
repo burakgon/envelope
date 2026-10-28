@@ -58,6 +58,8 @@ class Cal {
   loading = $state(false);
   editor = $state<EditorState | null>(null);
   scopeAsk = $state<{ title: string; resolve: (s: EditScope | null) => void } | null>(null);
+  /** The address being subscribed to (from a `webcal:` link or the sidebar); null when no dialog is open. */
+  subscribing = $state<string | null>(null);
   private seq = 0;
   private started = false;
 

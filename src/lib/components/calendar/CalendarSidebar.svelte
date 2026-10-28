@@ -6,7 +6,7 @@
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import Popover from '../Popover.svelte';
   import MiniMonth from './MiniMonth.svelte';
-  import { Check, ChevronDown, Palette } from '../../icons';
+  import { Check, ChevronDown, Palette, Plus, Refresh, Trash } from '../../icons';
 
   const swatches = ['#4f7cff', '#2bb3a3', '#34a853', '#a3c23a', '#f4b400', '#f08a24', '#e8453c', '#e3508f', '#9b59d0', '#6d6f78'];
 
@@ -17,8 +17,9 @@
     const map = new Map<string, { key: string; label: string; list: CalendarInfo[] }>();
     for (const c of cal.calendars) {
       const account = c.accountId != null ? mail.accounts.find((a) => a.id === c.accountId) : null;
-      const key = account ? String(account.id) : 'local';
-      const label = account ? (account.label ?? account.email) : 'On this computer';
+      const subscribed = c.kind === 'subscription';
+      const key = account ? String(account.id) : subscribed ? 'subscribed' : 'local';
+      const label = account ? (account.label ?? account.email) : subscribed ? 'Subscribed' : 'On this computer';
       if (!map.has(key)) map.set(key, { key, label, list: [] });
       map.get(key)!.list.push(c);
     }
@@ -34,6 +35,29 @@
     return set;
   });
   const range = $derived(cal.view === 'day' || cal.view === 'week' ? cal.range : [null, null]);
+
+  async function refresh(c: CalendarInfo) {
+    colorFor = null;
+    try {
+      await api.calendar.refresh(c.id);
+      cal.load();
+      toasts.show(`${c.name} is up to date`, { kind: 'success' });
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+  }
+
+  async function unsubscribe(c: CalendarInfo) {
+    colorFor = null;
+    try {
+      await api.calendar.unsubscribe(c.id);
+      await cal.loadCalendars();
+      cal.load();
+      toasts.show(`Unsubscribed from ${c.name}`);
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+  }
 
   async function setColor(c: CalendarInfo, color: string) {
     colorFor = null;
@@ -80,6 +104,8 @@
   <div class="none">No calendars yet. Add an account with calendar access to see your events.</div>
 {/each}
 
+<button class="subscribe" onclick={() => (cal.subscribing = '')}><Plus size={13} />Subscribe to a calendar…</button>
+
 {#if colorFor}
   {@const target = colorFor.c}
   <Popover x={colorFor.x} y={colorFor.y} onclose={() => (colorFor = null)}>
@@ -88,6 +114,11 @@
         <button class="sw" class:on={target.color.toLowerCase() === s} style:background={s} aria-label={s} onclick={() => setColor(target, s)}></button>
       {/each}
     </div>
+    {#if target.kind === 'subscription'}
+      <div class="menu-sep"></div>
+      <button class="menu-item" onclick={() => refresh(target)}><Refresh size={14} />Refresh now</button>
+      <button class="menu-item danger" onclick={() => unsubscribe(target)}><Trash size={14} />Unsubscribe</button>
+    {/if}
   </Popover>
 {/if}
 
@@ -191,5 +222,24 @@
   }
   .sw.on {
     box-shadow: 0 0 0 2px var(--bg-elevated), 0 0 0 4px var(--text-3);
+  }
+  .menu-sep {
+    height: 1px;
+    margin: 6px 4px;
+    background: var(--border);
+  }
+  .subscribe {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 6px 0;
+    padding: 6px 8px;
+    border-radius: 8px;
+    font-size: var(--text-sm);
+    color: var(--text-3);
+  }
+  .subscribe:hover {
+    color: var(--text);
+    background: var(--bg-hover);
   }
 </style>

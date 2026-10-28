@@ -719,6 +719,24 @@ pub fn calendar_set_visible(state: State<'_, AppState>, id: i64, visible: bool) 
 }
 
 #[tauri::command]
+pub async fn calendar_subscribe(
+    state: State<'_, AppState>,
+    url: String,
+) -> R<envelope_core::calendar::CalendarView> {
+    Ok(state.engine.subscribe_calendar(&url).await?)
+}
+
+#[tauri::command]
+pub async fn calendar_refresh(state: State<'_, AppState>, id: i64) -> R<()> {
+    Ok(state.engine.refresh_subscription(id).await?)
+}
+
+#[tauri::command]
+pub fn calendar_unsubscribe(state: State<'_, AppState>, id: i64) -> R<()> {
+    Ok(state.engine.unsubscribe_calendar(id)?)
+}
+
+#[tauri::command]
 pub fn calendar_set_color(state: State<'_, AppState>, id: i64, color: String) -> R<()> {
     Ok(state.engine.set_calendar_color(id, &color)?)
 }

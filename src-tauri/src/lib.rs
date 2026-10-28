@@ -49,12 +49,14 @@ impl EventSink for TauriSink {
     }
 }
 
-/// Handles `mailto:` links, `--compose` and message or calendar files passed
-/// on the command line.
+/// Handles `mailto:` and `webcal:` links, `--compose` and message or calendar
+/// files passed on the command line.
 fn handle_args(app: &AppHandle, args: &[String], cwd: &std::path::Path) {
     for arg in args.iter().skip(1) {
         if arg.starts_with("mailto:") {
             let _ = app.emit("mailto", arg.clone());
+        } else if arg.starts_with("webcal:") || arg.starts_with("webcals:") {
+            let _ = app.emit("webcal", arg.clone());
         } else if arg == "--compose" {
             let _ = app.emit("mailto", "mailto:");
         } else if let Some(path) = file_arg(arg, cwd) {
@@ -245,6 +247,9 @@ pub fn run() {
             commands::calendars,
             commands::calendar_set_visible,
             commands::calendar_set_color,
+            commands::calendar_subscribe,
+            commands::calendar_refresh,
+            commands::calendar_unsubscribe,
             commands::occurrences,
             commands::event_detail,
             commands::event_create,

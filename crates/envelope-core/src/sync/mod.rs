@@ -7,6 +7,7 @@ pub mod graph;
 mod identities;
 pub mod imap;
 pub mod outbox;
+mod subscriptions;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -137,6 +138,7 @@ impl envelope_graph::TokenSource for AccountTokens {
 
 /// Periodic local chores: snoozed threads coming back.
 pub(crate) fn spawn_housekeeping(engine: Engine) {
+    subscriptions::spawn(engine.clone());
     tokio::spawn(async move {
         loop {
             tokio::select! {

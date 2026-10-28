@@ -9,6 +9,7 @@
   import { cal } from './lib/stores/calendar.svelte';
   import { autoReplies } from './lib/stores/autoReplies.svelte';
   import FileViewer from './lib/components/FileViewer.svelte';
+  import SubscribeDialog from './lib/components/calendar/SubscribeDialog.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import ThreadList from './lib/components/ThreadList.svelte';
   import Reader from './lib/components/Reader.svelte';
@@ -69,6 +70,7 @@
     });
     const offMailto = api.onMailto((url) => compose.fromMailto(url));
     const offFile = api.onOpenFile((path) => (openedFiles = [...openedFiles, path]));
+    const offWebcal = api.onWebcal((url) => (cal.subscribing = url));
     const offOpen = api.onOpenThread((id) => {
       ui.view = 'mail';
       if (id != null) {
@@ -80,6 +82,7 @@
     return () => {
       offMailto();
       offFile();
+      offWebcal();
       offOpen();
       offResize();
     };
@@ -316,6 +319,7 @@
 {#if ui.overlay === 'onboarding' || ui.overlay === 'addAccount'}<Onboarding first={ui.overlay === 'onboarding'} />{/if}
 {#if ui.overlay === 'ask'}<AskAi />{/if}
 {#if cal.editor}<EventEditor />{/if}
+{#if cal.subscribing !== null}<SubscribeDialog initial={cal.subscribing} onclose={() => (cal.subscribing = null)} />{/if}
 {#if openedFiles.length}{#key openedFiles[0]}<FileViewer path={openedFiles[0]} onclose={() => (openedFiles = openedFiles.slice(1))} />{/key}{/if}
 {#if cal.scopeAsk}<ScopeDialog />{/if}
 {#if pgp.ask}<PassphraseDialog />{/if}

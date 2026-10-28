@@ -72,6 +72,8 @@ export interface Api {
 
   onEvent(cb: (e: T.EngineEvent) => void): () => void;
   onMailto(cb: (url: string) => void): () => void;
+  /** A `webcal:` link was opened with Envelope. */
+  onWebcal(cb: (url: string) => void): () => void;
   /** A message or calendar file was opened with Envelope. */
   onOpenFile(cb: (path: string) => void): () => void;
   onOpenThread(cb: (threadId: number | null) => void): () => void;
@@ -80,6 +82,11 @@ export interface Api {
     list(): Promise<T.CalendarInfo[]>;
     setVisible(id: number, visible: boolean): Promise<void>;
     setColor(id: number, color: string): Promise<void>;
+    /** Subscribes to an iCalendar feed (`webcal:` or `https:`); read-only, refreshed every few hours. */
+    subscribe(url: string): Promise<T.CalendarInfo>;
+    /** Fetches a subscribed calendar now. */
+    refresh(id: number): Promise<void>;
+    unsubscribe(id: number): Promise<void>;
     occurrences(from: number, to: number): Promise<T.Occurrence[]>;
     detail(eventId: number, recurrenceId: T.EventTime | null): Promise<T.EventDetail>;
     create(input: T.EventInput): Promise<number>;

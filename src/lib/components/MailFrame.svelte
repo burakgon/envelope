@@ -3,6 +3,7 @@
   import { api } from '../api';
   import type { MessageView } from '../api';
   import { compose } from '../stores/compose.svelte';
+  import { cal } from '../stores/calendar.svelte';
   import { ui } from '../stores/ui.svelte';
   import { prepareHtml, textToHtml } from '../utils/html';
 
@@ -92,6 +93,7 @@
         return;
       }
       if (/^mailto:/i.test(href)) compose.fromMailto(href);
+      else if (/^webcals?:/i.test(href)) cal.subscribing = href;
       else if (/^(https?:|tel:)/i.test(href)) api.openUrl(href);
     });
 

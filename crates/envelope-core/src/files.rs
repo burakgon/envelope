@@ -155,10 +155,17 @@ fn embed_inline_parts(html: &str, raw: &[u8], parts: &[mail::AttachmentMeta]) ->
 
 /// A copy of an imported event that cannot send anything: the guests and
 /// organizer are dropped (a calendar server would otherwise mail them
-/// invitations), and times in zones without an IANA name become UTC.
+/// invitations).
 fn importable(mut event: Event, tz: &envelope_ical::TzContext) -> Event {
     event.attendees.clear();
     event.organizer = None;
+    utc_where_unknown(&mut event, tz);
+    event
+}
+
+/// Times in zones without an IANA name become UTC, so that they keep their
+/// instant wherever the event is stored.
+pub(crate) fn utc_where_unknown(event: &mut Event, tz: &envelope_ical::TzContext) {
     let fix = |time: &mut EventTime| {
         if let EventTime::Zoned { tzid, .. } = time
             && tzid.parse::<chrono_tz::Tz>().is_err()
@@ -170,7 +177,6 @@ fn importable(mut event: Event, tz: &envelope_ical::TzContext) -> Event {
     };
     fix(&mut event.start);
     fix(&mut event.end);
-    event
 }
 
 /// The events of a calendar file worth adding: series and single events,

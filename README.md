@@ -80,6 +80,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - **Scheduling assistant**: see when guests are busy (Google, Microsoft 365 and Exchange) and jump to the next time everyone is free.
 - Invitations in mail (iTIP) become cards with **Yes / Maybe / No**, a conflict check against your calendar and replies sent to the organizer.
 - Two-way sync: **CalDAV** (iCloud, Fastmail, Nextcloud, Radicale, …), **Google Calendar**, **Microsoft 365 / Outlook.com** and **on-premises Exchange**.
+- **Subscribe to published calendars** by URL (`webcal:` links included): holidays, sports, school or team calendars, refreshed by themselves.
 
 ### Contacts
 - Address books synced both ways with **CardDAV**, **Google Contacts**, **Microsoft 365** and **Exchange**, plus a local address book.

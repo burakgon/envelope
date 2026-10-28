@@ -361,6 +361,7 @@ export function createMockApi(): Api {
       return () => listeners.delete(cb);
     },
     onMailto: () => () => {},
+    onWebcal: () => () => {},
     onOpenFile: () => () => {},
     onOpenThread: () => () => {},
 
@@ -416,6 +417,34 @@ export function createMockApi(): Api {
       setColor: async (id, color) => {
         const c = cal.calendars.find((x) => x.id === id);
         if (c) c.color = color;
+        emit({ type: 'calendarChanged', calendarIds: [id] });
+      },
+      subscribe: async (url) => {
+        const name = (() => {
+          try {
+            return new URL(url.replace(/^webcals?:/, 'https:')).hostname;
+          } catch {
+            throw { message: 'This is not a calendar address.', kind: 'invalid' };
+          }
+        })();
+        const added: T.CalendarInfo = {
+          id: Math.max(...cal.calendars.map((c) => c.id)) + 1,
+          accountId: null,
+          kind: 'subscription',
+          name,
+          color: '#14b8a6',
+          readOnly: true,
+          isDefault: false,
+          visible: true,
+        };
+        cal.calendars.push(added);
+        emit({ type: 'calendarChanged', calendarIds: [added.id] });
+        return structuredClone(added);
+      },
+      refresh: async () => {},
+      unsubscribe: async (id) => {
+        const i = cal.calendars.findIndex((c) => c.id === id);
+        if (i >= 0) cal.calendars.splice(i, 1);
         emit({ type: 'calendarChanged', calendarIds: [id] });
       },
       occurrences: async (from, to) => cal.occurrences(from, to),

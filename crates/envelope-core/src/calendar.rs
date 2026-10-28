@@ -209,7 +209,8 @@ impl Engine {
             })?;
             return Ok(());
         }
-        if self.db.read(cdb::calendar_count)? == 0 {
+        // Subscriptions are read-only: events need a calendar of their own.
+        if self.db.read(cdb::writable_calendar_count)? == 0 {
             self.db
                 .write(|tx| cdb::create_local_calendar(tx, "Personal", "#6d5efc"))?;
         }
@@ -607,6 +608,39 @@ impl Engine {
                     expanded,
                 },
             )
+        })
+    }
+
+    /// Replaces every event of a calendar at once (a subscribed feed after
+    /// it changed).
+    pub(crate) fn replace_events(&self, calendar_id: i64, events: &[Event]) -> Result<()> {
+        self.db.write(|tx| {
+            cdb::clear_calendar(tx, calendar_id)?;
+            for event in events {
+                let start_ts = to_ms(&event.start);
+                let end_ts = to_ms(&event.end).max(start_ts);
+                let until_ts = if event.is_recurring() {
+                    until_ms(event)
+                } else {
+                    None
+                };
+                cdb::upsert_event(
+                    tx,
+                    &EventWrite {
+                        calendar_id,
+                        remote_id: None,
+                        etag: None,
+                        event,
+                        raw: None,
+                        provider_data: None,
+                        start_ts,
+                        end_ts,
+                        until_ts,
+                        expanded: false,
+                    },
+                )?;
+            }
+            Ok(())
         })
     }
 

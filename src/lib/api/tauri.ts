@@ -101,6 +101,7 @@ export function createTauriApi(): Api {
 
     onEvent: (cb) => subscribe<T.EngineEvent>('engine', cb),
     onMailto: (cb) => subscribe<string>('mailto', cb),
+    onWebcal: (cb) => subscribe<string>('webcal', cb),
     onOpenFile: (cb) => subscribe<string>('open-file', cb),
     onOpenThread: (cb) => subscribe<number | null>('open-thread', cb),
 
@@ -145,6 +146,9 @@ export function createTauriApi(): Api {
       list: () => invoke('calendars'),
       setVisible: (id, visible) => invoke('calendar_set_visible', { id, visible }),
       setColor: (id, color) => invoke('calendar_set_color', { id, color }),
+      subscribe: (url) => invoke('calendar_subscribe', { url }),
+      refresh: (id) => invoke('calendar_refresh', { id }),
+      unsubscribe: (id) => invoke('calendar_unsubscribe', { id }),
       occurrences: (from, to) => invoke('occurrences', { from, to }),
       detail: (eventId, recurrenceId) => invoke('event_detail', { eventId, recurrenceId }),
       create: (input) => invoke('event_create', { input }),

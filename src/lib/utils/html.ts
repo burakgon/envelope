@@ -102,7 +102,7 @@ export function prepareHtml(raw: string, opts: PrepareOptions): PreparedEmail {
     ADD_TAGS: ['style', 'link', 'center', 'font'],
     ADD_ATTR: ['target', 'bgcolor', 'background', 'align', 'valign', 'cellpadding', 'cellspacing', 'border', 'color', 'face', 'size', 'width', 'height'],
     FORBID_TAGS: ['script', 'iframe', 'frame', 'frameset', 'object', 'embed', 'applet', 'base', 'meta', 'form', 'input', 'button', 'textarea', 'select', 'option', 'noscript', 'svg', 'math'],
-    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|cid|att|data):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|cid|att|data|webcals?):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
   }) as HTMLElement;
   DOMPurify.removeAllHooks();
 
