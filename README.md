@@ -63,6 +63,8 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - **Instant full-text search** (SQLite FTS5) with operators — `from:`, `to:`, `subject:`, `has:attachment`, `is:unread`, `before:`, `after:` … — and natural-language search through AI if enabled.
 - **Composer** with rich text, inline images, attachments (drag and drop or paste), recipient autocomplete, spell checking, multiple identities and rich signatures, **templates**, **undo send**, **scheduled send** (with an outbox to review, send now or edit) and drafts that sync to the server.
 - **Snooze**, star, archive, report spam, bulk actions and **undo** for everything.
+- **Follow-up reminders**: get nudged when nobody replied to a message you sent.
+- **Rules** that file, label, mark or silence new mail as it arrives — for every kind of account.
 - **Safe HTML rendering** in a sandboxed frame with remote content blocking, tracking-pixel removal, dark-mode adaptation for plain emails and `cid:` inline images.
 - **Offline-first**: read, search, triage and write without a connection; changes sync when you're back.
 - **Push mail** via IMAP IDLE, CONDSTORE/QRESYNC for fast resyncs, Gmail extensions (labels, thread ids, `X-GM-RAW` search) when talking to Gmail.
@@ -193,7 +195,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the details.
 ## Roadmap
 
 - Exchange on-premises (EWS)
-- Mail rules and filters, follow-up reminders
 - PGP / S/MIME
 - Flathub and AUR packages
 
