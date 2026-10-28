@@ -327,6 +327,8 @@ pub struct ThreadSummary {
     pub folder_ids: Vec<i64>,
     pub category: Option<String>,
     pub is_invite: bool,
+    /// Later replies skip the inbox and do not notify.
+    pub muted: bool,
     pub snoozed_until: Option<i64>,
 }
 

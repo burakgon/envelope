@@ -61,6 +61,7 @@ export function createTauriApi(): Api {
     undo: (token) => invoke('undo', { token }),
     deleteForever: (threadIds) => invoke('delete_forever', { threadIds }),
     snooze: (threadIds, until) => invoke('snooze', { threadIds, until }),
+    muteThreads: (threadIds, muted) => invoke('mute_threads', { threadIds, muted }),
     setLabel: (threadIds, folderId, add) => invoke('set_label', { threadIds, folderId, add }),
     messageSource: (id) => invoke('message_source', { id }),
     unsubscribe: (messageId) => invoke('unsubscribe', { messageId }),

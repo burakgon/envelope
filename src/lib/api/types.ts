@@ -129,6 +129,8 @@ export interface ThreadSummary {
   folderIds: number[];
   category: string | null;
   isInvite: boolean;
+  /** Later replies skip the inbox and do not notify. */
+  muted: boolean;
   snoozedUntil: number | null;
 }
 

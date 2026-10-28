@@ -20,7 +20,7 @@ const SCHEMA: &str = concat!(
     include_str!("contacts.sql"),
     include_str!("crypto.sql")
 );
-const SCHEMA_VERSION: i64 = 5;
+const SCHEMA_VERSION: i64 = 6;
 
 /// Steps from one schema version to the next, applied in order to older databases.
 const MIGRATIONS: &[(i64, &str)] = &[
@@ -52,6 +52,11 @@ const MIGRATIONS: &[(i64, &str)] = &[
     ),
     // OpenPGP keys, Autocrypt peers and encrypted or signed messages.
     (5, include_str!("crypto.sql")),
+    // Muted conversations.
+    (
+        6,
+        "ALTER TABLE threads ADD COLUMN muted INTEGER NOT NULL DEFAULT 0;",
+    ),
 ];
 const MAX_READERS: usize = 6;
 
@@ -259,6 +264,97 @@ mod tests {
         for suffix in ["", "-wal", "-shm"] {
             let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
         }
+    }
+
+    #[test]
+    fn muted_conversations_stay_muted_as_replies_arrive() {
+        use crate::db::mail;
+        use crate::model::{AccountConfig, AccountKind, Address, FolderRole};
+
+        let db = Db::open(Path::new(":memory:")).unwrap();
+        let (account, inbox) = db
+            .write(|tx| {
+                let account = mail::insert_account(
+                    tx,
+                    AccountKind::Imap,
+                    "generic",
+                    "me@example.com",
+                    "Me",
+                    "#000",
+                    &AccountConfig::default(),
+                )?;
+                let folders = mail::sync_folders(
+                    tx,
+                    account,
+                    &[mail::FolderUpsert {
+                        remote_id: "INBOX".into(),
+                        name: "Inbox".into(),
+                        path: "INBOX".into(),
+                        parent_remote_id: None,
+                        role: Some(FolderRole::Inbox),
+                        kind: "folder".into(),
+                        delimiter: None,
+                        selectable: true,
+                        sort_order: 0,
+                        color: None,
+                    }],
+                )?;
+                Ok((account, folders["INBOX"]))
+            })
+            .unwrap();
+        let message = |id: &str, date: i64, reply_to: Option<&str>| mail::MessageMeta {
+            message_id: Some(id.into()),
+            in_reply_to: reply_to.map(Into::into),
+            references: reply_to.map(|r| vec![r.to_string()]).unwrap_or_default(),
+            subject: "Lunch plans".into(),
+            from: Some(Address::new(None, "team@example.com")),
+            date,
+            ..Default::default()
+        };
+        let thread = db
+            .write(|tx| {
+                let stored = mail::upsert_message(
+                    tx,
+                    account,
+                    inbox,
+                    Some(1),
+                    &message("a@x", 1_000, None),
+                )?;
+                mail::refresh_threads(tx, &[stored.thread_id].into())?;
+                mail::set_muted(tx, &[stored.thread_id], true)?;
+                Ok(stored.thread_id)
+            })
+            .unwrap();
+        assert!(db.read(|c| mail::thread_summary(c, thread)).unwrap().muted);
+
+        // A reply joins the conversation and finds it muted.
+        let reply = db
+            .write(|tx| {
+                let stored = mail::upsert_message(
+                    tx,
+                    account,
+                    inbox,
+                    Some(2),
+                    &message("b@x", 2_000, Some("a@x")),
+                )?;
+                mail::refresh_threads(tx, &[stored.thread_id].into())?;
+                Ok(stored.thread_id)
+            })
+            .unwrap();
+        assert_eq!(reply, thread);
+        assert_eq!(
+            db.read(|c| mail::muted_among(c, &[reply, reply, 999]))
+                .unwrap(),
+            [thread]
+        );
+
+        db.write(|tx| mail::set_muted(tx, &[thread], false))
+            .unwrap();
+        assert!(
+            db.read(|c| mail::muted_among(c, &[thread]))
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

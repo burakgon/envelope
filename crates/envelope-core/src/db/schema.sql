@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS threads (
     last_sender      TEXT,                       -- JSON {name,email} of the newest message's sender
     category         TEXT,                       -- people | newsletters | notifications
     is_invite        INTEGER NOT NULL DEFAULT 0,
+    muted            INTEGER NOT NULL DEFAULT 0,  -- later replies skip the inbox
     snoozed_until    INTEGER
 );
 CREATE INDEX IF NOT EXISTS threads_remote ON threads(account_id, remote_thread_id);

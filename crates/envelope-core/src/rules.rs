@@ -230,6 +230,18 @@ pub fn apply(engine: &Engine, incoming: &[Incoming]) -> HashSet<i64> {
     if incoming.is_empty() {
         return quiet;
     }
+    // Replies in muted conversations skip the inbox.
+    let threads: Vec<i64> = incoming.iter().map(|m| m.thread_id).collect();
+    let muted = engine
+        .db
+        .read(|c| crate::db::mail::muted_among(c, &threads))
+        .unwrap_or_default();
+    if !muted.is_empty() {
+        if let Err(e) = engine.move_threads(&muted, None, &MoveTarget::Archive) {
+            tracing::warn!("muted conversations not archived: {e}");
+        }
+        quiet.extend(muted);
+    }
     let rules = load(engine);
     if rules.is_empty() {
         return quiet;

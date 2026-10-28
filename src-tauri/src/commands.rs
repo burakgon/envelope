@@ -267,6 +267,15 @@ pub fn delete_forever(state: State<'_, AppState>, thread_ids: Vec<i64>) -> R<()>
 }
 
 #[tauri::command]
+pub fn mute_threads(
+    state: State<'_, AppState>,
+    thread_ids: Vec<i64>,
+    muted: bool,
+) -> R<Option<UndoToken>> {
+    Ok(state.engine.mute_threads(&thread_ids, muted)?)
+}
+
+#[tauri::command]
 pub fn snooze(state: State<'_, AppState>, thread_ids: Vec<i64>, until: Option<i64>) -> R<()> {
     Ok(state.engine.snooze(&thread_ids, until)?)
 }

@@ -264,7 +264,7 @@ for (const s of seeds) {
     messageCount: msgs.length, unreadCount: msgs.filter((m) => !m.flags.seen).length,
     flagged: msgs.some((m) => m.flags.flagged), hasAttachments: msgs.some((m) => m.hasAttachments),
     draftCount: 0, participants: senders, lastSender: last.from, folderIds: [...new Set(folderIds)], category: s.category ?? 'people',
-    isInvite: msgs.some((m) => m.calendarMethod === 'REQUEST'), snoozedUntil: null,
+    isInvite: msgs.some((m) => m.calendarMethod === 'REQUEST'), muted: false, snoozedUntil: null,
   });
 }
 

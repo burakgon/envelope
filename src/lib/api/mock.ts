@@ -241,6 +241,14 @@ export function createMockApi(): Api {
       threads.filter((t) => threadIds.includes(t.id)).forEach((t) => (t.snoozedUntil = until));
       changed(threadIds);
     },
+    muteThreads: async function (threadIds, muted) {
+      threads.filter((t) => threadIds.includes(t.id)).forEach((t) => (t.muted = muted));
+      if (!muted) {
+        changed(threadIds);
+        return null;
+      }
+      return this.moveThreads(threadIds, null, { kind: 'archive' });
+    },
     setLabel: async (threadIds, folderId, add) => {
       for (const t of threads.filter((x) => threadIds.includes(x.id))) {
         t.folderIds = add ? [...new Set([...t.folderIds, folderId])] : t.folderIds.filter((f) => f !== folderId);
@@ -289,7 +297,7 @@ export function createMockApi(): Api {
         const existing = d.replyToMessageId ? messages.find((m) => m.id === d.replyToMessageId) : null;
         const threadId = existing && d.mode !== 'forward' ? existing.threadId : threads.length + 1000;
         if (!threads.some((t) => t.id === threadId)) {
-          threads.push({ id: threadId, accountId: d.accountId, subject: d.subject, snippet: '', lastDate: Date.now(), messageCount: 0, unreadCount: 0, flagged: false, hasAttachments: false, draftCount: 0, participants: [{ name: ident.name, email: ident.email }], lastSender: { name: ident.name, email: ident.email }, folderIds: sent ? [sent.id] : [], category: 'people', isInvite: false, snoozedUntil: null });
+          threads.push({ id: threadId, accountId: d.accountId, subject: d.subject, snippet: '', lastDate: Date.now(), messageCount: 0, unreadCount: 0, flagged: false, hasAttachments: false, draftCount: 0, participants: [{ name: ident.name, email: ident.email }], lastSender: { name: ident.name, email: ident.email }, folderIds: sent ? [sent.id] : [], category: 'people', isInvite: false, muted: false, snoozedUntil: null });
         } else if (sent) {
           const t = threads.find((x) => x.id === threadId)!;
           if (!t.folderIds.includes(sent.id)) t.folderIds.push(sent.id);

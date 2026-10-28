@@ -351,6 +351,31 @@ impl Engine {
         Ok(token)
     }
 
+    /// Mutes conversations (archiving them, like Gmail) or unmutes them.
+    /// Returns the undo token of the archive when muting.
+    pub fn mute_threads(&self, thread_ids: &[i64], muted: bool) -> Result<Option<UndoToken>> {
+        let ids = thread_ids.to_vec();
+        self.db.write(|tx| mail::set_muted(tx, &ids, muted))?;
+        let token = if muted {
+            Some(self.move_threads(thread_ids, None, &MoveTarget::Archive)?)
+        } else {
+            None
+        };
+        let threads: BTreeSet<i64> = thread_ids.iter().copied().collect();
+        let accounts: Vec<i64> = self
+            .db
+            .read(|c| {
+                Ok(mail::thread_summaries(c, thread_ids)?
+                    .into_iter()
+                    .map(|t| t.account_id)
+                    .collect::<BTreeSet<_>>())
+            })?
+            .into_iter()
+            .collect();
+        self.after_local_change(&accounts, &threads)?;
+        Ok(token)
+    }
+
     /// Reverts an action from its undo token.
     pub fn undo(&self, token: &UndoToken) -> Result<()> {
         let mut accounts = BTreeSet::new();

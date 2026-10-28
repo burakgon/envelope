@@ -36,6 +36,8 @@ export interface Api {
   undo(token: T.UndoToken): Promise<void>;
   deleteForever(threadIds: number[]): Promise<void>;
   snooze(threadIds: number[], until: number | null): Promise<void>;
+  /** Mutes conversations (archiving them) or unmutes them; muting returns the archive's undo token. */
+  muteThreads(threadIds: number[], muted: boolean): Promise<T.UndoToken | null>;
   setLabel(threadIds: number[], folderId: number, add: boolean): Promise<void>;
   messageSource(id: number): Promise<string>;
   unsubscribe(messageId: number): Promise<boolean>;

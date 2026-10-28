@@ -206,6 +206,7 @@ pub fn run() {
             commands::undo,
             commands::delete_forever,
             commands::snooze,
+            commands::mute_threads,
             commands::set_label,
             commands::message_source,
             commands::unsubscribe,

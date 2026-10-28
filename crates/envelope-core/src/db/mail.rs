@@ -1394,12 +1394,13 @@ fn summary_from_row(r: &Row<'_>) -> rusqlite::Result<ThreadSummary> {
             .unwrap_or_default(),
         category: r.get("category")?,
         is_invite: r.get::<_, i64>("is_invite")? != 0,
+        muted: r.get::<_, i64>("muted")? != 0,
         snoozed_until: r.get("snoozed_until")?,
     })
 }
 
 const SUMMARY_COLUMNS: &str = "t.id, t.account_id, t.subject, t.snippet, t.last_date, t.message_count, t.unread_count,
-    t.flagged, t.has_attachments, t.draft_count, t.participants, t.last_sender, t.category, t.is_invite, t.snoozed_until,
+    t.flagged, t.has_attachments, t.draft_count, t.participants, t.last_sender, t.category, t.is_invite, t.muted, t.snoozed_until,
     (SELECT group_concat(folder_id) FROM thread_folders x WHERE x.thread_id = t.id) AS folder_ids";
 
 pub fn thread_summary(c: &Connection, thread_id: i64) -> Result<ThreadSummary> {
@@ -1410,6 +1411,28 @@ pub fn thread_summary(c: &Connection, thread_id: i64) -> Result<ThreadSummary> {
     )
     .optional()?
     .ok_or_else(|| Error::NotFound(format!("thread {thread_id}")))
+}
+
+/// Mutes or unmutes conversations.
+pub fn set_muted(tx: &Transaction<'_>, thread_ids: &[i64], muted: bool) -> Result<()> {
+    let mut st = tx.prepare_cached("UPDATE threads SET muted = ? WHERE id = ?")?;
+    for id in thread_ids {
+        st.execute(params![muted as i64, id])?;
+    }
+    Ok(())
+}
+
+/// The muted conversations among `thread_ids`.
+pub fn muted_among(c: &Connection, thread_ids: &[i64]) -> Result<Vec<i64>> {
+    let mut st = c.prepare_cached("SELECT muted FROM threads WHERE id = ?")?;
+    let mut out = Vec::new();
+    for id in thread_ids {
+        let muted: Option<i64> = st.query_row([id], |r| r.get(0)).optional()?;
+        if muted == Some(1) && !out.contains(id) {
+            out.push(*id);
+        }
+    }
+    Ok(out)
 }
 
 pub fn thread_summaries(c: &Connection, ids: &[i64]) -> Result<Vec<ThreadSummary>> {
