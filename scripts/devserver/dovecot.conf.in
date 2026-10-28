@@ -1,0 +1,77 @@
+# Dovecot 2.4 configuration for local development (runs unprivileged).
+dovecot_config_version = 2.4.0
+dovecot_storage_version = 2.4.0
+
+base_dir = @ROOT@/run
+state_dir = @ROOT@/state
+log_path = @ROOT@/dovecot.log
+default_internal_user = @USER@
+default_internal_group = @GROUP@
+default_login_user = @USER@
+
+protocols = imap
+listen = 127.0.0.1
+
+ssl = yes
+ssl_server_cert_file = @ROOT@/cert.pem
+ssl_server_key_file = @ROOT@/key.pem
+
+auth_mechanisms = plain login
+auth_allow_cleartext = yes
+
+passdb passwd-file {
+  passwd_file_path = @ROOT@/users
+}
+userdb passwd-file {
+  passwd_file_path = @ROOT@/users
+}
+
+mail_driver = maildir
+mail_home = @ROOT@/home/%{user}
+mail_path = ~/Maildir
+
+mail_plugins {
+}
+
+imap_capability {
+}
+
+service imap-login {
+  chroot =
+  inet_listener imap {
+    port = @IMAP_PORT@
+  }
+  inet_listener imaps {
+    port = @IMAPS_PORT@
+    ssl = yes
+  }
+}
+
+namespace inbox {
+  inbox = yes
+  separator = /
+  mailbox Drafts {
+    special_use = \Drafts
+    auto = subscribe
+  }
+  mailbox Sent {
+    special_use = \Sent
+    auto = subscribe
+  }
+  mailbox Trash {
+    special_use = \Trash
+    auto = subscribe
+  }
+  mailbox Junk {
+    special_use = \Junk
+    auto = subscribe
+  }
+  mailbox Archive {
+    special_use = \Archive
+    auto = subscribe
+  }
+}
+
+service anvil {
+  chroot =
+}

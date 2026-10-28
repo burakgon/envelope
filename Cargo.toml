@@ -1,0 +1,39 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/burakgon/envelope"
+homepage = "https://github.com/burakgon/envelope"
+authors = ["Envelope contributors"]
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+opt-level = 3
+strip = "debuginfo"
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[workspace.dependencies]
+tokio = { version = "1.54", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
+chrono = { version = "0.4.45", features = ["serde"] }
+chrono-tz = "0.10"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream", "gzip", "brotli", "charset", "http2", "system-proxy", "form", "query"] }
+quick-xml = "0.42"
+url = { version = "2.5", features = ["serde"] }
+futures = "0.3"
+bytes = "1"
+base64 = "0.23"
+async-trait = "0.1"

@@ -1,0 +1,16 @@
+# Build output
+/target
+/dist
+/node_modules
+/src-tauri/gen/schemas
+
+# Local development server data (scripts/devserver/run.sh)
+/.devserver
+
+# Editors / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+.DS_Store
+*.log
