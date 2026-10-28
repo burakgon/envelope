@@ -52,11 +52,13 @@ const MIGRATIONS: &[(i64, &str)] = &[
     ),
     // OpenPGP keys, Autocrypt peers and encrypted or signed messages.
     (5, include_str!("crypto.sql")),
+];
+
+/// Columns added to existing tables: (version, table, column, declaration).
+/// SQLite cannot add a column only if it is missing, so they are checked.
+const NEW_COLUMNS: &[(i64, &str, &str, &str)] = &[
     // Muted conversations.
-    (
-        6,
-        "ALTER TABLE threads ADD COLUMN muted INTEGER NOT NULL DEFAULT 0;",
-    ),
+    (6, "threads", "muted", "INTEGER NOT NULL DEFAULT 0"),
 ];
 const MAX_READERS: usize = 6;
 
@@ -187,6 +189,18 @@ fn migrate(conn: &Connection) -> Result<()> {
                 conn.execute_batch(sql)?;
             }
         }
+        for (to, table, column, declaration) in NEW_COLUMNS {
+            let exists: bool = conn.query_row(
+                "SELECT count(*) > 0 FROM pragma_table_info(?1) WHERE name = ?2",
+                [table, column],
+                |r| r.get(0),
+            )?;
+            if version < *to && !exists {
+                conn.execute_batch(&format!(
+                    "ALTER TABLE {table} ADD COLUMN {column} {declaration};"
+                ))?;
+            }
+        }
     }
     conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))?;
     Ok(())
@@ -225,6 +239,37 @@ mod tests {
             .read(|c| Ok(c.query_row("SELECT count(*) FROM accounts", [], |r| r.get(0))?))
             .unwrap();
         assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn adds_new_columns_to_older_databases() {
+        let path = std::env::temp_dir().join(format!("envelope-v5-{}.db", uuid::Uuid::new_v4()));
+        {
+            // A version 5 database: threads without the muted column.
+            let db = Db::open(&path).unwrap();
+            db.write(|tx| {
+                tx.execute_batch(
+                    "ALTER TABLE threads DROP COLUMN muted; PRAGMA user_version = 5;",
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        }
+        let db = Db::open(&path).unwrap();
+        let muted: i64 = db
+            .read(|c| {
+                Ok(c.query_row(
+                    "SELECT count(*) FROM pragma_table_info('threads') WHERE name = 'muted'",
+                    [],
+                    |r| r.get(0),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(muted, 1);
+        drop(db);
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
     }
 
     #[test]
