@@ -1,8 +1,10 @@
 //! The Envelope desktop shell: wires the engine to the web UI.
 
+mod autostart;
 mod commands;
 mod notify;
 mod protocol;
+mod tray;
 
 use envelope_core::model::EngineEvent;
 use envelope_core::{Engine, EventSink, Paths};
@@ -10,6 +12,8 @@ use tauri::{AppHandle, Emitter, Manager};
 
 pub struct AppState {
     pub engine: Engine,
+    /// Started with `--minimized` (at login): stay in the tray until asked.
+    pub start_hidden: std::sync::atomic::AtomicBool,
     pub ai_runs: parking_lot::Mutex<std::collections::HashMap<String, tokio::task::AbortHandle>>,
 }
 
@@ -55,7 +59,7 @@ fn handle_args(app: &AppHandle, args: &[String]) {
     }
 }
 
-fn show_main(app: &AppHandle) {
+pub(crate) fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
@@ -98,8 +102,10 @@ pub fn run() {
                     },
                 )
             })?;
+            let minimized = std::env::args().any(|a| a == "--minimized") && tray::available();
             app.manage(AppState {
                 engine,
+                start_hidden: std::sync::atomic::AtomicBool::new(minimized),
                 ai_runs: Default::default(),
             });
             // Respect the user's title bar preference before the window shows.
@@ -125,14 +131,19 @@ pub fn run() {
                 tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
                 handle_args(&pending, &args);
             });
+            if let Err(e) = tray::create(app.handle()) {
+                tracing::warn!("could not create the tray icon: {e}");
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Destroyed = event
+            // With "keep running in the background", closing only hides the window.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event
                 && window.label() == "main"
-                && let Some(state) = window.app_handle().try_state::<AppState>()
+                && tray::close_to_tray(window.app_handle())
             {
-                state.engine.shutdown();
+                api.prevent_close();
+                let _ = window.hide();
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -208,11 +219,22 @@ pub fn run() {
             commands::contact_get,
             commands::contact_save,
             commands::contact_delete,
+            commands::autostart_get,
+            commands::autostart_set,
         ])
-        .run(tauri::generate_context!());
-    if let Err(e) = result {
-        eprintln!("Envelope failed to start: {e}");
-        std::process::exit(1);
+        .build(tauri::generate_context!());
+    match result {
+        Ok(app) => app.run(|app, event| {
+            if let tauri::RunEvent::Exit = event
+                && let Some(state) = app.try_state::<AppState>()
+            {
+                state.engine.shutdown();
+            }
+        }),
+        Err(e) => {
+            eprintln!("Envelope failed to start: {e}");
+            std::process::exit(1);
+        }
     }
 }
 

@@ -60,7 +60,14 @@ impl From<String> for CmdError {
 type R<T> = Result<T, CmdError>;
 
 #[tauri::command]
-pub fn app_ready(app: AppHandle) {
+pub fn app_ready(app: AppHandle, state: State<'_, AppState>) {
+    // Launched at login: stay in the tray.
+    if state
+        .start_hidden
+        .swap(false, std::sync::atomic::Ordering::SeqCst)
+    {
+        return;
+    }
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.set_focus();
@@ -68,9 +75,20 @@ pub fn app_ready(app: AppHandle) {
 }
 
 #[tauri::command]
+pub fn autostart_get() -> bool {
+    crate::autostart::is_enabled()
+}
+
+#[tauri::command]
+pub fn autostart_set(enabled: bool) -> R<()> {
+    crate::autostart::set(enabled).map_err(CmdError::from)
+}
+
+#[tauri::command]
 pub fn app_info(state: State<'_, AppState>) -> serde_json::Value {
     serde_json::json!({
         "version": env!("CARGO_PKG_VERSION"),
+        "trayAvailable": crate::tray::available(),
         "dataDir": state.engine.paths.data,
         "googleConfigured": !state.engine.oauth_client(Provider::Google).map(|c| c.client_id).unwrap_or_default().is_empty(),
         "microsoftConfigured": !state.engine.oauth_client(Provider::Microsoft).map(|c| c.client_id).unwrap_or_default().is_empty(),
@@ -508,6 +526,7 @@ pub fn set_unread_badge(app: AppHandle, count: i64) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.set_badge_count(if count > 0 { Some(count) } else { None });
     }
+    crate::tray::set_unread(&app, count);
 }
 
 // ----- AI -------------------------------------------------------------------------

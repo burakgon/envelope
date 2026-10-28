@@ -18,6 +18,9 @@ finish-args:
   - --socket=fallback-x11
   - --device=dri
   - --talk-name=org.freedesktop.Notifications
+  # Tray icon (StatusNotifierItem) and starting at login.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --filesystem=xdg-config/autostart:create
   # Saving attachments without a file chooser round-trip.
   - --filesystem=xdg-download
 build-options:

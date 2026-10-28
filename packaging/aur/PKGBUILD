@@ -10,7 +10,8 @@ depends=('webkit2gtk-4.1' 'gtk3' 'hicolor-icon-theme')
 makedepends=('cargo' 'nodejs' 'npm')
 optdepends=('gnome-keyring: store passwords and tokens in a keyring'
             'kwallet: store passwords and tokens in KWallet'
-            'hunspell-en_us: spell checking (or another hunspell dictionary)')
+            'hunspell-en_us: spell checking (or another hunspell dictionary)'
+            'libayatana-appindicator: tray icon and running in the background')
 options=('!lto')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('SKIP')

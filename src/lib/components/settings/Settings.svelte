@@ -55,8 +55,11 @@
   let microsoft = $state<OAuthClient>({ clientId: '', tenant: '' });
   let editing = $state<Identity | null>(null);
 
+  let autostart = $state(false);
+
   onMount(async () => {
     if (!cal.calendars.length) cal.loadCalendars();
+    api.autostart.get().then((v) => (autostart = v)).catch(() => {});
     info = await api.info().catch(() => null);
     google = { clientSecret: '', ...(await api.oauthClient('google').catch(() => ({ clientId: '' }))) };
     microsoft = { tenant: '', ...(await api.oauthClient('microsoft').catch(() => ({ clientId: '' }))) };
@@ -193,6 +196,29 @@
           <div class="row">
             <div class="txt"><b>Send and archive</b><span>Archive the conversation when you reply.</span></div>
             <Toggle checked={ui.settings.sendAndArchive} onchange={(v) => ui.set('sendAndArchive', v)} />
+          </div>
+        </div>
+        <div class="group">
+          {#if info?.trayAvailable}
+            <div class="row">
+              <div class="txt"><b>Keep running in the background</b><span>Closing the window leaves Envelope in the tray, so new mail and reminders still arrive.</span></div>
+              <Toggle checked={ui.settings.closeToTray} onchange={(v) => ui.set('closeToTray', v)} />
+            </div>
+          {/if}
+          <div class="row">
+            <div class="txt"><b>Start when you log in</b><span>{info?.trayAvailable ? 'Envelope starts quietly in the tray.' : 'Envelope opens when your desktop session starts.'}</span></div>
+            <Toggle
+              checked={autostart}
+              onchange={async (v) => {
+                try {
+                  await api.autostart.set(v);
+                  autostart = v;
+                  if (v && info?.trayAvailable && !ui.settings.closeToTray) ui.set('closeToTray', true);
+                } catch (e) {
+                  toasts.error(errorMessage(e));
+                }
+              }}
+            />
           </div>
         </div>
       {:else if ui.settingsTab === 'rules'}

@@ -7,6 +7,11 @@ export interface Api {
   readonly isDemo: boolean;
   ready(): Promise<void>;
   info(): Promise<T.AppInfo>;
+  /** Start Envelope (in the tray) when the user logs in. */
+  autostart: {
+    get(): Promise<boolean>;
+    set(enabled: boolean): Promise<void>;
+  };
 
   accounts(): Promise<T.Account[]>;
   discover(email: string): Promise<T.Discovery>;

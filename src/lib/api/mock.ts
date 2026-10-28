@@ -16,6 +16,7 @@ export function createMockApi(): Api {
   const messages = data.messages;
   const drafts = new Map<number, T.Draft>();
   let draftSeq = 1;
+  let autostart = false;
   let outboxSeq = 1;
   const outbox = new Map<number, { item: T.OutboxItem; draftId: number | null; data: T.DraftInput; timer: number }>();
   let identities: T.Identity[] = data.accounts.map((a) => ({
@@ -119,7 +120,13 @@ export function createMockApi(): Api {
   const api: Api = {
     isDemo: true,
     ready: async () => {},
-    info: async () => ({ version: '0.1.0', dataDir: '(demo)', googleConfigured: true, microsoftConfigured: true }),
+    info: async () => ({ version: '0.1.0', dataDir: '(demo)', googleConfigured: true, microsoftConfigured: true, trayAvailable: true }),
+    autostart: {
+      get: async () => autostart,
+      set: async (enabled) => {
+        autostart = enabled;
+      },
+    },
 
     accounts: () => delay(data.accounts),
     discover: async (email) => {

@@ -385,6 +385,8 @@ export interface AppInfo {
   dataDir: string;
   googleConfigured: boolean;
   microsoftConfigured: boolean;
+  /** A tray icon can be shown (Linux needs an AppIndicator library). */
+  trayAvailable?: boolean;
 }
 
 export type EngineEvent =

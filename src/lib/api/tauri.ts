@@ -25,6 +25,10 @@ export function createTauriApi(): Api {
     isDemo: false,
     ready: () => invoke('app_ready'),
     info: () => invoke('app_info'),
+    autostart: {
+      get: () => invoke('autostart_get'),
+      set: (enabled) => invoke('autostart_set', { enabled }),
+    },
 
     accounts: () => invoke('accounts'),
     discover: (email) => invoke('discover', { email }),

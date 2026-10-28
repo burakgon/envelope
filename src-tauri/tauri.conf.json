@@ -60,6 +60,7 @@
     "linux": {
       "deb": {
         "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"],
+        "recommends": ["libayatana-appindicator3-1"],
         "section": "mail",
         "files": {
           "/usr/share/metainfo/io.github.burakgon.Envelope.metainfo.xml": "../packaging/linux/io.github.burakgon.Envelope.metainfo.xml"
@@ -68,6 +69,7 @@
       },
       "rpm": {
         "depends": ["webkit2gtk4.1", "gtk3"],
+        "recommends": ["libayatana-appindicator-gtk3"],
         "files": {
           "/usr/share/metainfo/io.github.burakgon.Envelope.metainfo.xml": "../packaging/linux/io.github.burakgon.Envelope.metainfo.xml"
         },

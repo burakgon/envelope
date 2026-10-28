@@ -22,7 +22,7 @@ parking_lot = "0.13.0"
 percent-encoding = "2.3.2"
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"
@@ -33,4 +33,5 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 url.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
+libloading = "0.8"
 webkit2gtk = "2.0"

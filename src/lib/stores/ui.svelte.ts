@@ -68,6 +68,8 @@ export interface Settings {
   showDeclined: boolean;
   templates: Template[];
   rules: MailRule[];
+  /** Closing the window keeps Envelope running in the tray. */
+  closeToTray: boolean;
   sidebarWidth: number;
   listWidth: number;
   aiEnabled: boolean;
@@ -98,6 +100,7 @@ export const defaultSettings: Settings = {
   showDeclined: true,
   templates: [],
   rules: [],
+  closeToTray: false,
   sidebarWidth: 236,
   listWidth: 392,
   aiEnabled: true,
