@@ -163,3 +163,11 @@ export const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.pl
 export function modKey(): string {
   return isMac ? '⌘' : t('keys.ctrl');
 }
+
+/** The preview the engine stores for encrypted mail it keeps no decrypted copy of (crypto/mod.rs). */
+const ENCRYPTED_SNIPPET = 'Encrypted message';
+
+/** A message or conversation preview, in the interface language. */
+export function previewText(snippet: string): string {
+  return snippet === ENCRYPTED_SNIPPET ? t('crypto.encryptedPreview') : snippet;
+}

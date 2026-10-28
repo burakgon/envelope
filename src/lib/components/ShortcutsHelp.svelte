@@ -33,6 +33,7 @@
         ['S', t('shortcuts.star')],
         ['U', t('shortcuts.markReadUnread')],
         ['H', t('shortcuts.snooze')],
+        ['M', t('shortcuts.mute')],
         ['V', t('shortcuts.moveToFolder')],
         ['L', t('shortcuts.labelGmail')],
         ['!', t('shortcuts.reportSpam')],

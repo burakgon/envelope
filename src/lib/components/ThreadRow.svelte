@@ -2,7 +2,7 @@
   import type { ThreadSummary } from '../api';
   import { mail } from '../stores/mail.svelte';
   import { ui } from '../stores/ui.svelte';
-  import { listDate, participantSummary, displayName } from '../utils/format';
+  import { listDate, participantSummary, displayName, previewText } from '../utils/format';
   import Avatar from './Avatar.svelte';
   import { Archive, Calendar, Check, Clock, File, MailOpen, Mail, Paperclip, Star, Trash } from '../icons';
   import { t } from '../i18n';
@@ -96,7 +96,7 @@
     {#if compact}
       <div class="line">
         <span class="subject truncate">{thread.subject || t('common.noSubject')}</span>
-        <span class="snippet truncate">{thread.snippet}</span>
+        <span class="snippet truncate">{previewText(thread.snippet)}</span>
       </div>
     {:else}
       <div class="line">
@@ -106,7 +106,7 @@
         {/each}
       </div>
       <div class="line snippet-line">
-        <span class="snippet truncate">{thread.snippet || ' '}</span>
+        <span class="snippet truncate">{previewText(thread.snippet) || ' '}</span>
         {#if thread.flagged}<span class="star"><Star size={13} fill="currentColor" /></span>{/if}
       </div>
     {/if}

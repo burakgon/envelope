@@ -192,6 +192,11 @@ fn chrono_like(start_ms: i64) -> String {
             "In {minutes} minutes",
             &[("minutes", &m.to_string())],
         ),
+        m if m % 60 == 0 => strings::fill(
+            "native.reminder.inWholeHours",
+            "In {hours} h",
+            &[("hours", &(m / 60).to_string())],
+        ),
         m => strings::fill(
             "native.reminder.inHours",
             "In {hours} h {minutes} min",

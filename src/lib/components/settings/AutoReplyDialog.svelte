@@ -31,9 +31,11 @@
       const loaded = await api.autoReply.get(account.id);
       info = loaded;
       reply = structuredClone(loaded.reply);
-      scheduled = !!(loaded.reply.start && loaded.reply.end);
-      start = loaded.reply.start ?? day(0);
-      end = loaded.reply.end ?? day(7);
+      // Gmail allows a first day without a last one (or the reverse); the
+      // missing side is filled in so the dates stay visible and editable.
+      scheduled = !!(loaded.reply.start || loaded.reply.end);
+      start = loaded.reply.start ?? (loaded.reply.end && loaded.reply.end < day(0) ? loaded.reply.end : day(0));
+      end = loaded.reply.end ?? (start > day(7) ? start : day(7));
       autoReplies.known(account.id, loaded.reply.enabled);
     } catch (e) {
       failure = errorMessage(e);

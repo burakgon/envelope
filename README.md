@@ -66,7 +66,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - **Split inbox**: *People*, *Newsletters* and *Notifications* tabs, computed locally.
 - **Instant full-text search** (SQLite FTS5) with operators — `from:`, `to:`, `subject:`, `has:attachment`, `is:unread`, `before:`, `after:` … — and natural-language search through AI if enabled.
 - **Composer** with rich text, inline images, attachments (drag and drop or paste), recipient autocomplete, spell checking, multiple identities and rich signatures, **templates**, **undo send**, **scheduled send** (with an outbox to review, send now or edit) and drafts that sync to the server.
-- **Snooze**, star, archive, report spam, bulk actions and **undo** for everything.
+- **Snooze**, star, archive, **mute**, report spam, bulk actions and **undo** for everything.
 - **Follow-up reminders**: get nudged when nobody replied to a message you sent.
 - **Rules** that file, label, mark or silence new mail as it arrives — for every kind of account.
 - **Automatic replies** (out of office) for Microsoft 365, Exchange, Gmail and IMAP servers with Sieve, with optional dates and a reminder while they are on.
@@ -98,7 +98,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 ### Design
 - Light and dark themes that follow the system, an accent color picker and compact/comfortable density.
 - Custom title bar (or native, if you prefer), subtle animations and virtualized lists that stay fluid in very large mailboxes.
-- In your language: English, Deutsch, Español, Français, Italiano, Polski, Português (Brasil), Türkçe, 日本語 and 简体中文, with dates and times to match.
+- **In your language:** English, Deutsch, Español, Français, Italiano, Polski, Português (Brasil), Türkçe, 日本語 and 简体中文, with dates and times to match — more are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Performance
 

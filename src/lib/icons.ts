@@ -39,6 +39,7 @@ export { default as Filter } from '@lucide/svelte/icons/list-filter';
 export { default as User } from '@lucide/svelte/icons/user';
 export { default as Users } from '@lucide/svelte/icons/users';
 export { default as Bell } from '@lucide/svelte/icons/bell';
+export { default as BellOff } from '@lucide/svelte/icons/bell-off';
 export { default as Moon } from '@lucide/svelte/icons/moon';
 export { default as Sun } from '@lucide/svelte/icons/sun';
 export { default as Keyboard } from '@lucide/svelte/icons/keyboard';

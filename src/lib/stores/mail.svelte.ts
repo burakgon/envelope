@@ -502,6 +502,31 @@ class Mail {
     }
   }
 
+  /** Mutes the conversations (archiving them from the inbox), or unmutes them when all are muted. */
+  async toggleMute(ids = this.targets()) {
+    if (!ids.length) return;
+    const byId = new Map(this.items.map((t) => [t.id, t]));
+    const allMuted = ids.every((id) => byId.get(id)?.muted);
+    try {
+      if (allMuted) {
+        await api.muteThreads(ids, false);
+        toasts.show(t('mail.unmuted'));
+        this.refresh();
+        return;
+      }
+      this.removeLocally(ids);
+      const tokens = await api.muteThreads(ids, true);
+      toasts.undoable(ids.length > 1 ? t('mail.mutedCount', { count: ids.length }) : t('mail.muted'), async () => {
+        await api.muteThreads(ids, false);
+        for (const token of tokens) await api.undo(token);
+        this.refresh();
+      });
+    } catch (e) {
+      toasts.error(errorMessage(e));
+      this.refresh();
+    }
+  }
+
   async unsnooze(ids = this.targets()) {
     this.removeLocally(ids);
     await api.snooze(ids, null);

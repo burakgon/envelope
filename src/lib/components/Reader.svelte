@@ -9,7 +9,7 @@
   import MoveMenu from './MoveMenu.svelte';
   import AiSummary from './AiSummary.svelte';
   import { pgp } from '../stores/pgp.svelte';
-  import { Archive, Clock, Folder, Forward, Mail, MailOpen, Reply, ReplyAll, ShieldAlert, Star, Tag, Trash, Inbox } from '../icons';
+  import { Archive, BellOff, Clock, Folder, Forward, Mail, MailOpen, Reply, ReplyAll, ShieldAlert, Star, Tag, Trash, Inbox } from '../icons';
   import { t } from '../i18n';
 
   let expanded = $state<Record<number, boolean>>({});
@@ -68,6 +68,7 @@
         <button class="icon-btn" title={t('reader.toolbarSpam', { key: '!' })} onclick={() => mail.moveTo({ kind: 'junk' }, [thread.id])}><ShieldAlert size={17} /></button>
         <span class="sep"></span>
         <button class="icon-btn" title={t('reader.toolbarSnooze', { key: 'H' })} onclick={(e) => (snoozeAt = rect(e))}><Clock size={17} /></button>
+        <button class="icon-btn" class:active={thread.muted} title={thread.muted ? t('reader.toolbarUnmute', { key: 'M' }) : t('reader.toolbarMute', { key: 'M' })} onclick={() => mail.toggleMute([thread.id])}><BellOff size={17} /></button>
         <button class="icon-btn" title={thread.unreadCount ? t('reader.toolbarMarkRead', { key: 'U' }) : t('reader.toolbarMarkUnread', { key: 'U' })} onclick={() => mail.toggleRead([thread.id])}>
           {#if thread.unreadCount}<MailOpen size={17} />{:else}<Mail size={17} />{/if}
         </button>

@@ -6,7 +6,7 @@
   import { ui } from '../stores/ui.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
   import { t } from '../i18n';
-  import { dateFormat, displayName, longDate, messageDate, timeOf } from '../utils/format';
+  import { dateFormat, displayName, longDate, messageDate, previewText, timeOf } from '../utils/format';
   import Avatar from './Avatar.svelte';
   import MailFrame from './MailFrame.svelte';
   import AttachmentTile from './AttachmentTile.svelte';
@@ -129,7 +129,7 @@
   <button class="collapsed" onclick={ontoggle}>
     <Avatar person={sender} size={28} />
     <span class="c-name" class:unread={!message.flags.seen}>{fromMe ? t('message.senderMe') : displayName(sender)}</span>
-    <span class="c-snippet truncate">{message.snippet}</span>
+    <span class="c-snippet truncate">{previewText(message.snippet)}</span>
     <time class="c-date">{messageDate(message.date)}</time>
   </button>
 {:else}

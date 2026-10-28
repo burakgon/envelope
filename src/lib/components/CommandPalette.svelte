@@ -12,7 +12,7 @@
   import { listDate, displayName, dateFormat, timeOf } from '../utils/format';
   import { intlLocale, t, tParts, type MessageKey } from '../i18n';
   import {
-    Archive, BookUser, Calendar, CalendarPlus, Compose, UserPlus, Folder, Inbox, Keyboard, Mail, Moon, Refresh, Search, Settings, Sparkles, Star, Sun, Tag, Trash, Clock, Send, File, Mails,
+    Archive, BellOff, BookUser, Calendar, CalendarPlus, Compose, UserPlus, Folder, Inbox, Keyboard, Mail, Moon, Refresh, Search, Settings, Sparkles, Star, Sun, Tag, Trash, Clock, Send, File, Mails,
   } from '../icons';
 
   type Group = 'actions' | 'goTo' | 'help' | 'calendar' | 'conversation' | 'folders';
@@ -90,6 +90,7 @@
           { id: 'trash', label: t('palette.deleteConversation'), group: 'conversation', icon: Trash, hint: '#', run: () => mail.trash() },
           { id: 'star', label: t('palette.toggleStar'), group: 'conversation', icon: Star, hint: 'S', run: () => mail.toggleStar() },
           { id: 'unread', label: t('palette.toggleRead'), group: 'conversation', icon: Mail, hint: 'U', run: () => mail.toggleRead() },
+          { id: 'mute', label: t('palette.toggleMute'), group: 'conversation', icon: BellOff, hint: 'M', run: () => mail.toggleMute() },
         ]
       : [],
   );

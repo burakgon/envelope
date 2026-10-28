@@ -5,13 +5,14 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 ## [Unreleased]
 
 ### Added
+- Mute conversations (M, the reader toolbar or the command palette): they are archived, and later replies skip the inbox without a notification.
 - Automatic replies (out of office) for Microsoft 365, Exchange, Gmail and IMAP servers that offer ManageSieve: a message, an optional subject and first and last day, and who gets it. A banner in the sidebar shows while they are on.
 - Exchange contacts can be added, changed and deleted (names, e-mail addresses, phone numbers, company, job title and birthday); fields Envelope does not show are left as they are.
 - Calendars subscribed to by URL (`webcal:` and `https:` feeds, also from links in mail and on the web): read-only, refreshed every few hours and only stored again when the feed changed, with Refresh now and Unsubscribe in the sidebar.
 - A scheduling assistant in the event editor: when the guests are busy that day (through Google, Microsoft 365 or Exchange, and your own calendars), and a button that moves the meeting to the next time everyone is free.
 - Saved messages (`.eml`, decrypted when they are encrypted to one of your keys), calendar files (`.ics`) and contact cards (`.vcf`) open from the file manager: messages with their pictures and attachments, calendar files with a choice of events to add (without inviting anyone), contact cards with a choice of people to add to an address book; whatever is already there is marked.
 - End-to-end encryption and signing with OpenPGP: keys created automatically per address (or imported), exchanged with Autocrypt headers and found in the recipient's Web Key Directory; PGP/MIME with protected subjects, Bcc recipients kept anonymous and drafts encrypted to yourself; decryption with passphrase prompts, signature status and fingerprint verification; an Encryption settings tab. See `docs/ENCRYPTION.md`.
-- The interface in Deutsch, Español, Français, Italiano, Polski, Português (Brasil), Türkçe, 日本語 and 简体中文 besides English. It follows the system language by default and can be changed under Settings → General; dates and times follow the chosen language.
+- The interface in Deutsch, Español, Français, Italiano, Polski, Português (Brasil), Türkçe, 日本語 and 简体中文 besides English. It follows the system language by default and can be changed under Settings → General; dates and times follow the chosen language, and so do notifications and the tray menu.
 
 ## [0.1.1] — 2026-10-29
 

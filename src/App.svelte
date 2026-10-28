@@ -241,6 +241,9 @@
       case 'b':
         if (ids.length) kbMenu = { kind: 'snooze', ids };
         break;
+      case 'm':
+        if (ids.length) mail.toggleMute(ids);
+        break;
       case 'v':
         if (ids.length) kbMenu = { kind: 'move', ids };
         break;

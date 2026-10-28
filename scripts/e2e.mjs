@@ -62,6 +62,17 @@ await step('j and k move through the list', async () => {
   if (before === after) throw new Error('the open conversation did not change');
 });
 
+await step('m mutes the open conversation', async () => {
+  const subject = (await page.locator('.reader .subject-block h2').innerText()).trim();
+  const rows = () => page.locator('.row', { hasText: subject }).count();
+  const before = await rows();
+  await page.locator('body').press('m');
+  await page.locator('.toast', { hasText: 'Muted' }).first().waitFor({ timeout: 5000 });
+  await page.waitForTimeout(300);
+  if ((await rows()) >= before) throw new Error(`"${subject}" is still in the list`);
+  await page.locator('body').press('z');
+});
+
 await step('c opens the composer', async () => {
   await page.locator('body').press('c');
   await visible('.composer');
