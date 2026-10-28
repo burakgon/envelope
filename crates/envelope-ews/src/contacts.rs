@@ -2,17 +2,21 @@
 //! the directory and the user's contacts (`ResolveNames`), for address
 //! autocompletion.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::client::{EwsClient, SoapRequest};
 use crate::error::{EwsError, ResponseCode, ResponseError};
-use crate::items::{FindItemQuery, GET_ITEM_BATCH_SIZE, ItemPage, ItemView};
+use crate::folders::DeleteType;
+use crate::items::{
+    FieldUpdate, FindItemQuery, GET_ITEM_BATCH_SIZE, ItemPage, ItemView, UpdateAttributes,
+    first_item_id, value_xml,
+};
 use crate::messages::MAX_FIND_PAGE_SIZE;
 use crate::soap;
 use crate::types::{
-    BaseShape, FolderId, FolderRef, ItemId, ItemRef, ItemShape, Mailbox, child_datetime,
-    string_list, wire_enum,
+    BaseShape, FolderId, FolderRef, ItemId, ItemRef, ItemShape, Mailbox, PropertyPath,
+    child_datetime, string_list, wire_enum,
 };
 use crate::xml::{Element, XmlWriter};
 
@@ -295,6 +299,218 @@ impl EwsClient {
     }
 }
 
+// ----- writing ---------------------------------------------------------------------
+
+/// A text field of a contact that Envelope writes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ContactText {
+    /// `DisplayName`.
+    DisplayName,
+    /// `GivenName`.
+    GivenName,
+    /// `Nickname`.
+    Nickname,
+    /// `CompanyName`.
+    CompanyName,
+    /// `JobTitle`.
+    JobTitle,
+    /// `Surname`.
+    Surname,
+}
+
+impl ContactText {
+    fn name(self) -> &'static str {
+        match self {
+            ContactText::DisplayName => "DisplayName",
+            ContactText::GivenName => "GivenName",
+            ContactText::Nickname => "Nickname",
+            ContactText::CompanyName => "CompanyName",
+            ContactText::JobTitle => "JobTitle",
+            ContactText::Surname => "Surname",
+        }
+    }
+}
+
+/// A contact to create.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NewContact {
+    /// Text fields.
+    pub text: Vec<(ContactText, String)>,
+    /// `(key, address)`, keys `EmailAddress1` to `EmailAddress3`.
+    pub emails: Vec<(String, String)>,
+    /// `(key, number)`, keys such as `MobilePhone` or `BusinessPhone`.
+    pub phones: Vec<(String, String)>,
+    /// Birthday.
+    pub birthday: Option<NaiveDate>,
+}
+
+/// One change to an existing contact; `None` clears the field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContactChange {
+    /// A text field.
+    Text(ContactText, Option<String>),
+    /// An e-mail entry (`EmailAddress1` to `EmailAddress3`).
+    Email(String, Option<String>),
+    /// A phone entry (`MobilePhone`, `HomePhone`, ...).
+    Phone(String, Option<String>),
+    /// The birthday.
+    Birthday(Option<NaiveDate>),
+}
+
+/// Midday UTC keeps the date the same in every time zone.
+fn birthday_value(day: NaiveDate) -> String {
+    format!("{}T12:00:00Z", day.format("%Y-%m-%d"))
+}
+
+fn write_entries(w: &mut XmlWriter, list: &str, entries: &[(String, String)]) {
+    if entries.is_empty() {
+        return;
+    }
+    w.start(list, &[]);
+    for (key, value) in entries {
+        w.text_element_with("t:Entry", &[("Key", key)], value);
+    }
+    w.end(list);
+}
+
+fn create_contact_request(folder: &FolderRef, contact: &NewContact) -> String {
+    let text = |field: ContactText| {
+        contact
+            .text
+            .iter()
+            .find(|(f, v)| *f == field && !v.trim().is_empty())
+            .map(|(_, v)| v.as_str())
+    };
+    let mut w = XmlWriter::new();
+    w.start("m:CreateItem", &[])
+        .start("m:SavedItemFolderId", &[]);
+    folder.write(&mut w);
+    w.end("m:SavedItemFolderId")
+        .start("m:Items", &[])
+        .start("t:Contact", &[]);
+    // Exchange insists on the schema's order of elements.
+    for field in [
+        ContactText::DisplayName,
+        ContactText::GivenName,
+        ContactText::Nickname,
+        ContactText::CompanyName,
+    ] {
+        if let Some(v) = text(field) {
+            w.text_element(&format!("t:{}", field.name()), v);
+        }
+    }
+    write_entries(&mut w, "t:EmailAddresses", &contact.emails);
+    write_entries(&mut w, "t:PhoneNumbers", &contact.phones);
+    if let Some(day) = contact.birthday {
+        w.text_element("t:Birthday", &birthday_value(day));
+    }
+    for field in [ContactText::JobTitle, ContactText::Surname] {
+        if let Some(v) = text(field) {
+            w.text_element(&format!("t:{}", field.name()), v);
+        }
+    }
+    w.end("t:Contact").end("m:Items").end("m:CreateItem");
+    w.into_string()
+}
+
+fn contact_value(inner: impl FnOnce(&mut XmlWriter)) -> String {
+    let mut w = XmlWriter::new();
+    w.start("t:Contact", &[]);
+    inner(&mut w);
+    w.end("t:Contact");
+    w.into_string()
+}
+
+fn field_updates(changes: &[ContactChange]) -> Vec<FieldUpdate> {
+    let indexed = |uri: &str, key: &str| PropertyPath::Indexed {
+        uri: uri.to_owned(),
+        index: key.to_owned(),
+    };
+    changes
+        .iter()
+        .map(|change| match change {
+            ContactChange::Text(field, Some(value)) if !value.trim().is_empty() => {
+                FieldUpdate::set(
+                    PropertyPath::Field(format!("contacts:{}", field.name())),
+                    value_xml("Contact", field.name(), value),
+                )
+            }
+            ContactChange::Text(field, _) => {
+                FieldUpdate::Delete(PropertyPath::Field(format!("contacts:{}", field.name())))
+            }
+            ContactChange::Email(key, Some(address)) => FieldUpdate::set(
+                indexed("contacts:EmailAddress", key),
+                contact_value(|w| {
+                    write_entries(w, "t:EmailAddresses", &[(key.clone(), address.clone())])
+                }),
+            ),
+            ContactChange::Email(key, None) => {
+                FieldUpdate::Delete(indexed("contacts:EmailAddress", key))
+            }
+            ContactChange::Phone(key, Some(number)) => FieldUpdate::set(
+                indexed("contacts:PhoneNumber", key),
+                contact_value(|w| {
+                    write_entries(w, "t:PhoneNumbers", &[(key.clone(), number.clone())])
+                }),
+            ),
+            ContactChange::Phone(key, None) => {
+                FieldUpdate::Delete(indexed("contacts:PhoneNumber", key))
+            }
+            ContactChange::Birthday(Some(day)) => FieldUpdate::set(
+                PropertyPath::Field("contacts:Birthday".into()),
+                value_xml("Contact", "Birthday", &birthday_value(*day)),
+            ),
+            ContactChange::Birthday(None) => {
+                FieldUpdate::Delete(PropertyPath::Field("contacts:Birthday".into()))
+            }
+        })
+        .collect()
+}
+
+impl EwsClient {
+    /// Creates a contact in `folder` and returns its id.
+    pub async fn create_contact(
+        &self,
+        folder: impl Into<FolderRef>,
+        contact: &NewContact,
+    ) -> Result<ItemId, EwsError> {
+        let body = create_contact_request(&folder.into(), contact);
+        let response = self.call(&SoapRequest::write("CreateItem", body)).await?;
+        first_item_id(soap::single(&response)?)
+            .ok_or_else(|| EwsError::InvalidResponse("CreateItem returned no item id".into()))
+    }
+
+    /// Changes a contact and returns its new id (with the new change key).
+    pub async fn update_contact(
+        &self,
+        id: &ItemId,
+        changes: &[ContactChange],
+    ) -> Result<ItemId, EwsError> {
+        if changes.is_empty() {
+            return Ok(id.clone());
+        }
+        let updates = vec![(ItemRef::from(id), field_updates(changes))];
+        let result = self
+            .update_items(&updates, &UpdateAttributes::default())
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| EwsError::InvalidResponse("UpdateItem returned nothing".into()))?;
+        Ok(result?.unwrap_or_else(|| id.clone()))
+    }
+
+    /// Moves a contact to Deleted Items.
+    pub async fn delete_contact(&self, id: &ItemId) -> Result<(), EwsError> {
+        let result = self
+            .delete_items(std::slice::from_ref(id), DeleteType::MoveToDeletedItems)
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| EwsError::InvalidResponse("DeleteItem returned nothing".into()))?;
+        result.map_err(EwsError::from)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -394,5 +610,59 @@ mod tests {
         assert_eq!(strip_smtp("sip:a@example.com"), None);
         assert_eq!(strip_smtp("X500:/o=x/cn=y"), None);
         assert_eq!(strip_smtp("/o=x/cn=y"), None);
+    }
+
+    #[test]
+    fn writes_new_contacts_in_schema_order() {
+        let contact = NewContact {
+            text: vec![
+                (ContactText::Surname, "Lovelace".into()),
+                (ContactText::GivenName, "Ada".into()),
+                (ContactText::DisplayName, "Ada Lovelace".into()),
+                (ContactText::JobTitle, "Analyst".into()),
+                (ContactText::Nickname, " ".into()),
+            ],
+            emails: vec![("EmailAddress1".into(), "ada@example.com".into())],
+            phones: vec![("MobilePhone".into(), "+44 20 7946 0000".into())],
+            birthday: NaiveDate::from_ymd_opt(1815, 12, 10),
+        };
+        assert_eq!(
+            create_contact_request(
+                &FolderRef::from(crate::DistinguishedFolder::Contacts),
+                &contact
+            ),
+            "<m:CreateItem><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"contacts\"/></m:SavedItemFolderId>\
+             <m:Items><t:Contact><t:DisplayName>Ada Lovelace</t:DisplayName><t:GivenName>Ada</t:GivenName>\
+             <t:EmailAddresses><t:Entry Key=\"EmailAddress1\">ada@example.com</t:Entry></t:EmailAddresses>\
+             <t:PhoneNumbers><t:Entry Key=\"MobilePhone\">+44 20 7946 0000</t:Entry></t:PhoneNumbers>\
+             <t:Birthday>1815-12-10T12:00:00Z</t:Birthday><t:JobTitle>Analyst</t:JobTitle><t:Surname>Lovelace</t:Surname>\
+             </t:Contact></m:Items></m:CreateItem>"
+        );
+    }
+
+    #[test]
+    fn writes_changes_as_field_updates() {
+        let body = crate::items::update_item_request(
+            &[(
+                ItemRef::from(&ItemId {
+                    id: "c1".into(),
+                    change_key: Some("k1".into()),
+                }),
+                field_updates(&[
+                    ContactChange::Text(
+                        ContactText::CompanyName,
+                        Some("Analytical Engines".into()),
+                    ),
+                    ContactChange::Text(ContactText::Nickname, None),
+                    ContactChange::Email("EmailAddress2".into(), Some("ada@work.example".into())),
+                    ContactChange::Phone("HomePhone".into(), None),
+                ]),
+            )],
+            &UpdateAttributes::default(),
+        );
+        assert!(body.contains("<t:SetItemField><t:FieldURI FieldURI=\"contacts:CompanyName\"/><t:Contact><t:CompanyName>Analytical Engines</t:CompanyName></t:Contact></t:SetItemField>"), "{body}");
+        assert!(body.contains("<t:DeleteItemField><t:FieldURI FieldURI=\"contacts:Nickname\"/></t:DeleteItemField>"), "{body}");
+        assert!(body.contains("<t:SetItemField><t:IndexedFieldURI FieldURI=\"contacts:EmailAddress\" FieldIndex=\"EmailAddress2\"/><t:Contact><t:EmailAddresses><t:Entry Key=\"EmailAddress2\">ada@work.example</t:Entry></t:EmailAddresses></t:Contact></t:SetItemField>"), "{body}");
+        assert!(body.contains("<t:DeleteItemField><t:IndexedFieldURI FieldURI=\"contacts:PhoneNumber\" FieldIndex=\"HomePhone\"/></t:DeleteItemField>"), "{body}");
     }
 }

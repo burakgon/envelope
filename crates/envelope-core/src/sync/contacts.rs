@@ -1472,7 +1472,7 @@ mod tests;
 
 // ----- Exchange (EWS) ------------------------------------------------------------
 
-/// The Contacts folder of an Exchange mailbox (read-only for now).
+/// The Contacts folder of an Exchange mailbox.
 const EWS_BOOK: &str = "ews:contacts";
 
 async fn ews_sync(engine: &Engine, account: &AccountRow, pull: bool) -> Result<Vec<i64>> {
@@ -1480,16 +1480,13 @@ async fn ews_sync(engine: &Engine, account: &AccountRow, pull: bool) -> Result<V
     let upsert = BookUpsert {
         remote_id: EWS_BOOK.to_owned(),
         name: book_name(None, account),
-        read_only: true,
+        read_only: false,
         is_default: true,
         sort_order: 0,
     };
     let mut changed = engine
         .db
         .write(|tx| cdb::sync_books(tx, account_id, "ews", std::slice::from_ref(&upsert)))?;
-    if !pull {
-        return Ok(changed);
-    }
     let Some(book) = engine
         .db
         .read(|c| cdb::account_books(c, account_id))?
@@ -1499,6 +1496,17 @@ async fn ews_sync(engine: &Engine, account: &AccountRow, pull: bool) -> Result<V
         return Ok(changed);
     };
     let mail = super::ews::EwsMail::for_account(engine, account).await?;
+    let pushed = push_book(engine, &book, |row, _photo| {
+        let client = mail.client().clone();
+        async move { ews_push(&client, &row).await }
+    })
+    .await?;
+    if pushed && !changed.contains(&book.id) {
+        changed.push(book.id);
+    }
+    if !pull {
+        return Ok(changed);
+    }
     let mut items = Vec::new();
     let mut seen = HashSet::new();
     let mut offset = 0;
@@ -1624,4 +1632,253 @@ fn ews_contact(c: &envelope_ews::Contact, id: &str) -> Contact {
         addresses: Vec::new(),
         urls: Vec::new(),
     }
+}
+
+impl From<envelope_ews::EwsError> for Failure {
+    fn from(e: envelope_ews::EwsError) -> Self {
+        Failure::from(super::ews::ews_error(e))
+    }
+}
+
+/// Phone keys of an Exchange contact for each kind of number, in the order
+/// they are used.
+fn ews_phone_keys(kind: Option<&str>) -> &'static [&'static str] {
+    const OTHER: &[&str] = &[
+        "OtherTelephone",
+        "PrimaryPhone",
+        "Callback",
+        "Radio",
+        "Isdn",
+        "Telex",
+        "TtyTddPhone",
+    ];
+    match kind.map(str::to_ascii_lowercase).as_deref() {
+        Some("cell" | "mobile" | "iphone") => &["MobilePhone", "CarPhone"],
+        Some("work") => &[
+            "BusinessPhone",
+            "BusinessPhone2",
+            "CompanyMainPhone",
+            "AssistantPhone",
+        ],
+        Some("home") => &["HomePhone", "HomePhone2"],
+        Some("fax") => &["BusinessFax", "HomeFax", "OtherFax"],
+        Some("pager") => &["Pager"],
+        _ => OTHER,
+    }
+}
+
+fn digits(number: &str) -> String {
+    number.chars().filter(char::is_ascii_digit).collect()
+}
+
+fn non_empty(value: &Option<String>) -> Option<String> {
+    value
+        .as_ref()
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .map(str::to_owned)
+}
+
+/// The text fields of a contact as Exchange names them.
+fn ews_texts(contact: &Contact) -> Vec<(envelope_ews::ContactText, Option<String>)> {
+    use envelope_ews::ContactText as T;
+    vec![
+        (
+            T::DisplayName,
+            Some(contact.name.trim().to_owned()).filter(|n| !n.is_empty()),
+        ),
+        (T::GivenName, non_empty(&contact.given_name)),
+        (T::Surname, non_empty(&contact.family_name)),
+        (T::Nickname, non_empty(&contact.nickname)),
+        (T::CompanyName, non_empty(&contact.organization)),
+        (T::JobTitle, non_empty(&contact.title)),
+    ]
+}
+
+/// Places phone numbers on Exchange keys. `taken` are keys already in use;
+/// numbers without a free key are left out (Exchange has a fixed set).
+fn place_phones<'a>(
+    phones: impl Iterator<Item = &'a envelope_ical::ContactField>,
+    taken: &mut Vec<String>,
+) -> Vec<(String, String)> {
+    let mut placed = Vec::new();
+    for phone in phones {
+        let key = ews_phone_keys(phone.kind.as_deref())
+            .iter()
+            .chain(ews_phone_keys(None))
+            .find(|k| !taken.iter().any(|t| t == *k));
+        if let Some(key) = key {
+            taken.push((*key).to_owned());
+            placed.push(((*key).to_owned(), phone.value.trim().to_owned()));
+        }
+    }
+    placed
+}
+
+/// A new Exchange contact from the shared model.
+fn ews_new(contact: &Contact) -> envelope_ews::NewContact {
+    let mut taken = Vec::new();
+    envelope_ews::NewContact {
+        text: ews_texts(contact)
+            .into_iter()
+            .filter_map(|(field, value)| Some((field, value?)))
+            .collect(),
+        emails: contact
+            .emails
+            .iter()
+            .filter(|e| !e.value.trim().is_empty())
+            .take(3)
+            .enumerate()
+            .map(|(i, e)| (format!("EmailAddress{}", i + 1), e.value.trim().to_owned()))
+            .collect(),
+        phones: place_phones(
+            contact.phones.iter().filter(|p| !p.value.trim().is_empty()),
+            &mut taken,
+        ),
+        birthday: contact.birthday,
+    }
+}
+
+/// The changes that turn the contact on the server into `desired`, leaving
+/// what Envelope does not show (other phone keys, addresses, notes) alone.
+fn ews_changes(
+    server: &envelope_ews::Contact,
+    desired: &Contact,
+) -> Vec<envelope_ews::ContactChange> {
+    use envelope_ews::{ContactChange as C, ContactText as T};
+    let mut changes = Vec::new();
+    let current = |field: T| -> Option<String> {
+        let value = match field {
+            T::DisplayName => &server.display_name,
+            T::GivenName => &server.given_name,
+            T::Surname => &server.surname,
+            T::Nickname => &server.nickname,
+            T::CompanyName => &server.company_name,
+            T::JobTitle => &server.job_title,
+        };
+        non_empty(value)
+    };
+    for (field, value) in ews_texts(desired) {
+        if current(field) != value {
+            changes.push(C::Text(field, value));
+        }
+    }
+
+    let wanted: Vec<String> = desired
+        .emails
+        .iter()
+        .map(|e| e.value.trim().to_owned())
+        .filter(|e| !e.is_empty())
+        .take(3)
+        .collect();
+    for i in 0..3 {
+        let key = format!("EmailAddress{}", i + 1);
+        let have = server
+            .email_addresses
+            .iter()
+            .find(|e| e.key == key)
+            .map(|e| e.address.clone());
+        let want = wanted.get(i).cloned();
+        if !have
+            .as_deref()
+            .map(str::to_lowercase)
+            .eq(&want.as_deref().map(str::to_lowercase))
+        {
+            changes.push(C::Email(key, want));
+        }
+    }
+
+    // Numbers already on the server stay on their keys; the rest of the
+    // server's numbers go, and new ones take free keys.
+    let mut kept: Vec<String> = Vec::new();
+    let mut new = Vec::new();
+    for phone in desired.phones.iter().filter(|p| !p.value.trim().is_empty()) {
+        match server
+            .phone_numbers
+            .iter()
+            .find(|s| !kept.contains(&s.key) && digits(&s.number) == digits(&phone.value))
+        {
+            Some(s) => kept.push(s.key.clone()),
+            None => new.push(phone),
+        }
+    }
+    let dropped: Vec<String> = server
+        .phone_numbers
+        .iter()
+        .filter(|s| !kept.contains(&s.key))
+        .map(|s| s.key.clone())
+        .collect();
+    let mut taken = kept.clone();
+    let placed = place_phones(new.into_iter(), &mut taken);
+    for key in &dropped {
+        if !placed.iter().any(|(k, _)| k == key) {
+            changes.push(C::Phone(key.clone(), None));
+        }
+    }
+    for (key, number) in placed {
+        changes.push(C::Phone(key, Some(number)));
+    }
+
+    if server.birthday.map(|b| b.date_naive()) != desired.birthday {
+        changes.push(C::Birthday(desired.birthday));
+    }
+    changes
+}
+
+async fn ews_push(
+    client: &envelope_ews::EwsClient,
+    row: &ContactRow,
+) -> std::result::Result<Done, Failure> {
+    let id = row
+        .remote_id
+        .clone()
+        .filter(|r| !r.is_empty())
+        .map(|id| envelope_ews::ItemId {
+            id,
+            change_key: None,
+        });
+    if row.local_state == cdb::DELETED {
+        if let Some(id) = &id
+            && let Err(e) = client.delete_contact(id).await
+            && !matches!(&e, envelope_ews::EwsError::Response(r) if r.code == envelope_ews::ResponseCode::ErrorItemNotFound)
+        {
+            return Err(e.into());
+        }
+        return Ok(Done::Deleted);
+    }
+    let server = match &id {
+        Some(id) if row.local_state != cdb::CREATED => client
+            .get_contacts(std::slice::from_ref(id))
+            .await?
+            .into_iter()
+            .next()
+            .and_then(|r| r.ok()),
+        _ => None,
+    };
+    let saved = match (&id, server) {
+        (Some(id), Some(server)) => {
+            client
+                .update_contact(id, &ews_changes(&server, &row.contact))
+                .await?
+        }
+        // New, or gone from the server: create it (again).
+        _ => {
+            client
+                .create_contact(
+                    envelope_ews::DistinguishedFolder::Contacts,
+                    &ews_new(&row.contact),
+                )
+                .await?
+        }
+    };
+    let mut contact = row.contact.clone();
+    contact.uid = saved.id.clone();
+    Ok(Done::Saved(Box::new(Pushed {
+        remote_id: saved.id.clone(),
+        etag: saved.change_key.clone(),
+        uid: saved.id,
+        base: None,
+        photo_url: None,
+        contact,
+    })))
 }

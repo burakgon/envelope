@@ -123,7 +123,10 @@ pub use client::{
     DEFAULT_CONNECT_TIMEOUT, DEFAULT_NTLM_CONNECTIONS, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT,
     EWS_PATH, EwsClient, EwsClientBuilder, RetryPolicy,
 };
-pub use contacts::{Contact, ContactEmail, ContactPhone, ResolveScope, ResolvedName};
+pub use contacts::{
+    Contact, ContactChange, ContactEmail, ContactPhone, ContactText, NewContact, ResolveScope,
+    ResolvedName,
+};
 pub use error::{EwsError, ResponseCode, ResponseError, Result, SoapFault};
 pub use folders::{
     DeleteType, FOLDER_CLASS_CALENDAR, FOLDER_CLASS_CONTACTS, FOLDER_CLASS_MAIL,

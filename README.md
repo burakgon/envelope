@@ -82,7 +82,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - Two-way sync: **CalDAV** (iCloud, Fastmail, Nextcloud, Radicale, …), **Google Calendar**, **Microsoft 365 / Outlook.com** and **on-premises Exchange**.
 
 ### Contacts
-- Address books synced both ways with **CardDAV**, **Google Contacts** and **Microsoft 365**, plus a local address book.
+- Address books synced both ways with **CardDAV**, **Google Contacts**, **Microsoft 365** and **Exchange**, plus a local address book.
 - Search, edit, photos, birthdays, and a contact card with your recent conversations; autocomplete in the composer draws on both your address books and the people you write to.
 
 ### AI (optional)

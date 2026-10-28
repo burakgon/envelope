@@ -1244,3 +1244,100 @@ fn maps_exchange_contacts() {
         .collect();
     assert_eq!(kinds, vec!["cell", "work"]);
 }
+
+#[test]
+fn exchange_edits_touch_only_what_changed() {
+    use envelope_ews::{ContactChange as C, ContactText as T};
+    let field = |value: &str, kind: Option<&str>| envelope_ical::ContactField {
+        value: value.into(),
+        kind: kind.map(Into::into),
+        preferred: false,
+    };
+    let server = envelope_ews::Contact {
+        id: Some(envelope_ews::ItemId {
+            id: "AAMk1".into(),
+            change_key: Some("ck".into()),
+        }),
+        parent_folder_id: None,
+        is_group: false,
+        display_name: Some("Daniel Okafor".into()),
+        file_as: None,
+        given_name: Some("Daniel".into()),
+        middle_name: Some("A.".into()),
+        surname: Some("Okafor".into()),
+        nickname: Some("Dan".into()),
+        company_name: Some("Lumen".into()),
+        department: None,
+        job_title: None,
+        email_addresses: vec![envelope_ews::ContactEmail {
+            key: "EmailAddress1".into(),
+            address: "daniel@lumen.dev".into(),
+            name: Some("Daniel Okafor".into()),
+        }],
+        phone_numbers: vec![
+            envelope_ews::ContactPhone {
+                key: "CarPhone".into(),
+                number: "+44 7700 900 461".into(),
+            },
+            envelope_ews::ContactPhone {
+                key: "HomePhone".into(),
+                number: "+44 20 7946 0001".into(),
+            },
+        ],
+        birthday: None,
+        categories: Vec::new(),
+        source: None,
+        last_modified: None,
+    };
+    let mut desired = ews_contact(&server, "AAMk1");
+    // Unchanged: nothing to send.
+    assert_eq!(ews_changes(&server, &desired), []);
+
+    desired.nickname = None;
+    desired.title = Some("Engineering Manager".into());
+    desired.emails.push(field("dan@home.example", None));
+    // The car phone stays where it is (same digits, other formatting); the
+    // home number goes; a new work number takes the first work key.
+    desired.phones = vec![
+        field("+447700900461", Some("cell")),
+        field("+44 20 7946 0000", Some("work")),
+    ];
+    desired.birthday = chrono::NaiveDate::from_ymd_opt(1988, 4, 2);
+    assert_eq!(
+        ews_changes(&server, &desired),
+        [
+            C::Text(T::Nickname, None),
+            C::Text(T::JobTitle, Some("Engineering Manager".into())),
+            C::Email("EmailAddress2".into(), Some("dan@home.example".into())),
+            C::Phone("HomePhone".into(), None),
+            C::Phone("BusinessPhone".into(), Some("+44 20 7946 0000".into())),
+            C::Birthday(chrono::NaiveDate::from_ymd_opt(1988, 4, 2)),
+        ]
+    );
+
+    // A new contact: phones by kind, extra numbers of one kind spill over.
+    let new = ews_new(&Contact {
+        name: "Ada Lovelace".into(),
+        given_name: Some("Ada".into()),
+        emails: vec![field("ada@example.com", Some("work"))],
+        phones: vec![
+            field("1", Some("home")),
+            field("2", Some("home")),
+            field("3", Some("home")),
+            field("4", None),
+        ],
+        ..Default::default()
+    });
+    assert_eq!(
+        new.emails,
+        [("EmailAddress1".to_string(), "ada@example.com".to_string())]
+    );
+    assert_eq!(
+        new.phones
+            .iter()
+            .map(|(k, _)| k.as_str())
+            .collect::<Vec<_>>(),
+        ["HomePhone", "HomePhone2", "OtherTelephone", "PrimaryPhone"]
+    );
+    assert!(new.text.contains(&(T::DisplayName, "Ada Lovelace".into())));
+}

@@ -287,7 +287,7 @@ export interface OutboxItem {
 export interface ContactBook {
   id: number;
   accountId: number | null;
-  /** `carddav`, `google`, `graph` or `local`. */
+  /** `carddav`, `google`, `graph`, `ews` or `local`. */
   kind: string;
   name: string;
   readOnly: boolean;

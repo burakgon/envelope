@@ -6,6 +6,8 @@
   import { Camera, Plus, X } from '../../icons';
 
   const c = people.editing!;
+  // Exchange contacts keep names, addresses, numbers, company and birthday only.
+  const limited = $derived(people.books.find((b) => b.id === c.bookId)?.kind === 'ews');
   let first: HTMLInputElement | undefined = $state();
   let file: HTMLInputElement | undefined = $state();
   onMount(() => first?.focus());
@@ -101,39 +103,47 @@
     <button class="add" onclick={() => add(c.phones, 'mobile')}><Plus size={14} />Add phone</button>
   </div>
 
-  <div class="group">
-    <div class="label">Address</div>
-    {#each c.addresses as a, i (i)}
-      <div class="line top-align">
-        <select class="input sel" bind:value={a.label}>{#each addressLabels as l (l)}<option value={l}>{l}</option>{/each}</select>
-        <textarea class="input area" rows="3" placeholder="Street, city, postal code, country" bind:value={a.value}></textarea>
-        <button class="icon-btn sm" aria-label="Remove" onclick={() => remove(c.addresses, i)}><X size={14} /></button>
-      </div>
-    {/each}
-    <button class="add" onclick={() => add(c.addresses, 'home')}><Plus size={14} />Add address</button>
-  </div>
+  {#if !limited}
+    <div class="group">
+      <div class="label">Address</div>
+      {#each c.addresses as a, i (i)}
+        <div class="line top-align">
+          <select class="input sel" bind:value={a.label}>{#each addressLabels as l (l)}<option value={l}>{l}</option>{/each}</select>
+          <textarea class="input area" rows="3" placeholder="Street, city, postal code, country" bind:value={a.value}></textarea>
+          <button class="icon-btn sm" aria-label="Remove" onclick={() => remove(c.addresses, i)}><X size={14} /></button>
+        </div>
+      {/each}
+      <button class="add" onclick={() => add(c.addresses, 'home')}><Plus size={14} />Add address</button>
+    </div>
+  {/if}
 
   <div class="group two-col">
     <div>
       <label class="label" for="ct-bday">Birthday</label>
       <input id="ct-bday" class="input" placeholder="YYYY-MM-DD" bind:value={c.birthday} />
     </div>
-    <div>
-      <label class="label" for="ct-web">Website</label>
-      <input
-        id="ct-web"
-        class="input"
-        placeholder="https://"
-        value={c.urls[0] ?? ''}
-        oninput={(e) => (c.urls = [(e.currentTarget as HTMLInputElement).value, ...c.urls.slice(1)])}
-      />
-    </div>
+    {#if !limited}
+      <div>
+        <label class="label" for="ct-web">Website</label>
+        <input
+          id="ct-web"
+          class="input"
+          placeholder="https://"
+          value={c.urls[0] ?? ''}
+          oninput={(e) => (c.urls = [(e.currentTarget as HTMLInputElement).value, ...c.urls.slice(1)])}
+        />
+      </div>
+    {/if}
   </div>
 
-  <div class="group">
-    <label class="label" for="ct-notes">Notes</label>
-    <textarea id="ct-notes" class="input area" rows="4" bind:value={c.notes}></textarea>
-  </div>
+  {#if limited}
+    <p class="hint">Exchange keeps names, e-mail addresses, phone numbers, company, job title and birthday for contacts.</p>
+  {:else}
+    <div class="group">
+      <label class="label" for="ct-notes">Notes</label>
+      <textarea id="ct-notes" class="input area" rows="4" bind:value={c.notes}></textarea>
+    </div>
+  {/if}
 
   {#if c.id == null && people.writable.length > 1}
     <div class="group">
@@ -264,5 +274,11 @@
     justify-content: flex-end;
     gap: 8px;
     padding-top: 8px;
+  }
+  .hint {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--text-3);
   }
 </style>

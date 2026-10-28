@@ -6,6 +6,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 
 ### Added
 - Automatic replies (out of office) for Microsoft 365, Exchange, Gmail and IMAP servers that offer ManageSieve: a message, an optional subject and first and last day, and who gets it. A banner in the sidebar shows while they are on.
+- Exchange contacts can be added, changed and deleted (names, e-mail addresses, phone numbers, company, job title and birthday); fields Envelope does not show are left as they are.
 - A scheduling assistant in the event editor: when the guests are busy that day (through Google, Microsoft 365 or Exchange, and your own calendars), and a button that moves the meeting to the next time everyone is free.
 - Saved messages (`.eml`) and calendar files (`.ics`) open from the file manager: messages with their pictures and attachments, calendar files with a choice of events to add (without inviting anyone) and a note for those already on a calendar.
 - End-to-end encryption and signing with OpenPGP: keys created automatically per address (or imported), exchanged with Autocrypt headers and found in the recipient's Web Key Directory; PGP/MIME with protected subjects, Bcc recipients kept anonymous and drafts encrypted to yourself; decryption with passphrase prompts, signature status and fingerprint verification; an Encryption settings tab. See `docs/ENCRYPTION.md`.
