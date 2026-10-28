@@ -50,6 +50,10 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 <td width="50%"><img src="docs/screenshots/compose.png" alt="Composer with recipient autocomplete"></td>
 <td width="50%"><img src="docs/screenshots/invite.png" alt="An invitation card with RSVP and conflict check"></td>
 </tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/contacts.png" alt="Contacts with a contact card and recent conversations"></td>
+<td width="50%"><img src="docs/screenshots/palette.png" alt="The command palette in dark mode"></td>
+</tr>
 </table>
 
 ### Mail
