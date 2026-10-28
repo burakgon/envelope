@@ -4,6 +4,7 @@ pub mod calendar;
 pub mod contacts;
 pub mod ews;
 pub mod graph;
+mod identities;
 pub mod imap;
 pub mod outbox;
 
@@ -31,6 +32,16 @@ pub(crate) async fn run_account(
     let Ok(account) = engine.account_row(account_id) else {
         return;
     };
+    if account.kind == AccountKind::Gmail && account.config.auth == AuthMethod::OAuthGoogle {
+        let engine = engine.clone();
+        let account = account.clone();
+        tokio::spawn(async move {
+            // Grants from before the settings permission cannot list aliases.
+            if let Err(e) = identities::import_gmail_aliases(&engine, &account).await {
+                tracing::debug!(account = account.id, "Gmail aliases not imported: {e}");
+            }
+        });
+    }
     match account.kind {
         AccountKind::Imap | AccountKind::Gmail => imap::run(engine, account_id, wake, stop).await,
         AccountKind::Microsoft => graph::run(engine, account_id, wake, stop).await,

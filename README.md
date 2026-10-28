@@ -127,7 +127,7 @@ Server settings are detected automatically from your address (provider presets, 
 
 - **Debian / Ubuntu, Fedora / openSUSE, AppImage:** download the `.deb`, `.rpm` or `.AppImage` from the [latest release](https://github.com/burakgon/envelope/releases/latest).
 - **Arch Linux:** build from the [PKGBUILD](packaging/aur/PKGBUILD) (`makepkg -si`); an AUR package is planned.
-- **Flatpak:** a manifest lives in [`packaging/flatpak`](packaging/flatpak); Flathub submission is planned.
+- **Flatpak:** build it from the manifest in [`packaging/flatpak`](packaging/flatpak).
 
 ## Build from source
 
@@ -197,7 +197,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the details.
 ## Roadmap
 
 - PGP / S/MIME
-- Flathub and AUR packages
+- An AUR package
 
 ## License
 
