@@ -1,0 +1,34 @@
+name: Audit
+
+on:
+  push:
+    branches: [main]
+    paths: ['**/Cargo.toml', 'Cargo.lock', '.cargo/audit.toml', 'package-lock.json', '.github/workflows/audit.yml']
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: Rust dependencies
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - run: cargo audit
+
+  npm:
+    name: Shipped npm dependencies
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+      # Only what ends up in the app; build tooling is not shipped.
+      - run: npm audit --omit=dev --audit-level=moderate

@@ -1,0 +1,8 @@
+# `cargo audit` settings (https://github.com/rustsec/rustsec).
+[advisories]
+# Both arrive with rPGP (pgp 0.21, its latest release) and have no fixed
+# release to move to yet: RSA decryption timing (Marvin) and timing
+# variability in crypto-bigint 0.5. Exploiting them takes precise timing of
+# many decryptions on the user's machine; Envelope decrypts mail locally and
+# never offers decryption as a service. Revisit when rPGP moves on.
+ignore = ["RUSTSEC-2023-0071", "RUSTSEC-2026-0387"]
