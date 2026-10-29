@@ -70,20 +70,20 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 </table>
 
 ### Mail
-- **Unified inbox** across all accounts, plus per-account folders and Gmail labels (with colors), drag and drop to move or label.
+- **Unified inbox** across all accounts, plus per-account folders and Gmail labels (with colors), drag and drop to move or label. Create, rename, nest, recolor and delete folders and labels (Outlook categories too), and empty Trash and Spam.
 - **Conversations** threaded the way you expect, with quoted text and signatures folded away.
 - **Split inbox**: *People*, *Newsletters* and *Notifications* tabs, computed locally.
 - **Instant full-text search** (SQLite FTS5) with operators — `from:`, `to:`, `subject:`, `has:attachment`, `is:unread`, `before:`, `after:` … — and natural-language search through AI if enabled.
-- **Composer** with rich text, inline images, attachments (drag and drop or paste), recipient autocomplete, spell checking, multiple identities and rich signatures, **templates**, **undo send**, **scheduled send** (with an outbox to review, send now or edit) and drafts that sync to the server.
-- **Snooze**, star, archive, **mute**, report spam, bulk actions and **undo** for everything.
-- **Follow-up reminders**: get nudged when nobody replied to a message you sent.
-- **Rules** that file, label, mark or silence new mail as it arrives — for every kind of account.
+- **Composer** with rich text (colors, sizes, alignment, inline pictures), attachments (drag and drop or paste), recipient autocomplete, spell checking, multiple identities and rich signatures, **templates**, **undo send**, **scheduled send** (with an outbox to review, send now or edit), forward as attachment, and drafts that sync to the server and open for editing on any device. It asks before sending to an address that looks wrong, or without the attachment the text mentions.
+- **Snooze**, star, archive, **mute**, report spam and *not spam*, **block senders**, bulk actions and **undo** for everything.
+- **Follow-up reminders**: get nudged when nobody replied to a message you sent — then mark it done or have it come back later.
+- **Rules** that file, label, mark or silence new mail as it arrives, and run on the mail already there when you want — for every kind of account.
 - **Automatic replies** (out of office) for Microsoft 365, Exchange, Gmail and IMAP servers with Sieve, with optional dates and a reminder while they are on.
-- **Safe HTML rendering** in a sandboxed frame with remote content blocking, tracking-pixel removal, dark-mode adaptation for plain emails and `cid:` inline images.
+- **Safe HTML rendering** in a sandboxed frame with remote content blocking, tracking-pixel removal, dark-mode adaptation for plain emails and `cid:` inline images. Links show where they really go, and warn when their text names another site.
 - **End-to-end encryption** with OpenPGP that sets itself up: keys are created and exchanged with Autocrypt and found in the recipient's Web Key Directory, the lock in the composer turns on when everyone has a key, and messages show who signed them. Experts can import, export and verify keys — see [docs/ENCRYPTION.md](docs/ENCRYPTION.md).
 - **Offline-first**: read, search, triage and write without a connection; changes sync when you're back.
 - **Push mail** via IMAP IDLE, CONDSTORE/QRESYNC for fast resyncs, Gmail extensions (labels, thread ids, `X-GM-RAW` search) when talking to Gmail.
-- Desktop notifications with Archive and Mark as Read buttons, unread badge, `mailto:` handling, and saved messages (`.eml`), calendar files (`.ics`) and contact cards (`.vcf`) open straight from your file manager.
+- Desktop notifications with Archive and Mark as Read buttons — for all new mail, only mail from people, or nothing, per account — an unread badge, `mailto:` handling, **Save all** for attachments, and saved messages (`.eml`), calendar files (`.ics`) and contact cards (`.vcf`, `.csv`) open straight from your file manager.
 
 ### Calendar
 - Day, week, month and agenda views; mini month; per-calendar visibility and colors.
@@ -105,6 +105,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 ### Contacts
 - Address books synced both ways with **CardDAV**, **Google Contacts**, **Microsoft 365** and **Exchange**, plus a local address book.
 - Search, edit, photos, birthdays, and a contact card with your recent conversations; autocomplete in the composer draws on both your address books and the people you write to.
+- **Import** vCard files and the CSV exports of Gmail, Outlook and Thunderbird, **export** to vCard, and **merge duplicates**.
 
 ### AI (optional)
 - Summarize a conversation, suggest replies, draft a reply from a one-line instruction, rewrite (shorter, friendlier, more formal …), translate.
@@ -145,7 +146,7 @@ Real servers add network latency to the sync, but everything you click on is ans
 | Fastmail | IMAP | CalDAV | App password |
 | Any other provider | IMAP + SMTP (auto-detected) | CalDAV (optional) | Password |
 
-Server settings are detected automatically from your address (provider presets, the Thunderbird ISP database, autoconfig, Exchange Autodiscover and DNS SRV records). Proton Mail works through Proton Mail Bridge.
+Server settings are detected automatically from your address (provider presets, the Thunderbird ISP database, autoconfig, Exchange Autodiscover and DNS SRV records), and accounts already set up in **Thunderbird, Evolution, Geary or GNOME Online Accounts** are offered when you add one. Everything can be changed later in the account's settings, with a connection test before it's saved. Proton Mail works through Proton Mail Bridge.
 
 ## Install
 
