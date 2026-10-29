@@ -133,6 +133,22 @@ await step('a repeating event reads its repeat rule in words, in the popover and
   await page.locator('.editor[role="dialog"]').waitFor({ state: 'detached', timeout: 5000 });
 });
 
+await step('an event popover stays in the window as its details load', async () => {
+  // A meeting with guests, scrolled to the bottom of the window: the popover grows as its
+  // guests load and must move up rather than run off the bottom.
+  const sync = page.locator('.ev', { hasText: 'Product sync' }).first();
+  await sync.evaluate((el) => el.scrollIntoView({ block: 'end' }));
+  await sync.click();
+  await visible('.popover .pop');
+  await until(async () => (await page.locator('.popover .pop .guest, .popover .pop [class*="guest"]').count()) > 0 || (await page.locator('.popover .pop').innerText()).includes('Daniel'), 'the guests did not load');
+  const box = await steady(() => page.locator('.popover:has(.pop)').evaluate((el) => JSON.stringify(el.getBoundingClientRect())));
+  const r = JSON.parse(box);
+  const height = await page.evaluate(() => innerHeight);
+  if (r.top < 7.5 || r.bottom > height - 7.5) throw new Error(`the popover is at ${Math.round(r.top)}–${Math.round(r.bottom)} in a window ${height} tall`);
+  await page.keyboard.press('Escape');
+  await page.locator('.popover .pop').waitFor({ state: 'detached', timeout: 5000 });
+});
+
 await step('settings open and close', async () => {
   await page.keyboard.press('Control+,');
   await visible('.window[role="dialog"]');

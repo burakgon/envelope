@@ -22,29 +22,31 @@
   let left = $state(-9999);
   let top = $state(-9999);
   let origin = $state('top left');
+  /** Below the point or above it; kept while it fits, so that growing content doesn't make it jump. */
+  let side: 'below' | 'above' | null = null;
 
-  async function place() {
-    await tick();
+  function place() {
     if (!el) return;
     const r = el.getBoundingClientRect();
     const pad = 8;
     let l = align === 'end' ? x - r.width : align === 'center' ? x - r.width / 2 : x;
-    let t = y;
-    let ox = align === 'end' ? 'right' : 'left';
-    let oy = 'top';
     if (l + r.width > innerWidth - pad) l = innerWidth - r.width - pad;
     if (l < pad) l = pad;
-    if (t + r.height > innerHeight - pad) {
-      t = Math.max(pad, y - r.height - 4);
-      oy = 'bottom';
-    }
+    const fits = { below: y + r.height <= innerHeight - pad, above: y - r.height - 4 >= pad };
+    if (!side || !fits[side]) side = fits.below || !fits.above ? 'below' : 'above';
+    // Taller than the room on either side: as close to the point as the window allows.
+    const t = !fits[side] ? Math.max(pad, innerHeight - pad - r.height) : side === 'below' ? y : y - r.height - 4;
     left = l;
     top = t;
-    origin = `${oy} ${ox}`;
+    origin = `${side === 'above' ? 'bottom' : 'top'} ${align === 'end' ? 'right' : 'left'}`;
   }
 
   onMount(() => {
-    place();
+    tick().then(place);
+    // Placed again as the content changes size (details that load after it opens) and with the window.
+    const resized = new ResizeObserver(() => place());
+    if (el) resized.observe(el);
+    window.addEventListener('resize', place);
     const down = (e: PointerEvent) => {
       if (el && !el.contains(e.target as Node)) onclose();
     };
@@ -59,6 +61,8 @@
     window.addEventListener('keydown', key, true);
     window.addEventListener('blur', onclose);
     return () => {
+      resized.disconnect();
+      window.removeEventListener('resize', place);
       clearTimeout(t);
       window.removeEventListener('pointerdown', down, true);
       window.removeEventListener('keydown', key, true);
