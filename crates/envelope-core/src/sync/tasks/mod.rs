@@ -21,7 +21,9 @@
 //! can update it without losing what Envelope does not edit. Subtasks name
 //! their parent by its `uid` (`parent_uid`); a service whose server names
 //! tasks by id uses that id as the `uid`. Pushes come parents first, so a
-//! parent created here has its server id by the time its subtasks go up.
+//! parent created here has its server id by the time its subtasks go up; a
+//! subtask whose parent is not on the server yet waits for it (and goes to
+//! the list on this computer with it, should the server never take it).
 //!
 //! [`caldav`] serves CalDAV, [`google`] Google Tasks, [`graph`] Microsoft To
 //! Do and [`ews`] Exchange task folders. Google and Microsoft accounts get
@@ -384,6 +386,11 @@ pub(crate) async fn push_list(
         else {
             continue;
         };
+        // The server names the task of a subtask by its id there: a subtask
+        // waits for its task, without counting attempts.
+        if row.local_state != tdb::DELETED && engine.db.read(|c| tdb::parent_unsent(c, &row))? {
+            continue;
+        }
         let outcome = if list.read_only {
             Err(Failure::Forbidden("the list is read-only".into()))
         } else {

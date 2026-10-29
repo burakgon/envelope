@@ -1071,11 +1071,28 @@ pub fn discard_local_change(tx: &Transaction<'_>, id: i64, list_id: i64) -> Resu
 }
 
 /// Keeps a task the server refuses to create in the list on this computer
-/// instead (with its subtasks that are not on the server either), so that
-/// nothing the user wrote is lost.
+/// instead, with its subtasks (which wait for it to be on the server), so
+/// that nothing the user wrote is lost. A subtask that is on the server as
+/// something else (it was moved under the task here) is deleted there, as
+/// moving it asked.
 pub fn keep_locally(tx: &Transaction<'_>, id: i64, local_list: i64) -> Result<()> {
+    tx.execute(
+        "INSERT INTO tasks (list_id, uid, remote_id, etag, title, notes, data, created_at, updated_at,
+           local_state, version)
+         SELECT list_id, uid, remote_id, etag, title, notes, data, created_at, updated_at, ?, 1
+         FROM tasks WHERE parent_id = ? AND local_state IN (?, ?) AND remote_id IS NOT NULL",
+        params![DELETED, id, SYNCED, MODIFIED],
+    )?;
+    move_to_local(tx, id, local_list)
+}
+
+/// Moves a task, with its subtasks, to the list on this computer as tasks
+/// of that list: the task at the end, its subtasks still under it.
+/// Subtasks deleted here stay behind (without it), for the server.
+fn move_to_local(tx: &Transaction<'_>, id: i64, local_list: i64) -> Result<()> {
     let position: i64 = tx.query_row(
-        "SELECT coalesce(max(position), 0) + ? FROM tasks WHERE list_id = ? AND parent_id IS NULL",
+        "SELECT coalesce(max(position), 0) + ? FROM tasks WHERE list_id = ? AND parent_id IS NULL
+           AND local_state != 3",
         params![POSITION_STEP, local_list],
         |r| r.get(0),
     )?;
@@ -1085,15 +1102,29 @@ pub fn keep_locally(tx: &Transaction<'_>, id: i64, local_list: i64) -> Result<()
            position = CASE WHEN id = ?3 THEN ?2 ELSE position END,
            parent_id = CASE WHEN id = ?3 THEN NULL ELSE parent_id END,
            parent_uid = CASE WHEN id = ?3 THEN NULL ELSE parent_uid END
-         WHERE id = ?3 OR (parent_id = ?3 AND local_state = 1)",
+         WHERE id = ?3 OR (parent_id = ?3 AND local_state != 3)",
         params![local_list, position, id],
     )?;
-    // Subtasks already on the server stay there, without this parent.
     tx.execute(
         "UPDATE tasks SET parent_id = NULL, parent_uid = NULL WHERE parent_id = ?1 AND list_id != ?2",
         [id, local_list],
     )?;
     Ok(())
+}
+
+/// Whether a subtask's task is not on the server yet, so that the subtask
+/// can't be placed under it there.
+pub fn parent_unsent(c: &Connection, row: &TaskRow) -> Result<bool> {
+    let Some(parent) = row.parent_id else {
+        return Ok(false);
+    };
+    Ok(c.query_row(
+        "SELECT remote_id IS NULL FROM tasks WHERE id = ?",
+        [parent],
+        |r| r.get(0),
+    )
+    .optional()?
+    .unwrap_or(false))
 }
 
 #[cfg(test)]

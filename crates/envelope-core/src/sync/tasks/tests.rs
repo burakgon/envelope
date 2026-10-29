@@ -1027,6 +1027,20 @@ fn order(fx: &Fixture, list: i64, parent: Option<i64>) -> Vec<String> {
         .expect("order")
 }
 
+/// Lets the next push retry every task of `list` that waits for a retry.
+fn retry_now(fx: &Fixture, list: i64) {
+    fx.engine
+        .db
+        .write(|tx| {
+            tx.execute(
+                "UPDATE tasks SET push_after = 0 WHERE list_id = ? AND local_state != 0",
+                [list],
+            )?;
+            Ok(())
+        })
+        .expect("retry now");
+}
+
 /// A list of an account as stored, for calls that only need its server
 /// id.
 fn stored_list(kind: TaskListKind, remote_id: &str, is_default: bool) -> ListRow {

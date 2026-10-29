@@ -742,6 +742,80 @@ async fn todo_steps_and_tasks_trade_places() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn todo_steps_wait_for_their_task() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = oauth_account(&fx, AccountKind::Microsoft, TASKS_SCOPE);
+    let service = todo_service(&fx, &server);
+    mount_lists(&server).await;
+    let todo = Todo::new(vec![(
+        todo_task("T1", "Trip", json!({})),
+        vec![step("S1", "Book flights", false)],
+    )]);
+    todo.mount(&server).await;
+    Mock::given(method("GET"))
+        .and(path(format!("{LISTS}/L1/tasks/delta")))
+        .respond_with(delta(&server, "L1", "d1", todo.tasks()))
+        .mount(&server)
+        .await;
+    sync_account(&fx.engine, &account, &service, true)
+        .await
+        .expect("first sync");
+    let l1 = list_named(&fx, &account, "Tasks");
+    let flights = remote_row(&fx, l1.id, "T1|S1");
+    // A new task, and the step moved under it, which To Do refuses to make.
+    let visa = fx.create(input(l1.id, "Get the visa")).await;
+    let added = fx
+        .create(TaskInput {
+            parent_id: Some(Some(visa.id)),
+            ..input(l1.id, "Fill in the form")
+        })
+        .await;
+    fx.engine
+        .update_task(
+            flights.id,
+            TaskInput {
+                parent_id: Some(Some(visa.id)),
+                ..input(l1.id, "Book flights")
+            },
+        )
+        .await
+        .expect("move the step");
+    Mock::given(method("POST"))
+        .and(path(format!("{LISTS}/L1/tasks")))
+        .respond_with(graph_error(400, "invalidRequest"))
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    for _ in 0..MAX_ATTEMPTS {
+        push_list(&fx.engine, &service, &l1).await.expect("push");
+        for waiting in [added.id, flights.id] {
+            assert_eq!(fx.row(waiting).push_attempts, 0, "steps wait");
+        }
+        retry_now(&fx, l1.id);
+    }
+    // Given up, the task is kept on this computer with both steps; the one
+    // that was on the server is deleted there, as moving it asked.
+    let local = fx.local_list();
+    assert_eq!(fx.row(visa.id).list_id, local);
+    let kids = fx.engine.task_subtasks(visa.id).await.expect("subtasks");
+    assert_eq!(
+        kids.iter()
+            .map(|t| (t.title.as_str(), t.list_id))
+            .collect::<Vec<_>>(),
+        [("Fill in the form", local), ("Book flights", local)]
+    );
+    push_list(&fx.engine, &service, &l1).await.expect("push");
+    assert!(todo.step_names("T1").is_empty());
+    assert!(fx.rows(l1.id).iter().all(|r| r.local_state == tdb::SYNCED));
+    let requests = server.received_requests().await.expect("requests");
+    assert!(
+        requests_to(&requests, "POST", "/checklistItems").is_empty(),
+        "no step went up without its task"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn todo_expired_delta_links_and_the_daily_pull_list_everything() {
     let fx = fixture();
     let server = MockServer::start().await;

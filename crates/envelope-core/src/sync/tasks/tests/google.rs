@@ -630,6 +630,63 @@ async fn google_expired_change_listings_list_everything_again() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn google_subtasks_wait_for_their_task() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = oauth_account(&fx, AccountKind::Gmail, TASKS_SCOPE);
+    let service = google_tasks(&fx, &server);
+    mount_lists(&server).await;
+    store_lists(&fx, &account, &service).await;
+    let l1 = list_named(&fx, &account, "My Tasks");
+    let trip = fx.create(input(l1.id, "Plan the trip")).await;
+    let flights = fx
+        .create(TaskInput {
+            parent_id: Some(Some(trip.id)),
+            ..input(l1.id, "Book flights")
+        })
+        .await;
+    // Google refuses the task; its subtask would have nowhere to go.
+    Mock::given(method("POST"))
+        .and(path(L1))
+        .respond_with(google_error(400, "invalid", "Invalid value."))
+        .mount(&server)
+        .await;
+
+    push_list(&fx.engine, &service, &l1).await.expect("push");
+    assert_eq!(fx.row(trip.id).push_attempts, 1);
+    let waiting = fx.row(flights.id);
+    assert_eq!(
+        (waiting.push_attempts, waiting.push_error.as_deref()),
+        (0, None),
+        "the subtask waits for its task without counting attempts"
+    );
+    // Refused until Envelope gives up on the task: it goes to the list on
+    // this computer, and its subtask with it.
+    for _ in 1..MAX_ATTEMPTS {
+        retry_now(&fx, l1.id);
+        push_list(&fx.engine, &service, &l1).await.expect("push");
+    }
+    let local = fx.local_list();
+    let kept = fx.engine.task(trip.id).await.expect("task");
+    assert_eq!((kept.list_id, kept.pending), (local, false));
+    let kids = fx.engine.task_subtasks(trip.id).await.expect("subtasks");
+    assert_eq!(
+        kids.iter()
+            .map(|t| (t.id, t.list_id, t.pending))
+            .collect::<Vec<_>>(),
+        [(flights.id, local, false)]
+    );
+    assert!(fx.rows(l1.id).is_empty());
+    let requests = server.received_requests().await.expect("requests");
+    let inserts = requests_to(&requests, "POST", L1);
+    assert_eq!(inserts.len(), MAX_ATTEMPTS as usize);
+    assert!(
+        inserts.iter().all(|r| query(r).is_empty()),
+        "only the task was tried"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn google_accounts_without_tasks_access_are_passed_over() {
     let fx = fixture();
     // Signed in before Envelope asked for tasks.
