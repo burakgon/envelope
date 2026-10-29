@@ -1,7 +1,7 @@
 //! MIME helpers: header and body extraction, part decoding, snippets.
 
 use envelope_imap::BodyPart;
-use mail_parser::{Message, MessageParser, PartKind};
+use mail_parser::{Charset, Message, MessageParser, MessagePart, PartKind};
 
 use crate::db::mail::{AttachmentMeta, MessageMeta};
 use crate::model::{Address, Flags, UnsubscribeInfo};
@@ -158,12 +158,14 @@ pub fn parse_full(raw: &[u8]) -> Option<(MessageMeta, ParsedBody)> {
     let msg = MessageParser::new().parse(raw)?;
     let mut meta = meta_from_message(&msg);
     let html = msg
-        .body_html(0)
-        .map(|h| h.into_owned())
+        .html_body()
+        .next()
+        .and_then(|p| part_as(&p, true))
         .filter(|h| !h.trim().is_empty());
     let mut text = msg
-        .body_text(0)
-        .map(|t| t.into_owned())
+        .text_body()
+        .next()
+        .and_then(|p| part_as(&p, false))
         .filter(|t| !t.trim().is_empty());
     // mail-parser synthesizes text from HTML when there is no text part, which is
     // exactly what we want for search and snippets.
@@ -250,6 +252,32 @@ pub fn parse_full(raw: &[u8]) -> Option<(MessageMeta, ParsedBody)> {
     ))
 }
 
+/// A body part as HTML or as text, converted from the other as needed (as
+/// mail-parser's `body_html` and `body_text` do).
+fn part_as(part: &MessagePart<'_>, html: bool) -> Option<String> {
+    let content = part.text()?;
+    // 8-bit text without a declared charset that isn't UTF-8 (old mail,
+    // archives) reads as Windows-1252, as in other mail programs.
+    let content = if content.contains('\u{fffd}')
+        && part
+            .content_type()
+            .and_then(|c| c.attribute("charset").map(str::to_string))
+            .is_none()
+        && std::str::from_utf8(&part.decoded()).is_err()
+        && let Some(latin) = Charset::from_label(b"windows-1252")
+    {
+        latin.decode(&part.decoded()).into_owned()
+    } else {
+        content.into_owned()
+    };
+    match (part.kind(), html) {
+        (PartKind::Html, true) | (PartKind::Text, false) => Some(content),
+        (PartKind::Text, true) => Some(mail_parser::text_to_html(&content)),
+        (PartKind::Html, false) => Some(mail_parser::html_to_text(&content)),
+        _ => None,
+    }
+}
+
 /// Extracts the decoded content of the part addressed by an `mp:<index>` id
 /// from a full message.
 pub fn extract_part(raw: &[u8], part_id: &str) -> Option<Vec<u8>> {
@@ -275,7 +303,16 @@ fn default_filename(mime: &str, index: usize) -> String {
 
 /// Decodes a single body part fetched by part number.
 pub fn decode_text_part(raw: &[u8], part: &BodyPart) -> String {
-    let charset = part.param("charset").unwrap_or("utf-8");
+    let text = decode_text_part_as(raw, part, part.param("charset").unwrap_or("utf-8"));
+    // 8-bit text without a declared charset that isn't UTF-8 reads as
+    // Windows-1252, as in other mail programs.
+    if part.param("charset").is_none() && text.contains('\u{fffd}') {
+        return decode_text_part_as(raw, part, "windows-1252");
+    }
+    text
+}
+
+fn decode_text_part_as(raw: &[u8], part: &BodyPart, charset: &str) -> String {
     let mut doc = format!(
         "Content-Type: {}; charset=\"{}\"\r\nContent-Transfer-Encoding: {}\r\n\r\n",
         part.mime_type,
@@ -697,5 +734,28 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(decode_text_part(b"G=FCnayd=FDn", &part), "Günaydın");
+    }
+
+    #[test]
+    fn undeclared_8bit_text_reads_as_windows_1252() {
+        // Old mail and archives: 8-bit text, no charset.
+        let raw = b"From: a@example.com\r\nSubject: Old\r\n\r\nGr\xfc\xdfe aus K\xf6ln \x96 bis bald.\r\n";
+        let (_, body) = parse_full(raw).unwrap();
+        assert_eq!(
+            body.text.as_deref().map(str::trim),
+            Some("Grüße aus Köln – bis bald.")
+        );
+        assert!(body.html.unwrap_or_default().contains("Grüße aus Köln"));
+        // UTF-8 without a charset stays UTF-8, and a declared charset is kept.
+        let (_, body) = parse_full("From: a@example.com\r\n\r\nGrüße\r\n".as_bytes()).unwrap();
+        assert_eq!(body.text.as_deref().map(str::trim), Some("Grüße"));
+        let part = BodyPart {
+            part_id: "1".into(),
+            mime_type: "text/plain".into(),
+            encoding: "8bit".into(),
+            ..Default::default()
+        };
+        assert_eq!(decode_text_part(b"Gr\xfc\xdfe", &part), "Grüße");
+        assert_eq!(decode_text_part("Grüße".as_bytes(), &part), "Grüße");
     }
 }
