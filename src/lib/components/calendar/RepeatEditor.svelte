@@ -83,7 +83,7 @@
         {:else if p.slot === 'interval'}
           <input bind:this={first} class="input num" type="number" min="1" max="99" bind:value={choice.interval} />
         {:else}
-          <select class="input unit" bind:value={choice.freq}>
+          <select class="input unit" aria-label={t('calendar.recurrence.repeats')} bind:value={choice.freq}>
             {#each units as u (u.freq)}<option value={u.freq}>{t(u.label, { count: choice.interval })}</option>{/each}
           </select>
         {/if}
@@ -101,7 +101,7 @@
         {/each}
       </div>
     {:else if choice.freq === 'MONTHLY'}
-      <select class="input monthly" bind:value={choice.monthly}>
+      <select class="input monthly" aria-label={t('calendar.recurrence.repeatOn')} bind:value={choice.monthly}>
         {#each monthlyChoices(start) as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
       </select>
     {/if}

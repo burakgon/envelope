@@ -1217,20 +1217,35 @@ await step('dialogs take the focus, keep Tab inside and give the focus back', as
   }
 });
 
-await step('every switch and dropdown in Settings has a name', async () => {
+await step('every switch and dropdown in Settings and the rule and contact editors has a name', async () => {
   const p = await fresh();
   try {
     await p.keyboard.press('Control+,');
     const settings = p.getByRole('dialog', { name: 'Settings' });
     await settings.waitFor({ timeout: 5000 });
     const unnamed = [];
+    // Controls without a name read "- switch [checked]" or "- combobox:" in the accessibility tree.
+    const look = async (where, locator) => {
+      for (const line of (await locator.ariaSnapshot()).split('\n')) if (/^\s*- (switch|combobox|textbox)\b(?! ")/.test(line)) unnamed.push(`${where}: ${line.trim()}`);
+    };
     for (const tab of await settings.locator('.tab').allInnerTexts()) {
       await settings.locator('.tab', { hasText: tab }).click();
       await p.waitForTimeout(150);
-      // Controls without a name read "- switch [checked]" or "- combobox:" in the accessibility tree.
-      const tree = await settings.ariaSnapshot();
-      for (const line of tree.split('\n')) if (/^\s*- (switch|combobox|textbox)\b(?! ")/.test(line)) unnamed.push(`${tab}: ${line.trim()}`);
+      await look(tab, settings);
     }
+    // The rule editor too.
+    await settings.locator('.tab', { hasText: 'Rules' }).click();
+    await settings.locator('.btn', { hasText: 'New rule' }).click();
+    await look('a new rule', settings.locator('.editor-card'));
+    await p.keyboard.press('Escape');
+    // And the contact editor.
+    await p.locator('body').press('g');
+    await p.locator('body').press('p');
+    await p.locator('.contacts .row', { hasText: 'Maya Chen' }).click();
+    await p.locator('body').press('e');
+    const editor = p.locator('.contacts .editor');
+    await editor.waitFor({ timeout: 5000 });
+    await look('a contact', editor);
     if (unnamed.length) throw new Error(unnamed.join('; '));
   } finally {
     await p.close();

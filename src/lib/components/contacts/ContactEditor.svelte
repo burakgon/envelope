@@ -85,8 +85,8 @@
     <div class="label">{t('contacts.email')}</div>
     {#each c.emails as e, i (i)}
       <div class="line">
-        <select class="input sel" bind:value={e.label}>{#each emailLabels as l (l)}<option value={l}>{fieldLabel(l)}</option>{/each}</select>
-        <input class="input" type="email" placeholder={t('contacts.emailPlaceholder')} bind:value={e.value} />
+        <select class="input sel" aria-label={t('contacts.emailKind')} bind:value={e.label}>{#each emailLabels as l (l)}<option value={l}>{fieldLabel(l)}</option>{/each}</select>
+        <input class="input" type="email" placeholder={t('contacts.emailPlaceholder')} aria-label={t('contacts.email')} bind:value={e.value} />
         <button class="icon-btn sm" aria-label={t('common.remove')} onclick={() => remove(c.emails, i)}><X size={14} /></button>
       </div>
     {/each}
@@ -99,8 +99,8 @@
     <div class="label">{t('contacts.phone')}</div>
     {#each c.phones as p, i (i)}
       <div class="line">
-        <select class="input sel" bind:value={p.label}>{#each phoneLabels as l (l)}<option value={l}>{fieldLabel(l)}</option>{/each}</select>
-        <input class="input" type="tel" placeholder={t('contacts.phonePlaceholder')} bind:value={p.value} />
+        <select class="input sel" aria-label={t('contacts.phoneKind')} bind:value={p.label}>{#each phoneLabels as l (l)}<option value={l}>{fieldLabel(l)}</option>{/each}</select>
+        <input class="input" type="tel" placeholder={t('contacts.phonePlaceholder')} aria-label={t('contacts.phone')} bind:value={p.value} />
         <button class="icon-btn sm" aria-label={t('common.remove')} onclick={() => remove(c.phones, i)}><X size={14} /></button>
       </div>
     {/each}
@@ -111,8 +111,8 @@
     <div class="label">{t('contacts.address')}</div>
     {#each c.addresses as a, i (i)}
       <div class="line top-align">
-        <select class="input sel" bind:value={a.label}>{#each addressLabels as l (l)}<option value={l}>{fieldLabel(l)}</option>{/each}</select>
-        <textarea class="input area" rows="3" placeholder={t('contacts.addressPlaceholder')} bind:value={a.value}></textarea>
+        <select class="input sel" aria-label={t('contacts.addressKind')} bind:value={a.label}>{#each addressLabels as l (l)}<option value={l}>{fieldLabel(l)}</option>{/each}</select>
+        <textarea class="input area" rows="3" placeholder={t('contacts.addressPlaceholder')} aria-label={t('contacts.address')} bind:value={a.value}></textarea>
         <button class="icon-btn sm" aria-label={t('common.remove')} onclick={() => remove(c.addresses, i)}><X size={14} /></button>
       </div>
     {/each}

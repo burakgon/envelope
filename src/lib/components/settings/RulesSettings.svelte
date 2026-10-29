@@ -167,14 +167,14 @@
     <div class="sect">
       <div class="sect-head">
         {#each tParts('settings.rules.matchSentence') as part}
-          {#if typeof part === 'string'}{part}{:else}<select class="input mini" bind:value={editing.match}><option value="all">{t('settings.rules.matchAll')}</option><option value="any">{t('settings.rules.matchAny')}</option></select>{/if}
+          {#if typeof part === 'string'}{part}{:else}<select class="input mini" aria-label={t('settings.rules.match')} bind:value={editing.match}><option value="all">{t('settings.rules.matchAll')}</option><option value="any">{t('settings.rules.matchAny')}</option></select>{/if}
         {/each}
       </div>
       {#each editing.conditions as c, i (i)}
         <div class="line">
-          <select class="input" bind:value={c.field}>{#each fields as f (f.value)}<option value={f.value}>{f.label}</option>{/each}</select>
-          <select class="input" bind:value={c.op}>{#each ops as o (o.value)}<option value={o.value}>{o.label}</option>{/each}</select>
-          <input class="input grow" placeholder={c.field === 'subject' ? t('settings.rules.subjectPlaceholder') : t('settings.rules.addressPlaceholder')} bind:value={c.value} />
+          <select class="input" aria-label={t('settings.rules.field')} bind:value={c.field}>{#each fields as f (f.value)}<option value={f.value}>{f.label}</option>{/each}</select>
+          <select class="input" aria-label={t('settings.rules.comparison')} bind:value={c.op}>{#each ops as o (o.value)}<option value={o.value}>{o.label}</option>{/each}</select>
+          <input class="input grow" placeholder={c.field === 'subject' ? t('settings.rules.subjectPlaceholder') : t('settings.rules.addressPlaceholder')} aria-label={t('settings.rules.value')} bind:value={c.value} />
           <button class="icon-btn sm" aria-label={t('settings.rules.removeCondition')} disabled={editing.conditions.length === 1} onclick={() => editing!.conditions.splice(i, 1)}><X size={14} /></button>
         </div>
       {/each}
@@ -185,12 +185,12 @@
       <div class="sect-head">{t('settings.rules.then')}</div>
       {#each editing.actions as a, i (i)}
         <div class="line">
-          <select class="input act" value={a.kind} onchange={(e) => setAction(i, (e.currentTarget as HTMLSelectElement).value as RuleAction['kind'])}>
+          <select class="input act" aria-label={t('settings.rules.action')} value={a.kind} onchange={(e) => setAction(i, (e.currentTarget as HTMLSelectElement).value as RuleAction['kind'])}>
             {#each actionKinds as k (k.value)}<option value={k.value}>{k.label}</option>{/each}
           </select>
           {#if a.kind === 'move' || a.kind === 'label'}
             {@const options = scopeFolders.filter((f) => (a.kind === 'label' ? f.kind === 'label' : f.selectable && f.kind !== 'label'))}
-            <select class="input grow" value={String(a.folderId)} onchange={(e) => ('folderId' in a) && (a.folderId = Number((e.currentTarget as HTMLSelectElement).value))}>
+            <select class="input grow" aria-label={a.kind === 'label' ? t('settings.rules.labelTarget') : t('mailbox.folder')} value={String(a.folderId)} onchange={(e) => ('folderId' in a) && (a.folderId = Number((e.currentTarget as HTMLSelectElement).value))}>
               {#each options as f (f.id)}<option value={String(f.id)}>{folderName(f.id)}</option>{:else}<option value="0">{a.kind === 'label' ? t('settings.rules.noLabels') : t('settings.rules.noFolders')}</option>{/each}
             </select>
           {:else}

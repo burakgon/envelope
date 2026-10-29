@@ -62,7 +62,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - A message closed right after something was typed in it, before it was first saved, lost what was typed. Enter or Space on a focused button no longer also opens the selected conversation.
 - `e` in Contacts no longer types an “e” into the first name it starts editing. Choosing a time in the snooze menu opened with `h` or a row's snooze button, and Edit or Discard in the menu of a draft kept only on this computer, no longer fail.
 - Dialogs — account setup, Settings, the keyboard shortcuts, the command palette and the others — take the keyboard focus when they open, keep Tab inside, give the focus back when they close, and tell screen readers that they are modal and what they are called.
-- Screen readers name every switch and dropdown in Settings and the composer's From and Subject, and hear which conversation is selected as J and K move through the list. The buttons on a row are reached with Tab on the selected row only, and show while they have the focus; whatever has the keyboard focus shows a ring.
+- Screen readers name every switch and dropdown in Settings, the fields of the rule and contact editors and of the server settings in account setup, and the composer's From and Subject, and hear which conversation is selected as J and K move through the list. The buttons on a row are reached with Tab on the selected row only, and show while they have the focus; whatever has the keyboard focus shows a ring.
 
 ## [0.3.0] — 2026-10-29
 

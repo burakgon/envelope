@@ -404,21 +404,21 @@
           <div class="adv">
             <div class="srv">
               <span class="srv-title">{t('onboarding.incomingServer')}</span>
-              <input class="input" placeholder="imap.example.com" bind:value={imap.host} oninput={serversEdited} />
-              <input class="input port" type="number" bind:value={imap.port} oninput={serversEdited} />
-              <select class="input sec" bind:value={imap.security} onchange={() => { serversEdited(); securityPort('imap', imap.security); }}>
+              <input class="input" placeholder="imap.example.com" aria-label={t('onboarding.incomingServer')} bind:value={imap.host} oninput={serversEdited} />
+              <input class="input port" type="number" aria-label={t('accountSettings.port')} bind:value={imap.port} oninput={serversEdited} />
+              <select class="input sec" aria-label={t('accountSettings.security')} bind:value={imap.security} onchange={() => { serversEdited(); securityPort('imap', imap.security); }}>
                 <option value="tls">SSL/TLS</option><option value="startTls">STARTTLS</option><option value="none">{t('onboarding.securityNone')}</option>
               </select>
-              <input class="input" placeholder={t('onboarding.usernamePlaceholder')} bind:value={imap.username} oninput={serversEdited} />
+              <input class="input" placeholder={t('onboarding.usernamePlaceholder')} aria-label={t('onboarding.usernamePlaceholder')} bind:value={imap.username} oninput={serversEdited} />
             </div>
             <div class="srv">
               <span class="srv-title">{t('onboarding.outgoingServer')}</span>
-              <input class="input" placeholder="smtp.example.com" bind:value={smtp.host} oninput={serversEdited} />
-              <input class="input port" type="number" bind:value={smtp.port} oninput={serversEdited} />
-              <select class="input sec" bind:value={smtp.security} onchange={() => { serversEdited(); securityPort('smtp', smtp.security); }}>
+              <input class="input" placeholder="smtp.example.com" aria-label={t('onboarding.outgoingServer')} bind:value={smtp.host} oninput={serversEdited} />
+              <input class="input port" type="number" aria-label={t('accountSettings.port')} bind:value={smtp.port} oninput={serversEdited} />
+              <select class="input sec" aria-label={t('accountSettings.security')} bind:value={smtp.security} onchange={() => { serversEdited(); securityPort('smtp', smtp.security); }}>
                 <option value="tls">SSL/TLS</option><option value="startTls">STARTTLS</option><option value="none">{t('onboarding.securityNone')}</option>
               </select>
-              <input class="input" placeholder={t('onboarding.usernamePlaceholder')} bind:value={smtp.username} oninput={serversEdited} />
+              <input class="input" placeholder={t('onboarding.usernamePlaceholder')} aria-label={t('onboarding.usernamePlaceholder')} bind:value={smtp.username} oninput={serversEdited} />
             </div>
             <div>
               <label class="label" for="pw-caldav">{t('onboarding.caldavLabel')}</label>

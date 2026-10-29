@@ -294,6 +294,7 @@
         <div class="btns">
           <select
             class="input sel"
+            aria-label={t('settings.encryption.useFor')}
             value=""
             onchange={(e) => {
               const email = (e.currentTarget as HTMLSelectElement).value;
