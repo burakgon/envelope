@@ -191,6 +191,8 @@
   "mail.movedToFolderCount": "Déplacé vers {folder} · {count, plural, one {# conversation} other {# conversations}}",
   "mail.deletedForever": "Supprimé définitivement",
   "mail.deletedCount": "{count, plural, one {# conversation supprimée} other {# conversations supprimées}}",
+  "mail.deleteForeverTitle": "{count, plural, one {Supprimer définitivement cette conversation ?} other {Supprimer définitivement # conversations ?}}",
+  "mail.deleteForeverMessage": "{count, plural, one {Elle est aussi supprimée du serveur et ne pourra pas être récupérée.} other {Elles sont aussi supprimées du serveur et ne pourront pas être récupérées.}}",
   "mail.draftsDiscarded": "{count, plural, one {Brouillon supprimé} other {# brouillons supprimés}}",
   "mail.markedRead": "Marqué comme lu",
   "mail.markedUnread": "Marqué comme non lu",

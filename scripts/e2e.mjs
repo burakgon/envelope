@@ -403,6 +403,39 @@ await step('a draft only on this computer is listed in Drafts', async () => {
   await closeComposer();
 });
 
+await step('the trash button discards a draft, and Undo brings it back', async () => {
+  await w.locator('.sidebar .compose').click();
+  await w.locator('.dock .composer .subject input').fill('Lunch plans');
+  await editor().click();
+  await w.keyboard.type('Thai or ramen?');
+  await w.locator('.dock .composer .icon-btn[aria-label="Discard draft"]').click();
+  await w.locator('.dock .composer').waitFor({ state: 'detached', timeout: 5000 });
+  await w.locator('.toast', { hasText: 'Draft discarded' }).locator('.action').click();
+  await w.locator('.dock .composer .subject input').waitFor({ timeout: 5000 });
+  if ((await w.locator('.dock .composer .subject input').inputValue()) !== 'Lunch plans') throw new Error('the subject did not come back');
+  if (!(await editor().innerText()).includes('Thai or ramen?')) throw new Error('the text did not come back');
+  await w.locator('.dock .composer .icon-btn[aria-label="Discard draft"]').click();
+});
+
+await step('deleting forever in Trash asks first, with the count', async () => {
+  await openConversation('Tokyo office visit');
+  await w.locator('body').press('#');
+  await w.locator('.toast', { hasText: 'Moved to Trash' }).first().waitFor({ timeout: 5000 });
+  await w.locator('.search .clear').click();
+  await w.locator('.sidebar .item', { hasText: 'Trash' }).first().click();
+  const row = w.locator('.row', { hasText: 'Tokyo office visit' });
+  await row.click();
+  const ask = w.locator('[role="alertdialog"]');
+  await w.locator('body').press('#');
+  await ask.locator('h3', { hasText: 'Delete this conversation forever?' }).waitFor({ timeout: 5000 });
+  await w.keyboard.press('Escape');
+  await ask.waitFor({ state: 'detached', timeout: 5000 });
+  if (!(await row.count())) throw new Error('Escape deleted it');
+  await w.locator('body').press('#');
+  await ask.locator('button.danger', { hasText: 'Delete forever' }).click();
+  await row.waitFor({ state: 'detached', timeout: 5000 });
+});
+
 await step('reply and forward headers are in the interface language', async () => {
   await w.keyboard.press('Control+,');
   await w.locator('.window select').first().selectOption('de');

@@ -191,6 +191,8 @@
   "mail.movedToFolderCount": "Moved to {folder} · {count, plural, one {# conversation} other {# conversations}}",
   "mail.deletedForever": "Deleted forever",
   "mail.deletedCount": "{count, plural, one {Deleted # conversation} other {Deleted # conversations}}",
+  "mail.deleteForeverTitle": "{count, plural, one {Delete this conversation forever?} other {Delete # conversations forever?}}",
+  "mail.deleteForeverMessage": "{count, plural, one {It is deleted from the server too and can't be brought back.} other {They are deleted from the server too and can't be brought back.}}",
   "mail.draftsDiscarded": "{count, plural, one {Draft discarded} other {# drafts discarded}}",
   "mail.markedRead": "Marked as read",
   "mail.markedUnread": "Marked as unread",

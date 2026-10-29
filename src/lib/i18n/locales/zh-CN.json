@@ -191,6 +191,8 @@
   "mail.movedToFolderCount": "已移至“{folder}” · {count, plural, other {# 个会话}}",
   "mail.deletedForever": "已永久删除",
   "mail.deletedCount": "{count, plural, other {已永久删除 # 个会话}}",
+  "mail.deleteForeverTitle": "{count, plural, other {要永久删除 # 个会话吗？}}",
+  "mail.deleteForeverMessage": "{count, plural, other {也会从服务器删除，且无法恢复。}}",
   "mail.draftsDiscarded": "{count, plural, other {已舍弃 # 个草稿}}",
   "mail.markedRead": "已标为已读",
   "mail.markedUnread": "已标为未读",

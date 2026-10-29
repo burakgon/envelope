@@ -299,7 +299,7 @@
         {#if c.saving}<span class="saved">{t('common.saving')}</span>{:else if c.savedAt}<span class="saved">{t('compose.draftSaved')}</span>{/if}
         <button class="icon-btn" title={t('composer.popOut')} onclick={() => { c.inline = false; }}><More size={17} /></button>
       {/if}
-      <button class="icon-btn" title={t('composer.discardDraft')} onclick={() => compose.discard(c.key)}><Trash size={17} /></button>
+      <button class="icon-btn" title={t('composer.discardDraft')} aria-label={t('composer.discardDraft')} onclick={() => compose.discard(c.key)}><Trash size={17} /></button>
     </footer>
   {/if}
 

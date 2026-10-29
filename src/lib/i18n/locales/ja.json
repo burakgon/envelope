@@ -191,6 +191,8 @@
   "mail.movedToFolderCount": "「{folder}」に移動しました · {count, plural, other {# 件のスレッド}}",
   "mail.deletedForever": "完全に削除しました",
   "mail.deletedCount": "{count, plural, other {# 件のスレッドを完全に削除しました}}",
+  "mail.deleteForeverTitle": "{count, plural, other {# 件のスレッドを完全に削除しますか？}}",
+  "mail.deleteForeverMessage": "{count, plural, other {サーバーからも削除され、元に戻せません。}}",
   "mail.draftsDiscarded": "{count, plural, other {# 件の下書きを破棄しました}}",
   "mail.markedRead": "既読にしました",
   "mail.markedUnread": "未読にしました",

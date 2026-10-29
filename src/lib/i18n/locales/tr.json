@@ -191,6 +191,8 @@
   "mail.movedToFolderCount": "“{folder}” klasörüne taşındı · {count, plural, one {# konuşma} other {# konuşma}}",
   "mail.deletedForever": "Kalıcı olarak silindi",
   "mail.deletedCount": "{count, plural, one {# konuşma silindi} other {# konuşma silindi}}",
+  "mail.deleteForeverTitle": "{count, plural, one {Bu konuşma kalıcı olarak silinsin mi?} other {# konuşma kalıcı olarak silinsin mi?}}",
+  "mail.deleteForeverMessage": "{count, plural, one {Sunucudan da silinir ve geri getirilemez.} other {Sunucudan da silinirler ve geri getirilemezler.}}",
   "mail.draftsDiscarded": "{count, plural, one {Taslak silindi} other {# taslak silindi}}",
   "mail.markedRead": "Okundu olarak işaretlendi",
   "mail.markedUnread": "Okunmadı olarak işaretlendi",

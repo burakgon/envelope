@@ -17,6 +17,7 @@ import type {
   ThreadSummary,
 } from '../api';
 import { errorMessage, toasts } from './toasts.svelte';
+import { dialogs } from './dialogs.svelte';
 import { ui } from './ui.svelte';
 import { t, type MessageKey } from '../i18n';
 import { dateFormat } from '../utils/format';
@@ -508,7 +509,8 @@ class Mail {
     if (local.length) this.discardLocal(local);
     ids = ids.filter((id) => id > 0);
     if (!ids.length) return;
-    const inTrash = this.mailbox.kind === 'folder' && this.folderById.get(this.mailbox.id)?.role === 'trash';
+    const mb = this.mailbox;
+    const inTrash = !this.search && ((mb.kind === 'folder' && this.folderById.get(mb.id)?.role === 'trash') || (mb.kind === 'unified' && mb.role === 'trash'));
     if (inTrash) return this.deleteForever(ids);
     return this.moveTo({ kind: 'trash' }, ids);
   }
@@ -530,8 +532,16 @@ class Mail {
     }
   }
 
+  /** Deletes conversations for good (from Trash), once the question with their count is answered yes. */
   async deleteForever(ids = this.targets()) {
     if (!ids.length) return;
+    const ok = await dialogs.confirm({
+      title: t('mail.deleteForeverTitle', { count: ids.length }),
+      message: t('mail.deleteForeverMessage', { count: ids.length }),
+      confirmLabel: t('threadList.deleteForever'),
+      danger: true,
+    });
+    if (!ok) return;
     this.removeLocally(ids);
     try {
       await api.deleteForever(ids);

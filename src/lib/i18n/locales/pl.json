@@ -191,6 +191,8 @@
   "mail.movedToFolderCount": "Przeniesiono do: {folder} · {count, plural, one {# wątek} few {# wątki} many {# wątków} other {# wątku}}",
   "mail.deletedForever": "Usunięto na zawsze",
   "mail.deletedCount": "{count, plural, one {Usunięto # wątek} few {Usunięto # wątki} many {Usunięto # wątków} other {Usunięto # wątku}}",
+  "mail.deleteForeverTitle": "{count, plural, one {Usunąć ten wątek na zawsze?} few {Usunąć # wątki na zawsze?} many {Usunąć # wątków na zawsze?} other {Usunąć # wątku na zawsze?}}",
+  "mail.deleteForeverMessage": "{count, plural, one {Zostanie usunięty także z serwera i nie da się go przywrócić.} few {Zostaną usunięte także z serwera i nie da się ich przywrócić.} many {Zostaną usunięte także z serwera i nie da się ich przywrócić.} other {Zostaną usunięte także z serwera i nie da się ich przywrócić.}}",
   "mail.draftsDiscarded": "{count, plural, one {Odrzucono wersję roboczą} few {Odrzucono # wersje robocze} many {Odrzucono # wersji roboczych} other {Odrzucono # wersji roboczej}}",
   "mail.markedRead": "Oznaczono jako przeczytane",
   "mail.markedUnread": "Oznaczono jako nieprzeczytane",

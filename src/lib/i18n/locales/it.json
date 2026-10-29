@@ -191,6 +191,8 @@
   "mail.movedToFolderCount": "{count, plural, one {# conversazione spostata in {folder}} other {# conversazioni spostate in {folder}}}",
   "mail.deletedForever": "Eliminato definitivamente",
   "mail.deletedCount": "{count, plural, one {# conversazione eliminata} other {# conversazioni eliminate}}",
+  "mail.deleteForeverTitle": "{count, plural, one {Eliminare definitivamente questa conversazione?} other {Eliminare definitivamente # conversazioni?}}",
+  "mail.deleteForeverMessage": "{count, plural, one {Viene eliminata anche dal server e non si potrà recuperare.} other {Vengono eliminate anche dal server e non si potranno recuperare.}}",
   "mail.draftsDiscarded": "{count, plural, one {Bozza eliminata} other {# bozze eliminate}}",
   "mail.markedRead": "Segnato come letto",
   "mail.markedUnread": "Segnato come da leggere",

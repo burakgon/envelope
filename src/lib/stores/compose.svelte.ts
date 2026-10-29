@@ -33,6 +33,11 @@ function emptyDraft(accountId: number): DraftInput {
   return { accountId, to: [], cc: [], bcc: [], subject: '', html: '', attachments: [], mode: 'new' };
 }
 
+/** Nothing written, nobody to write to, nothing attached. */
+function isEmpty(d: DraftInput): boolean {
+  return !d.subject && d.to.length === 0 && !d.html.replace(/<[^>]*>|\s|&nbsp;/g, '') && d.attachments.length === 0;
+}
+
 function parseMailto(url: string): Partial<DraftInput> {
   try {
     const rest = url.replace(/^mailto:/i, '');
@@ -244,8 +249,7 @@ class Compose {
   async save(key: number, upload: boolean) {
     const c = this.get(key);
     if (!c) return;
-    const empty = !c.data.subject && c.data.to.length === 0 && !c.data.html.replace(/<[^>]*>|\s|&nbsp;/g, '') && c.data.attachments.length === 0;
-    if (empty && c.draftId == null) return;
+    if (isEmpty(c.data) && c.draftId == null) return;
     c.saving = true;
     try {
       c.draftId = await api.saveDraft(c.draftId, $state.snapshot(c.data) as DraftInput, upload);
@@ -279,12 +283,30 @@ class Compose {
     }
   }
 
+  /** Throws a draft away (with its server copy); Undo brings it back as it was. */
   async discard(key: number) {
     const c = this.get(key);
     if (!c) return;
     this.remove(key);
+    const data = $state.snapshot(c.data) as DraftInput;
+    const { inline, threadId } = c;
     if (c.draftId != null) await api.deleteDraft(c.draftId).catch(() => {});
-    toasts.show(t('compose.draftDiscarded'));
+    mail.draftsChanged();
+    if (isEmpty(data)) {
+      toasts.show(t('compose.draftDiscarded'));
+      return;
+    }
+    toasts.undoable(t('compose.draftDiscarded'), async () => {
+      try {
+        const draftId = await api.saveDraft(null, data, false);
+        // Back where it was: under its conversation if that is still open.
+        const here = inline && threadId != null && mail.detail?.thread.id === threadId;
+        this.open(data, { draftId, inline: here, threadId: here ? threadId : null, focus: 1, savedAt: Date.now() });
+        mail.draftsChanged();
+      } catch (e) {
+        toasts.error(errorMessage(e));
+      }
+    });
   }
 
   async send(key: number, sendAt: number | null = null) {
