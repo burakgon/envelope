@@ -4,6 +4,24 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+- Drafts open in the composer: from Drafts, from a draft in a conversation (it opens under it), after a restart, and when they were written on another computer or phone, attachments included. Saving such a draft replaces its copy on the server, and sending or discarding it deletes that copy. Drafts kept only on this computer are listed in Drafts too, marked as such.
+- Formatting in the composer: text color, highlight, size and alignment, clearing formatting, and inserting pictures. Pictures, pasted ones too, go along as inline parts that every mail program shows.
+- Forward as attachment, in a message's menu and a conversation's context menu.
+- Save all… for messages with several attachments: they are saved into a folder at once, and Show in folder opens it.
+- Send asks first when an address doesn't look complete (Edit or Send anyway), and when the text mentions an attachment but nothing is attached (Attach or Send anyway), with the words for it in every interface language.
+- Links in messages show where they go in a small pill while they are pointed at or focused, and warn when their text names another site than the one they open.
+
+### Changed
+- The header above a quoted reply or forwarded message ("On …, … wrote:", "Forwarded message") and its date are written in the interface language.
+- Choosing another From address swaps the signature for that address's and leaves what was written alone; clicking in an empty message writes above the signature, not after it.
+- Deleting forever in Trash asks first, with the number of conversations; a draft thrown away with the composer's trash button comes back with Undo.
+- The inline reply's pop-out button has a pop-out icon, and message frames start close to their size and fit their text as quotes are folded and unfolded.
+
+### Fixed
+- A short plain-text reply was hidden together with the quote below it.
+- An address still being typed when Send was pressed was left out.
+
 ## [0.3.0] — 2026-10-29
 
 ### Added
