@@ -15,7 +15,7 @@ use crate::items::{
 use crate::messages::MAX_FIND_PAGE_SIZE;
 use crate::soap;
 use crate::types::{
-    BaseShape, FolderId, FolderRef, ItemId, ItemRef, ItemShape, Mailbox, PropertyPath,
+    BaseShape, BodyType, FolderId, FolderRef, ItemId, ItemRef, ItemShape, Mailbox, PropertyPath,
     child_datetime, string_list, wire_enum,
 };
 use crate::xml::{Element, XmlWriter};
@@ -40,6 +40,103 @@ pub struct ContactPhone {
     pub key: String,
     /// The number as entered.
     pub number: String,
+}
+
+/// A part of a contact's postal address, in the schema's order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AddressPart {
+    /// `Street` (may span several lines).
+    Street,
+    /// `City`.
+    City,
+    /// `State`.
+    State,
+    /// `CountryOrRegion`.
+    CountryOrRegion,
+    /// `PostalCode`.
+    PostalCode,
+}
+
+impl AddressPart {
+    /// Every part, in the order Exchange wants them written.
+    pub const ALL: [AddressPart; 5] = [
+        AddressPart::Street,
+        AddressPart::City,
+        AddressPart::State,
+        AddressPart::CountryOrRegion,
+        AddressPart::PostalCode,
+    ];
+
+    fn name(self) -> &'static str {
+        match self {
+            AddressPart::Street => "Street",
+            AddressPart::City => "City",
+            AddressPart::State => "State",
+            AddressPart::CountryOrRegion => "CountryOrRegion",
+            AddressPart::PostalCode => "PostalCode",
+        }
+    }
+}
+
+/// A postal address of a contact.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PhysicalAddress {
+    /// `Business`, `Home` or `Other`.
+    pub key: String,
+    /// Street lines.
+    pub street: Option<String>,
+    /// City.
+    pub city: Option<String>,
+    /// State or province.
+    pub state: Option<String>,
+    /// Country or region.
+    pub country_or_region: Option<String>,
+    /// Postal code.
+    pub postal_code: Option<String>,
+}
+
+impl PhysicalAddress {
+    /// One part, when it is not blank.
+    pub fn part(&self, part: AddressPart) -> Option<&str> {
+        match part {
+            AddressPart::Street => &self.street,
+            AddressPart::City => &self.city,
+            AddressPart::State => &self.state,
+            AddressPart::CountryOrRegion => &self.country_or_region,
+            AddressPart::PostalCode => &self.postal_code,
+        }
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    }
+
+    fn from_entry(entry: &Element) -> Option<PhysicalAddress> {
+        // Exchange ends the lines of a street with CR LF.
+        let text = |name: &str| entry.child_text(name).map(|t| t.replace("\r\n", "\n"));
+        let address = PhysicalAddress {
+            key: entry.attr("Key")?.to_owned(),
+            street: text("Street"),
+            city: text("City"),
+            state: text("State"),
+            country_or_region: text("CountryOrRegion"),
+            postal_code: text("PostalCode"),
+        };
+        AddressPart::ALL
+            .iter()
+            .any(|p| address.part(*p).is_some())
+            .then_some(address)
+    }
+
+    fn write_entry(&self, w: &mut XmlWriter, parts: &[AddressPart]) {
+        w.start("t:Entry", &[("Key", self.key.as_str())]);
+        for part in parts {
+            if let Some(value) = self.part(*part) {
+                w.text_element(&format!("t:{}", part.name()), value);
+            }
+        }
+        w.end("t:Entry");
+    }
 }
 
 /// A contact from a contacts folder or the directory.
@@ -76,6 +173,13 @@ pub struct Contact {
     pub phone_numbers: Vec<ContactPhone>,
     /// Birthday.
     pub birthday: Option<DateTime<Utc>>,
+    /// Postal addresses.
+    pub physical_addresses: Vec<PhysicalAddress>,
+    /// `BusinessHomePage`, the contact's web site.
+    pub business_home_page: Option<String>,
+    /// Notes: the item's text body. `None` when the server did not send it
+    /// as text (`FindItem` leaves bodies out; see [`EwsClient::get_contacts`]).
+    pub notes: Option<String>,
     /// Categories.
     pub categories: Vec<String>,
     /// `ActiveDirectory` or `Store`.
@@ -137,6 +241,19 @@ impl Contact {
                 })
                 .unwrap_or_default(),
             birthday: child_datetime(element, "Birthday"),
+            physical_addresses: element
+                .child("PhysicalAddresses")
+                .map(|list| {
+                    list.children_named("Entry")
+                        .filter_map(PhysicalAddress::from_entry)
+                        .collect()
+                })
+                .unwrap_or_default(),
+            business_home_page: element.child_text("BusinessHomePage"),
+            notes: element
+                .child("Body")
+                .filter(|b| b.attr("BodyType") == Some("Text"))
+                .map(|b| b.text().replace("\r\n", "\n").trim().to_owned()),
             categories: string_list(element.child("Categories")),
             source: element.child_text("ContactSource"),
             last_modified: child_datetime(element, "LastModifiedTime"),
@@ -253,7 +370,8 @@ impl EwsClient {
         self.find_items_with(&query, Contact::from_element).await
     }
 
-    /// Fetches contacts by id with all properties. One result per id.
+    /// Fetches contacts by id with all properties, notes included (as
+    /// text). One result per id.
     pub async fn get_contacts(
         &self,
         ids: &[ItemId],
@@ -261,7 +379,7 @@ impl EwsClient {
         let shape = ItemShape {
             base: BaseShape::AllProperties,
             include_mime_content: false,
-            body_type: None,
+            body_type: Some(BodyType::Text),
             additional: Vec::new(),
         };
         let refs: Vec<ItemRef> = ids.iter().map(ItemRef::from).collect();
@@ -342,6 +460,12 @@ pub struct NewContact {
     pub phones: Vec<(String, String)>,
     /// Birthday.
     pub birthday: Option<NaiveDate>,
+    /// Postal addresses, one per key (`Business`, `Home`, `Other`).
+    pub addresses: Vec<PhysicalAddress>,
+    /// Web site (`BusinessHomePage`).
+    pub home_page: Option<String>,
+    /// Notes (the text body).
+    pub notes: Option<String>,
 }
 
 /// One change to an existing contact; `None` clears the field.
@@ -355,6 +479,12 @@ pub enum ContactChange {
     Phone(String, Option<String>),
     /// The birthday.
     Birthday(Option<NaiveDate>),
+    /// One part of the postal address with a key (`Business`, `Home`, `Other`).
+    Address(String, AddressPart, Option<String>),
+    /// The web site.
+    HomePage(Option<String>),
+    /// The notes.
+    Notes(Option<String>),
 }
 
 /// Midday UTC keeps the date the same in every time zone.
@@ -388,7 +518,11 @@ fn create_contact_request(folder: &FolderRef, contact: &NewContact) -> String {
     w.end("m:SavedItemFolderId")
         .start("m:Items", &[])
         .start("t:Contact", &[]);
-    // Exchange insists on the schema's order of elements.
+    // Exchange insists on the schema's order of elements: the item's body
+    // first, then the contact's fields.
+    if let Some(notes) = contact.notes.as_deref().filter(|n| !n.trim().is_empty()) {
+        w.text_element_with("t:Body", &[("BodyType", "Text")], notes);
+    }
     for field in [
         ContactText::DisplayName,
         ContactText::GivenName,
@@ -400,9 +534,28 @@ fn create_contact_request(folder: &FolderRef, contact: &NewContact) -> String {
         }
     }
     write_entries(&mut w, "t:EmailAddresses", &contact.emails);
+    let addresses: Vec<&PhysicalAddress> = contact
+        .addresses
+        .iter()
+        .filter(|a| AddressPart::ALL.iter().any(|p| a.part(*p).is_some()))
+        .collect();
+    if !addresses.is_empty() {
+        w.start("t:PhysicalAddresses", &[]);
+        for address in addresses {
+            address.write_entry(&mut w, &AddressPart::ALL);
+        }
+        w.end("t:PhysicalAddresses");
+    }
     write_entries(&mut w, "t:PhoneNumbers", &contact.phones);
     if let Some(day) = contact.birthday {
         w.text_element("t:Birthday", &birthday_value(day));
+    }
+    if let Some(page) = contact
+        .home_page
+        .as_deref()
+        .filter(|p| !p.trim().is_empty())
+    {
+        w.text_element("t:BusinessHomePage", page.trim());
     }
     for field in [ContactText::JobTitle, ContactText::Surname] {
         if let Some(v) = text(field) {
@@ -463,6 +616,50 @@ fn field_updates(changes: &[ContactChange]) -> Vec<FieldUpdate> {
             ContactChange::Birthday(None) => {
                 FieldUpdate::Delete(PropertyPath::Field("contacts:Birthday".into()))
             }
+            ContactChange::Address(key, part, Some(value)) if !value.trim().is_empty() => {
+                let mut address = PhysicalAddress {
+                    key: key.clone(),
+                    ..PhysicalAddress::default()
+                };
+                let value = Some(value.trim().to_owned());
+                match part {
+                    AddressPart::Street => address.street = value,
+                    AddressPart::City => address.city = value,
+                    AddressPart::State => address.state = value,
+                    AddressPart::CountryOrRegion => address.country_or_region = value,
+                    AddressPart::PostalCode => address.postal_code = value,
+                }
+                FieldUpdate::set(
+                    indexed(&format!("contacts:PhysicalAddress:{}", part.name()), key),
+                    contact_value(|w| {
+                        w.start("t:PhysicalAddresses", &[]);
+                        address.write_entry(w, &[*part]);
+                        w.end("t:PhysicalAddresses");
+                    }),
+                )
+            }
+            ContactChange::Address(key, part, _) => FieldUpdate::Delete(indexed(
+                &format!("contacts:PhysicalAddress:{}", part.name()),
+                key,
+            )),
+            ContactChange::HomePage(Some(page)) if !page.trim().is_empty() => FieldUpdate::set(
+                PropertyPath::Field("contacts:BusinessHomePage".into()),
+                value_xml("Contact", "BusinessHomePage", page.trim()),
+            ),
+            ContactChange::HomePage(_) => {
+                FieldUpdate::Delete(PropertyPath::Field("contacts:BusinessHomePage".into()))
+            }
+            // A body is not deleted, only emptied.
+            ContactChange::Notes(notes) => FieldUpdate::set(
+                PropertyPath::Field("item:Body".into()),
+                contact_value(|w| {
+                    w.text_element_with(
+                        "t:Body",
+                        &[("BodyType", "Text")],
+                        notes.as_deref().unwrap_or_default(),
+                    );
+                }),
+            ),
         })
         .collect()
 }
@@ -579,18 +776,43 @@ mod tests {
     fn parses_store_contacts_and_groups() {
         let root = xml::parse(
             r#"<t:Items xmlns:t="t">
-                 <t:Contact><t:ItemId Id="c1" ChangeKey="k"/><t:DisplayName>Ada Lovelace</t:DisplayName><t:Surname>Lovelace</t:Surname><t:EmailAddresses><t:Entry Key="EmailAddress1" Name="Ada">ada@example.com</t:Entry></t:EmailAddresses><t:Birthday>1815-12-10T12:00:00Z</t:Birthday><t:Categories><t:String>VIP</t:String></t:Categories></t:Contact>
+                 <t:Contact><t:ItemId Id="c1" ChangeKey="k"/><t:Body BodyType="Text">Met at the Royal Society.&#13;
+Prefers letters.</t:Body><t:DisplayName>Ada Lovelace</t:DisplayName><t:Surname>Lovelace</t:Surname><t:EmailAddresses><t:Entry Key="EmailAddress1" Name="Ada">ada@example.com</t:Entry></t:EmailAddresses><t:PhysicalAddresses><t:Entry Key="Home"><t:Street>12 St James's Square&#13;
+Flat 2</t:Street><t:City>London</t:City><t:PostalCode>SW1Y 4JH</t:PostalCode></t:Entry><t:Entry Key="Business"/></t:PhysicalAddresses><t:Birthday>1815-12-10T12:00:00Z</t:Birthday><t:BusinessHomePage>https://ada.example</t:BusinessHomePage><t:Categories><t:String>VIP</t:String></t:Categories></t:Contact>
+                 <t:Contact><t:ItemId Id="c2"/><t:Body BodyType="HTML">&lt;p&gt;Hi&lt;/p&gt;</t:Body><t:DisplayName>Charles Babbage</t:DisplayName></t:Contact>
                  <t:DistributionList><t:ItemId Id="g1"/><t:DisplayName>Team</t:DisplayName></t:DistributionList>
                  <t:Message><t:ItemId Id="m1"/></t:Message>
                </t:Items>"#,
         )
         .unwrap();
         let contacts: Vec<Contact> = root.elements().filter_map(Contact::from_element).collect();
-        assert_eq!(contacts.len(), 2);
+        assert_eq!(contacts.len(), 3);
         assert_eq!(contacts[0].email_addresses[0].name.as_deref(), Some("Ada"));
         assert!(contacts[0].birthday.is_some());
         assert_eq!(contacts[0].categories, vec!["VIP".to_owned()]);
-        assert!(contacts[1].is_group);
+        // Notes and streets with their CR LF line ends as plain new lines; an
+        // address without parts is no address.
+        assert_eq!(
+            contacts[0].notes.as_deref(),
+            Some("Met at the Royal Society.\nPrefers letters.")
+        );
+        assert_eq!(
+            contacts[0].physical_addresses,
+            [PhysicalAddress {
+                key: "Home".into(),
+                street: Some("12 St James's Square\nFlat 2".into()),
+                city: Some("London".into()),
+                postal_code: Some("SW1Y 4JH".into()),
+                ..PhysicalAddress::default()
+            }]
+        );
+        assert_eq!(
+            contacts[0].business_home_page.as_deref(),
+            Some("https://ada.example")
+        );
+        // An HTML body is not taken for notes.
+        assert_eq!(contacts[1].notes, None);
+        assert!(contacts[2].is_group);
     }
 
     #[test]
@@ -625,6 +847,15 @@ mod tests {
             emails: vec![("EmailAddress1".into(), "ada@example.com".into())],
             phones: vec![("MobilePhone".into(), "+44 20 7946 0000".into())],
             birthday: NaiveDate::from_ymd_opt(1815, 12, 10),
+            addresses: vec![PhysicalAddress {
+                key: "Home".into(),
+                street: Some("12 St James's Square".into()),
+                city: Some("London".into()),
+                postal_code: Some("SW1Y 4JH".into()),
+                ..PhysicalAddress::default()
+            }],
+            home_page: Some("https://ada.example".into()),
+            notes: Some("Prefers letters.".into()),
         };
         assert_eq!(
             create_contact_request(
@@ -632,10 +863,14 @@ mod tests {
                 &contact
             ),
             "<m:CreateItem><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"contacts\"/></m:SavedItemFolderId>\
-             <m:Items><t:Contact><t:DisplayName>Ada Lovelace</t:DisplayName><t:GivenName>Ada</t:GivenName>\
+             <m:Items><t:Contact><t:Body BodyType=\"Text\">Prefers letters.</t:Body>\
+             <t:DisplayName>Ada Lovelace</t:DisplayName><t:GivenName>Ada</t:GivenName>\
              <t:EmailAddresses><t:Entry Key=\"EmailAddress1\">ada@example.com</t:Entry></t:EmailAddresses>\
+             <t:PhysicalAddresses><t:Entry Key=\"Home\"><t:Street>12 St James&apos;s Square</t:Street><t:City>London</t:City>\
+             <t:PostalCode>SW1Y 4JH</t:PostalCode></t:Entry></t:PhysicalAddresses>\
              <t:PhoneNumbers><t:Entry Key=\"MobilePhone\">+44 20 7946 0000</t:Entry></t:PhoneNumbers>\
-             <t:Birthday>1815-12-10T12:00:00Z</t:Birthday><t:JobTitle>Analyst</t:JobTitle><t:Surname>Lovelace</t:Surname>\
+             <t:Birthday>1815-12-10T12:00:00Z</t:Birthday><t:BusinessHomePage>https://ada.example</t:BusinessHomePage>\
+             <t:JobTitle>Analyst</t:JobTitle><t:Surname>Lovelace</t:Surname>\
              </t:Contact></m:Items></m:CreateItem>"
         );
     }
@@ -656,10 +891,19 @@ mod tests {
                     ContactChange::Text(ContactText::Nickname, None),
                     ContactChange::Email("EmailAddress2".into(), Some("ada@work.example".into())),
                     ContactChange::Phone("HomePhone".into(), None),
+                    ContactChange::Address("Home".into(), AddressPart::City, Some("London".into())),
+                    ContactChange::Address("Business".into(), AddressPart::PostalCode, None),
+                    ContactChange::HomePage(Some("https://ada.example".into())),
+                    ContactChange::Notes(None),
                 ]),
             )],
             &UpdateAttributes::default(),
         );
+        assert!(body.contains("<t:SetItemField><t:IndexedFieldURI FieldURI=\"contacts:PhysicalAddress:City\" FieldIndex=\"Home\"/><t:Contact><t:PhysicalAddresses><t:Entry Key=\"Home\"><t:City>London</t:City></t:Entry></t:PhysicalAddresses></t:Contact></t:SetItemField>"), "{body}");
+        assert!(body.contains("<t:DeleteItemField><t:IndexedFieldURI FieldURI=\"contacts:PhysicalAddress:PostalCode\" FieldIndex=\"Business\"/></t:DeleteItemField>"), "{body}");
+        assert!(body.contains("<t:SetItemField><t:FieldURI FieldURI=\"contacts:BusinessHomePage\"/><t:Contact><t:BusinessHomePage>https://ada.example</t:BusinessHomePage></t:Contact></t:SetItemField>"), "{body}");
+        // Notes are emptied rather than deleted.
+        assert!(body.contains("<t:SetItemField><t:FieldURI FieldURI=\"item:Body\"/><t:Contact><t:Body BodyType=\"Text\"></t:Body></t:Contact></t:SetItemField>"), "{body}");
         assert!(body.contains("<t:SetItemField><t:FieldURI FieldURI=\"contacts:CompanyName\"/><t:Contact><t:CompanyName>Analytical Engines</t:CompanyName></t:Contact></t:SetItemField>"), "{body}");
         assert!(body.contains("<t:DeleteItemField><t:FieldURI FieldURI=\"contacts:Nickname\"/></t:DeleteItemField>"), "{body}");
         assert!(body.contains("<t:SetItemField><t:IndexedFieldURI FieldURI=\"contacts:EmailAddress\" FieldIndex=\"EmailAddress2\"/><t:Contact><t:EmailAddresses><t:Entry Key=\"EmailAddress2\">ada@work.example</t:Entry></t:EmailAddresses></t:Contact></t:SetItemField>"), "{body}");

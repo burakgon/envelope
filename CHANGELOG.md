@@ -18,6 +18,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Rules can run on the mail already here: "Also apply to existing messages" when saving one, and "Run now" beside each, with a count and Undo.
 - Follow-up reminders can be marked Done or come back later ("Remind me again…").
 - A banner above the message list when an account needs a new sign-in (with Sign in) or keeps failing to sync (with Retry and Details); the account's entry in Settings says the same.
+- Exchange contacts keep postal addresses (work, home and other), a web site and notes, both ways; the contact editor shows these fields for Exchange address books too.
 
 ### Changed
 - The header above a quoted reply or forwarded message ("On …, … wrote:", "Forwarded message") and its date are written in the interface language.

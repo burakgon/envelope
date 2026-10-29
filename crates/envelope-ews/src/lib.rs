@@ -129,8 +129,8 @@ pub use client::{
     EWS_PATH, EwsClient, EwsClientBuilder, RetryPolicy,
 };
 pub use contacts::{
-    Contact, ContactChange, ContactEmail, ContactPhone, ContactText, NewContact, ResolveScope,
-    ResolvedName,
+    AddressPart, Contact, ContactChange, ContactEmail, ContactPhone, ContactText, NewContact,
+    PhysicalAddress, ResolveScope, ResolvedName,
 };
 pub use error::{EwsError, ResponseCode, ResponseError, Result, SoapFault};
 pub use folders::{

@@ -7,8 +7,8 @@
   import { Camera, Plus, X } from '../../icons';
 
   const c = people.editing!;
-  // Exchange contacts keep names, addresses, numbers, company and birthday only.
-  const limited = $derived(people.books.find((b) => b.id === c.bookId)?.kind === 'ews');
+  // Exchange keeps three e-mail addresses and three postal addresses (work, home, other).
+  const most = $derived(people.books.find((b) => b.id === c.bookId)?.kind === 'ews' ? 3 : Infinity);
   let first: HTMLInputElement | undefined = $state();
   let file: HTMLInputElement | undefined = $state();
   onMount(() => first?.focus());
@@ -90,7 +90,9 @@
         <button class="icon-btn sm" aria-label={t('common.remove')} onclick={() => remove(c.emails, i)}><X size={14} /></button>
       </div>
     {/each}
-    <button class="add" onclick={() => add(c.emails, c.emails.length ? 'home' : 'work')}><Plus size={14} />{t('contacts.addEmail')}</button>
+    {#if c.emails.length < most}
+      <button class="add" onclick={() => add(c.emails, c.emails.length ? 'home' : 'work')}><Plus size={14} />{t('contacts.addEmail')}</button>
+    {/if}
   </div>
 
   <div class="group">
@@ -105,47 +107,41 @@
     <button class="add" onclick={() => add(c.phones, 'mobile')}><Plus size={14} />{t('contacts.addPhone')}</button>
   </div>
 
-  {#if !limited}
-    <div class="group">
-      <div class="label">{t('contacts.address')}</div>
-      {#each c.addresses as a, i (i)}
-        <div class="line top-align">
-          <select class="input sel" bind:value={a.label}>{#each addressLabels as l (l)}<option value={l}>{fieldLabel(l)}</option>{/each}</select>
-          <textarea class="input area" rows="3" placeholder={t('contacts.addressPlaceholder')} bind:value={a.value}></textarea>
-          <button class="icon-btn sm" aria-label={t('common.remove')} onclick={() => remove(c.addresses, i)}><X size={14} /></button>
-        </div>
-      {/each}
+  <div class="group">
+    <div class="label">{t('contacts.address')}</div>
+    {#each c.addresses as a, i (i)}
+      <div class="line top-align">
+        <select class="input sel" bind:value={a.label}>{#each addressLabels as l (l)}<option value={l}>{fieldLabel(l)}</option>{/each}</select>
+        <textarea class="input area" rows="3" placeholder={t('contacts.addressPlaceholder')} bind:value={a.value}></textarea>
+        <button class="icon-btn sm" aria-label={t('common.remove')} onclick={() => remove(c.addresses, i)}><X size={14} /></button>
+      </div>
+    {/each}
+    {#if c.addresses.length < most}
       <button class="add" onclick={() => add(c.addresses, 'home')}><Plus size={14} />{t('contacts.addAddress')}</button>
-    </div>
-  {/if}
+    {/if}
+  </div>
 
   <div class="group two-col">
     <div>
       <label class="label" for="ct-bday">{t('contacts.birthday')}</label>
       <input id="ct-bday" class="input" placeholder={t('contacts.birthdayPlaceholder')} bind:value={c.birthday} />
     </div>
-    {#if !limited}
-      <div>
-        <label class="label" for="ct-web">{t('contacts.website')}</label>
-        <input
-          id="ct-web"
-          class="input"
-          placeholder="https://"
-          value={c.urls[0] ?? ''}
-          oninput={(e) => (c.urls = [(e.currentTarget as HTMLInputElement).value, ...c.urls.slice(1)])}
-        />
-      </div>
-    {/if}
+    <div>
+      <label class="label" for="ct-web">{t('contacts.website')}</label>
+      <input
+        id="ct-web"
+        class="input"
+        placeholder="https://"
+        value={c.urls[0] ?? ''}
+        oninput={(e) => (c.urls = [(e.currentTarget as HTMLInputElement).value, ...c.urls.slice(1)])}
+      />
+    </div>
   </div>
 
-  {#if limited}
-    <p class="hint">{t('contacts.exchangeLimited')}</p>
-  {:else}
-    <div class="group">
-      <label class="label" for="ct-notes">{t('contacts.notes')}</label>
-      <textarea id="ct-notes" class="input area" rows="4" bind:value={c.notes}></textarea>
-    </div>
-  {/if}
+  <div class="group">
+    <label class="label" for="ct-notes">{t('contacts.notes')}</label>
+    <textarea id="ct-notes" class="input area" rows="4" bind:value={c.notes}></textarea>
+  </div>
 
   {#if c.id == null && people.writable.length > 1}
     <div class="group">
@@ -278,11 +274,5 @@
     justify-content: flex-end;
     gap: 8px;
     padding-top: 8px;
-  }
-  .hint {
-    margin: 0;
-    font-size: var(--text-sm);
-    line-height: 1.5;
-    color: var(--text-3);
   }
 </style>

@@ -1157,7 +1157,6 @@
   "contacts.added": "联系人已添加",
   "contacts.saved": "联系人已保存",
   "contacts.deleted": "已删除 {name}",
-  "contacts.exchangeLimited": "Exchange 联系人只保存姓名、电子邮件地址、电话号码、公司、职位和生日。",
 
   "tasks.sidebar.mode": "任务",
   "tasks.sidebar.newTask": "新建任务",

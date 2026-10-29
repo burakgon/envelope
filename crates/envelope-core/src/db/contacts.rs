@@ -38,6 +38,9 @@ pub struct BookSyncState {
     /// Graph: id of the folder behind the default address book.
     pub folder_id: Option<String>,
     pub last_sync: Option<i64>,
+    /// Exchange: which fields the stored contacts were read with. Contacts
+    /// read with fewer are read again in full once.
+    pub fields: u32,
 }
 
 #[derive(Debug, Clone)]

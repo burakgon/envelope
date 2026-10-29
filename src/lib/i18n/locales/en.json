@@ -1157,7 +1157,6 @@
   "contacts.added": "Contact added",
   "contacts.saved": "Contact saved",
   "contacts.deleted": "Deleted {name}",
-  "contacts.exchangeLimited": "Exchange keeps only names, e-mail addresses, phone numbers, company, job title and birthday for contacts.",
 
   "tasks.sidebar.mode": "Tasks",
   "tasks.sidebar.newTask": "New task",

@@ -1499,6 +1499,10 @@ mod tests;
 /// The Contacts folder of an Exchange mailbox.
 const EWS_BOOK: &str = "ews:contacts";
 
+/// The fields read from Exchange contacts: 1 names, addresses, numbers,
+/// company and birthday; 2 also postal addresses, web site and notes.
+const EWS_FIELDS: u32 = 2;
+
 async fn ews_sync(engine: &Engine, account: &AccountRow, pull: bool) -> Result<Vec<i64>> {
     let account_id = account.id;
     let upsert = BookUpsert {
@@ -1531,8 +1535,13 @@ async fn ews_sync(engine: &Engine, account: &AccountRow, pull: bool) -> Result<V
     if !pull {
         return Ok(changed);
     }
-    let mut items = Vec::new();
+    // FindItem lists the contacts without their notes, so new and changed
+    // ones are read again with GetItem; every one of them once when they
+    // were stored before Envelope read postal addresses, web sites and notes.
+    let stored = engine.db.read(|c| cdb::remote_index(c, book.id))?;
+    let read_all = book.sync_state.fields < EWS_FIELDS;
     let mut seen = HashSet::new();
+    let mut fetch = Vec::new();
     let mut offset = 0;
     loop {
         let page = mail
@@ -1545,10 +1554,36 @@ async fn ews_sync(engine: &Engine, account: &AccountRow, pull: bool) -> Result<V
             if c.is_group {
                 continue;
             }
-            let Some(id) = c.id.clone() else {
+            let Some(id) = c.id else {
                 continue;
             };
             seen.insert(id.id.clone());
+            let unchanged = !read_all
+                && id.change_key.is_some()
+                && stored
+                    .get(&id.id)
+                    .is_some_and(|(etag, _)| *etag == id.change_key);
+            if !unchanged {
+                fetch.push(id);
+            }
+        }
+        match page.next_offset {
+            Some(next) if !page.includes_last_item_in_range && count > 0 => offset = next,
+            _ => break,
+        }
+    }
+    let mut items = Vec::new();
+    if !fetch.is_empty() {
+        let read = mail
+            .client()
+            .get_contacts(&fetch)
+            .await
+            .map_err(super::ews::ews_error)?;
+        // One gone since it was listed is swept at the next sync.
+        for c in read.into_iter().flatten() {
+            let Some(id) = c.id.clone() else {
+                continue;
+            };
             items.push(SyncedContact {
                 remote_id: id.id.clone(),
                 etag: id.change_key.clone(),
@@ -1559,13 +1594,9 @@ async fn ews_sync(engine: &Engine, account: &AccountRow, pull: bool) -> Result<V
                 is_group: false,
             });
         }
-        match page.next_offset {
-            Some(next) if !page.includes_last_item_in_range && count > 0 => offset = next,
-            _ => break,
-        }
     }
     let book_id = book.id;
-    let listed = !seen.is_empty();
+    let read_any = !items.is_empty();
     let swept = engine
         .db
         .write_async(move |tx| {
@@ -1577,12 +1608,11 @@ async fn ews_sync(engine: &Engine, account: &AccountRow, pull: bool) -> Result<V
         .await?;
     let mut state = book.sync_state.clone();
     state.last_sync = Some(now_ms());
+    state.fields = EWS_FIELDS;
     engine
         .db
         .write(|tx| cdb::set_book_sync_state(tx, book_id, &state))?;
-    // Unchanged contacts are rewritten in place; report the book as changed
-    // when anything could have moved.
-    if swept > 0 || listed {
+    if swept > 0 || read_any {
         changed.push(book_id);
     }
     Ok(changed)
@@ -1650,12 +1680,101 @@ fn ews_contact(c: &envelope_ews::Contact, id: &str) -> Contact {
             .collect(),
         organization: c.company_name.clone().filter(|s| !s.trim().is_empty()),
         title: c.job_title.clone().filter(|s| !s.trim().is_empty()),
-        note: None,
+        note: c.notes.clone().filter(|n| !n.trim().is_empty()),
         birthday: c.birthday.map(|b| b.date_naive()),
         photo: None,
-        addresses: Vec::new(),
-        urls: Vec::new(),
+        addresses: c.physical_addresses.iter().map(ews_address).collect(),
+        urls: c
+            .business_home_page
+            .iter()
+            .map(|url| ContactField {
+                value: url.clone(),
+                kind: Some("work".to_owned()),
+                preferred: false,
+            })
+            .collect(),
     }
+}
+
+/// An Exchange postal address in the shared model.
+fn ews_address(a: &envelope_ews::PhysicalAddress) -> envelope_ical::ContactAddress {
+    use envelope_ews::AddressPart as P;
+    let part = |p| a.part(p).unwrap_or_default().to_owned();
+    envelope_ical::ContactAddress {
+        kind: Some(
+            match a.key.as_str() {
+                "Business" => "work",
+                "Home" => "home",
+                _ => "other",
+            }
+            .to_owned(),
+        ),
+        street: part(P::Street),
+        locality: part(P::City),
+        region: part(P::State),
+        postal_code: part(P::PostalCode),
+        country: part(P::CountryOrRegion),
+        ..Default::default()
+    }
+}
+
+/// A postal address as Exchange keeps it, under `key`. Exchange has no
+/// fields for a post office box or an extended address: they go into the
+/// street.
+fn ews_physical(a: &envelope_ical::ContactAddress, key: &str) -> envelope_ews::PhysicalAddress {
+    let text = |v: &str| Some(v.trim().to_owned()).filter(|v| !v.is_empty());
+    let street = [&a.po_box, &a.extended, &a.street]
+        .iter()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    envelope_ews::PhysicalAddress {
+        key: key.to_owned(),
+        street: text(&street),
+        city: text(&a.locality),
+        state: text(&a.region),
+        country_or_region: text(&a.country),
+        postal_code: text(&a.postal_code),
+    }
+}
+
+/// Exchange's address keys for a kind of address, in the order they are used.
+fn ews_address_keys(kind: Option<&str>) -> [&'static str; 3] {
+    match kind.map(str::to_ascii_lowercase).as_deref() {
+        Some("work") => ["Business", "Other", "Home"],
+        Some("home") => ["Home", "Other", "Business"],
+        _ => ["Other", "Home", "Business"],
+    }
+}
+
+/// Places postal addresses on Exchange's three keys. `taken` are keys
+/// already in use; addresses without a free key are left out.
+fn place_addresses<'a>(
+    addresses: impl Iterator<Item = &'a envelope_ical::ContactAddress>,
+    taken: &mut Vec<String>,
+) -> Vec<envelope_ews::PhysicalAddress> {
+    let mut placed = Vec::new();
+    for address in addresses {
+        let key = ews_address_keys(address.kind.as_deref())
+            .into_iter()
+            .find(|k| !taken.iter().any(|t| t == k));
+        if let Some(key) = key {
+            taken.push(key.to_owned());
+            placed.push(ews_physical(address, key));
+        }
+    }
+    placed
+}
+
+/// The first web site, which Exchange keeps as the business home page.
+fn ews_home_page(contact: &Contact) -> Option<String> {
+    contact
+        .urls
+        .iter()
+        .map(|u| u.value.trim())
+        .find(|u| !u.is_empty())
+        .map(str::to_owned)
 }
 
 impl From<envelope_ews::EwsError> for Failure {
@@ -1767,11 +1886,17 @@ fn ews_new(contact: &Contact) -> envelope_ews::NewContact {
             &mut taken,
         ),
         birthday: contact.birthday,
+        addresses: place_addresses(
+            contact.addresses.iter().filter(|a| !a.is_empty()),
+            &mut Vec::new(),
+        ),
+        home_page: ews_home_page(contact),
+        notes: non_empty(&contact.note),
     }
 }
 
 /// The changes that turn the contact on the server into `desired`, leaving
-/// what Envelope does not show (other phone keys, addresses, notes) alone.
+/// what Envelope does not show (middle name, other phone keys) alone.
 fn ews_changes(
     server: &envelope_ews::Contact,
     desired: &Contact,
@@ -1852,6 +1977,52 @@ fn ews_changes(
 
     if server.birthday.map(|b| b.date_naive()) != desired.birthday {
         changes.push(C::Birthday(desired.birthday));
+    }
+
+    // Addresses on the server that are wanted under the same kind stay on
+    // their keys; the rest take free keys, and each key's parts are set or
+    // cleared where they differ.
+    let mut kept_keys: Vec<String> = Vec::new();
+    let mut moved = Vec::new();
+    for address in desired.addresses.iter().filter(|a| !a.is_empty()) {
+        let key = ews_address_keys(address.kind.as_deref())[0];
+        let wanted = ews_physical(address, key);
+        let same = |s: &&envelope_ews::PhysicalAddress| {
+            s.key == key
+                && envelope_ews::AddressPart::ALL
+                    .iter()
+                    .all(|p| s.part(*p) == wanted.part(*p))
+        };
+        match server.physical_addresses.iter().find(same) {
+            Some(s) if !kept_keys.contains(&s.key) => kept_keys.push(s.key.clone()),
+            _ => moved.push(address),
+        }
+    }
+    let mut taken = kept_keys.clone();
+    let placed = place_addresses(moved.into_iter(), &mut taken);
+    for key in ["Business", "Home", "Other"] {
+        if kept_keys.iter().any(|k| k == key) {
+            continue;
+        }
+        let have = server.physical_addresses.iter().find(|a| a.key == key);
+        let want = placed.iter().find(|a| a.key == key);
+        for part in envelope_ews::AddressPart::ALL {
+            let value = want.and_then(|a| a.part(part));
+            if have.and_then(|a| a.part(part)) != value {
+                changes.push(C::Address(key.to_owned(), part, value.map(str::to_owned)));
+            }
+        }
+    }
+
+    let page = ews_home_page(desired);
+    if non_empty(&server.business_home_page) != page {
+        changes.push(C::HomePage(page));
+    }
+    // Notes the server did not send are left alone.
+    if let Some(notes) = &server.notes
+        && notes.trim() != desired.note.as_deref().unwrap_or_default().trim()
+    {
+        changes.push(C::Notes(non_empty(&desired.note)));
     }
     changes
 }

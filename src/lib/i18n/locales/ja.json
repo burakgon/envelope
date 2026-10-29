@@ -1157,7 +1157,6 @@
   "contacts.added": "連絡先を追加しました",
   "contacts.saved": "連絡先を保存しました",
   "contacts.deleted": "「{name}」を削除しました",
-  "contacts.exchangeLimited": "Exchange の連絡先に保存されるのは、名前、メールアドレス、電話番号、会社、役職、誕生日のみです。",
 
   "tasks.sidebar.mode": "タスク",
   "tasks.sidebar.newTask": "新しいタスク",

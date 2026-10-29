@@ -1157,7 +1157,6 @@
   "contacts.added": "Contact ajouté",
   "contacts.saved": "Contact enregistré",
   "contacts.deleted": "Contact supprimé : {name}",
-  "contacts.exchangeLimited": "Pour les contacts, Exchange ne conserve que le nom, les adresses e-mail, les numéros de téléphone, l’entreprise, la fonction et l’anniversaire.",
 
   "tasks.sidebar.mode": "Tâches",
   "tasks.sidebar.newTask": "Nouvelle tâche",

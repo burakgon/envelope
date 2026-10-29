@@ -1157,7 +1157,6 @@
   "contacts.added": "Dodano kontakt",
   "contacts.saved": "Zapisano kontakt",
   "contacts.deleted": "Usunięto kontakt {name}",
-  "contacts.exchangeLimited": "Exchange przechowuje w kontaktach imię i nazwisko, adresy e-mail, numery telefonów, firmę, stanowisko i datę urodzin.",
 
   "tasks.sidebar.mode": "Zadania",
   "tasks.sidebar.newTask": "Nowe zadanie",

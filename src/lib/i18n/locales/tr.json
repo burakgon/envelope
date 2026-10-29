@@ -1157,7 +1157,6 @@
   "contacts.added": "Kişi eklendi",
   "contacts.saved": "Kişi kaydedildi",
   "contacts.deleted": "{name} silindi",
-  "contacts.exchangeLimited": "Exchange, kişiler için ad, e-posta adresi, telefon numarası, şirket, unvan ve doğum günü bilgilerini saklar.",
 
   "tasks.sidebar.mode": "Görevler",
   "tasks.sidebar.newTask": "Yeni görev",

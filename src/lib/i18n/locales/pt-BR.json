@@ -1157,7 +1157,6 @@
   "contacts.added": "Contato adicionado",
   "contacts.saved": "Contato salvo",
   "contacts.deleted": "Contato {name} excluído",
-  "contacts.exchangeLimited": "O Exchange guarda apenas nome, endereços de e-mail, telefones, empresa, cargo e aniversário dos contatos.",
 
   "tasks.sidebar.mode": "Tarefas",
   "tasks.sidebar.newTask": "Nova tarefa",

@@ -1228,6 +1228,15 @@ fn maps_exchange_contacts() {
             },
         ],
         birthday: None,
+        physical_addresses: vec![envelope_ews::PhysicalAddress {
+            key: "Home".into(),
+            street: Some("221B Baker Street".into()),
+            city: Some("London".into()),
+            postal_code: Some("NW1 6XE".into()),
+            ..Default::default()
+        }],
+        business_home_page: Some("https://lumen.dev".into()),
+        notes: Some("Prefers calls after ten.".into()),
         categories: vec![],
         source: Some("Store".into()),
         last_modified: None,
@@ -1243,6 +1252,13 @@ fn maps_exchange_contacts() {
         .map(|p| p.kind.clone().unwrap_or_default())
         .collect();
     assert_eq!(kinds, vec!["cell", "work"]);
+    assert_eq!(mapped.note.as_deref(), Some("Prefers calls after ten."));
+    assert_eq!(mapped.urls[0].value, "https://lumen.dev");
+    assert_eq!(mapped.addresses[0].kind.as_deref(), Some("home"));
+    assert_eq!(
+        mapped.addresses[0].formatted(),
+        "221B Baker Street\nNW1 6XE London"
+    );
 }
 
 #[test]
@@ -1285,6 +1301,14 @@ fn exchange_edits_touch_only_what_changed() {
             },
         ],
         birthday: None,
+        physical_addresses: vec![envelope_ews::PhysicalAddress {
+            key: "Home".into(),
+            street: Some("221B Baker Street".into()),
+            city: Some("London".into()),
+            ..Default::default()
+        }],
+        business_home_page: None,
+        notes: Some("Prefers calls after ten.".into()),
         categories: Vec::new(),
         source: None,
         last_modified: None,
@@ -1340,4 +1364,285 @@ fn exchange_edits_touch_only_what_changed() {
         ["HomePhone", "HomePhone2", "OtherTelephone", "PrimaryPhone"]
     );
     assert!(new.text.contains(&(T::DisplayName, "Ada Lovelace".into())));
+}
+
+#[test]
+fn exchange_edits_place_addresses_by_kind() {
+    use envelope_ews::{AddressPart as P, ContactChange as C};
+    let address = |kind: &str, street: &str, city: &str| envelope_ical::ContactAddress {
+        kind: Some(kind.into()),
+        street: street.into(),
+        locality: city.into(),
+        ..Default::default()
+    };
+    let server = envelope_ews::Contact {
+        id: None,
+        parent_folder_id: None,
+        is_group: false,
+        display_name: Some("Daniel Okafor".into()),
+        file_as: None,
+        given_name: None,
+        middle_name: None,
+        surname: None,
+        nickname: None,
+        company_name: None,
+        department: None,
+        job_title: None,
+        email_addresses: Vec::new(),
+        phone_numbers: Vec::new(),
+        birthday: None,
+        physical_addresses: vec![
+            envelope_ews::PhysicalAddress {
+                key: "Home".into(),
+                street: Some("221B Baker Street".into()),
+                city: Some("London".into()),
+                ..Default::default()
+            },
+            envelope_ews::PhysicalAddress {
+                key: "Other".into(),
+                street: Some("1 Lake Road".into()),
+                city: Some("Keswick".into()),
+                ..Default::default()
+            },
+        ],
+        business_home_page: Some("https://lumen.dev".into()),
+        notes: Some("Prefers calls.".into()),
+        categories: Vec::new(),
+        source: None,
+        last_modified: None,
+    };
+    let mut desired = ews_contact(&server, "AAMk1");
+    assert_eq!(ews_changes(&server, &desired), []);
+
+    // The home address becomes a work address (it moves to Business), the
+    // second one goes, and a new home address takes Home; the web site and
+    // the notes change.
+    desired.addresses = vec![
+        address("work", "221B Baker Street", "London"),
+        address("home", "4 Privet Drive", "Little Whinging"),
+    ];
+    desired.urls.clear();
+    desired.note = Some("Prefers e-mail.".into());
+    assert_eq!(
+        ews_changes(&server, &desired),
+        [
+            C::Address(
+                "Business".into(),
+                P::Street,
+                Some("221B Baker Street".into())
+            ),
+            C::Address("Business".into(), P::City, Some("London".into())),
+            C::Address("Home".into(), P::Street, Some("4 Privet Drive".into())),
+            C::Address("Home".into(), P::City, Some("Little Whinging".into())),
+            C::Address("Other".into(), P::Street, None),
+            C::Address("Other".into(), P::City, None),
+            C::HomePage(None),
+            C::Notes(Some("Prefers e-mail.".into())),
+        ]
+    );
+
+    // Notes the server did not send are not touched.
+    let unknown = envelope_ews::Contact {
+        notes: None,
+        ..server.clone()
+    };
+    let mut desired = ews_contact(&server, "AAMk1");
+    desired.note = None;
+    assert_eq!(ews_changes(&unknown, &desired), []);
+
+    // A new contact: two home addresses take Home and then Other, a fourth
+    // address finds no key left.
+    let new = ews_new(&Contact {
+        name: "Ada Lovelace".into(),
+        addresses: vec![
+            address("home", "12 St James's Square", "London"),
+            address("home", "Ockham Park", "Surrey"),
+            address("work", "1 Engine Lane", "London"),
+            address("other", "Somewhere", "Else"),
+        ],
+        urls: vec![envelope_ical::ContactField {
+            value: "https://ada.example".into(),
+            kind: None,
+            preferred: false,
+        }],
+        note: Some("Prefers letters.".into()),
+        ..Default::default()
+    });
+    assert_eq!(
+        new.addresses
+            .iter()
+            .map(|a| a.key.as_str())
+            .collect::<Vec<_>>(),
+        ["Home", "Other", "Business"]
+    );
+    assert_eq!(new.home_page.as_deref(), Some("https://ada.example"));
+    assert_eq!(new.notes.as_deref(), Some("Prefers letters."));
+}
+
+/// An Exchange server with a contacts folder: FindItem lists `(id, change
+/// key, name, notes)` without the notes, GetItem returns them in full.
+#[derive(Clone, Default)]
+struct ExchangeContacts {
+    contacts: Arc<Mutex<Vec<(String, String, String, String)>>>,
+    /// The ids each GetItem asked for.
+    reads: Arc<Mutex<Vec<Vec<String>>>>,
+}
+
+impl wiremock::Respond for ExchangeContacts {
+    fn respond(&self, request: &wiremock::Request) -> ResponseTemplate {
+        const NS: &str = concat!(
+            r#"xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" "#,
+            r#"xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types""#
+        );
+        let body = String::from_utf8_lossy(&request.body).into_owned();
+        let contacts = self.contacts.lock().clone();
+        let (op, messages) = if body.contains("<m:FindItem") {
+            let items: String = contacts
+                .iter()
+                .map(|(id, key, name, _)| {
+                    format!(r#"<t:Contact><t:ItemId Id="{id}" ChangeKey="{key}"/><t:DisplayName>{name}</t:DisplayName></t:Contact>"#)
+                })
+                .collect();
+            let found = format!(
+                r#"<m:FindItemResponseMessage ResponseClass="Success"><m:ResponseCode>NoError</m:ResponseCode><m:RootFolder IndexedPagingOffset="{n}" TotalItemsInView="{n}" IncludesLastItemInRange="true"><t:Items>{items}</t:Items></m:RootFolder></m:FindItemResponseMessage>"#,
+                n = contacts.len()
+            );
+            ("FindItem", found)
+        } else {
+            let ids: Vec<String> = body
+                .split(r#"<t:ItemId Id=""#)
+                .skip(1)
+                .filter_map(|rest| rest.split('"').next().map(str::to_owned))
+                .collect();
+            let messages = ids
+                .iter()
+                .map(|wanted| match contacts.iter().find(|(id, ..)| id == wanted) {
+                    Some((id, key, name, notes)) => format!(
+                        r#"<m:GetItemResponseMessage ResponseClass="Success"><m:ResponseCode>NoError</m:ResponseCode><m:Items><t:Contact><t:ItemId Id="{id}" ChangeKey="{key}"/><t:Body BodyType="Text">{notes}</t:Body><t:DisplayName>{name}</t:DisplayName><t:PhysicalAddresses><t:Entry Key="Business"><t:Street>1 Market St</t:Street><t:City>San Francisco</t:City><t:State>CA</t:State><t:PostalCode>94105</t:PostalCode></t:Entry></t:PhysicalAddresses><t:BusinessHomePage>https://example.com/{id}</t:BusinessHomePage></t:Contact></m:Items></m:GetItemResponseMessage>"#
+                    ),
+                    None => r#"<m:GetItemResponseMessage ResponseClass="Error"><m:MessageText>gone</m:MessageText><m:ResponseCode>ErrorItemNotFound</m:ResponseCode><m:DescriptiveLinkKey>0</m:DescriptiveLinkKey></m:GetItemResponseMessage>"#.to_owned(),
+                })
+                .collect();
+            self.reads.lock().push(ids);
+            ("GetItem", messages)
+        };
+        ResponseTemplate::new(200)
+            .insert_header("content-type", "text/xml; charset=utf-8")
+            .set_body_string(format!(
+                r#"<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Header><h:ServerVersionInfo MajorVersion="15" MinorVersion="1" MajorBuildNumber="2507" MinorBuildNumber="6" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types"/></s:Header><s:Body><m:{op}Response {NS}><m:ResponseMessages>{messages}</m:ResponseMessages></m:{op}Response></s:Body></s:Envelope>"#
+            ))
+    }
+}
+
+#[tokio::test]
+async fn exchange_contacts_bring_notes_addresses_and_web_sites() {
+    use crate::model::{AuthMethod, ExchangeAuth, ExchangeConfig};
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let fake = ExchangeContacts::default();
+    *fake.contacts.lock() = vec![
+        (
+            "c1".into(),
+            "k1".into(),
+            "Ada Lovelace".into(),
+            "Met at the Royal Society.".into(),
+        ),
+        (
+            "c2".into(),
+            "k1".into(),
+            "Charles Babbage".into(),
+            String::new(),
+        ),
+    ];
+    Mock::given(method("POST"))
+        .and(path(envelope_ews::EWS_PATH))
+        .respond_with(fake.clone())
+        .mount(&server)
+        .await;
+    let config = AccountConfig {
+        auth: AuthMethod::Password,
+        exchange: Some(ExchangeConfig {
+            ews_url: format!("{}{}", server.uri(), envelope_ews::EWS_PATH),
+            auth: ExchangeAuth::Basic,
+            ..ExchangeConfig::default()
+        }),
+        ..AccountConfig::default()
+    };
+    let id = fx
+        .engine
+        .db
+        .write(|tx| {
+            let id = mail::insert_account(
+                tx,
+                AccountKind::Exchange,
+                "exchange",
+                "jane@example.com",
+                "Jane Doe",
+                "#0ea5e9",
+                &config,
+            )?;
+            // The tests drive the sync; the account's worker stays away.
+            tx.execute("UPDATE accounts SET enabled = 0 WHERE id = ?", [id])?;
+            Ok(id)
+        })
+        .expect("account");
+    fx.engine
+        .secrets
+        .preload(&crate::secrets::password_key(id), "secret");
+    let account = fx.engine.account_row(id).expect("account row");
+    let stored = |name: &str| {
+        let book = fx.books(&account).remove(0);
+        let rows = fx
+            .engine
+            .db
+            .read(|c| {
+                let mut st = c.prepare("SELECT id FROM contacts WHERE book_id = ? AND name = ?")?;
+                let ids = st
+                    .query_map(rusqlite::params![book.id, name], |r| r.get::<_, i64>(0))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(ids)
+            })
+            .expect("contacts");
+        fx.row(rows[0]).contact
+    };
+
+    // The first sync reads every contact in full.
+    ews_sync(&fx.engine, &account, true).await.expect("sync");
+    assert_eq!(
+        fake.reads.lock().clone(),
+        [vec!["c1".to_string(), "c2".to_string()]]
+    );
+    let ada = stored("Ada Lovelace");
+    assert_eq!(ada.note.as_deref(), Some("Met at the Royal Society."));
+    assert_eq!(ada.urls[0].value, "https://example.com/c1");
+    assert_eq!(ada.addresses.len(), 1);
+    assert_eq!(ada.addresses[0].kind.as_deref(), Some("work"));
+    assert_eq!(
+        ada.addresses[0].formatted(),
+        "1 Market St\nSan Francisco, CA 94105"
+    );
+    assert_eq!(stored("Charles Babbage").note, None);
+
+    // Unchanged contacts are not read again; a changed one is.
+    ews_sync(&fx.engine, &account, true).await.expect("sync");
+    assert_eq!(fake.reads.lock().len(), 1);
+    fake.contacts.lock()[1] = (
+        "c2".into(),
+        "k2".into(),
+        "Charles Babbage".into(),
+        "Difference engine.".into(),
+    );
+    ews_sync(&fx.engine, &account, true).await.expect("sync");
+    assert_eq!(
+        fake.reads.lock().last().cloned(),
+        Some(vec!["c2".to_string()])
+    );
+    assert_eq!(
+        stored("Charles Babbage").note.as_deref(),
+        Some("Difference engine.")
+    );
+    assert_eq!(
+        stored("Ada Lovelace").note.as_deref(),
+        Some("Met at the Royal Society.")
+    );
 }
