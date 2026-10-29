@@ -496,8 +496,9 @@ impl EwsClient {
     }
 
     /// Changes a task and returns its id with the new change key. Days are
-    /// written as midnight in `zone`, the user's time zone. Changes made on
-    /// the server meanwhile are overwritten field by field.
+    /// written as midnight in `zone`, the user's time zone. Only the fields
+    /// set in `update` are written, over the server's values even when the
+    /// task changed there meanwhile; an empty update sends nothing.
     pub async fn update_task(
         &self,
         id: &ItemId,
