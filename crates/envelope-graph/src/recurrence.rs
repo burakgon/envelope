@@ -1252,6 +1252,85 @@ mod tests {
     }
 
     #[test]
+    fn rules_of_the_event_editor() {
+        // Tuesday 10 November 2026 at 10:00 in New York, the month's second Tuesday.
+        let new_york = Some(chrono_tz::America::New_York);
+        let start = zoned(2026, 11, 10, 10, "America/New_York");
+        let to_graph =
+            |rule: &str| serde_json::to_value(back(rule, &start, new_york)).unwrap_or_default();
+        assert_eq!(
+            to_graph("FREQ=MONTHLY;BYDAY=2TU;COUNT=5"),
+            serde_json::json!({
+                "pattern": {"type": "relativeMonthly", "interval": 1, "daysOfWeek": ["tuesday"],
+                            "index": "second"},
+                "range": {"type": "numbered", "startDate": "2026-11-10", "numberOfOccurrences": 5}
+            })
+        );
+        assert_eq!(
+            to_graph("FREQ=MONTHLY;INTERVAL=2;BYDAY=-1FR"),
+            serde_json::json!({
+                "pattern": {"type": "relativeMonthly", "interval": 2, "daysOfWeek": ["friday"],
+                            "index": "last"},
+                "range": {"type": "noEnd", "startDate": "2026-11-10"}
+            })
+        );
+        assert_eq!(
+            to_graph("FREQ=MONTHLY;BYMONTHDAY=31"),
+            serde_json::json!({
+                "pattern": {"type": "absoluteMonthly", "interval": 1, "dayOfMonth": 31},
+                "range": {"type": "noEnd", "startDate": "2026-11-10"}
+            })
+        );
+        // The end of 31 December in New York ends the series on that date.
+        assert_eq!(
+            to_graph("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20270101T045959Z"),
+            serde_json::json!({
+                "pattern": {"type": "weekly", "interval": 2, "daysOfWeek": ["monday", "wednesday"],
+                            "firstDayOfWeek": "monday"},
+                "range": {"type": "endDate", "startDate": "2026-11-10", "endDate": "2026-12-31"}
+            })
+        );
+        assert_eq!(
+            to_graph("FREQ=YEARLY;INTERVAL=2"),
+            serde_json::json!({
+                "pattern": {"type": "absoluteYearly", "interval": 2, "month": 11, "dayOfMonth": 10},
+                "range": {"type": "noEnd", "startDate": "2026-11-10"}
+            })
+        );
+        assert_eq!(
+            to_graph("FREQ=DAILY;INTERVAL=3;COUNT=12"),
+            serde_json::json!({
+                "pattern": {"type": "daily", "interval": 3},
+                "range": {"type": "numbered", "startDate": "2026-11-10", "numberOfOccurrences": 12}
+            })
+        );
+        // And back: Graph's patterns read as the same rules.
+        for rule in [
+            "FREQ=MONTHLY;BYDAY=2TU;COUNT=5",
+            "FREQ=MONTHLY;INTERVAL=2;BYDAY=-1FR",
+            "FREQ=MONTHLY;BYMONTHDAY=31",
+            "FREQ=DAILY;INTERVAL=3;COUNT=12",
+        ] {
+            let graph = back(rule, &start, new_york);
+            assert_eq!(to_rrule(&graph, &start, new_york).as_deref(), Ok(rule));
+        }
+        let weekly = back(
+            "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20270101T045959Z",
+            &start,
+            new_york,
+        );
+        assert_eq!(
+            to_rrule(&weekly, &start, new_york).as_deref(),
+            Ok("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20270101T045959Z")
+        );
+        // A fifth weekday has no Graph index; the editor never offers one.
+        assert!(matches!(
+            from_rrule("FREQ=MONTHLY;BYDAY=5TU", &start, new_york),
+            Err(RecurrenceError::Unsupported(_))
+        ));
+    }
+
+    #[test]
     fn serializes_only_relevant_fields() {
         let start = zoned(2024, 3, 4, 9, "UTC");
         let recurrence = back(

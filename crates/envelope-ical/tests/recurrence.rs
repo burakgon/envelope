@@ -1439,3 +1439,141 @@ fn zero_length_and_window_edges() {
     );
     assert_eq!(starts(&partial), ["2024-05-01 07:00"]);
 }
+
+/// The rules the event editor makes, in the zone the event is planned in:
+/// written as CalDAV servers get them, read back, and expanded across DST.
+#[test]
+fn event_editor_rules_round_trip_through_icalendar() {
+    let series = |tzid: &str, start: &str, minutes: i64, rrule: &str| {
+        let start = dt(start);
+        let mut event = Event::new(
+            "editor",
+            EventTime::Zoned {
+                local: start,
+                tzid: tzid.into(),
+            },
+            EventTime::Zoned {
+                local: start + Duration::minutes(minutes),
+                tzid: tzid.into(),
+            },
+        );
+        event.rrule = Some(rrule.into());
+        event
+    };
+    let now = utc("2026-10-29 12:00");
+    let cases: [(Event, &str, &str, &[&str]); 6] = [
+        // The second Tuesday, six times; the zone writes its VTIMEZONE.
+        (
+            series(NY, "2026-11-10 10:00", 60, "FREQ=MONTHLY;BYDAY=2TU;COUNT=6"),
+            "2026-11-01 00:00",
+            "2028-01-01 00:00",
+            &[
+                "2026-11-10 15:00",
+                "2026-12-08 15:00",
+                "2027-01-12 15:00",
+                "2027-02-09 15:00",
+                "2027-03-09 15:00",
+                // 10:00 still, in daylight saving time.
+                "2027-04-13 14:00",
+            ],
+        ),
+        // The last Friday, until the end of 25 December in New York.
+        (
+            series(
+                NY,
+                "2026-10-30 10:00",
+                60,
+                "FREQ=MONTHLY;BYDAY=-1FR;UNTIL=20261226T045959Z",
+            ),
+            "2026-10-01 00:00",
+            "2027-06-01 00:00",
+            &["2026-10-30 14:00", "2026-11-27 15:00", "2026-12-25 15:00"],
+        ),
+        // Every three months on day 31: months without one are skipped.
+        (
+            series(
+                "Europe/Istanbul",
+                "2026-10-31 11:00",
+                30,
+                "FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=31;COUNT=3",
+            ),
+            "2026-10-01 00:00",
+            "2028-01-01 00:00",
+            &["2026-10-31 08:00", "2027-01-31 08:00", "2027-07-31 08:00"],
+        ),
+        // Every other week on Monday and Wednesday, through the end of March
+        // in Berlin (summer time from the 28th).
+        (
+            series(
+                "Europe/Berlin",
+                "2027-03-15 07:00",
+                45,
+                "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20270331T215959Z",
+            ),
+            "2027-03-01 00:00",
+            "2027-05-01 00:00",
+            &[
+                "2027-03-15 06:00",
+                "2027-03-17 06:00",
+                "2027-03-29 05:00",
+                "2027-03-31 05:00",
+            ],
+        ),
+        // Every four days, four times, over the switch back to standard time.
+        (
+            series(NY, "2026-10-28 08:30", 30, "FREQ=DAILY;INTERVAL=4;COUNT=4"),
+            "2026-10-01 00:00",
+            "2027-01-01 00:00",
+            &[
+                "2026-10-28 12:30",
+                "2026-11-01 13:30",
+                "2026-11-05 13:30",
+                "2026-11-09 13:30",
+            ],
+        ),
+        // Every two years on its date.
+        (
+            series(
+                "Asia/Tokyo",
+                "2026-11-10 09:00",
+                60,
+                "FREQ=YEARLY;INTERVAL=2",
+            ),
+            "2026-01-01 00:00",
+            "2031-01-01 00:00",
+            &["2026-11-10 00:00", "2028-11-10 00:00", "2030-11-10 00:00"],
+        ),
+    ];
+    for (event, from, to, expected) in cases {
+        let rule = event.rrule.clone().unwrap_or_default();
+        let EventTime::Zoned { tzid, local } = &event.start else {
+            unreachable!()
+        };
+        let ics = envelope_ical::create_calendar_at(&event, now).unwrap();
+        assert!(ics.contains(&format!("RRULE:{rule}\r\n")), "{rule}: {ics}");
+        assert!(
+            ics.contains(&format!(
+                "DTSTART;TZID={tzid}:{}\r\n",
+                local.format("%Y%m%dT%H%M%S")
+            )),
+            "{rule}: {ics}"
+        );
+        assert!(
+            ics.contains(&format!("BEGIN:VTIMEZONE\r\nTZID:{tzid}\r\n")),
+            "{rule}: {ics}"
+        );
+        let data = parse_calendar(&ics).unwrap();
+        let back = &data.events[0];
+        assert_eq!(back.rrule.as_deref(), Some(rule.as_str()));
+        assert_eq!(back.start, event.start);
+        let expansion = expand(
+            back,
+            &[],
+            utc(from),
+            utc(to),
+            &data.tz,
+            &ExpandOptions::with_default_tz(Tz::UTC),
+        );
+        assert_eq!(starts(&expansion), expected, "{rule}");
+    }
+}

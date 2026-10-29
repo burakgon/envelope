@@ -452,6 +452,33 @@ impl GraphEvent {
                 };
             }
             utc_start_hint = Some(at);
+        } else if let (Some(zone), EventTime::Utc { at }) = (
+            wire.original_start_time_zone
+                .as_deref()
+                .filter(usable_zone)
+                .filter(|zone| !crate::types::is_utc_zone(zone)),
+            &start,
+        ) && let Some(tz) = resolve_tz(zone)
+        {
+            // Single events and occurrences reported in UTC: in the zone
+            // they were planned in, so that editing them keeps it.
+            start = EventTime::Zoned {
+                local: at.with_timezone(&tz).naive_local(),
+                tzid: zone.to_owned(),
+            };
+            if let EventTime::Utc { at: end_at } = end {
+                let (end_zone, end_tz) = wire
+                    .original_end_time_zone
+                    .as_deref()
+                    .filter(usable_zone)
+                    .filter(|zone| !crate::types::is_utc_zone(zone))
+                    .and_then(|zone| Some((zone, resolve_tz(zone)?)))
+                    .unwrap_or((zone, tz));
+                end = EventTime::Zoned {
+                    local: end_at.with_timezone(&end_tz).naive_local(),
+                    tzid: end_zone.to_owned(),
+                };
+            }
         }
 
         let uid = wire
@@ -781,6 +808,17 @@ pub struct EventWriteOptions {
     pub transaction_id: Option<String>,
 }
 
+/// The name to send for a zone: its Windows id when it is an IANA zone.
+/// Graph accepts every Windows zone but only a list of IANA names, and
+/// Outlook shows its attendees the Windows zone's own name.
+fn graph_zone(tzid: &str) -> &str {
+    tzid.trim()
+        .parse::<Tz>()
+        .ok()
+        .and_then(envelope_ical::tz::iana_to_windows)
+        .unwrap_or(tzid)
+}
+
 fn time_json(time: &EventTime, fallback_tz: &str) -> Value {
     match time {
         EventTime::Date { date } => json!({
@@ -788,7 +826,7 @@ fn time_json(time: &EventTime, fallback_tz: &str) -> Value {
             "timeZone": fallback_tz,
         }),
         EventTime::Zoned { local, tzid } => {
-            json!({ "dateTime": format_local(*local), "timeZone": tzid })
+            json!({ "dateTime": format_local(*local), "timeZone": graph_zone(tzid) })
         }
         EventTime::Utc { at } => {
             json!({ "dateTime": format_local(at.naive_utc()), "timeZone": "UTC" })
@@ -1307,7 +1345,7 @@ mod tests {
         assert_eq!(body["subject"], "Weekly sync");
         assert_eq!(
             body["start"],
-            json!({"dateTime": "2024-03-04T09:00:00", "timeZone": "Europe/Istanbul"})
+            json!({"dateTime": "2024-03-04T09:00:00", "timeZone": "Turkey Standard Time"})
         );
         assert_eq!(body["isAllDay"], false);
         assert_eq!(
@@ -1324,6 +1362,104 @@ mod tests {
         assert_eq!(body["isOnlineMeeting"], true);
         assert_eq!(body["onlineMeetingProvider"], "teamsForBusiness");
         assert_eq!(body["transactionId"], "tx-1");
+    }
+
+    #[test]
+    fn zones_are_written_as_windows_zones() {
+        let at = |h| {
+            NaiveDate::from_ymd_opt(2026, 11, 10)
+                .and_then(|d| d.and_hms_opt(h, 0, 0))
+                .unwrap_or_default()
+        };
+        let mut event = sample_event();
+        for (iana, windows) in [
+            ("America/New_York", "Eastern Standard Time"),
+            ("Europe/Rome", "W. Europe Standard Time"),
+            ("Asia/Kolkata", "India Standard Time"),
+            ("Asia/Calcutta", "India Standard Time"),
+            // Already a Windows name.
+            ("Pacific Standard Time", "Pacific Standard Time"),
+        ] {
+            event.start = EventTime::Zoned {
+                local: at(10),
+                tzid: iana.into(),
+            };
+            event.end = EventTime::Zoned {
+                local: at(11),
+                tzid: iana.into(),
+            };
+            let body = create_body(&event, &EventWriteOptions::default(), None)
+                .unwrap_or_else(|e| panic!("{e}"));
+            assert_eq!(
+                body["start"],
+                json!({"dateTime": "2026-11-10T10:00:00", "timeZone": windows}),
+                "{iana}"
+            );
+            assert_eq!(body["end"]["timeZone"], windows, "{iana}");
+        }
+        // The same zone under its two names is no change.
+        let mut renamed = event.clone();
+        renamed.start = EventTime::Zoned {
+            local: at(10),
+            tzid: "America/Los_Angeles".into(),
+        };
+        renamed.end = EventTime::Zoned {
+            local: at(11),
+            tzid: "America/Los_Angeles".into(),
+        };
+        let patch = EventPatch::diff(&event, &renamed, &EventWriteOptions::default(), None)
+            .unwrap_or_default();
+        assert!(patch.is_empty(), "{:?}", sorted_keys(&patch));
+    }
+
+    #[test]
+    fn single_events_keep_the_zone_they_were_planned_in() {
+        let windows = |tz: &str| envelope_ical::resolve_tzid(tz);
+        let event = GraphEvent::from_json(
+            json!({
+                "id": "e",
+                "type": "singleInstance",
+                "start": {"dateTime": "2026-11-10T15:00:00.0000000", "timeZone": "UTC"},
+                "end": {"dateTime": "2026-11-10T16:30:00.0000000", "timeZone": "UTC"},
+                "originalStartTimeZone": "Eastern Standard Time",
+                "originalEndTimeZone": "Eastern Standard Time"
+            }),
+            &windows,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let local = |h, m| {
+            NaiveDate::from_ymd_opt(2026, 11, 10)
+                .and_then(|d| d.and_hms_opt(h, m, 0))
+                .unwrap_or_default()
+        };
+        assert_eq!(
+            event.event.start,
+            EventTime::Zoned {
+                local: local(10, 0),
+                tzid: "Eastern Standard Time".into()
+            }
+        );
+        assert_eq!(
+            event.event.end,
+            EventTime::Zoned {
+                local: local(11, 30),
+                tzid: "Eastern Standard Time".into()
+            }
+        );
+        // A zone that cannot be resolved, or UTC itself, leaves the times in UTC.
+        for zone in ["tzone://Microsoft/Custom", "UTC", "Nowhere Standard Time"] {
+            let event = GraphEvent::from_json(
+                json!({
+                    "id": "e",
+                    "start": {"dateTime": "2026-11-10T15:00:00.0000000", "timeZone": "UTC"},
+                    "end": {"dateTime": "2026-11-10T16:00:00.0000000", "timeZone": "UTC"},
+                    "originalStartTimeZone": zone
+                }),
+                &windows,
+            )
+            .unwrap_or_else(|e| panic!("{e}"));
+            assert!(matches!(event.event.start, EventTime::Utc { .. }), "{zone}");
+        }
     }
 
     fn sorted_keys(patch: &EventPatch) -> Vec<&str> {

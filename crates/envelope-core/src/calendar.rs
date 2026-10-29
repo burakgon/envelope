@@ -122,6 +122,20 @@ pub struct EventDetail {
     pub calendar: CalendarView,
     pub organizer_is_me: bool,
     pub my_email: Option<String>,
+    /// The IANA zone the event is planned in, whatever its data calls it
+    /// (`Eastern Standard Time` from Exchange is `America/New_York`); none
+    /// for all-day and floating events and bare UTC times.
+    pub timezone: Option<String>,
+}
+
+/// The IANA zone of a time planned in one.
+fn zone_name(t: &EventTime) -> Option<String> {
+    match t {
+        EventTime::Zoned { tzid, .. } => {
+            envelope_ical::resolve_tzid(tzid).map(|tz| tz.name().to_string())
+        }
+        _ => None,
+    }
 }
 
 /// Event fields edited in the UI.
@@ -443,6 +457,7 @@ impl Engine {
             .map(|a| a.email);
         Ok(EventDetail {
             occurrence,
+            timezone: zone_name(&event.start),
             event,
             calendar: (&cal).into(),
             organizer_is_me,
@@ -457,11 +472,14 @@ impl Engine {
         base: Option<&Event>,
         cal: &CalendarRow,
     ) -> Result<Event> {
-        let tz_name = input
+        // Times are wall-clock times in the event's zone, under its IANA name
+        // (each provider writes it as it needs).
+        let tz = input
             .timezone
-            .clone()
-            .unwrap_or_else(|| local_tz().name().to_string());
-        let tz: Tz = tz_name.parse().unwrap_or(local_tz());
+            .as_deref()
+            .and_then(envelope_ical::resolve_tzid)
+            .unwrap_or_else(local_tz);
+        let tz_name = tz.name().to_string();
         let (start, end) = if input.all_day {
             let s =
                 NaiveDate::parse_from_str(input.start_date.as_deref().unwrap_or(""), "%Y-%m-%d")
@@ -725,10 +743,7 @@ impl Engine {
             } else {
                 None
             },
-            timezone: match &e.start {
-                EventTime::Zoned { tzid, .. } => Some(tzid.clone()),
-                _ => None,
-            },
+            timezone: detail.timezone.clone(),
             rrule: if scope == EditScope::This {
                 None
             } else {

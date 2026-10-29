@@ -864,6 +864,57 @@ mod tests {
     }
 
     #[test]
+    fn editor_rules_and_zones_round_trip() {
+        // 10:00 in New York on 10 November 2026, the month's second Tuesday.
+        let local = chrono::NaiveDate::from_ymd_opt(2026, 11, 10)
+            .and_then(|d| d.and_hms_opt(10, 0, 0))
+            .expect("date");
+        for rule in [
+            "FREQ=MONTHLY;BYDAY=2TU;COUNT=5",
+            "FREQ=MONTHLY;INTERVAL=2;BYDAY=-1FR",
+            "FREQ=MONTHLY;BYMONTHDAY=31",
+            "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20270101T045959Z",
+            "FREQ=DAILY;INTERVAL=3;COUNT=10",
+            "FREQ=YEARLY;INTERVAL=2",
+        ] {
+            let mut event = Event::new(
+                "uid",
+                EventTime::Zoned {
+                    local,
+                    tzid: "America/New_York".into(),
+                },
+                EventTime::Zoned {
+                    local: local + chrono::Duration::hours(1),
+                    tzid: "America/New_York".into(),
+                },
+            );
+            event.rrule = Some(rule.to_owned());
+            let body = GoogleEvent::new(event).to_json(None).expect("json");
+            assert_eq!(body["recurrence"], json!([format!("RRULE:{rule}")]));
+            assert_eq!(
+                body["start"],
+                json!({"date": null, "dateTime": "2026-11-10T10:00:00-05:00", "timeZone": "America/New_York"})
+            );
+            // Google answers with the same fields; they read back the same.
+            let answer = minimal(json!({
+                "start": {"dateTime": "2026-11-10T10:00:00-05:00", "timeZone": "America/New_York"},
+                "end": {"dateTime": "2026-11-10T11:00:00-05:00", "timeZone": "America/New_York"},
+                "recurrence": [format!("RRULE:{rule}")],
+            }));
+            let back = GoogleEvent::from_json(&answer, &MappingContext::default()).expect("maps");
+            assert_eq!(back.event.rrule.as_deref(), Some(rule));
+            assert_eq!(
+                back.event.start,
+                EventTime::Zoned {
+                    local,
+                    tzid: "America/New_York".into()
+                }
+            );
+            assert!(back.extra_recurrence.is_empty());
+        }
+    }
+
+    #[test]
     fn type_properties_round_trip() {
         let value = minimal(json!({
             "eventType": "workingLocation",
