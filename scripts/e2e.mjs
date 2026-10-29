@@ -310,6 +310,37 @@ await step('Today moves on at midnight', async () => {
   }
 });
 
+// Reading and writing mail, in a window of its own.
+const w = await open();
+await w.goto(url);
+await w.locator('.row').first().waitFor({ state: 'visible', timeout: 5000 });
+/** Waits for a condition in that window. */
+async function wUntil(check, failure) {
+  for (const end = Date.now() + 5000; Date.now() < end; await w.waitForTimeout(100)) if (await check()) return;
+  throw new Error(typeof failure === 'function' ? await failure() : failure);
+}
+/** Finds a conversation by searching for it, and opens it. */
+async function openConversation(subject) {
+  await w.locator('.search input').fill(subject);
+  await w.locator('.row', { hasText: subject }).first().click();
+  await w.locator('.reader .subject-block h2', { hasText: subject }).waitFor({ timeout: 5000 });
+}
+const editor = () => w.locator('.dock .composer .ProseMirror');
+/** Closes the floating composer (which keeps the draft) and clears the search. */
+async function closeComposer() {
+  await w.locator('.dock .composer .bar .icon-btn').last().click();
+  await w.locator('.dock .composer').waitFor({ state: 'detached', timeout: 5000 });
+}
+
+await step('a short plain-text reply shows its text, its quote folded away', async () => {
+  await openConversation('Book recommendations');
+  const frame = w.frameLocator('.reader iframe').first();
+  await frame.locator('.env-plain', { hasText: 'Pragmatic Programmer' }).first().waitFor({ state: 'visible', timeout: 5000 });
+  if (await frame.locator('.env-attribution', { hasText: 'wrote:' }).isVisible()) throw new Error('the line before the quote is not folded away with it');
+});
+
+await w.close();
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

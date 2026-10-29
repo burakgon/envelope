@@ -187,7 +187,7 @@ function collapseQuotes(body: HTMLElement) {
     if (last?.tagName === 'BLOCKQUOTE') target = last;
   }
   if (!target || !target.parentElement) return;
-  // Include the "On … wrote:" line right before the quote.
+  // Include the "On … wrote:" line right before the quote, if that block is only that line.
   const prev = target.previousElementSibling;
   const wrapper = body.ownerDocument.createElement('div');
   wrapper.className = 'env-quote';
@@ -205,9 +205,7 @@ function collapseQuotes(body: HTMLElement) {
     nodes.forEach((n) => wrapper.appendChild(n));
   } else {
     target.parentElement.insertBefore(wrapper, target);
-    if (prev && /wrote:|yazdı:|schrieb|a écrit|escribió/i.test(prev.textContent ?? '') && (prev.textContent?.length ?? 0) < 300) {
-      wrapper.appendChild(prev);
-    }
+    if (prev && attributionOnly(blockLines(prev.innerHTML))) wrapper.appendChild(prev);
     wrapper.appendChild(target);
   }
   const toggle = body.ownerDocument.createElement('button');
@@ -241,6 +239,8 @@ table{max-width:100%;}
 pre,code{white-space:pre-wrap;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;}
 blockquote{margin:6px 0 6px 2px;padding-left:12px;border-left:2px solid ${quoteBorder};color:${adaptPlain ? (dark ? '#a0a3ae' : '#5d6170') : 'inherit'};}
 .env-plain{white-space:pre-wrap;font:inherit;margin:0;}
+.env-plain+.env-plain{margin-top:1.6em;}
+.env-plain+.env-attribution{margin-top:.8em;}
 .env-blocked{display:inline-block;min-width:24px;min-height:24px;background:${dark ? '#24252c' : '#eef0f3'};border-radius:6px;}
 .env-quote-toggle{all:unset;cursor:pointer;display:inline-block;margin:8px 0 2px;padding:0 9px;height:18px;line-height:16px;border-radius:9px;
   font-size:13px;letter-spacing:1px;color:${dark ? '#a0a3ae' : '#6b6f7c'};background:${dark ? '#2a2b33' : '#eceef2'};}
@@ -256,36 +256,90 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/** Plain text → HTML with links, and quoted lines as blockquotes. */
+/** Words that introduce quoted mail ("On Monday, Alex wrote:"), in the interface languages and a few more. */
+const QUOTE_INTRO = /(wrote|schrieb|écrit|escribió|scritto|napisał|escreveu|yazdı|skrev|schreef|kirjoitti|написал|書きました|写道|寫道)/i;
+
+/** Whether a line introduces quoted mail: short, naming who wrote, ending in a colon. */
+export function isAttribution(line: string): boolean {
+  const s = line.trim();
+  return s.length > 0 && s.length < 300 && /[:：]$/.test(s) && QUOTE_INTRO.test(s);
+}
+
+/**
+ * Whether lines of text are only the line that introduces quoted mail, possibly wrapped as
+ * Gmail does ("On …, Alex <alex@example.com>", then "wrote:" alone). A reply that ends with
+ * that line is more than that, and stays in view.
+ */
+export function attributionOnly(lines: string[]): boolean {
+  if (lines.length === 1) return isAttribution(lines[0]);
+  if (lines.length !== 2) return false;
+  const [first, last] = lines.map((l) => l.trim());
+  // Wrapped: the last line is only the verb, the first names a date or an address and ends no sentence.
+  return isAttribution(last) && last.length < 24 && !/[,\d<@]/.test(last) && /[\d@<]/.test(first) && !/[.!?…]$/.test(first);
+}
+
+/** The lines of text of a block of HTML. */
+export function blockLines(html: string): string[] {
+  return html
+    .replace(/<br\s*\/?>|<\/(?:p|div|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Plain text → HTML with links: a block per paragraph (blank lines between), quoted lines as
+ * blockquotes, and the line introducing a quote as a block of its own, so that folding the
+ * quote away takes that line along and nothing else.
+ */
 export function textToHtml(text: string): string {
-  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
   const out: string[] = [];
   let quote: string[] = [];
-  const flush = () => {
+  let para: string[] = [];
+  const flushQuote = () => {
     if (quote.length) {
       out.push(`<blockquote type="cite">${textToHtml(quote.join('\n'))}</blockquote>`);
       quote = [];
     }
   };
-  let para: string[] = [];
-  const flushPara = () => {
-    if (para.length) {
-      out.push(`<div class="env-plain">${para.map(linkify).join('\n')}</div>`);
-      para = [];
+  const flushPara = (beforeQuote: boolean) => {
+    while (para.length && !para[0].trim()) para.shift();
+    while (para.length && !para[para.length - 1].trim()) para.pop();
+    let intro: string[] = [];
+    if (beforeQuote && para.length) {
+      // "wrote:" wrapped onto a line of its own takes the line before along.
+      const n = para.length > 1 && para[para.length - 2].trim() && attributionOnly(para.slice(-2)) ? 2 : 1;
+      if (attributionOnly(para.slice(-n))) intro = para.splice(para.length - n, n);
     }
+    let block: string[] = [];
+    const emit = (lines: string[], extra = '') => {
+      if (lines.length) out.push(`<div class="env-plain${extra}">${lines.map(linkify).join('\n')}</div>`);
+    };
+    for (const line of para) {
+      if (line.trim()) block.push(line);
+      else {
+        emit(block);
+        block = [];
+      }
+    }
+    emit(block);
+    emit(intro, ' env-attribution');
+    para = [];
   };
   for (const line of lines) {
     const m = /^\s*>\s?(.*)$/.exec(line);
     if (m) {
-      flushPara();
+      flushPara(true);
       quote.push(m[1]);
     } else {
-      flush();
+      flushQuote();
       para.push(line);
     }
   }
-  flushPara();
-  flush();
+  flushPara(false);
+  flushQuote();
   return out.join('');
 }
 

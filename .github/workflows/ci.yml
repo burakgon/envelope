@@ -30,6 +30,8 @@ jobs:
       - run: npm run build:demo
       # How quick add reads dates and times in the interface languages.
       - run: npm run test:quickadd
+      # Plain-text mail, the attachment reminder's words and where links go.
+      - run: npm run test:mail
       # Walks through the main screens of the demo build.
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
