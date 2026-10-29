@@ -177,11 +177,15 @@
   .account {
     margin-top: 6px;
   }
+  /* The name has the whole width; the "+" for a new list comes over its end on hover. */
   .account-head {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 2px;
-    padding-right: 4px;
+  }
+  .account-head:hover .account-title,
+  .account-head:focus-within .account-title {
+    padding-right: 34px;
   }
   .account-title {
     flex: 1;
@@ -227,6 +231,11 @@
   .more {
     opacity: 0;
     color: var(--text-3);
+  }
+  .add {
+    position: absolute;
+    top: 1px;
+    right: 4px;
   }
   .account-head:hover .add,
   .add:focus-visible {
