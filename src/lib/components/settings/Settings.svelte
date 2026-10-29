@@ -20,6 +20,7 @@
     Away, Bell, Calendar, FileText, Filter, Info, Keyboard, Mail, Palette, Pen, Settings as Gear, ShieldCheck, Sparkles, Users, X, Plus, Trash, Moon, Sun, Lock, ExternalLink, Code,
   } from '../../icons';
   import { cal } from '../../stores/calendar.svelte';
+  import TimeZonePicker from '../calendar/TimeZonePicker.svelte';
   import type { Template } from '../../stores/ui.svelte';
   import { htmlToText } from '../../utils/html';
   import { dateFormat } from '../../utils/format';
@@ -322,6 +323,16 @@
             <div class="txt"><b>{t('settings.calendar.showDeclined')}</b></div>
             <Toggle checked={ui.settings.showDeclined} onchange={(v) => { ui.set('showDeclined', v); cal.load(); }} />
           </div>
+          <div class="row">
+            <div class="txt"><b>{t('settings.calendar.secondTimeZone')}</b><span>{t('settings.calendar.secondTimeZoneDesc')}</span></div>
+            <Toggle checked={ui.settings.showSecondTimeZone} label={t('settings.calendar.secondTimeZone')} onchange={(v) => ui.set('showSecondTimeZone', v)} />
+          </div>
+          {#if ui.settings.showSecondTimeZone}
+            <div class="row">
+              <div class="txt"><b>{t('calendar.editor.timeZone')}</b></div>
+              <TimeZonePicker value={ui.settings.secondTimeZone} onchange={(tz) => ui.set('secondTimeZone', tz)} />
+            </div>
+          {/if}
           <div class="row">
             <div class="txt"><b>{t('tasks.settings.showInCalendar')}</b><span>{t('tasks.settings.showInCalendarDesc')}</span></div>
             <Toggle checked={ui.settings.calendarTasks} label={t('tasks.settings.showInCalendar')} onchange={(v) => { ui.set('calendarTasks', v); cal.loadTasks(); }} />

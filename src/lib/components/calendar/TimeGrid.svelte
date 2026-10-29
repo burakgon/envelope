@@ -2,9 +2,11 @@
   import { onMount } from 'svelte';
   import type { Occurrence, Task } from '../../api';
   import { cal, DAY, addDays, sameDay, span, startOfDay } from '../../stores/calendar.svelte';
+  import { ui } from '../../stores/ui.svelte';
   import { t } from '../../i18n';
   import { dateFormat, timeOf } from '../../utils/format';
   import { dayDate, dueDay } from '../../utils/due';
+  import { isZone, localZone, offsetMinutes, zoneName } from '../../utils/timezone';
   import EventChip from './EventChip.svelte';
   import TaskChip from './TaskChip.svelte';
 
@@ -210,11 +212,31 @@
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const fmtHour = (h: number) => dateFormat({ hour: 'numeric' }).format(new Date(2000, 0, 1, h));
   const fmtTime = (m: number) => timeOf(new Date(2000, 0, 1, Math.floor(m / 60), m % 60));
+
+  // A second column of hours for another zone (Settings → Calendar), read on the first day shown.
+  const here = localZone();
+  const second = $derived(ui.settings.showSecondTimeZone && isZone(ui.settings.secondTimeZone) ? ui.settings.secondTimeZone : null);
+  const secondHours = $derived.by(() => {
+    if (!second) return [];
+    const first = days[0];
+    const at = (h: number) => new Date(first.getFullYear(), first.getMonth(), first.getDate(), h).getTime();
+    // Zones half an hour or so apart say the minutes too.
+    const minutes = (offsetMinutes(at(12), second) - offsetMinutes(at(12), here)) % 60 !== 0;
+    const format = dateFormat({ hour: 'numeric', ...(minutes ? { minute: '2-digit' } : {}), timeZone: second });
+    return hours.map((h) => format.format(at(h)));
+  });
 </script>
 
-<div class="grid-wrap" style:--n={days.length}>
+<div class="grid-wrap" class:zones={!!second} style:--n={days.length}>
   <div class="head">
-    <div class="gutter"></div>
+    <div class="gutter">
+      {#if second}
+        <div class="zone-labels">
+          <span class="zone-label" title={second}>{zoneName(second, 'short', days[0].getTime())}</span>
+          <span class="zone-label" title={here}>{zoneName(here, 'short', days[0].getTime())}</span>
+        </div>
+      {/if}
+    </div>
     {#each days as d, i (i)}
       {@const today = sameDay(d, now)}
       <button class="dayhead" class:today onclick={() => { cal.view = 'day'; cal.goto(d.getTime()); }}>
@@ -267,6 +289,7 @@
     <div class="body" style:height="{24 * HOUR}px">
       <div class="gutter hours">
         {#each hours as h (h)}
+          {#if second}<div class="hour-label second" style:top="{h * HOUR}px">{h === 0 ? '' : secondHours[h]}</div>{/if}
           <div class="hour-label" style:top="{h * HOUR}px">{h === 0 ? '' : fmtHour(h)}</div>
         {/each}
       </div>
@@ -328,6 +351,34 @@
     display: flex;
     flex-direction: column;
     --gutter: 58px;
+  }
+  /* The second zone's hours left of this computer's. */
+  .grid-wrap.zones {
+    --gutter: 108px;
+  }
+  .zone-labels {
+    display: flex;
+    height: 100%;
+    align-items: flex-end;
+    padding-bottom: 8px;
+  }
+  .zone-label {
+    min-width: 0;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .zone-label:first-child {
+    width: 50px;
+    padding-right: 8px;
+  }
+  .zone-label:last-child {
+    width: 58px;
+    padding-right: 10px;
   }
   .head {
     display: flex;
@@ -456,6 +507,9 @@
     font-size: 11px;
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
+  }
+  .hour-label.second {
+    right: 66px;
   }
   .cols {
     position: relative;

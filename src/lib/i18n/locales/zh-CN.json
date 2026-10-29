@@ -834,6 +834,8 @@
   "settings.calendar.reminderHours": "{count, plural, other {提前 # 小时}}",
   "settings.calendar.reminderDays": "{count, plural, other {提前 # 天}}",
   "settings.calendar.showDeclined": "显示已拒绝的日程",
+  "settings.calendar.secondTimeZone": "显示第二时区",
+  "settings.calendar.secondTimeZoneDesc": "在日视图和周视图中显示第二列时间。",
   "settings.calendar.eventReminders": "日程提醒",
   "settings.calendar.eventRemindersDesc": "在日程开始前发送通知。",
   "settings.notifications.newMail": "新邮件",

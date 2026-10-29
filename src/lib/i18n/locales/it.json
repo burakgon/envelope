@@ -834,6 +834,8 @@
   "settings.calendar.reminderHours": "{count, plural, one {# ora prima} other {# ore prima}}",
   "settings.calendar.reminderDays": "{count, plural, one {# giorno prima} other {# giorni prima}}",
   "settings.calendar.showDeclined": "Mostra eventi rifiutati",
+  "settings.calendar.secondTimeZone": "Mostra un secondo fuso orario",
+  "settings.calendar.secondTimeZoneDesc": "Una seconda colonna di ore nelle viste giorno e settimana.",
   "settings.calendar.eventReminders": "Promemoria degli eventi",
   "settings.calendar.eventRemindersDesc": "Ricevi una notifica prima dell’inizio degli eventi.",
   "settings.notifications.newMail": "Nuova posta",

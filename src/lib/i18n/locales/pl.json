@@ -834,6 +834,8 @@
   "settings.calendar.reminderHours": "{count, plural, one {# godzinę przed} few {# godziny przed} many {# godzin przed} other {# godziny przed}}",
   "settings.calendar.reminderDays": "{count, plural, one {# dzień przed} few {# dni przed} many {# dni przed} other {# dnia przed}}",
   "settings.calendar.showDeclined": "Pokazuj odrzucone wydarzenia",
+  "settings.calendar.secondTimeZone": "Pokazuj drugą strefę czasową",
+  "settings.calendar.secondTimeZoneDesc": "Druga kolumna godzin w widokach dnia i tygodnia.",
   "settings.calendar.eventReminders": "Przypomnienia o wydarzeniach",
   "settings.calendar.eventRemindersDesc": "Powiadamiaj przed rozpoczęciem wydarzeń z kalendarza.",
   "settings.notifications.newMail": "Nowa poczta",

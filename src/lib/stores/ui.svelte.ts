@@ -73,6 +73,10 @@ export interface Settings {
   showDeclined: boolean;
   /** Open tasks with a due date appear in the calendar. */
   calendarTasks: boolean;
+  /** The day and week views show the hours of `secondTimeZone` too. */
+  showSecondTimeZone: boolean;
+  /** An IANA zone ("America/New_York"). */
+  secondTimeZone: string;
   /** Where quick add puts tasks outside a list (the last list chosen there). */
   defaultTaskListId: number | null;
   templates: Template[];
@@ -110,6 +114,8 @@ export const defaultSettings: Settings = {
   defaultAlarm: 10,
   showDeclined: true,
   calendarTasks: true,
+  showSecondTimeZone: false,
+  secondTimeZone: 'UTC',
   defaultTaskListId: null,
   templates: [],
   rules: [],

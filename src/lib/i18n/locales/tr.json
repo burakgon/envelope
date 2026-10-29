@@ -834,6 +834,8 @@
   "settings.calendar.reminderHours": "{count, plural, one {# saat önce} other {# saat önce}}",
   "settings.calendar.reminderDays": "{count, plural, one {# gün önce} other {# gün önce}}",
   "settings.calendar.showDeclined": "Reddedilen etkinlikleri göster",
+  "settings.calendar.secondTimeZone": "İkinci bir saat dilimi göster",
+  "settings.calendar.secondTimeZoneDesc": "Gün ve hafta görünümlerinde ikinci bir saat sütunu.",
   "settings.calendar.eventReminders": "Etkinlik hatırlatıcıları",
   "settings.calendar.eventRemindersDesc": "Takvim etkinlikleri başlamadan önce bildirim gösterilir.",
   "settings.notifications.newMail": "Yeni posta",

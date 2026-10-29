@@ -1150,6 +1150,25 @@ await step('an event planned in another zone shows at its time here, and says so
   await z.keyboard.press('Escape');
   await zEditor.waitFor({ state: 'detached', timeout: 5000 });
 });
+
+await step('a second time zone gets an hour column of its own', async () => {
+  await z.keyboard.press('Control+,');
+  const settings = z.locator('.window[role="dialog"]');
+  await settings.waitFor({ timeout: 5000 });
+  await settings.locator('.tab', { hasText: 'Calendar' }).click();
+  await settings.locator('.row', { hasText: 'Show a second time zone' }).locator('[role="switch"]').click();
+  await settings.locator('button.tz').click();
+  await z.locator('.picker input').fill('tokyo');
+  await z.keyboard.press('Enter');
+  await z.keyboard.press('Escape');
+  await settings.waitFor({ state: 'detached', timeout: 5000 });
+  await z.locator('.grid-wrap.zones').waitFor({ timeout: 5000 });
+  const labels = (await z.locator('.zone-label').allInnerTexts()).join(' ');
+  if (labels !== 'GMT+9 GMT+3') throw new Error(`the columns are labelled "${labels}"`);
+  // 9 in the morning here is 3 in the afternoon in Tokyo.
+  const nine = (await z.locator('.hour-label.second').nth(9).innerText()).trim();
+  if (nine !== '3 PM') throw new Error(`9 AM reads "${nine}" in Tokyo`);
+});
 await z.close();
 
 await step('no page errors', async () => {

@@ -834,6 +834,8 @@
   "settings.calendar.reminderHours": "{count, plural, other {# 時間前}}",
   "settings.calendar.reminderDays": "{count, plural, other {# 日前}}",
   "settings.calendar.showDeclined": "辞退した予定を表示",
+  "settings.calendar.secondTimeZone": "2 つ目のタイムゾーンを表示",
+  "settings.calendar.secondTimeZoneDesc": "日表示と週表示に 2 つ目の時刻の列を表示します。",
   "settings.calendar.eventReminders": "予定のリマインダー",
   "settings.calendar.eventRemindersDesc": "カレンダーの予定が始まる前に通知します。",
   "settings.notifications.newMail": "新着メール",

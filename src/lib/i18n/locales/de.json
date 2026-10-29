@@ -834,6 +834,8 @@
   "settings.calendar.reminderHours": "{count, plural, one {# Stunde vorher} other {# Stunden vorher}}",
   "settings.calendar.reminderDays": "{count, plural, one {# Tag vorher} other {# Tage vorher}}",
   "settings.calendar.showDeclined": "Abgesagte Termine anzeigen",
+  "settings.calendar.secondTimeZone": "Zweite Zeitzone anzeigen",
+  "settings.calendar.secondTimeZoneDesc": "Eine zweite Stundenspalte in der Tages- und Wochenansicht.",
   "settings.calendar.eventReminders": "Terminerinnerungen",
   "settings.calendar.eventRemindersDesc": "Benachrichtigt vor Beginn von Terminen.",
   "settings.notifications.newMail": "Neue E-Mails",
