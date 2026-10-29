@@ -6,9 +6,9 @@
 //! through the same operations as the interface, so they sync to the server
 //! like any user action.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::engine::Engine;
 use crate::model::{Address, FlagChange, MoveTarget};
@@ -285,6 +285,260 @@ pub fn apply(engine: &Engine, incoming: &[Incoming]) -> HashSet<i64> {
         }
     }
     quiet
+}
+
+// ---------------------------------------------------------------------------
+// Rules on mail that is already here
+
+/// The conversations a rule matches in mail already here, newest first.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuleMatches {
+    /// How many conversations match in all.
+    pub total: i64,
+    /// The newest of them, up to the limit asked for.
+    pub thread_ids: Vec<i64>,
+}
+
+/// What running a rule on mail already here changed, to undo it.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct RuleUndo {
+    /// Conversations moved (archived, filed, to Spam or Trash).
+    pub moves: Vec<crate::UndoToken>,
+    /// Messages marked read that were unread.
+    pub read: Vec<i64>,
+    /// Messages starred that were not.
+    pub starred: Vec<i64>,
+    /// Labels added: (label folder, conversations that did not have it).
+    pub labeled: Vec<(i64, Vec<i64>)>,
+}
+
+/// Whether running the rule changes anything in mail already here ("don't
+/// notify" only matters as mail arrives).
+pub fn acts_on_existing(rule: &MailRule) -> bool {
+    rule.actions.iter().any(|a| *a != Action::Mute)
+}
+
+impl Engine {
+    /// The conversations `rule` matches among mail already here: messages in
+    /// any folder but Sent, Drafts, Spam and Trash, not written by the user.
+    /// Lists at most `limit` of them, the newest first.
+    pub fn rule_matches(&self, rule: &MailRule, limit: i64) -> crate::Result<RuleMatches> {
+        let mut rule = rule.clone();
+        rule.enabled = true;
+        let needs_recipients = rule
+            .conditions
+            .iter()
+            .any(|c| matches!(c.field, Field::To | Field::Any));
+        self.db.read(|c| {
+            let mine: HashSet<String> = crate::crypto::my_emails(c)?;
+            let mut st = c.prepare(
+                "SELECT m.account_id, m.thread_id, m.from_name, m.from_email, m.to_json, m.cc_json, m.subject
+                 FROM messages m
+                 WHERE (?1 IS NULL OR m.account_id = ?1) AND (m.flags & 8) = 0
+                   AND EXISTS (SELECT 1 FROM message_folders mf JOIN folders f ON f.id = mf.folder_id
+                               WHERE mf.message_id = m.id
+                                 AND (f.role IS NULL OR f.role NOT IN ('sent', 'drafts', 'trash', 'junk')))
+                 ORDER BY m.date DESC",
+            )?;
+            let rows = st.query_map([rule.account_id], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, Option<String>>(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                    r.get::<_, String>(4)?,
+                    r.get::<_, String>(5)?,
+                    r.get::<_, String>(6)?,
+                ))
+            })?;
+            let mut seen: HashSet<i64> = HashSet::new();
+            let mut out = RuleMatches::default();
+            for row in rows {
+                let (account_id, thread_id, from_name, from_email, to, cc, subject) = row?;
+                if seen.contains(&thread_id) {
+                    continue;
+                }
+                let from = from_email.map(|e| Address::new(from_name, e));
+                if from
+                    .as_ref()
+                    .is_some_and(|f| mine.contains(&f.email.to_lowercase()))
+                {
+                    continue;
+                }
+                let parse = |json: &str| {
+                    if needs_recipients {
+                        serde_json::from_str::<Vec<Address>>(json).unwrap_or_default()
+                    } else {
+                        Vec::new()
+                    }
+                };
+                let message = Incoming {
+                    account_id,
+                    thread_id,
+                    from,
+                    to: parse(&to),
+                    cc: parse(&cc),
+                    subject,
+                };
+                if rule.matches(&message) {
+                    seen.insert(thread_id);
+                    out.total += 1;
+                    if (out.thread_ids.len() as i64) < limit {
+                        out.thread_ids.push(thread_id);
+                    }
+                }
+            }
+            Ok(out)
+        })
+    }
+
+    /// Runs a rule's actions on conversations already here, as if their mail
+    /// had just arrived, and returns what undoes it.
+    pub fn apply_rule(&self, rule: &MailRule, thread_ids: &[i64]) -> crate::Result<RuleUndo> {
+        let mut undo = RuleUndo::default();
+        if thread_ids.is_empty() {
+            return Ok(undo);
+        }
+        let keys: BTreeSet<ActionKey> = rule.actions.iter().map(ActionKey::from).collect();
+        let summaries = self
+            .db
+            .read(|c| crate::db::mail::thread_summaries(c, thread_ids))?;
+        // Folders and labels belong to one account: only its conversations go there.
+        let of_account = |folder: i64| -> crate::Result<Vec<i64>> {
+            let account = self
+                .db
+                .read(|c| crate::db::mail::get_folder(c, folder))?
+                .account_id;
+            Ok(summaries
+                .iter()
+                .filter(|t| t.account_id == account)
+                .map(|t| t.id)
+                .collect())
+        };
+        for key in keys {
+            match key {
+                ActionKey::Read => {
+                    let before = self.message_ids_with(thread_ids, "(flags & 1) = 0")?;
+                    self.set_flags(
+                        thread_ids,
+                        &[],
+                        &FlagChange {
+                            seen: Some(true),
+                            flagged: None,
+                        },
+                    )?;
+                    let after = self.message_ids_with(thread_ids, "(flags & 1) = 0")?;
+                    undo.read = before.difference(&after).copied().collect();
+                }
+                ActionKey::Star => {
+                    let before = self.message_ids_with(thread_ids, "(flags & 2) != 0")?;
+                    self.set_flags(
+                        thread_ids,
+                        &[],
+                        &FlagChange {
+                            seen: None,
+                            flagged: Some(true),
+                        },
+                    )?;
+                    let after = self.message_ids_with(thread_ids, "(flags & 2) != 0")?;
+                    undo.starred = after.difference(&before).copied().collect();
+                }
+                ActionKey::Label(folder) => {
+                    let ids = of_account(folder)?;
+                    let missing: Vec<i64> = self.db.read(|c| {
+                        let mut st = c.prepare_cached(
+                            "SELECT 1 FROM thread_folders WHERE folder_id = ? AND thread_id = ?",
+                        )?;
+                        let mut out = Vec::new();
+                        for t in &ids {
+                            if !st.exists(rusqlite::params![folder, t])? {
+                                out.push(*t);
+                            }
+                        }
+                        Ok(out)
+                    })?;
+                    if !missing.is_empty() {
+                        self.set_label(&missing, folder, true)?;
+                        undo.labeled.push((folder, missing));
+                    }
+                }
+                ActionKey::Mute => {}
+                ActionKey::Move(folder) => {
+                    let ids = of_account(folder)?;
+                    if !ids.is_empty() {
+                        undo.moves.push(self.move_threads(
+                            &ids,
+                            None,
+                            &MoveTarget::Folder { id: folder },
+                        )?);
+                    }
+                }
+                ActionKey::Archive => undo.moves.extend(self.archive_from_inbox(thread_ids)?),
+                ActionKey::Spam => {
+                    undo.moves
+                        .push(self.move_threads(thread_ids, None, &MoveTarget::Junk)?);
+                }
+                ActionKey::Trash => {
+                    undo.moves
+                        .push(self.move_threads(thread_ids, None, &MoveTarget::Trash)?);
+                }
+            }
+        }
+        Ok(undo)
+    }
+
+    /// Reverts what [`Engine::apply_rule`] did.
+    pub fn undo_rule(&self, undo: &RuleUndo) -> crate::Result<()> {
+        for token in undo.moves.iter().rev() {
+            self.undo(token)?;
+        }
+        for (folder, threads) in &undo.labeled {
+            self.set_label(threads, *folder, false)?;
+        }
+        if !undo.read.is_empty() {
+            self.set_flags(
+                &[],
+                &undo.read,
+                &FlagChange {
+                    seen: Some(false),
+                    flagged: None,
+                },
+            )?;
+        }
+        if !undo.starred.is_empty() {
+            self.set_flags(
+                &[],
+                &undo.starred,
+                &FlagChange {
+                    seen: None,
+                    flagged: Some(false),
+                },
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Messages (not drafts) of conversations that meet a flags condition.
+    fn message_ids_with(
+        &self,
+        thread_ids: &[i64],
+        condition: &str,
+    ) -> crate::Result<BTreeSet<i64>> {
+        self.db.read(|c| {
+            let mut st = c.prepare(&format!(
+                "SELECT id FROM messages WHERE thread_id = ? AND (flags & 8) = 0 AND {condition}"
+            ))?;
+            let mut out = BTreeSet::new();
+            for t in thread_ids {
+                for id in st.query_map([t], |r| r.get::<_, i64>(0))? {
+                    out.insert(id?);
+                }
+            }
+            Ok(out)
+        })
+    }
 }
 
 #[cfg(test)]

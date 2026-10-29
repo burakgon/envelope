@@ -168,6 +168,16 @@
   "moveMenu.moveTo": "Taşı…",
   "moveMenu.noMatches": "Eşleşen yok",
 
+  "rules.runNow": "Şimdi çalıştır",
+  "rules.runNowTitle": "Bu kuralı mevcut postalara uygula",
+  "rules.applyExisting": "Mevcut iletilere de uygula",
+  "rules.running": "“{name}” çalıştırılıyor…",
+  "rules.progress": "“{name}” çalıştırılıyor · {count} konuşmadan {done}",
+  "rules.noMatches": "“{name}” ile eşleşen konuşma yok",
+  "rules.applied": "{count, plural, one {“{name}” # konuşmaya uygulandı} other {“{name}” # konuşmaya uygulandı}}",
+  "rules.appliedNewest": "“{name}”, {total, plural, one {eşleşen # konuşmanın} other {eşleşen # konuşmanın}} en yeni {count} tanesine uygulandı",
+  "rules.runFailed": "“{name}” çalıştırılamadı: {error}",
+
   "accountAlert.signIn": "{name} için yeniden oturum açmanız gerekiyor.",
   "accountAlert.signInButton": "Oturum aç",
   "accountAlert.error": "{name} eşitlenemiyor.",

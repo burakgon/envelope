@@ -168,6 +168,16 @@
   "moveMenu.moveTo": "Przenieś do…",
   "moveMenu.noMatches": "Brak dopasowań",
 
+  "rules.runNow": "Uruchom teraz",
+  "rules.runNowTitle": "Zastosuj tę regułę do poczty, która już jest",
+  "rules.applyExisting": "Zastosuj też do istniejących wiadomości",
+  "rules.running": "Uruchamianie „{name}”…",
+  "rules.progress": "Uruchamianie „{name}” · {done} z {count}",
+  "rules.noMatches": "Żaden wątek nie pasuje do „{name}”",
+  "rules.applied": "Zastosowano „{name}” · {count, plural, one {# wątek} few {# wątki} many {# wątków} other {# wątku}}",
+  "rules.appliedNewest": "Zastosowano „{name}” do {count} najnowszych z {total, plural, one {# pasującego wątku} few {# pasujących wątków} many {# pasujących wątków} other {# pasującego wątku}}",
+  "rules.runFailed": "Nie udało się uruchomić „{name}”: {error}",
+
   "accountAlert.signIn": "{name}: zaloguj się ponownie.",
   "accountAlert.signInButton": "Zaloguj się",
   "accountAlert.error": "{name}: synchronizacja się nie udaje.",

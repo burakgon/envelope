@@ -1,4 +1,5 @@
 import type * as T from './types';
+import type { MailRule } from '../stores/ui.svelte';
 
 export * from './types';
 
@@ -42,6 +43,13 @@ export interface Api {
   /** Mutes conversations (archiving them from the inbox) or unmutes them; muting returns the archive's undo tokens. */
   muteThreads(threadIds: number[], muted: boolean): Promise<T.UndoToken[]>;
   setLabel(threadIds: number[], folderId: number, add: boolean): Promise<void>;
+
+  /** Mail rules run on mail that is already here. */
+  rules: {
+    matches(rule: MailRule, limit: number): Promise<T.RuleMatches>;
+    apply(rule: MailRule, threadIds: number[]): Promise<T.RuleUndo>;
+    undo(undo: T.RuleUndo): Promise<void>;
+  };
   messageSource(id: number): Promise<string>;
   unsubscribe(messageId: number): Promise<boolean>;
 

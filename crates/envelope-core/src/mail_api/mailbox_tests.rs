@@ -11,6 +11,7 @@ use parking_lot::Mutex;
 use super::*;
 use crate::db::mail::{FolderUpsert, MessageMeta};
 use crate::engine::{EventSink, Paths};
+use crate::rules::MailRule;
 
 #[derive(Clone, Default)]
 pub(crate) struct Events(Arc<Mutex<Vec<EngineEvent>>>);
@@ -420,4 +421,115 @@ async fn not_spam_moves_back_to_the_inbox() {
         matches!(&op, Some(PendingOp::Move { dest_folder, items }) if dest_folder == "INBOX" && items[0].folder == "Junk"),
         "{op:?}"
     );
+}
+
+fn rule(json: &str) -> MailRule {
+    serde_json::from_str(json).expect("rule")
+}
+
+#[tokio::test]
+async fn rules_run_on_existing_mail_and_undo() {
+    let fx = fixture();
+    let inbox = fx.id("INBOX");
+    let (_, receipt) = fx.message(
+        "INBOX",
+        1,
+        "r1@x",
+        None,
+        "orders@shop.example",
+        "Your receipt",
+        3_000,
+        0,
+    );
+    let (_, old) = fx.message(
+        "Archive",
+        1,
+        "r2@x",
+        None,
+        "orders@shop.example",
+        "Older receipt",
+        1_000,
+        0,
+    );
+    let (_, spam) = fx.message(
+        "Junk",
+        1,
+        "r3@x",
+        None,
+        "orders@shop.example",
+        "Spammy receipt",
+        2_000,
+        0,
+    );
+    let (_, other) = fx.message(
+        "INBOX",
+        2,
+        "o@x",
+        None,
+        "ann@example.com",
+        "Hello",
+        4_000,
+        0,
+    );
+    // Written by the user: never matched, as it never arrives through rules.
+    fx.message(
+        "INBOX",
+        3,
+        "mine@x",
+        None,
+        "me@example.com",
+        "Order question to shop.example",
+        5_000,
+        1,
+    );
+    let receipts = rule(&format!(
+        r#"{{"name":"Receipts","enabled":false,"conditions":[{{"field":"any","op":"contains","value":"shop.example"}}],
+            "actions":[{{"kind":"read"}},{{"kind":"move","folderId":{}}}]}}"#,
+        fx.id("Work")
+    ));
+    assert!(crate::rules::acts_on_existing(&receipts));
+    let found = fx.engine.rule_matches(&receipts, 100).expect("matches");
+    assert_eq!(
+        found.thread_ids,
+        [receipt, old],
+        "newest first; not Spam, not mine"
+    );
+    assert_eq!(found.total, 2);
+    assert_eq!(
+        fx.engine
+            .rule_matches(&receipts, 1)
+            .expect("limit")
+            .thread_ids,
+        [receipt]
+    );
+
+    let undo = fx
+        .engine
+        .apply_rule(&receipts, &found.thread_ids)
+        .expect("apply");
+    assert_eq!(fx.unread(receipt), 0);
+    let work = fx.list(Mailbox::Folder { id: fx.id("Work") });
+    assert!(work.contains(&receipt) && work.contains(&old));
+    assert!(!fx.list(Mailbox::Folder { id: inbox }).contains(&receipt));
+    assert!(fx.list(Mailbox::Folder { id: inbox }).contains(&other));
+    assert!(
+        fx.list(Mailbox::Folder { id: fx.id("Junk") })
+            .contains(&spam)
+    );
+
+    fx.engine.undo_rule(&undo).expect("undo");
+    assert!(fx.list(Mailbox::Folder { id: inbox }).contains(&receipt));
+    assert!(
+        fx.list(Mailbox::Folder {
+            id: fx.id("Archive")
+        })
+        .contains(&old)
+    );
+    assert!(fx.list(Mailbox::Folder { id: fx.id("Work") }).is_empty());
+    assert_eq!(fx.unread(receipt), 1);
+
+    let quiet = rule(
+        r#"{"name":"Quiet","conditions":[{"field":"from","op":"is","value":"x@y"}],"actions":[{"kind":"mute"}]}"#,
+    );
+    assert!(!crate::rules::acts_on_existing(&quiet));
 }

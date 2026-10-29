@@ -168,6 +168,16 @@
   "moveMenu.moveTo": "Move to…",
   "moveMenu.noMatches": "Nothing matches",
 
+  "rules.runNow": "Run now",
+  "rules.runNowTitle": "Run this rule on the mail that’s already here",
+  "rules.applyExisting": "Also apply to existing messages",
+  "rules.running": "Running “{name}”…",
+  "rules.progress": "Running “{name}” · {done} of {count}",
+  "rules.noMatches": "No conversations match “{name}”",
+  "rules.applied": "{count, plural, one {“{name}” applied to # conversation} other {“{name}” applied to # conversations}}",
+  "rules.appliedNewest": "“{name}” applied to the newest {count} of {total, plural, one {# matching conversation} other {# matching conversations}}",
+  "rules.runFailed": "Couldn’t run “{name}”: {error}",
+
   "accountAlert.signIn": "{name} needs you to sign in again.",
   "accountAlert.signInButton": "Sign in",
   "accountAlert.error": "{name} can’t sync.",

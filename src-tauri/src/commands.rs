@@ -4,6 +4,7 @@ use envelope_core::mail_api::FollowUpChange;
 use envelope_core::mail_api::MarkedRead;
 use envelope_core::model::*;
 use envelope_core::oauth::{ClientConfig, Provider};
+use envelope_core::rules::{MailRule, RuleMatches, RuleUndo};
 use envelope_core::{AccountPatch, UndoToken};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
@@ -262,6 +263,23 @@ pub fn set_follow_up(
     change: FollowUpChange,
 ) -> R<()> {
     Ok(state.engine.set_follow_up(&thread_ids, &change)?)
+}
+
+// ----- rules on existing mail -----------------------------------------------------
+
+#[tauri::command]
+pub fn rule_matches(state: State<'_, AppState>, rule: MailRule, limit: i64) -> R<RuleMatches> {
+    Ok(state.engine.rule_matches(&rule, limit)?)
+}
+
+#[tauri::command]
+pub fn rule_apply(state: State<'_, AppState>, rule: MailRule, thread_ids: Vec<i64>) -> R<RuleUndo> {
+    Ok(state.engine.apply_rule(&rule, &thread_ids)?)
+}
+
+#[tauri::command]
+pub fn rule_undo(state: State<'_, AppState>, undo: RuleUndo) -> R<()> {
+    Ok(state.engine.undo_rule(&undo)?)
 }
 
 #[tauri::command]

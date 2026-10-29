@@ -168,6 +168,16 @@
   "moveMenu.moveTo": "移动到…",
   "moveMenu.noMatches": "无匹配项",
 
+  "rules.runNow": "立即运行",
+  "rules.runNowTitle": "对已有邮件运行此规则",
+  "rules.applyExisting": "同时应用于现有邮件",
+  "rules.running": "正在运行“{name}”…",
+  "rules.progress": "正在运行“{name}” · {done}/{count}",
+  "rules.noMatches": "没有与“{name}”匹配的会话",
+  "rules.applied": "{count, plural, other {已将“{name}”应用到 # 个会话}}",
+  "rules.appliedNewest": "已将“{name}”应用到 {total, plural, other {# 个匹配会话}}中最新的 {count} 个",
+  "rules.runFailed": "无法运行“{name}”：{error}",
+
   "accountAlert.signIn": "{name} 需要你重新登录。",
   "accountAlert.signInButton": "登录",
   "accountAlert.error": "{name} 无法同步。",

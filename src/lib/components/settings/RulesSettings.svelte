@@ -2,15 +2,19 @@
   import { ui, type MailRule, type RuleAction, type RuleCondition } from '../../stores/ui.svelte';
   import { mail, roleLabel } from '../../stores/mail.svelte';
   import Toggle from './Toggle.svelte';
-  import { ArrowDown, ArrowUp, Plus, X } from '../../icons';
+  import { ArrowDown, ArrowUp, Play, Plus, X } from '../../icons';
+  import { runRule, runsOnExisting } from '../../stores/rules.svelte';
   import { intlLocale, t, tParts } from '../../i18n';
 
   let editing = $state<MailRule | null>(ui.rulesDraft);
+  /** Run the rule on the mail already here once it is saved. */
+  let applyExisting = $state(false);
   $effect(() => {
     // "Create rule…" from a message opens the editor prefilled.
     if (ui.rulesDraft) {
       editing = ui.rulesDraft;
       ui.rulesDraft = null;
+      applyExisting = false;
     }
   });
 
@@ -95,6 +99,12 @@
     const list = ui.settings.rules;
     ui.set('rules', list.some((r) => r.id === rule.id) ? list.map((r) => (r.id === rule.id ? rule : r)) : [...list, rule]);
     editing = null;
+    if (applyExisting && runsOnExisting(rule)) runRule(rule);
+  }
+
+  function edit(rule: MailRule) {
+    editing = rule;
+    applyExisting = false;
   }
 
   function remove() {
@@ -134,11 +144,12 @@
         <button class="icon-btn sm" aria-label={t('settings.rules.moveDown')} disabled={i === ui.settings.rules.length - 1} onclick={() => moveRule(i, 1)}><ArrowDown size={14} /></button>
       </div>
       <Toggle checked={r.enabled} label={t('settings.rules.enabled')} onchange={(v) => toggle(r, v)} />
-      <button class="btn sm" onclick={() => (editing = structuredClone($state.snapshot(r)))}>{t('common.edit')}</button>
+      <button class="btn sm" disabled={!runsOnExisting(r)} title={t('rules.runNowTitle')} onclick={() => runRule($state.snapshot(r) as MailRule)}><Play size={12} />{t('rules.runNow')}</button>
+      <button class="btn sm" onclick={() => edit(structuredClone($state.snapshot(r)))}>{t('common.edit')}</button>
     </div>
   {/each}
 </div>
-<button class="btn" onclick={() => (editing = blank())}><Plus size={15} />{t('settings.rules.new')}</button>
+<button class="btn" onclick={() => edit(blank())}><Plus size={15} />{t('settings.rules.new')}</button>
 
 {#if editing}
   <div class="editor-card">
@@ -192,6 +203,9 @@
     </div>
 
     <label class="stop"><Toggle checked={editing.stop} onchange={(v) => (editing!.stop = v)} /> {t('settings.rules.stop')}</label>
+    {#if runsOnExisting(editing)}
+      <label class="stop"><Toggle checked={applyExisting} label={t('rules.applyExisting')} onchange={(v) => (applyExisting = v)} /> {t('rules.applyExisting')}</label>
+    {/if}
 
     <div class="btns">
       {#if editing.id}<button class="btn danger" onclick={remove}>{t('common.delete')}</button>{/if}

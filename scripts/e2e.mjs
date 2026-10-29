@@ -765,6 +765,26 @@ await step('a follow-up reminder is done, or comes back later', async () => {
   }
 });
 
+await step('a rule runs on mail already here, with a count and Undo', async () => {
+  const p = await fresh();
+  try {
+    await p.keyboard.press('Control+,');
+    await p.locator('.window .tab', { hasText: 'Rules' }).click();
+    await p.locator('.window .btn', { hasText: 'New rule' }).click();
+    await p.locator('#rule-name').fill('Bank');
+    // The bank's statements, not the look-alike address of the link warning.
+    await p.locator('.editor-card .line input').first().fill('statements@northstar.test');
+    await p.locator('.editor-card .stop', { hasText: 'Also apply to existing messages' }).locator('.toggle').click();
+    await p.locator('.editor-card .btn.primary', { hasText: 'Save rule' }).click();
+    await toast(p, '“Bank” applied to 1 conversation');
+    await p.locator('.toast', { hasText: '“Bank” applied' }).first().locator('.action').click();
+    await p.locator('.acct.rule', { hasText: 'Bank' }).locator('.btn', { hasText: 'Run now' }).click();
+    await toast(p, '“Bank” applied to 1 conversation');
+  } finally {
+    await p.close();
+  }
+});
+
 await step('a banner asks to sign in again, and says when a server is out of reach', async () => {
   const trouble = {
     1: { state: 'offline', message: 'connection refused (os error 111)', failures: 4 },

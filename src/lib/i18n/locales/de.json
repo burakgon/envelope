@@ -168,6 +168,16 @@
   "moveMenu.moveTo": "Verschieben nach…",
   "moveMenu.noMatches": "Keine Treffer",
 
+  "rules.runNow": "Jetzt ausführen",
+  "rules.runNowTitle": "Diese Regel auf die schon vorhandene Post anwenden",
+  "rules.applyExisting": "Auch auf vorhandene Nachrichten anwenden",
+  "rules.running": "„{name}“ wird ausgeführt…",
+  "rules.progress": "„{name}“ wird ausgeführt · {done} von {count}",
+  "rules.noMatches": "Keine Konversation passt zu „{name}“",
+  "rules.applied": "{count, plural, one {„{name}“ auf # Konversation angewendet} other {„{name}“ auf # Konversationen angewendet}}",
+  "rules.appliedNewest": "„{name}“ auf die neuesten {count} von {total, plural, one {# passenden Konversation} other {# passenden Konversationen}} angewendet",
+  "rules.runFailed": "„{name}“ konnte nicht ausgeführt werden: {error}",
+
   "accountAlert.signIn": "{name}: Bitte melde dich erneut an.",
   "accountAlert.signInButton": "Anmelden",
   "accountAlert.error": "{name} kann nicht synchronisieren.",

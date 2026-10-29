@@ -168,6 +168,16 @@
   "moveMenu.moveTo": "移動先…",
   "moveMenu.noMatches": "一致する項目はありません",
 
+  "rules.runNow": "今すぐ実行",
+  "rules.runNowTitle": "このルールを既存のメールに適用",
+  "rules.applyExisting": "既存のメッセージにも適用する",
+  "rules.running": "「{name}」を実行しています…",
+  "rules.progress": "「{name}」を実行しています · {count} 件中 {done} 件",
+  "rules.noMatches": "「{name}」に一致するスレッドはありません",
+  "rules.applied": "{count, plural, other {「{name}」を # 件のスレッドに適用しました}}",
+  "rules.appliedNewest": "「{name}」を、一致した {total, plural, other {# 件}}のうち新しい {count} 件に適用しました",
+  "rules.runFailed": "「{name}」を実行できませんでした: {error}",
+
   "accountAlert.signIn": "{name} に再ログインしてください。",
   "accountAlert.signInButton": "ログイン",
   "accountAlert.error": "{name} を同期できません。",

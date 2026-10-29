@@ -168,6 +168,16 @@
   "moveMenu.moveTo": "Déplacer vers…",
   "moveMenu.noMatches": "Aucun résultat",
 
+  "rules.runNow": "Exécuter",
+  "rules.runNowTitle": "Appliquer cette règle aux messages déjà présents",
+  "rules.applyExisting": "Appliquer aussi aux messages existants",
+  "rules.running": "Exécution de « {name} »…",
+  "rules.progress": "Exécution de « {name} » · {done} sur {count}",
+  "rules.noMatches": "Aucune conversation ne correspond à « {name} »",
+  "rules.applied": "{count, plural, one {« {name} » appliquée à # conversation} other {« {name} » appliquée à # conversations}}",
+  "rules.appliedNewest": "« {name} » appliquée aux {count} plus récentes de {total, plural, one {# conversation correspondante} other {# conversations correspondantes}}",
+  "rules.runFailed": "Impossible d’exécuter « {name} » : {error}",
+
   "accountAlert.signIn": "{name} : reconnectez-vous pour continuer.",
   "accountAlert.signInButton": "Se connecter",
   "accountAlert.error": "{name} ne parvient pas à se synchroniser.",

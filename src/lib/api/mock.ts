@@ -70,6 +70,12 @@ export function createMockApi(): Api {
     queued: () => new Set([...outbox.values()].map((o) => o.draftId).filter((id): id is number => id != null)),
   });
 
+  const folderById = (id: number) => {
+    const f = data.folders.find((x) => x.id === id);
+    if (!f) throw { message: 'Folder not found', kind: 'notFound' } satisfies T.ApiError;
+    return f;
+  };
+
   // ----- follow-up reminders: the demo has one conversation waiting for a reply -------
 
   /** Conversations taken out of Follow up, and when they come back (null: done). */
@@ -79,6 +85,28 @@ export function createMockApi(): Api {
     const away = followUpAway.get(t.id);
     return away === undefined || (away != null && away <= Date.now());
   };
+
+  // ----- rules on existing mail -----------------------------------------------------
+
+  type Rule = Parameters<Api['rules']['matches']>[0];
+  function ruleMatches(rule: Rule, m: T.MessageView): boolean {
+    if (!rule.conditions.length || (rule.accountId != null && rule.accountId !== m.accountId)) return false;
+    const test = (c: Rule['conditions'][number]) => {
+      const needle = c.value.trim().toLowerCase();
+      if (!needle) return true;
+      const check = (hay: string, email?: string) =>
+        c.op === 'is' ? hay === needle || email === needle
+        : c.op === 'endsWith' ? (email ?? hay).endsWith(needle) || hay.endsWith(needle)
+        : hay.includes(needle);
+      const addr = (a: T.Address) => check((a.name ? `${a.name} <${a.email}>` : a.email).toLowerCase(), a.email.toLowerCase());
+      const from = () => !!m.from && addr(m.from);
+      const to = () => [...m.to, ...m.cc].some(addr);
+      const subject = () => check(m.subject.toLowerCase());
+      const hit = c.field === 'from' ? from() : c.field === 'to' ? to() : c.field === 'subject' ? subject() : from() || to() || subject();
+      return c.op === 'notContains' ? !hit : hit;
+    };
+    return rule.match === 'any' ? rule.conditions.some(test) : rule.conditions.every(test);
+  }
 
   function changed(threadIds: number[]) {
     recount();
@@ -303,6 +331,70 @@ export function createMockApi(): Api {
         t.folderIds = add ? [...new Set([...t.folderIds, folderId])] : t.folderIds.filter((f) => f !== folderId);
       }
       changed(threadIds);
+    },
+    rules: {
+      matches: async (rule, limit) => {
+        const skip = new Set(data.folders.filter((f) => ['sent', 'drafts', 'trash', 'junk'].includes(f.role ?? '')).map((f) => f.id));
+        const mine = new Set([...data.accounts.map((a) => a.email), ...identities.map((i) => i.email)].map((e) => e.toLowerCase()));
+        const found: number[] = [];
+        for (const m of [...messages].sort((a, b) => b.date - a.date)) {
+          const t = threads.find((x) => x.id === m.threadId);
+          if (!t || found.includes(t.id) || m.flags.draft || !t.folderIds.some((f) => !skip.has(f))) continue;
+          if (m.from && mine.has(m.from.email.toLowerCase())) continue;
+          if (ruleMatches(rule, m)) found.push(t.id);
+        }
+        return { total: found.length, threadIds: found.slice(0, limit) };
+      },
+      apply: async (rule, threadIds) => {
+        const undo: T.RuleUndo = { moves: [], read: [], starred: [], labeled: [] };
+        const kinds = new Set(rule.actions.map((a) => a.kind));
+        const theirs = (folderId: number) => threads.filter((t) => threadIds.includes(t.id) && t.accountId === folderById(folderId).accountId);
+        if (kinds.has('read')) {
+          const unread = messages.filter((m) => threadIds.includes(m.threadId) && !m.flags.seen && !m.flags.draft);
+          unread.forEach((m) => (m.flags.seen = true));
+          undo.read = unread.map((m) => m.id);
+        }
+        if (kinds.has('star')) {
+          for (const id of threadIds) {
+            const ms = messages.filter((m) => m.threadId === id);
+            const last = ms[ms.length - 1];
+            if (last && !ms.some((m) => m.flags.flagged)) {
+              last.flags.flagged = true;
+              undo.starred.push(last.id);
+            }
+          }
+        }
+        for (const a of rule.actions) {
+          if (a.kind !== 'label') continue;
+          const missing = theirs(a.folderId).filter((t) => !t.folderIds.includes(a.folderId));
+          missing.forEach((t) => t.folderIds.push(a.folderId));
+          if (missing.length) undo.labeled.push([a.folderId, missing.map((t) => t.id)]);
+        }
+        for (const a of rule.actions) {
+          if (a.kind === 'move') undo.moves.push(await api.moveThreads(theirs(a.folderId).map((t) => t.id), null, { kind: 'folder', id: a.folderId }));
+          else if (a.kind === 'archive') undo.moves.push(await api.moveThreads(threadIds, null, { kind: 'archive' }));
+          else if (a.kind === 'spam') undo.moves.push(await api.moveThreads(threadIds, null, { kind: 'junk' }));
+          else if (a.kind === 'trash') undo.moves.push(await api.moveThreads(threadIds, null, { kind: 'trash' }));
+        }
+        changed(threadIds);
+        return undo;
+      },
+      undo: async (undo) => {
+        for (const token of [...undo.moves].reverse()) await api.undo(token);
+        const ids = new Set<number>();
+        for (const [folderId, list] of undo.labeled) {
+          for (const t of threads.filter((x) => list.includes(x.id))) {
+            t.folderIds = t.folderIds.filter((f) => f !== folderId);
+            ids.add(t.id);
+          }
+        }
+        for (const m of messages) {
+          if (undo.read.includes(m.id)) m.flags.seen = false;
+          if (undo.starred.includes(m.id)) m.flags.flagged = false;
+          if (undo.read.includes(m.id) || undo.starred.includes(m.id)) ids.add(m.threadId);
+        }
+        changed([...ids]);
+      },
     },
     messageSource: async (id) => {
       const m = messages.find((x) => x.id === id)!;

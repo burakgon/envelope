@@ -168,6 +168,16 @@
   "moveMenu.moveTo": "Mover a…",
   "moveMenu.noMatches": "No hay coincidencias",
 
+  "rules.runNow": "Ejecutar ahora",
+  "rules.runNowTitle": "Aplicar esta regla al correo que ya tienes",
+  "rules.applyExisting": "Aplicar también a los mensajes existentes",
+  "rules.running": "Ejecutando “{name}”…",
+  "rules.progress": "Ejecutando “{name}” · {done} de {count}",
+  "rules.noMatches": "Ninguna conversación coincide con “{name}”",
+  "rules.applied": "{count, plural, one {“{name}” aplicada a # conversación} other {“{name}” aplicada a # conversaciones}}",
+  "rules.appliedNewest": "“{name}” aplicada a las {count} más recientes de {total, plural, one {# conversación coincidente} other {# conversaciones coincidentes}}",
+  "rules.runFailed": "No se pudo ejecutar “{name}”: {error}",
+
   "accountAlert.signIn": "{name} necesita que vuelvas a iniciar sesión.",
   "accountAlert.signInButton": "Iniciar sesión",
   "accountAlert.error": "{name} no puede sincronizarse.",

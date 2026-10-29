@@ -251,6 +251,20 @@ export interface MarkedRead {
 /** A change to the follow-up reminders of conversations. */
 export type FollowUpChange = { kind: 'done' } | { kind: 'remindAt'; at: number } | { kind: 'due' };
 
+/** The conversations a rule matches in mail already here, newest first. */
+export interface RuleMatches {
+  total: number;
+  threadIds: number[];
+}
+
+/** What running a rule on existing mail changed (opaque, handed back to undo it). */
+export interface RuleUndo {
+  moves: UndoToken[];
+  read: number[];
+  starred: number[];
+  labeled: [number, number[]][];
+}
+
 export interface DraftAttachment {
   filename: string;
   mimeType: string;
