@@ -128,7 +128,7 @@ export function detail(eventId: number, recurrenceId: T.EventTime | null): T.Eve
     event: {
       uid: `demo-${s.id}`, recurrenceId, summary: s.title, description: s.description ?? null, descriptionHtml: null, location: s.location ?? null, url: null,
       start: { kind: 'utc', at: new Date(occ.start).toISOString() }, end: { kind: 'utc', at: new Date(occ.end).toISOString() },
-      rrule: s.days.length ? `FREQ=WEEKLY;BYDAY=${s.days.map((d) => ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][d]).join(',')}` : null,
+      rrule: s.days.length ? `FREQ=WEEKLY;${(s.interval ?? 1) > 1 ? `INTERVAL=${s.interval};` : ''}BYDAY=${s.days.map((d) => ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][d]).join(',')}` : null,
       status: 'confirmed', transparency: 'opaque',
       organizer: s.attendees ? { email: s.attendees[0].email, name: s.attendees[0].name } : null,
       attendees: s.attendees ?? [], alarms: [{ action: 'display', minutesBefore: 10, description: null }], color: null, conferenceUrl: s.conference ?? null,

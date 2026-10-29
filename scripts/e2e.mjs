@@ -120,6 +120,19 @@ await step('a new event opens the editor', async () => {
   await page.keyboard.press('Escape');
 });
 
+await step('a repeating event reads its repeat rule in words, in the popover and the editor', async () => {
+  await page.locator('.ev', { hasText: 'Gym' }).first().click();
+  const line = page.locator('.pop .line', { hasText: /Weekly/ }).first();
+  await until(async () => (await line.count()) > 0 && (await line.innerText()).trim() === 'Weekly on Monday, Wednesday, Friday', async () => `the popover says "${(await line.count()) ? await line.innerText() : 'nothing'}"`);
+  await page.locator('.pop button[title="Edit"]').click();
+  await visible('.editor[role="dialog"]');
+  const repeat = page.locator('.editor select:has(option[value="FREQ=DAILY"])');
+  const chosen = await repeat.evaluate((s) => s.options[s.selectedIndex].text);
+  if (chosen !== 'Weekly on Monday, Wednesday, Friday') throw new Error(`the editor says "${chosen}"`);
+  await page.keyboard.press('Escape');
+  await page.locator('.editor[role="dialog"]').waitFor({ state: 'detached', timeout: 5000 });
+});
+
 await step('settings open and close', async () => {
   await page.keyboard.press('Control+,');
   await visible('.window[role="dialog"]');
@@ -331,6 +344,32 @@ async function closeComposer() {
   await w.locator('.dock .composer .bar .icon-btn').last().click();
   await w.locator('.dock .composer').waitFor({ state: 'detached', timeout: 5000 });
 }
+
+await step('the agenda puts a task due at a time among the events, in time order', async () => {
+  // A Thursday morning: the standup (9:30) and the product sync (10:00) come before
+  // the call due at 18:30.
+  const thursday = new Date(2026, 10, 5, 8, 0);
+  const day = await open(thursday);
+  try {
+    await day.goto(url);
+    await day.locator('.row').first().waitFor({ state: 'visible', timeout: 5000 });
+    await day.keyboard.press('Control+k');
+    await day.locator('.palette input').waitFor({ timeout: 5000 });
+    await day.keyboard.type('calendar');
+    await day.keyboard.press('Enter');
+    await day.locator('.grid-wrap').waitFor({ timeout: 5000 });
+    await day.getByRole('tab', { name: 'Agenda', exact: true }).click();
+    const today = day.locator('.agenda section', { has: day.locator('.day.today') });
+    await today.locator('.items').waitFor({ timeout: 5000 });
+    const text = await today.locator('.items').innerText();
+    const at = (title) => text.indexOf(title);
+    const call = at('Call Mom about her birthday dinner');
+    if (call < 0 || at('Daily standup') < 0 || at('Product sync') < 0) throw new Error(`today lists: ${text.replace(/\n+/g, ' | ')}`);
+    if (call < at('Daily standup') || call < at('Product sync')) throw new Error(`out of time order: ${text.replace(/\n+/g, ' | ')}`);
+  } finally {
+    await day.close();
+  }
+});
 
 await step('a short plain-text reply shows its text, its quote folded away', async () => {
   await openConversation('Book recommendations');

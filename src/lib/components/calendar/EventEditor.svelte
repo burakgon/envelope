@@ -4,6 +4,7 @@
   import { cal, ymd } from '../../stores/calendar.svelte';
   import { t } from '../../i18n';
   import { dateFormat } from '../../utils/format';
+  import { describeRule } from '../../utils/rrule';
   import RecipientInput from '../RecipientInput.svelte';
   import Toggle from '../settings/Toggle.svelte';
   import DatePicker from './DatePicker.svelte';
@@ -167,7 +168,7 @@
         <Repeat size={17} />
         <select class="input" bind:value={repeat}>
           {#each repeatOptions as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-          {#if customRepeat}<option value={repeat}>{t('calendar.recurrence.custom', { rule: repeat })}</option>{/if}
+          {#if customRepeat}<option value={repeat}>{describeRule(repeat)}</option>{/if}
         </select>
       </div>
 

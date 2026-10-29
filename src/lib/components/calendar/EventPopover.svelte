@@ -4,8 +4,9 @@
   import type { CalAttendee, EventDetail, Occurrence, PartStat } from '../../api';
   import { cal, span } from '../../stores/calendar.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
-  import { intlLocale, t } from '../../i18n';
+  import { t } from '../../i18n';
   import { dateFormat, timeOf } from '../../utils/format';
+  import { describeRule } from '../../utils/rrule';
   import Popover from '../Popover.svelte';
   import Avatar from '../Avatar.svelte';
   import { AlignLeft, Calendar, Check, Clock, HelpCircle, MapPin, Pen, Repeat, Trash, Users, Video, X, XCircle } from '../../icons';
@@ -41,38 +42,6 @@
     }
     return t('calendar.popover.dateTimeRange', { date: day, start: timeOf(o.start), end: timeOf(o.end) });
   });
-
-  // RRULE day codes in `Date.getDay()` order; 2 January 2000 was a Sunday.
-  const DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
-  function weekdayName(code: string): string {
-    const i = DAY_CODES.indexOf(code.slice(-2));
-    return i < 0 ? code : dateFormat({ weekday: 'long' }).format(new Date(2000, 0, 2 + i));
-  }
-
-  function describeRule(rule: string | null): string | null {
-    if (!rule) return null;
-    const parts = Object.fromEntries(rule.split(';').map((p) => p.split('=')));
-    const interval = Number(parts.INTERVAL ?? 1);
-    const count = interval > 1 ? interval : 1;
-    switch (parts.FREQ) {
-      case 'DAILY':
-        return t('calendar.recurrence.daily', { count });
-      case 'WEEKLY': {
-        const by: string[] = (parts.BYDAY ?? '').split(',').filter(Boolean);
-        if (by.length === 5 && !by.includes('SA') && !by.includes('SU')) return t('calendar.recurrence.everyWeekday');
-        if (!by.length) return t('calendar.recurrence.weekly', { count });
-        // "Monday, Wednesday" in English, "Montag und Mittwoch" in German…
-        const days = new Intl.ListFormat(intlLocale(), { style: 'narrow', type: 'conjunction' }).format(by.map(weekdayName));
-        return t('calendar.recurrence.weeklyOn', { count, days });
-      }
-      case 'MONTHLY':
-        return t('calendar.recurrence.monthly', { count });
-      case 'YEARLY':
-        return t('calendar.recurrence.yearly', { count });
-      default:
-        return t('calendar.recurrence.repeats');
-    }
-  }
 
   async function respond(status: PartStat) {
     busy = true;

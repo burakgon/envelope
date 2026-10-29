@@ -10,26 +10,34 @@
 
   let { onopen }: { onopen: (o: Occurrence, rect: DOMRect) => void } = $props();
 
-  // Each day: its all-day events, then the tasks due, then the rest.
+  type Timed = { key: string; at: number; o?: Occurrence; task?: Task };
+
+  // Each day: its all-day events, then the tasks due that day, then what has a time of day
+  // (events and tasks alike) in time order.
   const groups = $derived.by(() => {
-    const map = new Map<number, { events: Occurrence[]; tasks: Task[] }>();
+    const map = new Map<number, { allDay: Occurrence[]; tasks: Task[]; timed: Timed[] }>();
     const [from, to] = cal.range;
     const at = (day: number) => {
       let g = map.get(day);
-      if (!g) map.set(day, (g = { events: [], tasks: [] }));
+      if (!g) map.set(day, (g = { allDay: [], tasks: [], timed: [] }));
       return g;
     };
     for (const o of cal.occurrences) {
       const s = span(o);
       const day = Math.max(startOfDay(s.start).getTime(), from);
       if (day >= to || s.end <= from) continue;
-      at(day).events.push(o);
+      if (o.allDay) at(day).allDay.push(o);
+      else at(day).timed.push({ key: `event ${o.key}`, at: s.start, o });
     }
     for (const task of cal.dueTasks) {
       const key = dueDay(task);
       const day = key ? dayDate(key).getTime() : NaN;
-      if (day >= from && day < to) at(day).tasks.push(task);
+      if (!(day >= from && day < to)) continue;
+      if (task.dueAt != null) at(day).timed.push({ key: `task ${task.id}`, at: task.dueAt, task });
+      else at(day).tasks.push(task);
     }
+    // Stable: at the same minute, events stay ahead of tasks.
+    for (const g of map.values()) g.timed.sort((a, b) => a.at - b.at);
     return [...map.entries()].sort((a, b) => a[0] - b[0]);
   });
 </script>
@@ -54,9 +62,11 @@
         <span class="w">{dateFormat({ weekday: 'long' }).format(day)}<small>{dateFormat({ month: 'long', year: 'numeric' }).format(day)}</small></span>
       </div>
       <div class="items">
-        {#each g.events.filter((o) => o.allDay) as o (o.key)}{@render event(o)}{/each}
+        {#each g.allDay as o (o.key)}{@render event(o)}{/each}
         {#each g.tasks as task (task.id)}<TaskChip {task} variant="agenda" />{/each}
-        {#each g.events.filter((o) => !o.allDay) as o (o.key)}{@render event(o)}{/each}
+        {#each g.timed as item (item.key)}
+          {#if item.task}<TaskChip task={item.task} variant="agenda" />{:else if item.o}{@render event(item.o)}{/if}
+        {/each}
       </div>
     </section>
   {:else}
