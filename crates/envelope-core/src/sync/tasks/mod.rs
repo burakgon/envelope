@@ -199,10 +199,15 @@ pub(crate) fn spawn_scheduler(engine: Engine) {
 }
 
 /// Announces tasks as they come due, looking again when the next one is
-/// due or every half minute (edits can bring one forward).
+/// due or every half minute (edits can bring one forward). Each look also
+/// follows a change of the time zone, which moves the days of tasks due at
+/// a time of day.
 fn spawn_due_notifier(engine: Engine) {
     tokio::spawn(async move {
         loop {
+            if let Err(e) = engine.follow_time_zone() {
+                tracing::debug!("task days: {e}");
+            }
             let now = now_ms();
             let wait = match engine.notify_due_tasks(now) {
                 Ok(Some(next)) => Duration::from_millis((next - now).clamp(200, i64::MAX) as u64),

@@ -8,12 +8,13 @@
 
 use std::collections::{HashMap, HashSet};
 
+use chrono_tz::Tz;
 use rusqlite::{Connection, OptionalExtension, Row, Transaction, params};
 use serde::{Deserialize, Serialize};
 
 use crate::db::now_ms;
 use crate::error::{Error, Result};
-use crate::tasks::{TaskListKind, TaskSource};
+use crate::tasks::{TaskListKind, TaskSource, day_in};
 
 /// `local_state`: in sync with the server (or a list on this computer).
 pub const SYNCED: i64 = 0;
@@ -760,6 +761,31 @@ pub fn mark_notified(tx: &Transaction<'_>, ids: &[i64]) -> Result<()> {
     Ok(())
 }
 
+/// Works out again, in `zone`, the day of every task due at a time of day
+/// (after the time zone changed). Returns the lists whose tasks changed.
+pub fn redo_due_days(tx: &Transaction<'_>, zone: Tz) -> Result<Vec<i64>> {
+    let timed: Vec<(i64, i64, i64, Option<String>)> = {
+        let mut st =
+            tx.prepare("SELECT id, list_id, due_at, due_date FROM tasks WHERE due_at IS NOT NULL")?;
+        st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+            .collect::<rusqlite::Result<_>>()?
+    };
+    let mut lists = Vec::new();
+    for (id, list_id, at, day) in timed {
+        let local = day_in(at, zone);
+        if day.as_deref() != Some(local.as_str()) {
+            tx.execute(
+                "UPDATE tasks SET due_date = ? WHERE id = ?",
+                params![local, id],
+            )?;
+            lists.push(list_id);
+        }
+    }
+    lists.sort_unstable();
+    lists.dedup();
+    Ok(lists)
+}
+
 /// When the next open task not announced yet is due, after `now`.
 pub fn next_due_at(c: &Connection, now: i64) -> Result<Option<i64>> {
     Ok(c.query_row(
@@ -1282,6 +1308,39 @@ mod tests {
                 .as_deref(),
             Some("offline")
         );
+    }
+
+    #[test]
+    fn days_of_timed_tasks_are_worked_out_in_the_zone() {
+        let db = db();
+        let list = db
+            .write(|tx| create_local_list(tx, "Tasks", true))
+            .expect("list");
+        // 22:00 UTC on 30 October: the 31st in Tokyo, the 30th in New York.
+        let mut timed = fields("Call", 1024);
+        timed.due_at = Some(1_793_397_600_000);
+        timed.due_date = Some("2026-10-30".into());
+        let id = insert(&db, list, &timed, SYNCED);
+        let mut day_only = fields("Plants", 2048);
+        day_only.due_date = Some("2026-10-30".into());
+        let other = insert(&db, list, &day_only, SYNCED);
+        assert_eq!(
+            db.write(|tx| redo_due_days(tx, Tz::Asia__Tokyo))
+                .expect("redo"),
+            [list]
+        );
+        let day = |id| db.read(|c| get_task(c, id)).expect("row").due_date;
+        assert_eq!(day(id).as_deref(), Some("2026-10-31"));
+        assert_eq!(day(other).as_deref(), Some("2026-10-30"));
+        assert!(
+            db.write(|tx| redo_due_days(tx, Tz::Asia__Tokyo))
+                .expect("redo")
+                .is_empty(),
+            "nothing changes twice"
+        );
+        db.write(|tx| redo_due_days(tx, Tz::America__New_York))
+            .expect("redo");
+        assert_eq!(day(id).as_deref(), Some("2026-10-30"));
     }
 
     #[test]

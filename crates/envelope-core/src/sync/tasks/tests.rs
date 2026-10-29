@@ -750,6 +750,62 @@ async fn due_times_are_announced_once() {
     );
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn days_of_timed_tasks_follow_the_time_zone() {
+    let fx = fixture();
+    let list = fx.local_list();
+    let today = today();
+    let tomorrow = day(today + Duration::days(1));
+    let call = fx
+        .create(TaskInput {
+            due_at: Some(Some(local_at(today, 15))),
+            ..input(list, "Call Maya")
+        })
+        .await;
+    let plants = fx
+        .create(TaskInput {
+            due_date: Some(Some(tomorrow.clone())),
+            ..input(list, "Water the plants")
+        })
+        .await;
+    // Worked out in a zone far ahead, where 15:00 here is tomorrow already.
+    fx.engine
+        .db
+        .write(|tx| {
+            tx.execute(
+                "UPDATE tasks SET due_date = ? WHERE id = ?",
+                rusqlite::params![tomorrow, call.id],
+            )?;
+            crate::db::misc::kv_set(tx, crate::tasks::TIME_ZONE_KEY, &"Pacific/Kiritimati")
+        })
+        .expect("another zone");
+
+    fx.engine.follow_time_zone().expect("follow");
+    assert_eq!(fx.row(call.id).due_date, Some(day(today)));
+    assert_eq!(
+        fx.row(plants.id).due_date,
+        Some(tomorrow.clone()),
+        "days without a time stay"
+    );
+    assert_eq!(fx.titles(TaskView::Today, false).await, ["Call Maya"]);
+    assert_eq!(
+        fx.titles(TaskView::Upcoming, false).await,
+        ["Water the plants"]
+    );
+    assert!(
+        fx.events
+            .tasks_changed()
+            .iter()
+            .any(|ids| ids.as_slice() == [list])
+    );
+    let zone: Option<String> = fx
+        .engine
+        .db
+        .read(|c| crate::db::misc::kv_get(c, crate::tasks::TIME_ZONE_KEY))
+        .expect("zone");
+    assert_eq!(zone.as_deref(), Some(local_tz().name()));
+}
+
 // ---------------------------------------------------------------------------
 // CalDAV
 

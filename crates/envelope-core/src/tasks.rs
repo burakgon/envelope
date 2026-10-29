@@ -9,9 +9,11 @@
 //! happens on the server right away.
 
 use chrono::{DateTime, NaiveDate};
+use chrono_tz::Tz;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::calendar::local_tz;
+use crate::db::misc;
 use crate::db::now_ms;
 use crate::db::tasks::{self as tdb, ListCounts, ListRow, POSITION_STEP, TaskFields, TaskRow};
 use crate::engine::Engine;
@@ -28,6 +30,10 @@ const MAX_COMPLETED: i64 = 200;
 /// Tasks due longer ago than this when Envelope notices them (it was not
 /// running, the computer slept) are not announced any more.
 const LATE_NOTICE_MS: i64 = 60 * 60_000;
+
+/// Setting with the time zone the days of tasks due at a time of day were
+/// worked out in.
+pub(crate) const TIME_ZONE_KEY: &str = "tasks.timeZone";
 
 /// Where a list lives.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -232,9 +238,14 @@ where
 
 /// The local day of an instant, as `YYYY-MM-DD`.
 pub(crate) fn local_day(at: i64) -> String {
+    day_in(at, local_tz())
+}
+
+/// The day of an instant in `zone`, as `YYYY-MM-DD`.
+pub(crate) fn day_in(at: i64, zone: Tz) -> String {
     DateTime::from_timestamp_millis(at)
         .unwrap_or_default()
-        .with_timezone(&local_tz())
+        .with_timezone(&zone)
         .format("%Y-%m-%d")
         .to_string()
 }
@@ -1019,6 +1030,28 @@ impl Engine {
         self.emit(EngineEvent::TasksChanged {
             list_ids: Vec::new(),
         });
+        Ok(())
+    }
+
+    /// Follows a change of the time zone. The day of a task due at a time
+    /// of day, which the views of today and what is upcoming go by, is
+    /// worked out when its time is set, in the zone of the moment; when
+    /// the zone is not the one they were worked out in, they are worked out
+    /// again. Cheap when it is.
+    pub(crate) fn follow_time_zone(&self) -> Result<()> {
+        let zone = local_tz();
+        let known: Option<String> = self.db.read(|c| misc::kv_get(c, TIME_ZONE_KEY))?;
+        if known.as_deref() == Some(zone.name()) {
+            return Ok(());
+        }
+        let list_ids = self.db.write(|tx| {
+            let changed = tdb::redo_due_days(tx, zone)?;
+            misc::kv_set(tx, TIME_ZONE_KEY, &zone.name())?;
+            Ok(changed)
+        })?;
+        if !list_ids.is_empty() {
+            self.emit(EngineEvent::TasksChanged { list_ids });
+        }
         Ok(())
     }
 
