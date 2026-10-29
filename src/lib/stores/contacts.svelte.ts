@@ -2,6 +2,7 @@ import { api } from '../api';
 import type { Contact, ContactBook, ContactInput, ContactSummary } from '../api';
 import { intlLocale, t, type MessageKey } from '../i18n';
 import { errorMessage, toasts } from './toasts.svelte';
+import { confirmDiscard } from './dialogs.svelte';
 
 // Field labels the address books use. They are stored in English ("home", "mobile"…) and named in the interface language.
 const fieldLabels = new Map<string, MessageKey>([
@@ -33,6 +34,8 @@ class People {
   selectedId = $state<number | null>(null);
   detail = $state<Contact | null>(null);
   editing = $state<ContactInput | null>(null);
+  /** The contact as the editor opened it, to tell whether it was changed. */
+  private opened = '';
   private seq = 0;
   private started = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -87,9 +90,21 @@ class People {
     this.load();
   }
 
-  async select(id: number | null) {
-    this.selectedId = id;
+  /** Whether the editor has changes that weren't saved. */
+  get changed(): boolean {
+    return !!this.editing && JSON.stringify(this.editing) !== this.opened;
+  }
+
+  /** Closes the editor, asking first when that throws changes away; whether it closed. */
+  async closeEditor(): Promise<boolean> {
+    if (this.changed && !(await confirmDiscard())) return false;
     this.editing = null;
+    return true;
+  }
+
+  async select(id: number | null) {
+    if (!(await this.closeEditor())) return;
+    this.selectedId = id;
     if (id == null) {
       this.detail = null;
       return;
@@ -110,7 +125,8 @@ class People {
     this.select(next.id);
   }
 
-  newContact(prefill: Partial<ContactInput> = {}) {
+  async newContact(prefill: Partial<ContactInput> = {}) {
+    if (!(await this.closeEditor())) return;
     const book = this.writable.find((b) => b.id === this.bookId) ?? this.writable[0];
     if (!book) {
       toasts.error(t('contacts.noWritableBook'));
@@ -133,10 +149,13 @@ class People {
       photo: null,
       ...prefill,
     };
+    this.opened = JSON.stringify(this.editing);
   }
 
   edit() {
-    if (this.detail) this.editing = $state.snapshot(this.detail) as ContactInput;
+    if (!this.detail) return;
+    this.editing = $state.snapshot(this.detail) as ContactInput;
+    this.opened = JSON.stringify(this.editing);
   }
 
   async save() {

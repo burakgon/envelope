@@ -48,7 +48,7 @@
   function key(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.stopPropagation();
-      people.editing = null;
+      people.closeEditor();
     } else if ((e.ctrlKey || e.metaKey) && (e.key === 'Enter' || e.key === 's')) {
       e.preventDefault();
       people.save();
@@ -157,7 +157,7 @@
   {/if}
 
   <footer>
-    <button class="btn" onclick={() => (people.editing = null)}>{t('common.cancel')}</button>
+    <button class="btn" onclick={() => people.closeEditor()}>{t('common.cancel')}</button>
     <button class="btn primary" onclick={() => people.save()}>{c.id == null ? t('contacts.addContact') : t('common.save')}</button>
   </footer>
 </div>

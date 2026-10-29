@@ -149,6 +149,49 @@ await step('an event popover stays in the window as its details load', async () 
   await page.locator('.popover .pop').waitFor({ state: 'detached', timeout: 5000 });
 });
 
+await step('closing an event or a contact editor with changes asks first', async () => {
+  const ask = page.locator('[role="alertdialog"]');
+  const editor = page.locator('.editor[role="dialog"]');
+  // An event: Escape asks; going on keeps what was typed, and Discard closes.
+  await page.locator('button.compose').first().click();
+  await editor.waitFor({ timeout: 5000 });
+  await page.keyboard.type('Planning lunch');
+  await page.keyboard.press('Escape');
+  await ask.waitFor({ timeout: 5000 });
+  if (!(await ask.innerText()).includes('Discard your changes?')) throw new Error(`it asked: ${await ask.innerText()}`);
+  await page.keyboard.press('Escape');
+  await ask.waitFor({ state: 'detached', timeout: 5000 });
+  if ((await editor.locator('input.title').inputValue()) !== 'Planning lunch') throw new Error('the title was lost');
+  await page.keyboard.press('Escape');
+  await ask.locator('button.danger').click();
+  await editor.waitFor({ state: 'detached', timeout: 5000 });
+  // A contact: Cancel asks too.
+  await page.locator('.modes button[aria-label="Contacts"]').click();
+  await page.locator('.contacts .row', { hasText: 'Maya Chen' }).click();
+  const edit = page.locator('.detail button', { hasText: 'Edit' }).first();
+  await edit.click();
+  const first = page.locator('.contacts .editor input[placeholder="First name"]');
+  await first.fill('Mia');
+  await page.keyboard.press('Escape');
+  await ask.waitFor({ timeout: 5000 });
+  await ask.locator('button', { hasText: 'Keep editing' }).click();
+  await ask.waitFor({ state: 'detached', timeout: 5000 });
+  if ((await first.inputValue()) !== 'Mia') throw new Error('the change was lost');
+  await page.locator('.contacts .editor button', { hasText: 'Cancel' }).click();
+  await ask.locator('button.danger').click();
+  await first.waitFor({ state: 'detached', timeout: 5000 });
+  if (!(await page.locator('.detail').innerText()).includes('Maya Chen')) throw new Error('the discarded change was kept');
+  // Unchanged, it closes at once.
+  await edit.click();
+  await first.waitFor({ timeout: 5000 });
+  await first.focus();
+  await page.keyboard.press('Escape');
+  await first.waitFor({ state: 'detached', timeout: 5000 });
+  if (await ask.count()) throw new Error('closing an unchanged contact asked');
+  await page.locator('.modes button', { hasText: 'Calendar' }).click();
+  await visible('.grid-wrap');
+});
+
 await step('settings open and close', async () => {
   await page.keyboard.press('Control+,');
   await visible('.window[role="dialog"]');

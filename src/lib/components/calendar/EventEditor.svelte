@@ -11,6 +11,7 @@
   import TimePicker from './TimePicker.svelte';
   import AvailabilityStrip from './AvailabilityStrip.svelte';
   import { mail } from '../../stores/mail.svelte';
+  import { confirmDiscard } from '../../stores/dialogs.svelte';
   import { AlignLeft, Bell, Calendar, Clock, MapPin, Repeat, Users, Video, X } from '../../icons';
 
   const st = cal.editor!;
@@ -111,10 +112,25 @@
     await cal.save(st, scope);
   }
 
+  // What the editor opened with: closing it asks first once something was changed.
+  const entered = () => JSON.stringify({ input, startDate, startTime, endDate, endTime, repeat });
+  const opened = entered();
+  let asking = false;
+  async function close() {
+    if (asking) return;
+    if (entered() !== opened) {
+      asking = true;
+      const discard = await confirmDiscard();
+      asking = false;
+      if (!discard) return;
+    }
+    if (cal.editor === st) cal.editor = null;
+  }
+
   function key(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.stopPropagation();
-      cal.editor = null;
+      close();
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       save();
@@ -141,12 +157,12 @@
   }
 </script>
 
-<div class="backdrop" role="presentation" onclick={() => (cal.editor = null)}>
+<div class="backdrop" role="presentation" onclick={close}>
   <div class="editor" role="dialog" aria-label={t('calendar.editor.dialogLabel')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key} style:--c={calendarColor}>
     <header>
       <span class="sw"></span>
       <input bind:this={title} class="title" placeholder={t('calendar.editor.titlePlaceholder')} bind:value={input.summary} />
-      <button class="icon-btn" aria-label={t('common.close')} onclick={() => (cal.editor = null)}><X size={18} /></button>
+      <button class="icon-btn" aria-label={t('common.close')} onclick={close}><X size={18} /></button>
     </header>
 
     <div class="rows">
@@ -233,7 +249,7 @@
     <footer>
       <label class="inline busy"><Toggle checked={!input.transparent} onchange={(v) => (input.transparent = !v)} /> {t('calendar.editor.showAsBusy')}</label>
       <span class="grow"></span>
-      <button class="btn" onclick={() => (cal.editor = null)}>{t('common.cancel')}</button>
+      <button class="btn" onclick={close}>{t('common.cancel')}</button>
       <button class="btn primary" onclick={save}>{st.eventId == null ? t('calendar.editor.create') : t('common.save')}</button>
     </footer>
   </div>

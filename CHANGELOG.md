@@ -16,6 +16,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - The header above a quoted reply or forwarded message ("On …, … wrote:", "Forwarded message") and its date are written in the interface language.
 - Choosing another From address swaps the signature for that address's and leaves what was written alone; clicking in an empty message writes above the signature, not after it.
 - Deleting forever in Trash asks first, with the number of conversations; a draft thrown away with the composer's trash button comes back with Undo.
+- Closing the event or contact editor with changes that weren't saved — Escape, Cancel, a click outside, or opening another contact — asks first (Discard or Keep editing) instead of throwing them away.
 - The inline reply's pop-out button has a pop-out icon, and message frames start close to their size and fit their text as quotes are folded and unfolded.
 - Repeating events with a rule of their own read in words in the event editor ("Weekly on Monday, Wednesday, Friday") instead of the raw rule, and say how often or until when they repeat.
 - The agenda lists tasks due at a time of day among the events, in time order.

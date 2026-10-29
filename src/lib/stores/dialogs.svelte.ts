@@ -1,6 +1,8 @@
 // Questions asked in the app's own dialogs. The browser's confirm() and prompt() are bare system
 // windows in WebKitGTK ("JavaScript - tauri://localhost"), and prompt() shows a password as typed.
 
+import { t } from '../i18n';
+
 export interface ConfirmOptions {
   /** The question. */
   title: string;
@@ -75,3 +77,14 @@ class Dialogs {
 }
 
 export const dialogs = new Dialogs();
+
+/** Asks before an editor with changes that weren't saved is closed: true to throw them away. */
+export function confirmDiscard(): Promise<boolean> {
+  return dialogs.confirm({
+    title: t('common.discardChanges'),
+    message: t('common.discardChangesMessage'),
+    confirmLabel: t('common.discard'),
+    cancelLabel: t('common.keepEditing'),
+    danger: true,
+  });
+}
