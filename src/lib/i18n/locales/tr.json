@@ -1127,7 +1127,6 @@
   "settings.encryption.itMatches": "Eşleşiyor",
   "settings.encryption.noMatchingKeys": "Eşleşen anahtar yok.",
   "settings.encryption.noKeysYet": "Henüz anahtar yok. Şifreleme kullanan kişilerin postalarıyla birlikte gelirler; isterseniz içe aktarabilir ya da arayıp bulabilirsiniz.",
-  "settings.encryption.smimeTitle": "S/MIME",
   "settings.encryption.smimeDesc": "S/MIME, Outlook’un ve çoğu şirketin kullandığı standarttır: kuruluşunuzdan ya da bir sertifika yetkilisinden alınan bir sertifika, adresinizin size ait olduğunu onaylar. Posta imzalamak ve size şifrelenerek gönderilen postaları okumak için kendi sertifikanızı (.p12 ya da .pfx dosyası) içe aktarın. Size imzalı posta gönderen kişilerin sertifikaları saklanır; böylece onlara şifreli posta gönderebilirsiniz.",
   "settings.encryption.yourCertificates": "Sertifikalarınız",
   "settings.encryption.noCertificate": "Sertifika yok",

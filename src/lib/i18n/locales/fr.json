@@ -1127,7 +1127,6 @@
   "settings.encryption.itMatches": "Elle correspond",
   "settings.encryption.noMatchingKeys": "Aucune clé correspondante.",
   "settings.encryption.noKeysYet": "Aucune clé pour l’instant. Elles arrivent avec les messages des personnes qui utilisent le chiffrement ; vous pouvez aussi les importer ou les rechercher.",
-  "settings.encryption.smimeTitle": "S/MIME",
   "settings.encryption.smimeDesc": "S/MIME est la norme qu’utilisent Outlook et la plupart des entreprises : un certificat délivré par votre organisation ou par une autorité de certification se porte garant de votre adresse. Importez le vôtre (un fichier .p12 ou .pfx) pour signer vos messages et lire ceux qui sont chiffrés pour vous. Les certificats des personnes qui vous envoient des messages signés sont conservés, pour que vous puissiez chiffrer vos messages pour elles.",
   "settings.encryption.yourCertificates": "Vos certificats",
   "settings.encryption.noCertificate": "Aucun certificat",

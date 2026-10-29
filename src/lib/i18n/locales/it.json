@@ -1127,7 +1127,6 @@
   "settings.encryption.itMatches": "Corrisponde",
   "settings.encryption.noMatchingKeys": "Nessuna chiave corrispondente.",
   "settings.encryption.noKeysYet": "Ancora nessuna chiave. Arrivano con la posta di chi usa la crittografia, oppure puoi importarle o cercarle.",
-  "settings.encryption.smimeTitle": "S/MIME",
   "settings.encryption.smimeDesc": "S/MIME è lo standard usato da Outlook e dalla maggior parte delle aziende: un certificato della tua organizzazione o di un’autorità di certificazione garantisce il tuo indirizzo. Importa il tuo (un file .p12 o .pfx) per firmare la posta e leggere quella crittografata per te. I certificati di chi ti invia posta firmata vengono conservati, così puoi inviare loro messaggi crittografati.",
   "settings.encryption.yourCertificates": "I tuoi certificati",
   "settings.encryption.noCertificate": "Nessun certificato",

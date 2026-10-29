@@ -1127,7 +1127,6 @@
   "settings.encryption.itMatches": "Stimmt überein",
   "settings.encryption.noMatchingKeys": "Keine passenden Schlüssel.",
   "settings.encryption.noKeysYet": "Noch keine Schlüssel. Sie erhalten sie mit E-Mails von Personen, die Verschlüsselung nutzen, oder können sie importieren oder suchen.",
-  "settings.encryption.smimeTitle": "S/MIME",
   "settings.encryption.smimeDesc": "S/MIME wird von Outlook und den meisten Unternehmen genutzt: Ein Zertifikat Ihrer Organisation oder einer Zertifizierungsstelle bürgt für Ihre Adresse. Importieren Sie Ihr Zertifikat (eine .p12- oder .pfx-Datei), um E-Mails zu signieren und für Sie verschlüsselte E-Mails zu lesen. Die Zertifikate von Personen, die Ihnen signierte E-Mails senden, werden gespeichert, damit Sie ihnen verschlüsselt schreiben können.",
   "settings.encryption.yourCertificates": "Ihre Zertifikate",
   "settings.encryption.noCertificate": "Kein Zertifikat",

@@ -1127,7 +1127,6 @@
   "settings.encryption.itMatches": "Zgadza się",
   "settings.encryption.noMatchingKeys": "Brak pasujących kluczy.",
   "settings.encryption.noKeysYet": "Nie ma jeszcze żadnych kluczy. Trafiają tu wraz z pocztą od osób, które używają szyfrowania. Możesz też je zaimportować lub wyszukać.",
-  "settings.encryption.smimeTitle": "S/MIME",
   "settings.encryption.smimeDesc": "S/MIME to standard używany przez program Outlook i większość firm: certyfikat od Twojej organizacji lub urzędu certyfikacji poświadcza Twój adres. Zaimportuj swój certyfikat (plik .p12 lub .pfx), aby podpisywać pocztę i czytać wiadomości zaszyfrowane do Ciebie. Certyfikaty osób, które wysyłają Ci podpisaną pocztę, są zachowywane, więc możesz szyfrować wiadomości do nich.",
   "settings.encryption.yourCertificates": "Twoje certyfikaty",
   "settings.encryption.noCertificate": "Brak certyfikatu",

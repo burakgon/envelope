@@ -207,7 +207,7 @@
 {#if menu}
   <Popover x={menu.x} y={menu.y} onclose={() => (menu = null)} width={330}>
     <div class="panel">
-      {#if status && (status.smime.own || c.data.smime)}
+      {#if status && (status.smime.own || c.data.smime || status.standard === 'smime')}
         <div class="standard" role="group" aria-label={t('crypto.composer.standard')}>
           <button class:on={!smime} aria-pressed={!smime} onclick={() => setStandard(false)}>OpenPGP</button>
           <button class:on={smime} aria-pressed={smime} onclick={() => setStandard(true)}>S/MIME</button>

@@ -843,9 +843,11 @@ impl Engine {
         Ok(out)
     }
 
-    /// The standard to use when a message does not choose: S/MIME when the
-    /// sender has a certificate and replies to S/MIME mail, has no OpenPGP
-    /// key, or can encrypt to everyone with S/MIME but not with OpenPGP.
+    /// The standard to use when a message does not choose: S/MIME for an
+    /// answer to S/MIME mail (with or without a certificate of one's own, so
+    /// that importing one is offered rather than an OpenPGP key), and when
+    /// the sender has a certificate and either no OpenPGP key or a way to
+    /// encrypt to everyone with S/MIME but not with OpenPGP.
     pub(crate) fn default_standard(
         &self,
         from: &str,
@@ -853,17 +855,17 @@ impl Engine {
         smime: &SmimeCompose,
         pgp_can_encrypt: bool,
     ) -> Result<&'static str> {
-        if smime.own.is_none() {
-            return Ok("openpgp");
-        }
-        if let Some(id) = reply_to
-            && let Some(kind) = self.db.read(|c| crypto_store::message_crypto_kind(c, id))?
+        let replied = match reply_to {
+            Some(id) => self.db.read(|c| crypto_store::message_crypto_kind(c, id))?,
+            None => None,
+        };
+        if let Some(kind) = &replied
+            && kind.starts_with("smime-")
         {
-            return Ok(if kind.starts_with("smime-") {
-                "smime"
-            } else {
-                "openpgp"
-            });
+            return Ok("smime");
+        }
+        if smime.own.is_none() || replied.is_some() {
+            return Ok("openpgp");
         }
         if self.own_key_for(&from.trim().to_lowercase())?.is_none() {
             return Ok("smime");
@@ -889,9 +891,6 @@ impl Engine {
             .map(|a| a.email.clone())
             .collect();
         let smime = self.smime_compose(from, &recipients)?;
-        if smime.own.is_none() {
-            return Ok(false);
-        }
         let pgp_can_encrypt = self.pgp_can_encrypt(from, &recipients)?;
         Ok(
             self.default_standard(from, draft.reply_to_message_id, &smime, pgp_can_encrypt)?

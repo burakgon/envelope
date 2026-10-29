@@ -1127,7 +1127,6 @@
   "settings.encryption.itMatches": "It matches",
   "settings.encryption.noMatchingKeys": "No matching keys.",
   "settings.encryption.noKeysYet": "No keys yet. They arrive with mail from people who use encryption, or you can import or find them.",
-  "settings.encryption.smimeTitle": "S/MIME",
   "settings.encryption.smimeDesc": "S/MIME is what Outlook and most companies use: a certificate from your organization or a certificate authority vouches for your address. Import yours (a .p12 or .pfx file) to sign mail and to read mail encrypted to you. The certificates of people who send you signed mail are kept, so you can encrypt to them.",
   "settings.encryption.yourCertificates": "Your certificates",
   "settings.encryption.noCertificate": "No certificate",

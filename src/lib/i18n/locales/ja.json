@@ -1127,7 +1127,6 @@
   "settings.encryption.itMatches": "一致しました",
   "settings.encryption.noMatchingKeys": "一致する鍵はありません。",
   "settings.encryption.noKeysYet": "鍵はまだありません。暗号化を使っている人からメールが届くと追加されます。インポートや検索で追加することもできます。",
-  "settings.encryption.smimeTitle": "S/MIME",
   "settings.encryption.smimeDesc": "S/MIME は Outlook や多くの企業で使われている方式です。組織または認証局が発行した証明書によって、あなたのアドレスが保証されます。メールに署名したり、あなた宛てに暗号化されたメールを読んだりするには、自分の証明書（.p12 または .pfx ファイル）をインポートしてください。署名付きメールを送ってきた人の証明書は保存されるため、その人宛てにメールを暗号化できます。",
   "settings.encryption.yourCertificates": "自分の証明書",
   "settings.encryption.noCertificate": "証明書なし",

@@ -26,6 +26,14 @@
   let finding = $state('');
   /** S/MIME certificates: the user's own (private key here) and other people's. */
   let certs = $state<CertificateInfo[]>([]);
+  /** OpenPGP or S/MIME, shown one at a time: S/MIME first for someone with a certificate and no key. */
+  let tab = $state<'openpgp' | 'smime'>('openpgp');
+  let tabChosen = false;
+  $effect(() => {
+    if (tabChosen || (!own.length && !certs.length)) return;
+    tabChosen = true;
+    if (!own.length && certs.some((c) => c.secret)) tab = 'smime';
+  });
   let certQuery = $state('');
 
   /** Where a key came from, as a badge (keys.openpgp.org is shown by name). */
@@ -304,6 +312,12 @@
 <h2>{t('settings.tab.encryption')}</h2>
 <p class="desc">{t('settings.encryption.desc')}</p>
 
+<div class="standards" role="tablist" aria-label={t('crypto.composer.standard')}>
+  <button role="tab" aria-selected={tab === 'openpgp'} class:on={tab === 'openpgp'} onclick={() => (tab = 'openpgp')}>OpenPGP</button>
+  <button role="tab" aria-selected={tab === 'smime'} class:on={tab === 'smime'} onclick={() => (tab = 'smime')}>S/MIME</button>
+</div>
+
+{#if tab === 'openpgp'}
 <h3>{t('settings.encryption.yourKeys')}</h3>
 <div class="list">
   {#each own as o (o.email)}
@@ -439,40 +453,6 @@
   </div>
 {/if}
 
-<h3>{t('settings.encryption.preferences')}</h3>
-{#if settings}
-  <div class="group">
-    <div class="row">
-      <div class="txt"><b>{t('settings.encryption.encryptWhenPossible')}</b><span>{t('settings.encryption.encryptWhenPossibleDesc')}</span></div>
-      <Toggle label={t('settings.encryption.encryptWhenPossible')} checked={settings.encryptWhenPossible} onchange={(v) => set('encryptWhenPossible', v)} />
-    </div>
-    <div class="row">
-      <div class="txt"><b>{t('settings.encryption.signByDefault')}</b><span>{t('settings.encryption.signByDefaultDesc')}</span></div>
-      <Toggle label={t('settings.encryption.signByDefault')} checked={settings.signByDefault} onchange={(v) => set('signByDefault', v)} />
-    </div>
-    <div class="row">
-      <div class="txt"><b>{t('settings.encryption.sendAutocrypt')}</b><span>{t('settings.encryption.sendAutocryptDesc')}</span></div>
-      <Toggle label={t('settings.encryption.sendAutocrypt')} checked={settings.sendAutocrypt} onchange={(v) => set('sendAutocrypt', v)} />
-    </div>
-    <div class="row">
-      <div class="txt"><b>{t('settings.encryption.protectSubject')}</b><span>{t('settings.encryption.protectSubjectDesc')}</span></div>
-      <Toggle label={t('settings.encryption.protectSubject')} checked={settings.protectSubject} onchange={(v) => set('protectSubject', v)} />
-    </div>
-    <div class="row">
-      <div class="txt"><b>{t('settings.encryption.wkdLookup')}</b><span>{t('settings.encryption.wkdLookupDesc')}</span></div>
-      <Toggle label={t('settings.encryption.wkdLookup')} checked={settings.wkdLookup} onchange={(v) => set('wkdLookup', v)} />
-    </div>
-    <div class="row">
-      <div class="txt"><b>{t('settings.encryption.keepDecrypted')}</b><span>{t('settings.encryption.keepDecryptedDesc')}</span></div>
-      <Toggle label={t('settings.encryption.keepDecrypted')} checked={settings.keepDecrypted} onchange={(v) => set('keepDecrypted', v)} />
-    </div>
-    <div class="row">
-      <div class="txt"><b>{t('settings.encryption.passphrases')}</b><span>{t('settings.encryption.passphrasesDesc')}</span></div>
-      <button class="btn sm" disabled={busy} onclick={lockNow}><Lock size={13} />{t('settings.encryption.forgetNow')}</button>
-    </div>
-  </div>
-{/if}
-
 <h3>{t('settings.encryption.othersKeys')}</h3>
 <div class="tools">
   <div class="search">
@@ -537,7 +517,7 @@
   {/each}
 </div>
 
-<h3 class="smime">{t('settings.encryption.smimeTitle')}</h3>
+{:else}
 <p class="desc">{t('settings.encryption.smimeDesc')}</p>
 <h4>{t('settings.encryption.yourCertificates')}</h4>
 <div class="list">
@@ -603,8 +583,63 @@
     <p class="desc">{certQuery ? t('settings.encryption.noMatchingCertificates') : t('settings.encryption.noCertificatesYet')}</p>
   {/each}
 </div>
+{/if}
+
+<h3>{t('settings.encryption.preferences')}</h3>
+{#if settings}
+  <div class="group">
+    <div class="row">
+      <div class="txt"><b>{t('settings.encryption.encryptWhenPossible')}</b><span>{t('settings.encryption.encryptWhenPossibleDesc')}</span></div>
+      <Toggle label={t('settings.encryption.encryptWhenPossible')} checked={settings.encryptWhenPossible} onchange={(v) => set('encryptWhenPossible', v)} />
+    </div>
+    <div class="row">
+      <div class="txt"><b>{t('settings.encryption.signByDefault')}</b><span>{t('settings.encryption.signByDefaultDesc')}</span></div>
+      <Toggle label={t('settings.encryption.signByDefault')} checked={settings.signByDefault} onchange={(v) => set('signByDefault', v)} />
+    </div>
+    <div class="row">
+      <div class="txt"><b>{t('settings.encryption.sendAutocrypt')}</b><span>{t('settings.encryption.sendAutocryptDesc')}</span></div>
+      <Toggle label={t('settings.encryption.sendAutocrypt')} checked={settings.sendAutocrypt} onchange={(v) => set('sendAutocrypt', v)} />
+    </div>
+    <div class="row">
+      <div class="txt"><b>{t('settings.encryption.protectSubject')}</b><span>{t('settings.encryption.protectSubjectDesc')}</span></div>
+      <Toggle label={t('settings.encryption.protectSubject')} checked={settings.protectSubject} onchange={(v) => set('protectSubject', v)} />
+    </div>
+    <div class="row">
+      <div class="txt"><b>{t('settings.encryption.wkdLookup')}</b><span>{t('settings.encryption.wkdLookupDesc')}</span></div>
+      <Toggle label={t('settings.encryption.wkdLookup')} checked={settings.wkdLookup} onchange={(v) => set('wkdLookup', v)} />
+    </div>
+    <div class="row">
+      <div class="txt"><b>{t('settings.encryption.keepDecrypted')}</b><span>{t('settings.encryption.keepDecryptedDesc')}</span></div>
+      <Toggle label={t('settings.encryption.keepDecrypted')} checked={settings.keepDecrypted} onchange={(v) => set('keepDecrypted', v)} />
+    </div>
+    <div class="row">
+      <div class="txt"><b>{t('settings.encryption.passphrases')}</b><span>{t('settings.encryption.passphrasesDesc')}</span></div>
+      <button class="btn sm" disabled={busy} onclick={lockNow}><Lock size={13} />{t('settings.encryption.forgetNow')}</button>
+    </div>
+  </div>
+{/if}
 
 <style>
+  .standards {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    margin: 4px 0 6px;
+    border-radius: 10px;
+    background: var(--bg-active);
+  }
+  .standards button {
+    padding: 5px 14px;
+    border-radius: 7px;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .standards button.on {
+    color: var(--text);
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-sm);
+  }
   h2 {
     margin: 0 0 8px;
     font-size: var(--text-xl);
@@ -615,11 +650,6 @@
     font-size: var(--text-md);
   }
   /* S/MIME starts a part of its own. */
-  h3.smime {
-    margin-top: 34px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
-  }
   h4 {
     margin: 16px 0 4px;
     font-size: var(--text-base);

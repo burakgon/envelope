@@ -2120,6 +2120,7 @@ await step('S/MIME: certificates in Settings, a .p12 password asked in the app, 
     const settings = p.getByRole('dialog', { name: 'Settings' });
     await settings.waitFor({ timeout: 5000 });
     await settings.locator('.tab', { hasText: 'Encryption' }).click();
+    await settings.getByRole('tab', { name: 'S/MIME' }).click();
     await settings.locator('.item', { hasText: 'alex@lumen.dev' }).filter({ hasText: 'Lumen Corporate CA' }).waitFor({ timeout: 5000 });
     // Lukas's certificate came with his signed mail.
     await settings.locator('.item', { hasText: 'Lukas Weber' }).filter({ hasText: 'From their signed mail' }).waitFor({ timeout: 5000 });

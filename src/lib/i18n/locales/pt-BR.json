@@ -1127,7 +1127,6 @@
   "settings.encryption.itMatches": "Coincide",
   "settings.encryption.noMatchingKeys": "Nenhuma chave encontrada.",
   "settings.encryption.noKeysYet": "Nenhuma chave ainda. Elas chegam com e-mails de pessoas que usam criptografia, ou você pode importá-las ou procurá-las.",
-  "settings.encryption.smimeTitle": "S/MIME",
   "settings.encryption.smimeDesc": "O S/MIME é o padrão usado pelo Outlook e pela maioria das empresas: um certificado da sua organização ou de uma autoridade certificadora atesta que o endereço é seu. Importe o seu (um arquivo .p12 ou .pfx) para assinar e-mails e ler os e-mails criptografados para você. Os certificados de quem envia e-mails assinados para você ficam guardados, para que você possa criptografar mensagens para essas pessoas.",
   "settings.encryption.yourCertificates": "Seus certificados",
   "settings.encryption.noCertificate": "Sem certificado",

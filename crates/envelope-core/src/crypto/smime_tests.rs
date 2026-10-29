@@ -374,3 +374,35 @@ async fn others_certificates_are_imported_and_files_open() {
     assert_eq!(m.attachments.len(), 1);
     assert_eq!(m.attachments[0].filename, "secret.pdf");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn answering_smime_mail_without_a_certificate_offers_smime() {
+    // Alice has no certificate of her own; Bob's signed mail brings his.
+    let f = Fixture::new(&[("Alice Example", "alice@example.com")]);
+    let e = &f.engine;
+    let id = f.deliver("alice@example.com", &fixture("signed-bob.eml"));
+    e.open_message(id).await.unwrap();
+    let (alice, _) = f.account("alice@example.com");
+    let status = e
+        .compose_crypto(alice, None, None, &["bob@example.org".into()], Some(id))
+        .unwrap();
+    assert_eq!(
+        status.standard, "smime",
+        "so importing a certificate is offered"
+    );
+    assert!(status.smime.own.is_none());
+    // Without one, a plain answer still goes out, neither signed nor encrypted.
+    let mut d = draft(alice, &["bob@example.org"], "Re: Hi", "<p>Thanks</p>");
+    d.reply_to_message_id = Some(id);
+    let sent = crate::sync::render_draft(e, &d, false).await.unwrap();
+    assert_eq!(smime_mime::detect(&sent.mime), None);
+    // Asked to sign, it says what is missing.
+    d.sign = Some(true);
+    let err = crate::sync::render_draft(e, &d, false).await.unwrap_err();
+    assert!(err.to_string().contains("Import your certificate"), "{err}");
+    // A new message, not an answer: OpenPGP as before.
+    let status = e
+        .compose_crypto(alice, None, None, &["bob@example.org".into()], None)
+        .unwrap();
+    assert_eq!(status.standard, "openpgp");
+}

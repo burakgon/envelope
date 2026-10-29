@@ -1127,7 +1127,6 @@
   "settings.encryption.itMatches": "指纹一致",
   "settings.encryption.noMatchingKeys": "没有匹配的密钥。",
   "settings.encryption.noKeysYet": "还没有密钥。使用加密的人发来的邮件会附带其密钥，你也可以导入或查找密钥。",
-  "settings.encryption.smimeTitle": "S/MIME",
   "settings.encryption.smimeDesc": "S/MIME 是 Outlook 和大多数公司使用的标准：由你所在单位或证书颁发机构签发的证书可以证明该地址属于你。导入你的证书（.p12 或 .pfx 文件）后，即可为邮件签名，并阅读发给你的加密邮件。向你发送签名邮件的人的证书会被保存，以便你向他们发送加密邮件。",
   "settings.encryption.yourCertificates": "你的证书",
   "settings.encryption.noCertificate": "无证书",

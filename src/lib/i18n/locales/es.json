@@ -1127,7 +1127,6 @@
   "settings.encryption.itMatches": "Coincide",
   "settings.encryption.noMatchingKeys": "No hay claves que coincidan.",
   "settings.encryption.noKeysYet": "Aún no hay claves. Llegan con el correo de quienes usan cifrado; también puedes importarlas o buscarlas.",
-  "settings.encryption.smimeTitle": "S/MIME",
   "settings.encryption.smimeDesc": "S/MIME es lo que usan Outlook y la mayoría de las empresas: un certificado de tu organización o de una autoridad de certificación avala tu dirección. Importa el tuyo (un archivo .p12 o .pfx) para firmar correo y leer el correo cifrado para ti. Se guardan los certificados de quienes te envían correo firmado, para que puedas enviarles mensajes cifrados.",
   "settings.encryption.yourCertificates": "Tus certificados",
   "settings.encryption.noCertificate": "Sin certificado",
