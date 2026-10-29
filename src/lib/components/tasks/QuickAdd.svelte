@@ -18,7 +18,6 @@
   let focused = $state(false);
   /** Chips the user removed: what they stood for stays in the title. */
   let ignore = $state<{ due?: boolean; important?: boolean }>({});
-  let busy = $state(false);
   let picker = $state<{ x: number; y: number } | null>(null);
 
   const list = $derived(tasks.addTarget);
@@ -60,14 +59,15 @@
     }
   });
 
+  /** Adds the task; the field is free for the next one at once, and gets the text back if it was not saved. */
   async function submit() {
     const title = parsed.title.trim();
-    if (!title || !list || busy) return;
-    busy = true;
+    if (!title || !list) return;
     const task: TaskInput = { listId: list.id, title, dueDate: due?.date ?? null, dueAt, important };
+    const typed = { text, ignore };
+    text = '';
     const made = await tasks.add(task);
-    busy = false;
-    if (made) text = '';
+    if (!made && !text) ({ text, ignore } = typed);
   }
 
   function key(e: KeyboardEvent) {
