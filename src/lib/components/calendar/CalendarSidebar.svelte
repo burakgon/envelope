@@ -35,7 +35,7 @@
     }
     return set;
   });
-  const range = $derived(cal.view === 'day' || cal.view === 'week' ? cal.range : [null, null]);
+  const range = $derived(cal.view === 'day' || cal.view === 'workweek' || cal.view === 'week' ? cal.range : [null, null]);
 
   async function refresh(c: CalendarInfo) {
     colorFor = null;

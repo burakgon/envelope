@@ -1169,6 +1169,20 @@ await step('a second time zone gets an hour column of its own', async () => {
   const nine = (await z.locator('.hour-label.second').nth(9).innerText()).trim();
   if (nine !== '3 PM') throw new Error(`9 AM reads "${nine}" in Tokyo`);
 });
+
+await step('the work week view shows Monday to Friday, from its key and the palette', async () => {
+  const weekdays = () => z.locator('.dayhead .dow').allInnerTexts().then((d) => d.join(' ').toUpperCase());
+  await z.locator('body').press('x');
+  await eventually(z, async () => (await weekdays()) === 'MON TUE WED THU FRI', async () => `the view shows ${await weekdays()}`);
+  if ((await z.getByRole('tab', { name: 'Work week', exact: true }).getAttribute('aria-selected')) !== 'true') throw new Error('the Work week tab is not on');
+  await z.locator('body').press('w');
+  await eventually(z, async () => (await z.locator('.dayhead').count()) === 7, 'w did not go back to the week');
+  await z.keyboard.press('Control+k');
+  await z.locator('.palette input').waitFor({ timeout: 5000 });
+  await z.keyboard.type('work week');
+  await z.keyboard.press('Enter');
+  await eventually(z, async () => (await weekdays()) === 'MON TUE WED THU FRI', async () => `the palette showed ${await weekdays()}`);
+});
 await z.close();
 
 await step('no page errors', async () => {

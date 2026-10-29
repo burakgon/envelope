@@ -28,6 +28,7 @@
 
   const views: { id: CalView; label: MessageKey; tooltip: MessageKey; key: string }[] = [
     { id: 'day', label: 'calendar.view.day', tooltip: 'calendar.view.dayTooltip', key: 'D' },
+    { id: 'workweek', label: 'calendar.view.workWeek', tooltip: 'calendar.view.workWeekTooltip', key: 'X' },
     { id: 'week', label: 'calendar.view.week', tooltip: 'calendar.view.weekTooltip', key: 'W' },
     { id: 'month', label: 'calendar.view.month', tooltip: 'calendar.view.monthTooltip', key: 'M' },
     { id: 'agenda', label: 'calendar.view.agenda', tooltip: 'calendar.view.agendaTooltip', key: 'A' },
@@ -37,10 +38,12 @@
     popover = { key: o.key, rect };
   }
 
+  const timeGrid = $derived(cal.view === 'day' || cal.view === 'workweek' || cal.view === 'week');
+
   let wheelLock = 0;
   function onWheel(e: WheelEvent) {
     // Horizontal swipes page through time in the week and day views.
-    if (cal.view !== 'week' && cal.view !== 'day') return;
+    if (!timeGrid) return;
     if (Math.abs(e.deltaX) < 30 || Math.abs(e.deltaX) < Math.abs(e.deltaY) * 2) return;
     const now = Date.now();
     if (now - wheelLock < 600) return;
@@ -73,7 +76,7 @@
 
   {#key cal.view}
     <div class="body">
-      {#if cal.view === 'day' || cal.view === 'week'}
+      {#if timeGrid}
         <TimeGrid {days} onopen={open} />
       {:else if cal.view === 'month'}
         <MonthGrid onopen={open} />

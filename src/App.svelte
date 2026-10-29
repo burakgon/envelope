@@ -243,6 +243,7 @@
         c: () => cal.newEvent(),
         t: () => cal.today(),
         d: () => cal.setView('day'),
+        x: () => cal.setView('workweek'),
         w: () => cal.setView('week'),
         m: () => cal.setView('month'),
         a: () => cal.setView('agenda'),

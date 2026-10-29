@@ -6,7 +6,7 @@ import { tasks } from './tasks.svelte';
 import { errorMessage, toasts } from './toasts.svelte';
 import { ui } from './ui.svelte';
 
-export type CalView = 'day' | 'week' | 'month' | 'agenda';
+export type CalView = 'day' | 'workweek' | 'week' | 'month' | 'agenda';
 
 export const DAY = 86_400_000;
 
@@ -79,6 +79,11 @@ class Cal {
       case 'week': {
         const s = startOfWeek(f, this.weekStart);
         return [s.getTime(), addDays(s, 7).getTime()];
+      }
+      case 'workweek': {
+        // Monday to Friday of the week shown by the week view.
+        const monday = addDays(startOfWeek(f, this.weekStart), (8 - this.weekStart) % 7);
+        return [monday.getTime(), addDays(monday, 5).getTime()];
       }
       case 'month': {
         const first = new Date(f.getFullYear(), f.getMonth(), 1);
@@ -189,6 +194,7 @@ class Cal {
         this.goto(addDays(f, dir).getTime());
         break;
       case 'week':
+      case 'workweek':
         this.goto(addDays(f, 7 * dir).getTime());
         break;
       case 'month':

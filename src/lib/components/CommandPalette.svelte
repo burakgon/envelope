@@ -53,6 +53,7 @@
 
   const viewLabels: Record<CalView, MessageKey> = {
     day: 'palette.calendarDayView',
+    workweek: 'palette.calendarWorkWeekView',
     week: 'palette.calendarWeekView',
     month: 'palette.calendarMonthView',
     agenda: 'palette.calendarAgendaView',
@@ -79,7 +80,7 @@
     { id: 'new-contact', label: t('palette.newContact'), group: 'actions', icon: UserPlus, searchOnly: true, keywords: `${t('palette.kw.newContact')} person add address book`, run: () => { ui.view = 'contacts'; people.init().then(() => people.newContact()); } },
     { id: 'new-event', label: t('palette.newEvent'), group: 'calendar', icon: CalendarPlus, keywords: `${t('palette.kw.newEvent')} meeting appointment schedule`, run: () => { ui.view = 'calendar'; cal.newEvent(); } },
     { id: 'cal-today', label: t('palette.calendarToday'), group: 'calendar', icon: Calendar, searchOnly: true, run: () => { ui.view = 'calendar'; cal.today(); } },
-    ...(['day', 'week', 'month', 'agenda'] as CalView[]).map((v): Command => ({
+    ...(['day', 'workweek', 'week', 'month', 'agenda'] as CalView[]).map((v): Command => ({
       id: `cal-${v}`,
       label: t(viewLabels[v]),
       group: 'calendar',

@@ -64,7 +64,7 @@
       keys: [
         ['C', t('shortcuts.newEvent')],
         ['T', t('shortcuts.jumpToToday')],
-        ['D / W / M / A', t('shortcuts.calendarViews')],
+        ['D / X / W / M / A', t('shortcuts.calendarViews')],
         ['J / K', t('shortcuts.nextPreviousPeriod')],
         ['G then M', t('shortcuts.backToMail')],
         ['Ctrl Enter', t('shortcuts.saveEvent')],
