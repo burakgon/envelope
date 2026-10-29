@@ -1,7 +1,6 @@
 // The birthdays of the address books as all-day entries of a calendar of their own.
 
 import type { Birthday, Occurrence } from '../api';
-import { t } from '../i18n';
 
 /** The calendar birthdays appear in. */
 export const BIRTHDAYS = -1;
@@ -27,7 +26,8 @@ export function birthdayOccurrences(list: Birthday[], from: number, to: number):
         eventId: -b.contactId,
         calendarId: BIRTHDAYS,
         uid: `birthday-${b.contactId}`,
-        title: t('birthdays.title', { name: b.name }),
+        // The name, which a narrow day keeps in every language; the cake says what it is.
+        title: `🎂 ${b.name}`,
         start: day.getTime(),
         end: next.getTime(),
         allDay: true,

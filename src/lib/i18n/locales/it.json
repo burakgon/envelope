@@ -225,7 +225,6 @@
   "subscriptions.deleteMessage": "{count, plural, one {# conversazione finisce nel Cestino.} other {# conversazioni finiscono nel Cestino.}}",
   "subscriptions.deleted": "{count, plural, one {# conversazione spostata nel Cestino} other {# conversazioni spostate nel Cestino}}",
 
-  "birthdays.title": "Compleanno di {name}",
   "birthdays.calendar": "Compleanni",
   "birthdays.turns": "{age, plural, one {Compie # anno} other {Compie # anni}}",
   "birthdays.openContact": "Apri contatto",
@@ -704,6 +703,7 @@
   "calendar.header.nextPeriodTooltip": "Successivo ({key})",
   "calendar.header.upcoming": "Prossimi eventi",
   "calendar.weekNumber": "Settimana {week}",
+  "calendar.weekShort": "S{week}",
   "calendar.view.day": "Giorno",
   "calendar.view.dayTooltip": "Giorno ({key})",
   "calendar.view.workWeek": "Settimana lavorativa",

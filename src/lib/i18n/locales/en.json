@@ -225,7 +225,6 @@
   "subscriptions.deleteMessage": "{count, plural, one {# conversation goes to Trash.} other {# conversations go to Trash.}}",
   "subscriptions.deleted": "{count, plural, one {Moved # conversation to Trash} other {Moved # conversations to Trash}}",
 
-  "birthdays.title": "{name}’s birthday",
   "birthdays.calendar": "Birthdays",
   "birthdays.turns": "Turns {age}",
   "birthdays.openContact": "Open contact",
@@ -704,6 +703,7 @@
   "calendar.header.nextPeriodTooltip": "Next ({key})",
   "calendar.header.upcoming": "Upcoming",
   "calendar.weekNumber": "Week {week}",
+  "calendar.weekShort": "W{week}",
   "calendar.view.day": "Day",
   "calendar.view.dayTooltip": "Day ({key})",
   "calendar.view.workWeek": "Work week",

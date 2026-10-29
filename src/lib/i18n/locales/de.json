@@ -225,7 +225,6 @@
   "subscriptions.deleteMessage": "{count, plural, one {# Konversation kommt in den Papierkorb.} other {# Konversationen kommen in den Papierkorb.}}",
   "subscriptions.deleted": "{count, plural, one {# Konversation in den Papierkorb verschoben} other {# Konversationen in den Papierkorb verschoben}}",
 
-  "birthdays.title": "Geburtstag von {name}",
   "birthdays.calendar": "Geburtstage",
   "birthdays.turns": "Wird {age}",
   "birthdays.openContact": "Kontakt öffnen",
@@ -704,6 +703,7 @@
   "calendar.header.nextPeriodTooltip": "Weiter ({key})",
   "calendar.header.upcoming": "Demnächst",
   "calendar.weekNumber": "KW {week}",
+  "calendar.weekShort": "KW {week}",
   "calendar.view.day": "Tag",
   "calendar.view.dayTooltip": "Tag ({key})",
   "calendar.view.workWeek": "Arbeitswoche",

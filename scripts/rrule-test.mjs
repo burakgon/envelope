@@ -197,15 +197,13 @@ const people = [
   { contactId: 2, name: 'Kenji Tanaka', date: '--02-29' },
 ];
 const days = (from, to) => birthdayOccurrences(people, from.getTime(), to.getTime()).map((o) => [o.title, o.startDate, o.endDate]);
-check('birthdays in a range, all day', days(at(2026, 4, 1), at(2026, 5, 1)), [['Maya Chen’s birthday', '2026-04-15', '2026-04-16']]);
+check('birthdays in a range, all day', days(at(2026, 4, 1), at(2026, 5, 1)), [['🎂 Maya Chen', '2026-04-15', '2026-04-16']]);
 check('February 29 falls on the 28th in other years', [days(at(2027, 2, 1), at(2027, 3, 1)), days(at(2028, 2, 1), at(2028, 3, 1))], [
-  [['Kenji Tanaka’s birthday', '2027-02-28', '2027-03-01']],
-  [['Kenji Tanaka’s birthday', '2028-02-29', '2028-03-01']],
+  [['🎂 Kenji Tanaka', '2027-02-28', '2027-03-01']],
+  [['🎂 Kenji Tanaka', '2028-02-29', '2028-03-01']],
 ]);
 check('a range across new year', days(at(2026, 12, 20), at(2027, 4, 20)).map(([, d]) => d), ['2027-04-15', '2027-02-28']);
 check('the age turned, when the year is known', [ageIn(people[0], 2026), ageIn(people[1], 2026)], [34, null]);
-globalThis.lang = 'de';
-check('in the interface language', days(at(2026, 4, 1), at(2026, 5, 1))[0][0], 'Geburtstag von Maya Chen');
 globalThis.lang = 'pl';
 check('Polish ages', [1, 3, 34].map((age) => tx('birthdays.turns', { age })), ['Kończy 1 rok', 'Kończy 3 lata', 'Kończy 34 lata']);
 globalThis.lang = 'en';

@@ -225,7 +225,6 @@
   "subscriptions.deleteMessage": "{count, plural, other {# 件のスレッドがゴミ箱に移動します。}}",
   "subscriptions.deleted": "{count, plural, other {# 件のスレッドをゴミ箱に移動しました}}",
 
-  "birthdays.title": "{name}の誕生日",
   "birthdays.calendar": "誕生日",
   "birthdays.turns": "{age} 歳になります",
   "birthdays.openContact": "連絡先を開く",
@@ -704,6 +703,7 @@
   "calendar.header.nextPeriodTooltip": "次へ（{key}）",
   "calendar.header.upcoming": "今後の予定",
   "calendar.weekNumber": "第 {week} 週",
+  "calendar.weekShort": "{week}週",
   "calendar.view.day": "日",
   "calendar.view.dayTooltip": "日（{key}）",
   "calendar.view.workWeek": "稼働日",

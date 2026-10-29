@@ -225,7 +225,6 @@
   "subscriptions.deleteMessage": "{count, plural, one {# wątek trafi do Kosza.} few {# wątki trafią do Kosza.} many {# wątków trafi do Kosza.} other {# wątku trafi do Kosza.}}",
   "subscriptions.deleted": "{count, plural, one {Przeniesiono # wątek do Kosza} few {Przeniesiono # wątki do Kosza} many {Przeniesiono # wątków do Kosza} other {Przeniesiono # wątku do Kosza}}",
 
-  "birthdays.title": "Urodziny: {name}",
   "birthdays.calendar": "Urodziny",
   "birthdays.turns": "{age, plural, one {Kończy # rok} few {Kończy # lata} many {Kończy # lat} other {Kończy # roku}}",
   "birthdays.openContact": "Otwórz kontakt",
@@ -704,6 +703,7 @@
   "calendar.header.nextPeriodTooltip": "Następny okres ({key})",
   "calendar.header.upcoming": "Nadchodzące",
   "calendar.weekNumber": "Tydzień {week}",
+  "calendar.weekShort": "T{week}",
   "calendar.view.day": "Dzień",
   "calendar.view.dayTooltip": "Dzień ({key})",
   "calendar.view.workWeek": "Tydzień roboczy",

@@ -57,7 +57,7 @@
       {@const ms = d.getTime()}
       {#if ui.settings.calendarWeekNumbers && i % 7 === 0}
         {@const week = weekOfRow(d)}
-        <span class="wk" title={t('calendar.weekNumber', { week })}>{week}</span>
+        <span class="wk" title={t('calendar.weekNumber', { week })} aria-label={t('calendar.weekNumber', { week })}>{week}</span>
       {/if}
       <button
         class="d"
@@ -101,7 +101,7 @@
     padding-right: 4px;
     font-size: 10px;
     font-variant-numeric: tabular-nums;
-    color: var(--text-4);
+    color: var(--text-3);
   }
   .wd {
     text-align: center;

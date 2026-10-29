@@ -127,6 +127,12 @@
   .nav {
     display: flex;
   }
+  /* In a narrow window the dates come first. */
+  @media (max-width: 1000px) {
+    .week-no {
+      display: none;
+    }
+  }
   .week-no {
     flex-shrink: 0;
     padding: 2px 8px;

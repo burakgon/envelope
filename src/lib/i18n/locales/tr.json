@@ -225,7 +225,6 @@
   "subscriptions.deleteMessage": "{count, plural, one {# konuşma Çöp Kutusu’na taşınacak.} other {# konuşma Çöp Kutusu’na taşınacak.}}",
   "subscriptions.deleted": "{count, plural, one {# konuşma Çöp Kutusu’na taşındı} other {# konuşma Çöp Kutusu’na taşındı}}",
 
-  "birthdays.title": "Doğum günü: {name}",
   "birthdays.calendar": "Doğum günleri",
   "birthdays.turns": "{age} yaşına giriyor",
   "birthdays.openContact": "Kişiyi aç",
@@ -704,6 +703,7 @@
   "calendar.header.nextPeriodTooltip": "Sonraki ({key})",
   "calendar.header.upcoming": "Yaklaşanlar",
   "calendar.weekNumber": "{week}. hafta",
+  "calendar.weekShort": "H{week}",
   "calendar.view.day": "Gün",
   "calendar.view.dayTooltip": "Gün ({key})",
   "calendar.view.workWeek": "İş haftası",

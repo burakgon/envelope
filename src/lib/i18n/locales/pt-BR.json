@@ -225,7 +225,6 @@
   "subscriptions.deleteMessage": "{count, plural, one {# conversa vai para a Lixeira.} other {# conversas vão para a Lixeira.}}",
   "subscriptions.deleted": "{count, plural, one {# conversa movida para a Lixeira} other {# conversas movidas para a Lixeira}}",
 
-  "birthdays.title": "Aniversário de {name}",
   "birthdays.calendar": "Aniversários",
   "birthdays.turns": "{age, plural, one {Faz # ano} other {Faz # anos}}",
   "birthdays.openContact": "Abrir contato",
@@ -704,6 +703,7 @@
   "calendar.header.nextPeriodTooltip": "Próximo ({key})",
   "calendar.header.upcoming": "Próximos eventos",
   "calendar.weekNumber": "Semana {week}",
+  "calendar.weekShort": "S{week}",
   "calendar.view.day": "Dia",
   "calendar.view.dayTooltip": "Dia ({key})",
   "calendar.view.workWeek": "Semana de trabalho",

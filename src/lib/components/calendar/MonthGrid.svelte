@@ -89,7 +89,7 @@
         <button class="num" class:today onclick={() => { cal.view = 'day'; cal.goto(d.getTime()); }}>{d.getDate()}</button>
         {#if ui.settings.calendarWeekNumbers && i % 7 === 0}
           {@const week = weekOfRow(d)}
-          <span class="wk" title={t('calendar.weekNumber', { week })}>{week}</span>
+          <span class="wk" title={t('calendar.weekNumber', { week })} aria-label={t('calendar.weekNumber', { week })}>{t('calendar.weekShort', { week })}</span>
         {/if}
         <div class="events">
           {#each list.slice(0, 4) as it (it.o ? it.o.key : `task-${it.task.id}`)}
