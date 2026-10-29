@@ -417,6 +417,24 @@ await step('the trash button discards a draft, and Undo brings it back', async (
   await w.locator('.dock .composer .icon-btn[aria-label="Discard draft"]').click();
 });
 
+await step('a new message: writing goes above the signature, and From swaps the signature', async () => {
+  await w.locator('.sidebar .compose').click();
+  // From the work address, which has a signature.
+  const from = w.locator('.dock .composer .from select');
+  await from.selectOption({ index: 0 });
+  await editor().locator('.envelope-signature').waitFor({ timeout: 5000 });
+  await editor().click();
+  await w.keyboard.type('Hello there.');
+  const first = await editor().locator('p').first().innerText();
+  if (first !== 'Hello there.') throw new Error(`the first line reads "${first}"`);
+  if (!(await editor().locator('.envelope-signature').innerText()).includes('Product Lead')) throw new Error('the signature changed');
+  await from.selectOption({ index: 1 });
+  await wUntil(async () => !(await editor().locator('.envelope-signature').count()), 'the work signature stayed with the personal address');
+  await from.selectOption({ index: 0 });
+  await editor().locator('.envelope-signature', { hasText: 'Product Lead' }).waitFor({ timeout: 5000 });
+  if (!(await editor().innerText()).startsWith('Hello there.')) throw new Error('the text changed with the signature');
+});
+
 await step('deleting forever in Trash asks first, with the count', async () => {
   await openConversation('Tokyo office visit');
   await w.locator('body').press('#');

@@ -7,6 +7,7 @@
   import { Bold, Code, Italic, Link, List, ListOrdered, Quote, Strikethrough, Underline, Undo, Redo, Type } from '../icons';
   import { t } from '../i18n';
   import { dialogs } from '../stores/dialogs.svelte';
+  import { Signature, signatureRange, focusAboveSignature, written } from './editor-signature';
 
   let {
     html,
@@ -43,6 +44,7 @@
           heading: { levels: [1, 2, 3] },
         }),
         Image.configure({ inline: true, allowBase64: true }),
+        Signature,
         Placeholder.configure({ placeholder: () => placeholderText }),
       ],
       editorProps: {
@@ -101,6 +103,23 @@
     }
   });
 
+  /**
+   * A click below the signature writes above it, at the end of the text. So does a click on the
+   * signature while nothing is written yet: the empty message is where people click to begin,
+   * and what they type must not join the signature's last line.
+   */
+  function onMouseDown(e: MouseEvent) {
+    if (!editor || e.button !== 0 || e.shiftKey || e.detail > 1) return;
+    const range = signatureRange(editor);
+    if (!range) return;
+    const pos = editor.view.posAtCoords({ left: e.clientX, top: e.clientY })?.pos ?? editor.state.doc.content.size;
+    const below = pos >= range.to;
+    const onSignature = pos > range.from && pos < range.to;
+    if (!below && !(onSignature && !written(editor, 0, range.from))) return;
+    e.preventDefault();
+    focusAboveSignature(editor);
+  }
+
   async function setLink() {
     if (!editor) return;
     const prev = editor.getAttributes('link').href as string | undefined;
@@ -144,7 +163,8 @@
     <button class="icon-btn sm" title={t('editor.redo')} onmousedown={(e) => e.preventDefault()} onclick={() => editor?.chain().focus().redo().run()}><Redo size={15} /></button>
   </div>
 {/if}
-<div class="editor" bind:this={el}></div>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="editor" bind:this={el} onmousedown={onMouseDown}></div>
 
 <style>
   .toolbar {
@@ -223,5 +243,8 @@
   .editor :global(.envelope-signature),
   .editor :global(.prose .envelope-signature) {
     color: var(--text-2);
+  }
+  .editor :global(.prose .envelope-signature p) {
+    margin: 0;
   }
 </style>

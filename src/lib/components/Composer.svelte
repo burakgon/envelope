@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { api } from '../api';
-  import type { DraftAttachment } from '../api';
+  import type { DraftAttachment, Identity } from '../api';
   import { compose, type ComposerState } from '../stores/compose.svelte';
   import { mail } from '../stores/mail.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
@@ -13,6 +13,7 @@
   import AiComposeMenu from './AiComposeMenu.svelte';
   import TemplateMenu from './TemplateMenu.svelte';
   import ComposerCrypto from './ComposerCrypto.svelte';
+  import { focusAboveSignature, replaceSignature } from './editor-signature';
   import { sanitizeFragment } from '../utils/html';
   import type { Template } from '../stores/ui.svelte';
   import type { Editor as TipTap } from '@tiptap/core';
@@ -54,6 +55,8 @@
   let customAt = $state('');
 
   const identities = $derived(mail.identities);
+  /** An address of a draft written elsewhere that has no identity here. */
+  const keptFrom = $derived(c.data.from?.email && !identities.some((i) => i.email.toLowerCase() === c.data.from!.email.toLowerCase()) ? c.data.from : null);
   const identity = $derived(
     identities.find((i) => i.id === c.data.identityId) ?? identities.find((i) => i.accountId === c.data.accountId && i.isDefault),
   );
@@ -123,6 +126,35 @@
     // Encryption: every recipient needs a key, a locked key its passphrase.
     if (cryptoBar && !(await cryptoBar.prepareSend())) return;
     compose.send(c.key, at);
+  }
+
+  /** Sends from another address: its signature takes the old one's place, the text stays. */
+  function setIdentity(i: Identity) {
+    const signature = compose.signatureOf({ identityId: i.id, accountId: i.accountId });
+    c.data.identityId = i.id;
+    c.data.accountId = i.accountId;
+    // An address kept from a draft written elsewhere gives way to the identity (and its reply-to).
+    c.data.from = null;
+    if (editorRef && !editorRef.isDestroyed) {
+      replaceSignature(editorRef, signature);
+      body = editorRef.getHTML();
+    } else {
+      const doc = new DOMParser().parseFromString(`<body>${body}</body>`, 'text/html');
+      const old = doc.body.querySelector('.envelope-signature');
+      if (old && signature) old.innerHTML = signature;
+      else if (old) old.remove();
+      else if (signature) doc.body.insertAdjacentHTML('beforeend', `<div class="envelope-signature">${signature}</div>`);
+      body = doc.body.innerHTML;
+      editorKey++;
+    }
+    changed();
+  }
+
+  /** A click in the empty part of the message writes at the end of the text, above the signature. */
+  function onBodyDown(e: MouseEvent) {
+    if (e.target !== e.currentTarget || e.button !== 0 || !editorRef) return;
+    e.preventDefault();
+    focusAboveSignature(editorRef);
   }
 
   function laterOptions() {
@@ -204,17 +236,15 @@
         <div class="from">
           <span class="lbl">{t('composer.from')}</span>
           <select
-            value={identity?.id}
+            value={keptFrom ? -1 : identity?.id}
+            aria-label={t('composer.from')}
             onchange={(e) => {
               const id = Number((e.currentTarget as HTMLSelectElement).value);
               const i = identities.find((x) => x.id === id);
-              if (i) {
-                c.data.identityId = i.id;
-                c.data.accountId = i.accountId;
-                changed();
-              }
+              if (i) setIdentity(i);
             }}
           >
+            {#if keptFrom}<option value={-1}>{keptFrom.name ? `${keptFrom.name} <${keptFrom.email}>` : keptFrom.email}</option>{/if}
             {#each identities as i (i.id)}
               <option value={i.id}>{i.name} &lt;{i.email}&gt;</option>
             {/each}
@@ -236,7 +266,8 @@
       {/if}
     </div>
 
-    <div class="body">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="body" onmousedown={onBodyDown}>
       {#key editorKey}
         <Editor
           html={body}

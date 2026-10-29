@@ -94,12 +94,18 @@ class Compose {
     return mail.accounts[0]?.id ?? 0;
   }
 
-  private withSignature(data: DraftInput): DraftInput {
-    if (data.html || data.mode !== 'new') return data;
+  /** The signature of the identity a draft is sent from. */
+  signatureOf(data: Pick<DraftInput, 'identityId' | 'accountId'>): string | null {
     const identity =
       mail.identities.find((i) => i.id === data.identityId) ??
       mail.identities.find((i) => i.accountId === data.accountId && i.isDefault);
-    if (identity?.signature) data.html = `<p></p><div class="envelope-signature">${identity.signature}</div>`;
+    return identity?.signature?.trim() ? identity.signature : null;
+  }
+
+  private withSignature(data: DraftInput): DraftInput {
+    if (data.html || data.mode !== 'new') return data;
+    const signature = this.signatureOf(data);
+    if (signature) data.html = `<p></p><div class="envelope-signature">${signature}</div>`;
     return data;
   }
 
