@@ -26,7 +26,7 @@ Envelope receives the sign-in result on a temporary loopback address (`http://12
 ## Google
 
 1. Open the [Google Cloud console](https://console.cloud.google.com/) and create a project (or pick an existing one).
-2. **APIs & Services → Library**: enable the **Google Calendar API**, the **People API** and the **Gmail API** (used only for the vacation responder; mail itself goes over IMAP and SMTP).
+2. **APIs & Services → Library**: enable the **Google Calendar API**, the **People API**, the **Google Tasks API** and the **Gmail API** (used only for the vacation responder; mail itself goes over IMAP and SMTP).
 3. **APIs & Services → OAuth consent screen** (Google Auth Platform):
    - User type **External** (or **Internal** for a Workspace-only setup).
    - Add these scopes under **Data access**:
@@ -35,6 +35,7 @@ Envelope receives the sign-in result on a temporary loopback address (`http://12
      - `https://www.googleapis.com/auth/contacts`
      - `https://www.googleapis.com/auth/contacts.other.readonly`
      - `https://www.googleapis.com/auth/gmail.settings.basic`
+     - `https://www.googleapis.com/auth/tasks`
      - `openid`, `email`, `profile`
    - While the app is in *Testing*, add the Google accounts you want to use under **Audience → Test users**. (`https://mail.google.com/` is a restricted scope; publishing an app with it for everyone requires Google's verification.)
 4. **Clients → Create client**, application type **Desktop app**. Copy the client id and client secret into `ENVELOPE_GOOGLE_CLIENT_ID` and `ENVELOPE_GOOGLE_CLIENT_SECRET`.
@@ -47,7 +48,7 @@ Envelope receives the sign-in result on a temporary loopback address (`http://12
    - Redirect URI: platform **Public client/native (mobile & desktop)**, URI `http://localhost`.
 2. In the new registration, **Authentication**: make sure `http://localhost` is listed under *Mobile and desktop applications* and set **Allow public client flows** to *Yes*. No client secret is needed.
 3. **API permissions → Add a permission → Microsoft Graph → Delegated permissions**, add:
-   `offline_access`, `openid`, `email`, `profile`, `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.ReadWrite`, `Calendars.ReadWrite`, `Contacts.ReadWrite`, `People.Read`.
+   `offline_access`, `openid`, `email`, `profile`, `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.ReadWrite`, `Calendars.ReadWrite`, `Contacts.ReadWrite`, `People.Read`, `Tasks.ReadWrite`.
    For work or school tenants that require it, an administrator can **Grant admin consent** here.
 4. Copy the **Application (client) id** from the overview page into `ENVELOPE_MICROSOFT_CLIENT_ID`.
 
@@ -57,4 +58,5 @@ Envelope receives the sign-in result on a temporary loopback address (`http://12
 - *Google: "Access blocked: app has not completed the Google verification process"* — add your account as a test user (step 3), or use an app password with IMAP instead.
 - *Microsoft: "AADSTS50011: redirect URI mismatch"* — the registration is missing the `http://localhost` redirect under *Mobile and desktop applications*.
 - *Microsoft: "Need admin approval"* — your organization restricts user consent; ask an administrator to grant consent for the permissions above.
+- *The tasks of a Google or Microsoft account don't show up* — the account was signed in before Envelope supported tasks, or the tasks permission was not granted (Google lets you untick it on the consent screen). Everything else keeps working without it; **Settings → Accounts → Sign in again** asks for it. With your own Google client, also check that the Google Tasks API is enabled (step 2).
 - The browser shows "connection refused" after signing in — the sign-in took longer than ten minutes, or another program is filtering loopback connections. Try again.
