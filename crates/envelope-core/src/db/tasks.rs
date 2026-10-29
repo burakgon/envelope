@@ -29,6 +29,10 @@ pub const DELETED: i64 = 3;
 /// room to move tasks between others without renumbering them.
 pub const POSITION_STEP: i64 = 1024;
 
+/// How long before a create whose answer got lost the server may have made
+/// the task, by its clock: the request took its time, and clocks differ.
+pub const UNANSWERED_SLACK_MS: i64 = 10 * 60_000;
+
 /// Color of lists on this computer.
 const LOCAL_COLOR: &str = "#6d5efc";
 
@@ -399,6 +403,8 @@ pub struct TaskRow {
     pub deleted_state: Option<i64>,
     /// …and the task whose deletion took it along (itself, or its parent).
     pub deleted_with: Option<i64>,
+    /// When a create of it got no answer: it may be on the server already.
+    pub sent_at: Option<i64>,
     /// Subtasks (not deleted), and how many of them are done.
     pub subtask_count: i64,
     pub subtasks_done: i64,
@@ -465,6 +471,7 @@ fn task_from_row(r: &Row<'_>) -> rusqlite::Result<TaskRow> {
         push_error: r.get("push_error")?,
         deleted_state: r.get("deleted_state")?,
         deleted_with: r.get("deleted_with")?,
+        sent_at: r.get("sent_at")?,
         subtask_count: r.get("subtask_count")?,
         subtasks_done: r.get("subtasks_done")?,
     })
@@ -970,6 +977,10 @@ pub fn upsert_synced(tx: &Transaction<'_>, list_id: i64, task: &RemoteTask) -> R
             Ok(Some(id))
         }
         None => {
+            if let Some(id) = unanswered_create(tx, list_id, task)? {
+                adopt(tx, id, task)?;
+                return upsert_synced(tx, list_id, task).map(|_| Some(id));
+            }
             let position = match task.position {
                 Some(position) => position,
                 None => {
@@ -1007,6 +1018,74 @@ pub fn upsert_synced(tx: &Transaction<'_>, list_id: i64, task: &RemoteTask) -> R
             Ok(Some(tx.last_insert_rowid()))
         }
     }
+}
+
+/// The task of a list whose create got no answer that `task`, new from the
+/// server, is: the same title, notes, due day and parent, made since the
+/// create was sent. Deleted ones count too.
+fn unanswered_create(tx: &Transaction<'_>, list_id: i64, task: &RemoteTask) -> Result<Option<i64>> {
+    Ok(tx
+        .query_row(
+            "SELECT t.id FROM tasks t WHERE t.list_id = ?1 AND t.remote_id IS NULL
+               AND t.sent_at IS NOT NULL AND t.local_state IN (?2, ?3) AND t.title = ?4
+               AND t.notes = ?5 AND t.due_date IS ?6
+               AND coalesce((SELECT p.remote_id FROM tasks p WHERE p.id = t.parent_id), '')
+                 = coalesce(?7, '')
+               AND (?8 IS NULL OR ?8 >= t.sent_at - ?9)
+             ORDER BY t.sent_at, t.id LIMIT 1",
+            params![
+                list_id,
+                CREATED,
+                DELETED,
+                task.title,
+                task.notes,
+                task.due_date,
+                task.parent_uid,
+                task.created_at.or(task.updated_at),
+                UNANSWERED_SLACK_MS
+            ],
+            |r| r.get(0),
+        )
+        .optional()?)
+}
+
+/// Makes `task`, the server's copy of a task whose create got no answer,
+/// that task's copy: in sync when they agree, else what differs here is
+/// uploaded to it (and a deleted task is deleted there).
+fn adopt(tx: &Transaction<'_>, id: i64, task: &RemoteTask) -> Result<()> {
+    let row = get_task(tx, id)?;
+    let agree = row.local_state == CREATED
+        && row.completed_at.is_some() == task.completed_at.is_some()
+        && row.important == task.important;
+    tx.execute(
+        "UPDATE tasks SET remote_id = ?1, etag = ?2, uid = ?3, data = ?4,
+           local_state = CASE WHEN ?5 THEN 0 WHEN local_state = 1 THEN 2 ELSE local_state END,
+           sent_at = NULL, push_attempts = 0, push_error = NULL,
+           push_after = CASE WHEN local_state = 3 THEN push_after ELSE 0 END
+         WHERE id = ?6",
+        params![task.remote_id, task.etag, task.uid, task.data, agree, id],
+    )?;
+    Ok(())
+}
+
+/// Records that a create of a task got no answer: it may be on the server,
+/// which the next pull shows.
+pub fn mark_unanswered(tx: &Transaction<'_>, id: i64) -> Result<()> {
+    tx.execute(
+        "UPDATE tasks SET sent_at = ? WHERE id = ?",
+        params![now_ms(), id],
+    )?;
+    Ok(())
+}
+
+/// When the latest create of a task of a list got no answer, if a task
+/// waits for a pull to show whether its create made it.
+pub fn unanswered_since(c: &Connection, list_id: i64) -> Result<Option<i64>> {
+    Ok(c.query_row(
+        "SELECT max(sent_at) FROM tasks WHERE list_id = ?",
+        [list_id],
+        |r| r.get(0),
+    )?)
 }
 
 /// Removes a task the server no longer has. Tasks changed here stay:
@@ -1100,7 +1179,7 @@ pub fn finish_push(tx: &Transaction<'_>, id: i64, version: i64, pushed: &RemoteT
                notified = CASE WHEN due_at IS ?8 THEN notified ELSE 0 END,
                due_date = ?7, due_at = ?8, completed_at = ?9, important = ?10, parent_uid = ?11,
                position = coalesce(?12, position), repeats = ?13, local_state = 0, push_attempts = 0,
-               push_after = 0, push_error = NULL
+               push_after = 0, push_error = NULL, sent_at = NULL
              WHERE id = ?14",
             params![
                 pushed.remote_id,
@@ -1129,7 +1208,8 @@ pub fn finish_push(tx: &Transaction<'_>, id: i64, version: i64, pushed: &RemoteT
         tx.execute(
             "UPDATE tasks SET remote_id = ?, etag = ?, uid = ?, data = ?, local_state = ?, push_attempts = 0,
                push_after = CASE WHEN local_state = 3 THEN push_after ELSE 0 END, push_error = NULL,
-               deleted_state = CASE WHEN deleted_state = 1 THEN 2 ELSE deleted_state END
+               deleted_state = CASE WHEN deleted_state = 1 THEN 2 ELSE deleted_state END,
+               sent_at = NULL
              WHERE id = ?",
             params![
                 pushed.remote_id,
@@ -1254,7 +1334,7 @@ fn move_to_local(tx: &Transaction<'_>, id: i64, local_list: i64) -> Result<()> {
     )?;
     tx.execute(
         "UPDATE tasks SET list_id = ?1, remote_id = NULL, etag = NULL, data = NULL, repeats = 0,
-           local_state = 0, push_attempts = 0, push_after = 0, push_error = NULL,
+           local_state = 0, push_attempts = 0, push_after = 0, push_error = NULL, sent_at = NULL,
            position = CASE WHEN id = ?3 THEN ?2 ELSE position END,
            parent_id = CASE WHEN id = ?3 THEN NULL ELSE parent_id END,
            parent_uid = CASE WHEN id = ?3 THEN NULL ELSE parent_uid END

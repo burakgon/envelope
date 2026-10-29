@@ -375,22 +375,45 @@ pub(crate) async fn store_pulled(engine: &Engine, list_id: i64, pulled: Pulled) 
 }
 
 /// Uploads the pending changes of a list. Returns whether any task changed.
+///
+/// A create whose answer got lost may have made the task on the server
+/// anyway (Google, Microsoft and Exchange name new tasks themselves, so a
+/// second create would make a second task): a pull, which finds such a task
+/// and makes it the copy of the one here, comes before the create is tried
+/// again.
 pub(crate) async fn push_list(
     engine: &Engine,
     service: &dyn TaskService,
     list: &ListRow,
 ) -> Result<bool> {
     let list_id = list.id;
+    let mut list = list.clone();
+    let mut changed = false;
+    // Whether a pull came after every create of the list that got no answer.
+    let unanswered = engine.db.read(|c| tdb::unanswered_since(c, list_id))?;
+    let mut pulled = unanswered.is_none_or(|at| list.sync_state.last_sync.is_some_and(|l| l > at));
+    if !pulled {
+        match pull_list(engine, service, &list).await {
+            Ok(any) => {
+                changed |= any;
+                pulled = true;
+            }
+            Err(e) if e.is_transient() || e.is_auth() => return Err(e),
+            // Those tasks wait for the next pull.
+            Err(e) => tracing::warn!("task list {} sync failed: {e}", list.name),
+        }
+        list = engine.db.read(|c| tdb::get_list(c, list_id))?;
+    }
+    let list = &list;
     let pending = engine
         .db
         .read_async(move |c| tdb::dirty_rows(c, list_id))
         .await?;
-    let mut changed = false;
     for queued in pending {
         // An earlier upload in this round may have moved or settled it (a
-        // refused parent takes its new subtasks along).
+        // refused parent takes its new subtasks along), and a deletion that
+        // can still be undone waits.
         let id = queued.id;
-        // A deletion that can still be undone waits.
         let Some(row) = engine
             .db
             .read(|c| tdb::get_task(c, id))
@@ -400,6 +423,11 @@ pub(crate) async fn push_list(
         else {
             continue;
         };
+        // A create that got no answer waits for a pull to show whether it
+        // made the task.
+        if row.sent_at.is_some() && !pulled {
+            continue;
+        }
         // The server names the task of a subtask by its id there: a subtask
         // waits for its task, without counting attempts.
         if row.local_state != tdb::DELETED && engine.db.read(|c| tdb::parent_unsent(c, &row))? {
@@ -477,6 +505,18 @@ fn settle(
             engine
                 .db
                 .write(|tx| tdb::push_failed(tx, row.id, &message, retry))?;
+            Err(Error::Network(message))
+        }
+        Err(Failure::Unanswered(message)) => {
+            // A create may have made the task before its answer got lost.
+            let retry = now_ms() + backoff(row.push_attempts, true);
+            engine.db.write(|tx| {
+                tdb::push_failed(tx, row.id, &message, retry)?;
+                if row.local_state == tdb::CREATED && row.remote_id.is_none() {
+                    tdb::mark_unanswered(tx, row.id)?;
+                }
+                Ok(())
+            })?;
             Err(Error::Network(message))
         }
         Err(Failure::Auth(message)) => Err(Error::Auth(message)),

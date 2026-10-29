@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 use envelope_google::{ClientConfig, GoogleClient, RetryPolicy, StaticToken};
 use serde_json::{Value, json};
@@ -23,12 +24,18 @@ const SERVER_DATE: &str = "Wed, 28 Oct 2026 10:00:00 GMT";
 const NEXT_SINCE: &str = "2026-10-28T09:59:00.000Z";
 
 fn google_tasks(fx: &Fixture, server: &MockServer) -> Google {
+    google_tasks_waiting(fx, server, ClientConfig::default().timeout)
+}
+
+/// The service, waiting at most `timeout` for an answer.
+fn google_tasks_waiting(fx: &Fixture, server: &MockServer, timeout: Duration) -> Google {
     let config = ClientConfig {
         retry: RetryPolicy {
             max_retries: 0,
-            initial_backoff: std::time::Duration::from_millis(1),
-            max_backoff: std::time::Duration::from_millis(1),
+            initial_backoff: Duration::from_millis(1),
+            max_backoff: Duration::from_millis(1),
         },
+        timeout,
         ..ClientConfig::with_api_root(&server.uri())
     };
     let client =
@@ -201,22 +208,40 @@ impl Store {
         let id = format!("N{}", self.writes.fetch_add(1, Ordering::SeqCst));
         let position = self.after(query.get("previous"));
         let mut created = task(&id, "", &position, json_body(request));
-        merge(&mut created, json!({ "parent": query.get("parent") }));
+        let updated = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        merge(
+            &mut created,
+            json!({ "parent": query.get("parent"), "updated": updated }),
+        );
         self.tasks.lock().insert(id, created.clone());
         created
     }
 
-    /// Answers inserts only after a while, to change tasks meanwhile.
-    async fn insert_slowly(&self, server: &MockServer) {
+    /// Answers inserts only after `delay`.
+    async fn insert_slowly(&self, server: &MockServer, delay: Duration) {
         let store = self.clone();
         Mock::given(method("POST"))
             .and(path(L1))
             .respond_with(move |request: &Request| {
                 ResponseTemplate::new(200)
                     .set_body_json(store.insert(request))
-                    .set_delay(std::time::Duration::from_millis(300))
+                    .set_delay(delay)
             })
             .with_priority(1)
+            .mount(server)
+            .await;
+    }
+
+    /// Answers listings with the tasks it has.
+    async fn list(&self, server: &MockServer) {
+        let store = self.clone();
+        Mock::given(method("GET"))
+            .and(path(L1))
+            .respond_with(move |_: &Request| {
+                let mut tasks: Vec<Value> = store.tasks.lock().values().cloned().collect();
+                tasks.sort_by_key(|t| t["id"].as_str().map(str::to_owned));
+                page(&tasks)
+            })
             .mount(server)
             .await;
     }
@@ -718,7 +743,9 @@ async fn google_tasks_deleted_while_uploaded_go_from_the_server_too() {
     let l1 = list_named(&fx, &account, "My Tasks");
     let store = Store::default();
     store.mount(&server).await;
-    store.insert_slowly(&server).await;
+    store
+        .insert_slowly(&server, Duration::from_millis(300))
+        .await;
     let call = fx.create(input(l1.id, "Call Maya")).await;
 
     // Deleted while Google is creating it.
@@ -1074,6 +1101,63 @@ async fn google_refused_edits_keep_their_text() {
             .map(|t| (t.title.as_str(), t.notes.as_str()))
             .collect::<Vec<_>>(),
         [("Plan the summer trip", "Somewhere warm, in May")]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn google_creates_whose_answer_got_lost_are_not_made_twice() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = oauth_account(&fx, AccountKind::Gmail, TASKS_SCOPE);
+    let service = google_tasks(&fx, &server);
+    mount_lists(&server).await;
+    store_lists(&fx, &account, &service).await;
+    let l1 = list_named(&fx, &account, "My Tasks");
+    let store = Store::default();
+    store.mount(&server).await;
+    store.list(&server).await;
+    // Google makes the tasks, but its answers come after Envelope gave up
+    // waiting.
+    store.insert_slowly(&server, Duration::from_secs(2)).await;
+    let impatient = google_tasks_waiting(&fx, &server, Duration::from_millis(300));
+    let call = fx.create(input(l1.id, "Call Maya")).await;
+    let stamps = fx
+        .create(TaskInput {
+            due_date: Some(Some("2030-01-02".into())),
+            ..input(l1.id, "Buy stamps")
+        })
+        .await;
+
+    let lost = push_list(&fx.engine, &impatient, &l1).await;
+    assert!(matches!(lost, Err(Error::Network(_))), "{lost:?}");
+    let row = fx.row(call.id);
+    assert_eq!(row.local_state, tdb::CREATED);
+    assert!(row.sent_at.is_some(), "it may be on the server");
+    // The next round finds it with a pull instead of making it again (and
+    // the answer to the next task gets lost).
+    retry_now(&fx, l1.id);
+    let lost = push_list(&fx.engine, &impatient, &l1).await;
+    assert!(matches!(lost, Err(Error::Network(_))), "{lost:?}");
+    let row = fx.row(call.id);
+    assert_eq!(
+        (row.local_state, row.remote_id.as_deref(), row.sent_at),
+        (tdb::SYNCED, Some("N0"), None)
+    );
+    // Deleted before it was found, it is deleted where it was made.
+    fx.engine.delete_task(stamps.id).await.expect("delete");
+    undo_time_over(&fx);
+    push_list(&fx.engine, &service, &l1).await.expect("push");
+    assert!(fx.engine.db.read(|c| tdb::get_task(c, stamps.id)).is_err());
+    let there: Vec<Value> = store.tasks.lock().values().cloned().collect();
+    assert_eq!(
+        there.iter().map(|t| t["title"].clone()).collect::<Vec<_>>(),
+        [json!("Call Maya")]
+    );
+    let requests = server.received_requests().await.expect("requests");
+    assert_eq!(
+        requests_to(&requests, "POST", L1).len(),
+        2,
+        "each made once"
     );
 }
 

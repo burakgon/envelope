@@ -63,9 +63,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
 const NEW_COLUMNS: &[(i64, &str, &str, &str)] = &[
     // Muted conversations.
     (6, "threads", "muted", "INTEGER NOT NULL DEFAULT 0"),
-    // Task deletions that can be undone.
+    // Task deletions that can be undone, and creates whose answer got lost.
     (8, "tasks", "deleted_state", "INTEGER"),
     (8, "tasks", "deleted_with", "INTEGER"),
+    (8, "tasks", "sent_at", "INTEGER"),
 ];
 const MAX_READERS: usize = 6;
 
@@ -361,7 +362,7 @@ mod tests {
     #[test]
     fn adds_task_columns_to_version_7_databases() {
         let path = std::env::temp_dir().join(format!("envelope-v7-{}.db", uuid::Uuid::new_v4()));
-        let added = ["deleted_state", "deleted_with"];
+        let added = ["deleted_state", "deleted_with", "sent_at"];
         {
             // A version 7 database: tasks without the columns added since.
             let db = Db::open(&path).unwrap();

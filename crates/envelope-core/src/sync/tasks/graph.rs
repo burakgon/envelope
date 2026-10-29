@@ -139,6 +139,11 @@ impl Graph {
                 Err(e) => return Err(e.into()),
             }
         }
+        // Pulls do not always bring the steps of a task: a step whose create
+        // got no answer is looked for among its task's.
+        if let Some(item) = self.landed_step(list, row, &task_id).await? {
+            return Ok(saved_step(&task_id, item));
+        }
         let item = self
             .client
             .create_checklist_item(&list.remote_id, &task_id, &row.title, done)
@@ -147,6 +152,33 @@ impl Graph {
         // another task): that goes.
         self.retire_old(list, row, &task_id, &item.id).await;
         Ok(saved_step(&task_id, item))
+    }
+
+    /// The step of task `task_id` that a create of `row` made though its
+    /// answer got lost, if there is one: the same title, made since, and not
+    /// stored here as another step.
+    async fn landed_step(
+        &self,
+        list: &ListRow,
+        row: &TaskRow,
+        task_id: &str,
+    ) -> std::result::Result<Option<ChecklistItem>, Failure> {
+        let Some(sent) = row.sent_at.filter(|_| row.remote_id.is_none()) else {
+            return Ok(None);
+        };
+        let items = self
+            .client
+            .todo_checklist_items(&list.remote_id, task_id)
+            .await?;
+        let list_id = list.id;
+        let known = self.engine.db.read(|c| tdb::remote_index(c, list_id))?;
+        Ok(items.into_iter().find(|item| {
+            item.display_name == row.title
+                && !known.contains_key(&format!("{task_id}{SEPARATOR}{}", item.id))
+                && item
+                    .created_date_time
+                    .is_none_or(|at| ms(at) >= sent - tdb::UNANSWERED_SLACK_MS)
+        }))
     }
 
     /// Uploads a top-level task.
@@ -362,6 +394,20 @@ impl TaskService for Graph {
     async fn push(&self, list: &ListRow, row: &TaskRow) -> std::result::Result<Done, Failure> {
         if row.local_state == tdb::DELETED {
             let Some(id) = &row.remote_id else {
+                // A step made though its create got no answer goes too.
+                if let Ok(task_id) = self.parent_task(row)
+                    && let Some(item) = self.landed_step(list, row, &task_id).await?
+                {
+                    match self
+                        .client
+                        .delete_checklist_item(&list.remote_id, &task_id, &item.id)
+                        .await
+                    {
+                        Ok(()) => {}
+                        Err(e) if e.is_not_found() => {}
+                        Err(e) => return Err(e.into()),
+                    }
+                }
                 return Ok(Done::Deleted);
             };
             let result = match id.split_once(SEPARATOR) {
@@ -453,7 +499,7 @@ fn unavailable(e: &GraphError) -> bool {
 
 fn err(e: GraphError) -> Error {
     match Failure::from(e) {
-        Failure::Transient(m) => Error::Network(m),
+        Failure::Transient(m) | Failure::Unanswered(m) => Error::Network(m),
         Failure::Auth(m) => Error::Auth(m),
         Failure::Forbidden(m) | Failure::Rejected(m) => Error::Other(m),
     }

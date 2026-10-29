@@ -198,6 +198,9 @@ enum Done {
 pub(crate) enum Failure {
     /// Try again later (network, server trouble, rate limits).
     Transient(String),
+    /// Sent, but the answer got lost (a timeout, a dropped connection): try
+    /// again later, knowing that the server may have made the change.
+    Unanswered(String),
     /// The credentials were rejected.
     Auth(String),
     /// Not allowed: a read-only address book or grant.
@@ -221,9 +224,20 @@ impl From<DavError> for Failure {
     }
 }
 
+/// Whether a request that failed in transport may have reached the server:
+/// unless the connection could not be made, it may have.
+fn maybe_sent(e: &reqwest::Error) -> bool {
+    !e.is_connect() && !e.is_builder()
+}
+
 impl From<envelope_google::Error> for Failure {
     fn from(e: envelope_google::Error) -> Self {
         let message = e.to_string();
+        if let envelope_google::Error::Http(sent) = &e
+            && maybe_sent(sent)
+        {
+            return Failure::Unanswered(message);
+        }
         let transient = matches!(e, envelope_google::Error::Http(_))
             || e.api_error()
                 .is_some_and(|a| a.is_retryable() || a.status >= 500);
@@ -242,6 +256,11 @@ impl From<envelope_google::Error> for Failure {
 impl From<envelope_graph::GraphError> for Failure {
     fn from(e: envelope_graph::GraphError) -> Self {
         let message = e.to_string();
+        if let envelope_graph::GraphError::Transport(sent) = &e
+            && maybe_sent(sent)
+        {
+            return Failure::Unanswered(message);
+        }
         if e.is_transient() {
             Failure::Transient(message)
         } else if e.is_unauthorized() || matches!(e, envelope_graph::GraphError::Auth(_)) {
@@ -278,7 +297,7 @@ pub(crate) fn dav_err(e: DavError) -> Error {
 
 fn google_err(e: envelope_google::Error) -> Error {
     match Failure::from(e) {
-        Failure::Transient(m) => Error::Network(m),
+        Failure::Transient(m) | Failure::Unanswered(m) => Error::Network(m),
         Failure::Auth(m) => Error::Auth(m),
         Failure::Forbidden(m) | Failure::Rejected(m) => Error::Other(m),
     }
@@ -286,7 +305,7 @@ fn google_err(e: envelope_google::Error) -> Error {
 
 fn graph_err(e: envelope_graph::GraphError) -> Error {
     match Failure::from(e) {
-        Failure::Transient(m) => Error::Network(m),
+        Failure::Transient(m) | Failure::Unanswered(m) => Error::Network(m),
         Failure::Auth(m) => Error::Auth(m),
         Failure::Forbidden(m) | Failure::Rejected(m) => Error::Other(m),
     }
@@ -318,7 +337,7 @@ fn settle(
             engine.db.write(|tx| cdb::delete_row(tx, row.id))?;
             Ok(true)
         }
-        Err(Failure::Transient(message)) => {
+        Err(Failure::Transient(message) | Failure::Unanswered(message)) => {
             let retry = now_ms() + backoff(row.push_attempts, true);
             engine
                 .db
@@ -980,7 +999,9 @@ async fn google_push(
         match result.map_err(Failure::from) {
             Ok(Some(updated)) => saved = updated,
             Ok(None) => {}
-            Err(failure @ (Failure::Transient(_) | Failure::Auth(_))) => return Err(failure),
+            Err(failure @ (Failure::Transient(_) | Failure::Unanswered(_) | Failure::Auth(_))) => {
+                return Err(failure);
+            }
             // The other changes are saved; a photo Google refuses is not
             // worth holding them back.
             Err(failure) => tracing::warn!(contact = row.id, "photo not saved: {failure:?}"),
@@ -1199,7 +1220,9 @@ async fn graph_push(
         };
         match result.map_err(Failure::from) {
             Ok(()) => {}
-            Err(failure @ (Failure::Transient(_) | Failure::Auth(_))) => return Err(failure),
+            Err(failure @ (Failure::Transient(_) | Failure::Unanswered(_) | Failure::Auth(_))) => {
+                return Err(failure);
+            }
             // The other changes are saved; a photo Outlook refuses is not
             // worth holding them back.
             Err(failure) => tracing::warn!(contact = row.id, "photo not saved: {failure:?}"),
@@ -1637,7 +1660,14 @@ fn ews_contact(c: &envelope_ews::Contact, id: &str) -> Contact {
 
 impl From<envelope_ews::EwsError> for Failure {
     fn from(e: envelope_ews::EwsError) -> Self {
-        Failure::from(super::ews::ews_error(e))
+        match &e {
+            envelope_ews::EwsError::Timeout(sent) | envelope_ews::EwsError::Transport(sent)
+                if maybe_sent(sent) =>
+            {
+                Failure::Unanswered(e.to_string())
+            }
+            _ => Failure::from(super::ews::ews_error(e)),
+        }
     }
 }
 

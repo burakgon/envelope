@@ -5,6 +5,7 @@
 //! scratch, list writes, and accounts whose sign-in does not cover tasks.
 
 use std::collections::{BTreeMap, HashMap};
+use std::time::Duration;
 
 use envelope_graph::{GraphClient, RetryPolicy, StaticToken};
 use serde_json::{Value, json};
@@ -21,6 +22,21 @@ fn todo_service(fx: &Fixture, server: &MockServer) -> Graph {
     let client = GraphClient::builder(Arc::new(StaticToken::new("token")))
         .base_url(format!("{}/v1.0", server.uri()))
         .retry_policy(RetryPolicy::none())
+        .build()
+        .expect("client");
+    Graph::new(&fx.engine, client)
+}
+
+/// The service, waiting at most `timeout` for an answer.
+fn todo_service_waiting(fx: &Fixture, server: &MockServer, timeout: Duration) -> Graph {
+    let http = reqwest::Client::builder()
+        .timeout(timeout)
+        .build()
+        .expect("http");
+    let client = GraphClient::builder(Arc::new(StaticToken::new("token")))
+        .base_url(format!("{}/v1.0", server.uri()))
+        .retry_policy(RetryPolicy::none())
+        .http_client(http)
         .build()
         .expect("client");
     Graph::new(&fx.engine, client)
@@ -194,7 +210,43 @@ impl Todo {
             .respond_with(move |request: &Request| {
                 ResponseTemplate::new(201)
                     .set_body_json(todo.create(request))
-                    .set_delay(std::time::Duration::from_millis(300))
+                    .set_delay(Duration::from_millis(300))
+            })
+            .with_priority(1)
+            .mount(server)
+            .await;
+    }
+
+    /// Adds the step a create asks for (made now); returns it as Graph
+    /// does, or `None` when the task is not there.
+    fn add_step(&self, request: &Request) -> Option<Value> {
+        let task = segment(request, 2);
+        let mut state = self.0.lock();
+        state.writes += 1;
+        let body = json_body(request);
+        let mut item = step(
+            &format!("S{}", state.writes),
+            body["displayName"].as_str().unwrap_or_default(),
+            body["isChecked"].as_bool().unwrap_or_default(),
+        );
+        item["createdDateTime"] = json!(Utc::now().to_rfc3339());
+        let steps = state.steps.get_mut(&task)?;
+        steps.push(item.clone());
+        Some(item)
+    }
+
+    /// Answers step creates only after `delay`.
+    async fn add_steps_slowly(&self, server: &MockServer, delay: Duration) {
+        let todo = self.clone();
+        Mock::given(method("POST"))
+            .and(path_regex(
+                r"^/v1\.0/me/todo/lists/L1/tasks/[^/]+/checklistItems$",
+            ))
+            .respond_with(move |request: &Request| match todo.add_step(request) {
+                Some(item) => ResponseTemplate::new(201)
+                    .set_body_json(item)
+                    .set_delay(delay),
+                None => graph_error(404, "ErrorItemNotFound"),
             })
             .with_priority(1)
             .mount(server)
@@ -282,20 +334,22 @@ impl Todo {
             .and(path_regex(
                 r"^/v1\.0/me/todo/lists/L1/tasks/[^/]+/checklistItems$",
             ))
+            .respond_with(move |request: &Request| match todo.add_step(request) {
+                Some(item) => ResponseTemplate::new(201).set_body_json(item),
+                None => graph_error(404, "ErrorItemNotFound"),
+            })
+            .mount(server)
+            .await;
+        let todo = self.clone();
+        Mock::given(method("GET"))
+            .and(path_regex(
+                r"^/v1\.0/me/todo/lists/L1/tasks/[^/]+/checklistItems$",
+            ))
             .respond_with(move |request: &Request| {
                 let task = segment(request, 2);
-                let mut state = todo.0.lock();
-                state.writes += 1;
-                let body = json_body(request);
-                let item = step(
-                    &format!("S{}", state.writes),
-                    body["displayName"].as_str().unwrap_or_default(),
-                    body["isChecked"].as_bool().unwrap_or_default(),
-                );
-                match state.steps.get_mut(&task) {
+                match todo.0.lock().steps.get(&task) {
                     Some(steps) => {
-                        steps.push(item.clone());
-                        ResponseTemplate::new(201).set_body_json(item)
+                        ResponseTemplate::new(200).set_body_json(json!({ "value": steps }))
                     }
                     None => graph_error(404, "ErrorItemNotFound"),
                 }
@@ -877,6 +931,81 @@ async fn todo_tasks_moved_while_uploaded_go_from_the_server() {
     assert_eq!(
         fx.engine.task(moved.id).await.expect("moved").list_id,
         local
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn todo_steps_whose_answer_got_lost_are_not_made_twice() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = oauth_account(&fx, AccountKind::Microsoft, TASKS_SCOPE);
+    let service = todo_service(&fx, &server);
+    mount_lists(&server).await;
+    let todo = Todo::new(vec![(todo_task("T1", "Trip", json!({})), Vec::new())]);
+    todo.mount(&server).await;
+    // The task changes no more: later deltas are empty, and its steps are
+    // not fetched again.
+    Mock::given(method("GET"))
+        .and(path(format!("{LISTS}/L1/tasks/delta")))
+        .and(query_param_is_missing("$deltatoken"))
+        .respond_with(delta(&server, "L1", "d1", todo.tasks()))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{LISTS}/L1/tasks/delta")))
+        .and(query_param("$deltatoken", "d1"))
+        .respond_with(delta(&server, "L1", "d1", Vec::new()))
+        .mount(&server)
+        .await;
+    sync_account(&fx.engine, &account, &service, true)
+        .await
+        .expect("first sync");
+    let l1 = list_named(&fx, &account, "Tasks");
+    let trip = remote_row(&fx, l1.id, "T1");
+    let flights = fx
+        .create(TaskInput {
+            parent_id: Some(Some(trip.id)),
+            ..input(l1.id, "Book flights")
+        })
+        .await;
+    let visa = fx
+        .create(TaskInput {
+            parent_id: Some(Some(trip.id)),
+            ..input(l1.id, "Get the visa")
+        })
+        .await;
+    // To Do adds the steps, but its answers come after Envelope gave up
+    // waiting.
+    todo.add_steps_slowly(&server, Duration::from_secs(2)).await;
+    let impatient = todo_service_waiting(&fx, &server, Duration::from_millis(300));
+    let lost = push_list(&fx.engine, &impatient, &l1).await;
+    assert!(matches!(lost, Err(Error::Network(_))), "{lost:?}");
+    assert!(fx.row(flights.id).sent_at.is_some());
+
+    // Found among the steps of its task, not added again; and one deleted
+    // meanwhile is deleted there.
+    retry_now(&fx, l1.id);
+    let lost = push_list(&fx.engine, &impatient, &l1).await;
+    assert!(matches!(lost, Err(Error::Network(_))), "{lost:?}");
+    let found = fx.row(flights.id);
+    assert_eq!(found.local_state, tdb::SYNCED);
+    assert!(
+        found
+            .remote_id
+            .as_deref()
+            .is_some_and(|id| id.starts_with("T1|S")),
+        "{found:?}"
+    );
+    fx.engine.delete_task(visa.id).await.expect("delete");
+    undo_time_over(&fx);
+    push_list(&fx.engine, &service, &l1).await.expect("push");
+    assert_eq!(todo.step_names("T1"), ["Book flights"]);
+    assert!(fx.engine.db.read(|c| tdb::get_task(c, visa.id)).is_err());
+    let requests = server.received_requests().await.expect("requests");
+    assert_eq!(
+        requests_to(&requests, "POST", "/T1/checklistItems").len(),
+        2,
+        "each added once"
     );
 }
 

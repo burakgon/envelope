@@ -303,7 +303,7 @@ fn err(e: envelope_google::Error) -> Error {
         return Error::Invalid(UNAVAILABLE.into());
     }
     match Failure::from(e) {
-        Failure::Transient(m) => Error::Network(m),
+        Failure::Transient(m) | Failure::Unanswered(m) => Error::Network(m),
         Failure::Auth(m) => Error::Auth(m),
         Failure::Forbidden(m) | Failure::Rejected(m) => Error::Other(m),
     }

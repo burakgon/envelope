@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     push_after    INTEGER NOT NULL DEFAULT 0,
     push_error    TEXT,
     deleted_state INTEGER,                    -- deleted by task_delete: the local_state undoing it brings back
-    deleted_with  INTEGER                     -- ...and the task whose deletion took it along (itself, or its parent)
+    deleted_with  INTEGER,                    -- ...and the task whose deletion took it along (itself, or its parent)
+    sent_at       INTEGER                     -- a create whose answer got lost, when: it may be on the server
 );
 CREATE INDEX IF NOT EXISTS tasks_list ON tasks(list_id, parent_id, position);
 CREATE INDEX IF NOT EXISTS tasks_parent ON tasks(parent_id) WHERE parent_id IS NOT NULL;

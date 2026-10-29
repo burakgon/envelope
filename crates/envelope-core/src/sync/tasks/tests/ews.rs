@@ -611,6 +611,79 @@ async fn exchange_tasks_cleared_while_uploaded_go_from_the_server() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn exchange_creates_whose_answer_got_lost_are_not_made_twice() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = exchange_account(&fx, &server);
+    let service = exchange_service(&fx, &account).await;
+    mount_folders(&server).await;
+    store_lists(&fx, &account, service.as_ref()).await;
+    let tasks = list_named(&fx, &account, "Tasks");
+    let call = fx.create(input(tasks.id, "Call Maya")).await;
+    // Exchange makes the task, but its answer comes after Envelope gave up
+    // waiting; the folder then lists it.
+    on(
+        &server,
+        "<m:CreateItem",
+        response(
+            "CreateItem",
+            &[success(
+                "CreateItem",
+                r#"<m:Items><t:Task><t:ItemId Id="N1" ChangeKey="N1-1"/></t:Task></m:Items>"#,
+            )],
+        )
+        .set_delay(std::time::Duration::from_secs(2)),
+    )
+    .await;
+    let items = Items::default();
+    let made = Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
+    items.put(
+        "N1",
+        task_xml("N1", "N1-1", &open("Call Maya", ""))
+            .replace("2026-10-20T07:12:00Z", &made.to_string()),
+    );
+    items.mount(&server).await;
+    on_sync(
+        &server,
+        "tasks-id",
+        None,
+        sync_page("s1", &created("N1", "N1-1")),
+    )
+    .await;
+    let client = envelope_ews::EwsClient::builder(
+        format!("{}{EWS}", server.uri()),
+        envelope_ews::Auth::basic("jane@example.com", "secret"),
+    )
+    .timeout(std::time::Duration::from_millis(300))
+    .retry_policy(envelope_ews::RetryPolicy::none())
+    .build()
+    .expect("client");
+    let impatient = crate::sync::tasks::ews::Ews::new(client);
+    let lost = push_list(&fx.engine, &impatient, &tasks).await;
+    assert!(matches!(lost, Err(Error::Network(_))), "{lost:?}");
+    assert!(fx.row(call.id).sent_at.is_some());
+
+    // The next round finds it with a pull instead of making it again.
+    retry_now(&fx, tasks.id);
+    push_list(&fx.engine, service.as_ref(), &tasks)
+        .await
+        .expect("push");
+    let row = fx.row(call.id);
+    assert_eq!(
+        (row.local_state, row.remote_id.as_deref()),
+        (tdb::SYNCED, Some("N1"))
+    );
+    let requests = server.received_requests().await.expect("requests");
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|r| body(r).contains("<m:CreateItem"))
+            .count(),
+        1
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn exchange_expired_sync_states_list_the_folder_again() {
     let fx = fixture();
     let server = MockServer::start().await;
