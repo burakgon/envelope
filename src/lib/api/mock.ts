@@ -8,6 +8,7 @@ import * as cal from './mock-calendar';
 import * as people from './mock-contacts';
 import * as todo from './mock-tasks';
 import { createMockCrypto } from './mock-crypto';
+import { createMockDrafts } from './mock-drafts';
 
 type Listener = (e: T.EngineEvent) => void;
 
@@ -18,11 +19,10 @@ export function createMockApi(): Api {
   todo.onSettled((listId) => tasksChanged([listId]));
   const threads = data.threads;
   const messages = data.messages;
-  const drafts = new Map<number, T.Draft>();
-  let draftSeq = 1;
   let autostart = false;
   const autoReplies = new Map<number, T.AutoReply>();
   let outboxSeq = 1;
+  let sentSeq = 30_000;
   const outbox = new Map<number, { item: T.OutboxItem; draftId: number | null; data: T.DraftInput; timer: number }>();
   let identities: T.Identity[] = data.accounts.map((a) => ({
     id: a.id, accountId: a.id, name: a.name, email: a.email, replyTo: null,
@@ -44,6 +44,7 @@ export function createMockApi(): Api {
       t.unreadCount = ms.filter((m) => !m.flags.seen).length;
       t.flagged = ms.some((m) => m.flags.flagged);
       t.messageCount = ms.length;
+      t.draftCount = ms.filter((m) => m.flags.draft).length;
       if (ms.length) {
         const last = ms[ms.length - 1];
         t.lastDate = last.date;
@@ -53,6 +54,12 @@ export function createMockApi(): Api {
     }
   }
   recount();
+
+  const drafts = createMockDrafts({
+    identities: () => identities,
+    changed: (threadIds) => changed(threadIds),
+    queued: () => new Set([...outbox.values()].map((o) => o.draftId).filter((id): id is number => id != null)),
+  });
 
   function changed(threadIds: number[]) {
     recount();
@@ -264,14 +271,11 @@ export function createMockApi(): Api {
     },
     unsubscribe: async () => true,
 
-    drafts: async () => structuredClone([...drafts.values()]),
-    draft: async (id) => structuredClone(drafts.get(id)!),
-    saveDraft: async (id, d) => {
-      const nid = id ?? draftSeq++;
-      drafts.set(nid, { id: nid, data: structuredClone(d), updatedAt: Date.now() });
-      return nid;
-    },
-    deleteDraft: async (id) => { drafts.delete(id); },
+    drafts: async () => drafts.list(),
+    draft: async (id) => drafts.get(id),
+    draftForMessage: async (messageId) => delay(drafts.forMessage(messageId), 120),
+    saveDraft: async (id, d, upload) => drafts.save(id, d, upload),
+    deleteDraft: async (id) => drafts.remove(id),
     composeReply: async (messageId, mode) => {
       const m = messages.find((x) => x.id === messageId)!;
       const ident = identities.find((i) => i.accountId === m.accountId)!;
@@ -294,7 +298,7 @@ export function createMockApi(): Api {
       const item: T.OutboxItem = { id, accountId: d.accountId, subject: d.subject, to: d.to, sendAt: sendAt ?? Date.now() + delayMs, state: 'queued', error: null };
       const timer = window.setTimeout(() => {
         outbox.delete(id);
-        if (draftId != null) drafts.delete(draftId);
+        if (draftId != null) drafts.remove(draftId);
         const sent = role(d.accountId, 'sent');
         const ident = identities.find((i) => i.accountId === d.accountId)!;
         const existing = d.replyToMessageId ? messages.find((m) => m.id === d.replyToMessageId) : null;
@@ -307,7 +311,7 @@ export function createMockApi(): Api {
         }
         const text = d.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         messages.push({
-          id: messages.length + 5000, threadId, accountId: d.accountId, folderIds: sent ? [sent.id] : [], messageId: null, inReplyTo: null, references: [],
+          id: sentSeq++, threadId, accountId: d.accountId, folderIds: sent ? [sent.id] : [], messageId: null, inReplyTo: null, references: [],
           subject: d.subject, from: { name: ident.name, email: ident.email }, to: d.to, cc: d.cc, bcc: d.bcc, replyTo: [], date: Date.now(),
           flags: { seen: true, flagged: false, answered: false, draft: false, forwarded: false }, snippet: text.slice(0, 160), size: d.html.length,
           hasAttachments: d.attachments.length > 0, attachments: [], body: { html: d.html, text: null }, unsubscribe: null, calendarMethod: null, isAuto: false,
@@ -324,8 +328,7 @@ export function createMockApi(): Api {
       if (!o) return null;
       clearTimeout(o.timer);
       outbox.delete(outboxId);
-      const nid = o.draftId ?? draftSeq++;
-      drafts.set(nid, { id: nid, data: o.data, updatedAt: Date.now() });
+      const nid = drafts.restore(o.draftId, o.data);
       emit({ type: 'outboxChanged' });
       return nid;
     },

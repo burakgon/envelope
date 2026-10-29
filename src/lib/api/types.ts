@@ -114,6 +114,7 @@ export interface Flags {
 }
 
 export interface ThreadSummary {
+  /** Negative for a draft that is only on this computer (see `localDraftId`). */
   id: number;
   accountId: number;
   subject: string;
@@ -132,6 +133,8 @@ export interface ThreadSummary {
   /** Later replies skip the inbox and do not notify. */
   muted: boolean;
   snoozedUntil: number | null;
+  /** Interface only: the row is a draft that is only on this computer. */
+  localDraftId?: number;
 }
 
 export interface ThreadPage {
@@ -272,6 +275,10 @@ export interface Draft {
   id: number;
   data: DraftInput;
   updatedAt: number;
+  /** The synced message that is this draft's copy on the server. */
+  serverMessageId: number | null;
+  /** Only on this computer: never stored on the server, or changed here since and its server copy is gone. */
+  localOnly: boolean;
 }
 
 export interface OutboxItem {

@@ -22,7 +22,7 @@ const SCHEMA: &str = concat!(
     include_str!("crypto.sql"),
     include_str!("tasks.sql")
 );
-const SCHEMA_VERSION: i64 = 8;
+const SCHEMA_VERSION: i64 = 9;
 
 /// Steps from one schema version to the next, applied in order to older databases.
 const MIGRATIONS: &[(i64, &str)] = &[
@@ -67,6 +67,9 @@ const NEW_COLUMNS: &[(i64, &str, &str, &str)] = &[
     (8, "tasks", "deleted_state", "INTEGER"),
     (8, "tasks", "deleted_with", "INTEGER"),
     (8, "tasks", "sent_at", "INTEGER"),
+    // Drafts know their server copy by Message-ID, and which version it holds.
+    (9, "drafts", "message_id", "TEXT"),
+    (9, "drafts", "synced_at", "INTEGER"),
 ];
 const MAX_READERS: usize = 6;
 
@@ -393,6 +396,42 @@ mod tests {
             })
             .unwrap();
         assert_eq!((version, columns), (SCHEMA_VERSION, added.len() as i64));
+        drop(db);
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+    }
+
+    #[test]
+    fn adds_draft_columns_to_version_8_databases() {
+        let path = std::env::temp_dir().join(format!("envelope-v8-{}.db", uuid::Uuid::new_v4()));
+        {
+            // A version 8 database, with a draft saved before drafts knew their Message-ID.
+            let db = Db::open(&path).unwrap();
+            db.write(|tx| {
+                tx.execute_batch(
+                    "ALTER TABLE drafts DROP COLUMN message_id;
+                     ALTER TABLE drafts DROP COLUMN synced_at;
+                     INSERT INTO accounts (id, kind, provider, email, name, color, config, created_at)
+                       VALUES (1, 'imap', 'generic', 'me@example.com', 'Me', '#000', '{}', 0);
+                     INSERT INTO drafts (account_id, data, remote_uid, updated_at) VALUES (1, '{}', 7, 5);
+                     PRAGMA user_version = 8;",
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        }
+        let db = Db::open(&path).unwrap();
+        let (version, row) = db
+            .read(|c| {
+                let version: i64 = c.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+                Ok((version, misc::draft_list(c)?))
+            })
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        assert_eq!(row.len(), 1);
+        // On the server already (a UID), so not listed as only on this computer.
+        assert!(!row[0].local_only);
         drop(db);
         for suffix in ["", "-wal", "-shm"] {
             let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));

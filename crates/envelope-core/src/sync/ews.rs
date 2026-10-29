@@ -2145,15 +2145,30 @@ impl Session {
             .save_draft_mime(&mime)
             .await
             .map_err(|e| self.err(e))?;
+        let message_id = rendered.message_id.clone();
         let kept = self.engine.db.write(|tx| {
             // The draft may have been sent or discarded during the upload.
             if misc::draft_get(tx, draft_id).is_err() {
-                return Ok(false);
+                return Ok(None);
             }
-            misc::draft_set_remote(tx, draft_id, None, Some(&created.id))?;
-            Ok(true)
+            misc::draft_uploaded(
+                tx,
+                draft_id,
+                None,
+                Some(&created.id),
+                &message_id,
+                draft.updated_at,
+            )
+            .map(Some)
         })?;
-        let stale = if kept {
+        if let Some(threads) = kept.as_ref().filter(|t| !t.is_empty()) {
+            self.engine.emit(EngineEvent::MailChanged {
+                account_id: self.id(),
+                folder_ids: Vec::new(),
+                thread_ids: threads.iter().copied().collect(),
+            });
+        }
+        let stale = if kept.is_some() {
             draft.remote_id
         } else {
             Some(created.id)
@@ -2167,6 +2182,7 @@ impl Session {
                 let op = PendingOp::DeleteDraft {
                     remote_uid: None,
                     remote_id: Some(old.clone()),
+                    message_id: None,
                 };
                 misc::queue_op(tx, account_id, &op, 30_000).map(|_| ())
             })?;

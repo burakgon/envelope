@@ -1076,17 +1076,13 @@ impl Session {
                 Ok(())
             }
             PendingOp::SaveDraft { draft_id } => self.save_draft(*draft_id).await,
-            PendingOp::DeleteDraft { remote_uid, .. } => {
-                if let (Some(uid), Some(drafts)) =
-                    (remote_uid, self.role_folder(FolderRole::Drafts).cloned())
-                {
-                    self.select(&drafts.remote_id).await?;
-                    self.client
-                        .uid_store(&[*uid], "+FLAGS.SILENT", &["\\Deleted"])
-                        .await?;
-                    self.client.uid_expunge(&[*uid]).await?;
-                }
-                Ok(())
+            PendingOp::DeleteDraft {
+                remote_uid,
+                message_id,
+                ..
+            } => {
+                self.delete_server_draft(*remote_uid, message_id.as_deref())
+                    .await
             }
             PendingOp::AppendSent { outbox_id } => {
                 let id = *outbox_id;
@@ -1123,17 +1119,83 @@ impl Session {
                 &rendered.mime,
             )
             .await?;
-        if let Some(old) = draft.remote_uid {
-            self.select(&drafts.remote_id).await?;
-            self.client
-                .uid_store(&[old], "+FLAGS.SILENT", &["\\Deleted"])
-                .await?;
-            self.client.uid_expunge(&[old]).await?;
-        }
         let uid = appended.map(|(_, uid)| uid);
-        self.engine
-            .db
-            .write(|tx| misc::draft_set_remote(tx, draft_id, uid, None))?;
+        let message_id = rendered.message_id.clone();
+        let kept = self.engine.db.write(|tx| {
+            // The draft may have been sent or discarded during the upload.
+            if misc::draft_get(tx, draft_id).is_err() {
+                return Ok(None);
+            }
+            misc::draft_uploaded(tx, draft_id, uid, None, &message_id, draft.updated_at).map(Some)
+        })?;
+        // The copy this one replaces; or this one, when the draft is gone.
+        let (stale_uid, stale_id) = match &kept {
+            Some(_) => (draft.remote_uid, draft.message_id.clone()),
+            None => (uid, Some(message_id)),
+        };
+        if (stale_uid.is_some() || stale_id.is_some())
+            && let Err(e) = self
+                .delete_server_draft(stale_uid, stale_id.as_deref())
+                .await
+        {
+            tracing::debug!("deleting the old draft failed, retrying later: {e}");
+            let account_id = self.id();
+            let op = PendingOp::DeleteDraft {
+                remote_uid: stale_uid,
+                remote_id: None,
+                message_id: stale_id,
+            };
+            self.engine
+                .db
+                .write(|tx| misc::queue_op(tx, account_id, &op, 30_000).map(|_| ()))?;
+        }
+        if let Some(threads) = kept.filter(|t| !t.is_empty()) {
+            self.engine.emit(EngineEvent::MailChanged {
+                account_id: self.id(),
+                folder_ids: vec![drafts.id],
+                thread_ids: threads.into_iter().collect(),
+            });
+        }
+        // List the new copy in Drafts now rather than at the next full sync
+        // (Gmail's drafts arrive through All Mail, which is watched).
+        if !self.gmail
+            && let Err(e) = self.sync_folder(&drafts, BACKFILL_PER_CYCLE).await
+        {
+            tracing::debug!("syncing drafts after an upload failed: {e}");
+        }
+        Ok(())
+    }
+
+    /// Deletes a draft's server copy from the Drafts folder, found by UID or,
+    /// when that is unknown, by Message-ID.
+    async fn delete_server_draft(
+        &mut self,
+        uid: Option<u32>,
+        message_id: Option<&str>,
+    ) -> Result<()> {
+        let Some(drafts) = self.role_folder(FolderRole::Drafts).cloned() else {
+            return Ok(());
+        };
+        self.select(&drafts.remote_id).await?;
+        let uids = match (uid, message_id) {
+            (Some(uid), _) => vec![uid],
+            (None, Some(id)) => match envelope_imap::client::quote(&format!("<{id}>")) {
+                Some(quoted) => {
+                    self.client
+                        .uid_search(&format!("HEADER Message-ID {quoted}"))
+                        .await?
+                }
+                None => Vec::new(),
+            },
+            (None, None) => Vec::new(),
+        };
+        if uids.is_empty() {
+            return Ok(());
+        }
+        self.client
+            .uid_store(&uids, "+FLAGS.SILENT", &["\\Deleted"])
+            .await?;
+        self.client.uid_expunge(&uids).await?;
         Ok(())
     }
 }

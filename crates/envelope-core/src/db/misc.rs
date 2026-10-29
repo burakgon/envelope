@@ -1,5 +1,7 @@
 //! Settings, identities, address book, pending operations, outbox and drafts.
 
+use std::collections::BTreeSet;
+
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -255,6 +257,10 @@ pub enum PendingOp {
     DeleteDraft {
         remote_uid: Option<u32>,
         remote_id: Option<String>,
+        /// Its Message-ID, to find it on IMAP servers when the UID is unknown
+        /// (Gmail drafts synced from All Mail, servers without UIDPLUS).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        message_id: Option<String>,
     },
     /// Append a sent message to the Sent folder.
     AppendSent { outbox_id: i64 },
@@ -501,7 +507,27 @@ pub struct DraftRow {
     pub data: DraftInput,
     pub remote_uid: Option<u32>,
     pub remote_id: Option<String>,
+    /// Message-ID of the server copy.
+    pub message_id: Option<String>,
+    /// `updated_at` of the version the server copy holds.
+    pub synced_at: Option<i64>,
     pub updated_at: i64,
+}
+
+impl DraftRow {
+    /// Whether a copy was ever stored on the server.
+    pub fn uploaded(&self) -> bool {
+        self.remote_uid.is_some() || self.remote_id.is_some() || self.message_id.is_some()
+    }
+
+    /// The operation that deletes its server copy, if it has one.
+    pub fn delete_op(&self) -> Option<PendingOp> {
+        self.uploaded().then(|| PendingOp::DeleteDraft {
+            remote_uid: self.remote_uid,
+            remote_id: self.remote_id.clone(),
+            message_id: self.message_id.clone(),
+        })
+    }
 }
 
 fn draft_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<DraftRow> {
@@ -512,31 +538,100 @@ fn draft_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<DraftRow> {
         data: serde_json::from_str(&data).unwrap_or_default(),
         remote_uid: r.get("remote_uid")?,
         remote_id: r.get("remote_id")?,
+        message_id: r.get("message_id")?,
+        synced_at: r.get("synced_at")?,
         updated_at: r.get("updated_at")?,
     })
 }
 
+/// Saves a draft and returns its id: a new one when `id` is none, or when the
+/// draft is gone meanwhile (deleted with its server copy elsewhere) and what
+/// is still being written must not be lost.
 pub fn draft_save(tx: &Transaction<'_>, id: Option<i64>, data: &DraftInput) -> Result<i64> {
+    Ok(draft_store(tx, id, data)?.id)
+}
+
+/// What saving a draft did.
+#[derive(Debug, Default)]
+pub struct DraftStored {
+    pub id: i64,
+    /// The account the draft left (now sent from another one), whose server
+    /// copy is deleted, and the conversations that changed with it.
+    pub left: Option<(i64, BTreeSet<i64>)>,
+}
+
+/// [`draft_save`], telling what changed besides the draft.
+pub fn draft_store(
+    tx: &Transaction<'_>,
+    id: Option<i64>,
+    data: &DraftInput,
+) -> Result<DraftStored> {
     let json = serde_json::to_string(data)?;
-    match id {
-        Some(id) if id > 0 => {
-            let n = tx.execute(
-                "UPDATE drafts SET data = ?, account_id = ?, updated_at = ? WHERE id = ?",
-                params![json, data.account_id, now_ms(), id],
-            )?;
-            if n == 0 {
-                return Err(Error::NotFound(format!("draft {id}")));
+    if let Some(id) = id.filter(|id| *id > 0) {
+        let mut left = None;
+        // From another account now: the copy on the old account's server goes.
+        if let Some(old) = tx
+            .query_row("SELECT * FROM drafts WHERE id = ?", [id], draft_from_row)
+            .optional()?
+            .filter(|old| old.account_id != data.account_id)
+            && let Some(op) = old.delete_op()
+        {
+            let mut threads = BTreeSet::new();
+            if let Some(copy) = draft_server_copy(tx, &old)? {
+                threads.extend(super::mail::forget_message(tx, copy)?);
             }
-            Ok(id)
-        }
-        _ => {
+            queue_op(tx, old.account_id, &op, 0)?;
             tx.execute(
-                "INSERT INTO drafts (account_id, data, updated_at) VALUES (?, ?, ?)",
-                params![data.account_id, json, now_ms()],
+                "UPDATE drafts SET remote_uid = NULL, remote_id = NULL, message_id = NULL, synced_at = NULL
+                 WHERE id = ?",
+                [id],
             )?;
-            Ok(tx.last_insert_rowid())
+            let folders = super::mail::refresh_threads(tx, &threads)?;
+            super::mail::refresh_folder_counts(tx, &folders)?;
+            left = Some((old.account_id, threads));
+        }
+        let n = tx.execute(
+            "UPDATE drafts SET data = ?, account_id = ?, updated_at = ? WHERE id = ?",
+            params![json, data.account_id, now_ms(), id],
+        )?;
+        if n > 0 {
+            return Ok(DraftStored { id, left });
         }
     }
+    tx.execute(
+        "INSERT INTO drafts (account_id, data, updated_at) VALUES (?, ?, ?)",
+        params![data.account_id, json, now_ms()],
+    )?;
+    Ok(DraftStored {
+        id: tx.last_insert_rowid(),
+        left: None,
+    })
+}
+
+/// A new local draft for a copy that is on the server already (written
+/// elsewhere), so that saving it replaces that copy and sending deletes it.
+pub fn draft_adopt(
+    tx: &Transaction<'_>,
+    data: &DraftInput,
+    remote_uid: Option<u32>,
+    remote_id: Option<&str>,
+    message_id: Option<&str>,
+) -> Result<i64> {
+    let now = now_ms();
+    tx.execute(
+        "INSERT INTO drafts (account_id, data, remote_uid, remote_id, message_id, synced_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
+        params![
+            data.account_id,
+            serde_json::to_string(data)?,
+            remote_uid,
+            remote_id,
+            message_id,
+            now,
+            now
+        ],
+    )?;
+    Ok(tx.last_insert_rowid())
 }
 
 pub fn draft_get(c: &Connection, id: i64) -> Result<DraftRow> {
@@ -545,17 +640,122 @@ pub fn draft_get(c: &Connection, id: i64) -> Result<DraftRow> {
         .ok_or_else(|| Error::NotFound(format!("draft {id}")))
 }
 
+/// The synced message that is a draft's server copy: found by Message-ID,
+/// by server id (Graph, Exchange) or by its UID in the Drafts folder.
+pub fn draft_server_copy(c: &Connection, d: &DraftRow) -> Result<Option<i64>> {
+    if let Some(mid) = &d.message_id {
+        let found: Option<i64> = c
+            .query_row(
+                "SELECT id FROM messages WHERE account_id = ? AND message_id = ? ORDER BY id DESC LIMIT 1",
+                params![d.account_id, mid],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if found.is_some() {
+            return Ok(found);
+        }
+    }
+    if let Some(rid) = &d.remote_id {
+        let found: Option<i64> = c
+            .query_row(
+                "SELECT id FROM messages WHERE account_id = ? AND remote_id = ? ORDER BY id DESC LIMIT 1",
+                params![d.account_id, rid],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if found.is_some() {
+            return Ok(found);
+        }
+    }
+    if let Some(uid) = d.remote_uid {
+        return Ok(c
+            .query_row(
+                "SELECT mf.message_id FROM message_folders mf JOIN folders f ON f.id = mf.folder_id
+                 WHERE f.account_id = ? AND f.role = 'drafts' AND mf.uid = ?",
+                params![d.account_id, uid],
+                |r| r.get(0),
+            )
+            .optional()?);
+    }
+    Ok(None)
+}
+
+/// The local draft whose server copy is the message `message_id` (drafts
+/// waiting in the outbox aside: they are on their way out).
+pub fn draft_of_message(c: &Connection, message_id: i64) -> Result<Option<DraftRow>> {
+    let Some((account, mid, rid)) = c
+        .query_row(
+            "SELECT account_id, message_id, remote_id FROM messages WHERE id = ?",
+            [message_id],
+            |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, Option<String>>(2)?,
+                ))
+            },
+        )
+        .optional()?
+    else {
+        return Ok(None);
+    };
+    let mut st = c.prepare_cached(
+        "SELECT * FROM drafts d WHERE account_id = ?
+           AND NOT EXISTS (SELECT 1 FROM outbox o WHERE o.draft_id = d.id AND o.state != 'sent')
+         ORDER BY updated_at DESC",
+    )?;
+    let drafts = st
+        .query_map([account], draft_from_row)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let by_id = drafts.iter().find(|d| {
+        (d.message_id.is_some() && d.message_id == mid)
+            || (d.remote_id.is_some() && d.remote_id == rid)
+    });
+    if let Some(d) = by_id {
+        return Ok(Some(d.clone()));
+    }
+    let uid: Option<u32> = c
+        .query_row(
+            "SELECT mf.uid FROM message_folders mf JOIN folders f ON f.id = mf.folder_id
+             WHERE mf.message_id = ? AND f.role = 'drafts' AND mf.uid IS NOT NULL",
+            [message_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    Ok(uid.and_then(|uid| {
+        drafts
+            .into_iter()
+            .find(|d| d.message_id.is_none() && d.remote_uid == Some(uid))
+    }))
+}
+
+/// Drafts that are not waiting in the outbox, newest first.
 pub fn draft_list(c: &Connection) -> Result<Vec<Draft>> {
-    let mut st = c.prepare_cached("SELECT * FROM drafts ORDER BY updated_at DESC")?;
-    let rows = st.query_map([], draft_from_row)?;
-    Ok(rows
+    let mut st = c.prepare_cached(
+        "SELECT * FROM drafts d WHERE NOT EXISTS (SELECT 1 FROM outbox o WHERE o.draft_id = d.id AND o.state != 'sent')
+         ORDER BY updated_at DESC",
+    )?;
+    let rows = st
+        .query_map([], draft_from_row)?
         .filter_map(|r| r.ok())
-        .map(|d| Draft {
-            id: d.id,
-            data: d.data,
-            updated_at: d.updated_at,
-        })
-        .collect())
+        .collect::<Vec<_>>();
+    rows.into_iter().map(|d| draft_info(c, d)).collect()
+}
+
+/// A draft as the interface sees it: with its server copy, if synced.
+pub fn draft_info(c: &Connection, d: DraftRow) -> Result<Draft> {
+    let server_message_id = draft_server_copy(c, &d)?;
+    // A server copy that went away elsewhere only matters while this
+    // computer has changes it never got.
+    let changed_here = d.synced_at.is_some_and(|s| d.updated_at > s);
+    let local_only = server_message_id.is_none() && (!d.uploaded() || changed_here);
+    Ok(Draft {
+        id: d.id,
+        data: d.data,
+        updated_at: d.updated_at,
+        server_message_id,
+        local_only,
+    })
 }
 
 pub fn draft_set_remote(
@@ -571,12 +771,67 @@ pub fn draft_set_remote(
     Ok(())
 }
 
+/// Records a draft's new server copy, holding version `synced_at` of it, and
+/// drops the synced message of the copy it replaces (which the server deletes)
+/// so that Drafts does not list both until the next sync. Returns the
+/// conversations that changed.
+pub fn draft_uploaded(
+    tx: &Transaction<'_>,
+    id: i64,
+    uid: Option<u32>,
+    remote_id: Option<&str>,
+    message_id: &str,
+    synced_at: i64,
+) -> Result<BTreeSet<i64>> {
+    let old = draft_get(tx, id)?;
+    let mut threads = BTreeSet::new();
+    if let Some(stale) = draft_server_copy(tx, &old)? {
+        threads.extend(super::mail::forget_message(tx, stale)?);
+    }
+    tx.execute(
+        "UPDATE drafts SET remote_uid = ?, remote_id = ?, message_id = ?, synced_at = ? WHERE id = ?",
+        params![
+            uid,
+            remote_id,
+            message_id.trim_matches(['<', '>']),
+            synced_at,
+            id
+        ],
+    )?;
+    let folders = super::mail::refresh_threads(tx, &threads)?;
+    super::mail::refresh_folder_counts(tx, &folders)?;
+    Ok(threads)
+}
+
 pub fn draft_delete(tx: &Transaction<'_>, id: i64) -> Result<Option<DraftRow>> {
     let row = tx
         .query_row("SELECT * FROM drafts WHERE id = ?", [id], draft_from_row)
         .optional()?;
     tx.execute("DELETE FROM drafts WHERE id = ?", [id])?;
     Ok(row)
+}
+
+/// Deletes a draft that is done with (sent or discarded). Its server copy is
+/// deleted on the server and, when synced, here right away so that it leaves
+/// Drafts at once. Returns the draft and the conversations that changed.
+pub fn draft_discard(tx: &Transaction<'_>, id: i64) -> Result<Option<(DraftRow, BTreeSet<i64>)>> {
+    let Some(d) = tx
+        .query_row("SELECT * FROM drafts WHERE id = ?", [id], draft_from_row)
+        .optional()?
+    else {
+        return Ok(None);
+    };
+    let mut threads = BTreeSet::new();
+    if let Some(copy) = draft_server_copy(tx, &d)? {
+        threads.extend(super::mail::forget_message(tx, copy)?);
+    }
+    tx.execute("DELETE FROM drafts WHERE id = ?", [id])?;
+    if let Some(op) = d.delete_op() {
+        queue_op(tx, d.account_id, &op, 0)?;
+    }
+    let folders = super::mail::refresh_threads(tx, &threads)?;
+    super::mail::refresh_folder_counts(tx, &folders)?;
+    Ok(Some((d, threads)))
 }
 
 // ----- follow-up reminders ---------------------------------------------------------

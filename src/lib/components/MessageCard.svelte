@@ -21,7 +21,7 @@
   import { cal } from '../stores/calendar.svelte';
   import type { ExtractedEvent } from '../api';
   import { fileIconKind } from '../utils/format';
-  import { CalendarPlus, Code, Eye, Filter, Forward, Image, Mail, More, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
+  import { CalendarPlus, Code, Eye, Filter, Forward, Image, Mail, More, Pen, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
 
   let { message, expanded, ontoggle }: { message: MessageView; expanded: boolean; ontoggle: () => void } = $props();
 
@@ -82,6 +82,9 @@
   });
   const files = $derived((shown ?? message).attachments.filter((a) => !a.inline));
   const images = $derived(files.filter((a) => fileIconKind(a.mimeType, a.filename) === 'image'));
+  /** A draft (stored on the server): it opens in a composer instead of being replied to. */
+  const isDraft = $derived(message.flags.draft);
+
 
   function nameOrMe(a: Address) {
     return mail.meEmails.has(a.email.toLowerCase()) ? t('message.recipientMe') : displayName(a);
@@ -126,14 +129,15 @@
 </script>
 
 {#if !expanded}
-  <button class="collapsed" onclick={ontoggle}>
+  <button class="collapsed" onclick={isDraft ? () => compose.editMessage(message) : ontoggle}>
     <Avatar person={sender} size={28} />
     <span class="c-name" class:unread={!message.flags.seen}>{fromMe ? t('message.senderMe') : displayName(sender)}</span>
+    {#if isDraft}<span class="draft-chip">{t('threadRow.draft')}</span>{/if}
     <span class="c-snippet truncate">{previewText(message.snippet)}</span>
     <time class="c-date">{messageDate(message.date)}</time>
   </button>
 {:else}
-  <article class="card">
+  <article class="card" class:draft={isDraft}>
     <header>
       <button class="who" onclick={ontoggle} title={t('message.collapse')}>
         <Avatar person={sender} size={36} />
@@ -141,6 +145,7 @@
       <div class="info">
         <div class="row1">
           <span class="name selectable">{fromMe ? t('message.senderMe') : displayName(sender)}</span>
+          {#if isDraft}<span class="draft-chip">{t('threadRow.draft')}</span>{/if}
           {#if sender && !fromMe && displayName(sender) !== sender.email}
             <span class="addr selectable">{sender.email}</span>
           {/if}
@@ -165,8 +170,12 @@
         <button class="icon-btn sm" class:starred={message.flags.flagged} title={t('message.star')} onclick={() => { message.flags.flagged = !message.flags.flagged; api.setFlags([], [message.id], { flagged: message.flags.flagged }); }}>
           <Star size={15} fill={message.flags.flagged ? 'currentColor' : 'none'} />
         </button>
-        <button class="icon-btn sm" title={t('reader.reply')} onclick={() => compose.reply(message.id, ui.settings.defaultReply)}><Reply size={16} /></button>
-        <button class="icon-btn sm" title={t('common.more')} onclick={openMenu}><More size={16} /></button>
+        {#if isDraft}
+          <button class="btn sm primary edit" onclick={() => compose.editMessage(message)}><Pen size={13} />{t('message.editDraft')}</button>
+        {:else}
+          <button class="icon-btn sm" title={t('reader.reply')} onclick={() => compose.reply(message.id, ui.settings.defaultReply)}><Reply size={16} /></button>
+        {/if}
+        <button class="icon-btn sm" title={t('common.more')} aria-label={t('common.more')} onclick={openMenu}><More size={16} /></button>
       </div>
     </header>
 
@@ -187,7 +196,13 @@
       {#if message.crypto && !shown}
         <CryptoNotice {message} {opened} />
       {:else if shown?.body}
-        <MailFrame message={shown} allowRemote={remote} onstats={(s) => (stats = s)} onimage={(items, index) => (bodyImages = { items, index })} />
+        <MailFrame
+          message={shown}
+          allowRemote={remote}
+          onstats={(s) => (stats = s)}
+          onimage={(items, index) => (bodyImages = { items, index })}
+          onactivate={isDraft ? () => compose.editMessage(message) : undefined}
+        />
       {:else}
         <div class="loading">
           <span class="skeleton" style="width:72%;height:12px"></span>
@@ -232,9 +247,13 @@
 
 {#if menu}
   <Popover x={menu.x} y={menu.y} align="end" onclose={() => (menu = null)} width={230}>
-    <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'reply'); }}><Reply size={15} />{t('reader.reply')}</button>
-    <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'replyAll'); }}><ReplyAll size={15} />{t('reader.replyAll')}</button>
-    <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'forward', false); }}><Forward size={15} />{t('reader.forward')}</button>
+    {#if isDraft}
+      <button class="menu-item" onclick={() => { menu = null; compose.editMessage(message); }}><Pen size={15} />{t('message.editDraft')}</button>
+    {:else}
+      <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'reply'); }}><Reply size={15} />{t('reader.reply')}</button>
+      <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'replyAll'); }}><ReplyAll size={15} />{t('reader.replyAll')}</button>
+      <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'forward', false); }}><Forward size={15} />{t('reader.forward')}</button>
+    {/if}
     <div class="divider"></div>
     <button class="menu-item" onclick={() => { menu = null; mail.markMessageRead(message, !message.flags.seen); }}>
       <Mail size={15} />{message.flags.seen ? t('message.markUnread') : t('message.markRead')}
@@ -462,6 +481,22 @@
     gap: 8px;
     margin-top: 16px;
     padding-left: 48px;
+  }
+  .draft-chip {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    color: var(--red);
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--red-soft);
+  }
+  .card.draft {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--red) 28%, var(--border)), var(--shadow-xs);
+  }
+  .edit {
+    margin-right: 2px;
   }
   .trackers {
     display: inline-flex;

@@ -23,7 +23,9 @@
 
   const d = $derived(mail.detail);
   const thread = $derived(d?.thread);
-  const messages = $derived(d?.messages ?? []);
+  /** A draft being edited under the conversation is shown in its composer only. */
+  const editing = $derived(new Set(compose.list.filter((c) => c.inline && c.threadId === d?.thread.id).map((c) => c.sourceMessageId)));
+  const messages = $derived((d?.messages ?? []).filter((m) => !editing.has(m.id)));
   const account = $derived(thread ? mail.accountById.get(thread.accountId) : undefined);
   const inlineComposer = $derived(thread ? compose.list.find((c) => c.inline && c.threadId === thread.id) : undefined);
   const labels = $derived(
@@ -56,7 +58,8 @@
     return { x: r.left, y: r.bottom + 4 };
   }
 
-  const last = $derived(messages[messages.length - 1]);
+  /** The newest message that is not a draft: replies go to it. */
+  const last = $derived([...messages].reverse().find((m) => !m.flags.draft) ?? messages[messages.length - 1]);
 </script>
 
 <section class="reader">

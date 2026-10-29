@@ -521,6 +521,13 @@ pub struct Draft {
     pub id: i64,
     pub data: DraftInput,
     pub updated_at: i64,
+    /// The synced message that is this draft's copy on the server, if any.
+    #[serde(default)]
+    pub server_message_id: Option<i64>,
+    /// Only on this computer: never stored on the server, or changed here
+    /// since and its server copy is gone. Shown in Drafts by the interface.
+    #[serde(default)]
+    pub local_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

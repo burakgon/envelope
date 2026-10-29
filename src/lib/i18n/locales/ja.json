@@ -125,6 +125,7 @@
 
   "threadRow.select": "選択",
   "threadRow.draft": "下書き",
+  "threadRow.onlyHere": "このコンピューターのみ：まだサーバーに保存されていません",
   "threadRow.archive": "アーカイブ（{key}）",
   "threadRow.delete": "削除（{key}）",
   "threadRow.markAsRead": "既読にする（{key}）",
@@ -190,6 +191,7 @@
   "mail.movedToFolderCount": "「{folder}」に移動しました · {count, plural, other {# 件のスレッド}}",
   "mail.deletedForever": "完全に削除しました",
   "mail.deletedCount": "{count, plural, other {# 件のスレッドを完全に削除しました}}",
+  "mail.draftsDiscarded": "{count, plural, other {# 件の下書きを破棄しました}}",
   "mail.markedRead": "既読にしました",
   "mail.markedUnread": "未読にしました",
   "mail.snoozedUntil": "{when} までスヌーズしました",
@@ -248,6 +250,7 @@
   "message.loadRemoteContent": "外部コンテンツを読み込む",
   "message.copySenderAddress": "差出人のアドレスをコピー",
   "message.addressCopied": "アドレスをコピーしました",
+  "message.editDraft": "下書きを編集",
   "message.addToCalendar": "カレンダーに追加",
   "message.lookingForEvents": "予定を探しています…",
   "message.noEventsFound": "このメッセージに日時や予定は見つかりませんでした",
@@ -414,6 +417,7 @@
   "compose.draftSaved": "下書きを保存しました",
   "compose.draftDiscarded": "下書きを破棄しました",
   "compose.saveFailed": "下書きを保存できませんでした：{error}",
+  "compose.draftOpenFailed": "下書きを開けませんでした：{error}",
 
   "calendar.event.timeRange": "{start}～{end}",
   "calendar.header.showSidebar": "サイドバーを表示",

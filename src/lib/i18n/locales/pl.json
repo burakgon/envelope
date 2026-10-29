@@ -125,6 +125,7 @@
 
   "threadRow.select": "Zaznacz",
   "threadRow.draft": "Wersja robocza",
+  "threadRow.onlyHere": "Tylko na tym komputerze: jeszcze nie zapisano na serwerze",
   "threadRow.archive": "Archiwizuj ({key})",
   "threadRow.delete": "Usuń ({key})",
   "threadRow.markAsRead": "Oznacz jako przeczytane ({key})",
@@ -190,6 +191,7 @@
   "mail.movedToFolderCount": "Przeniesiono do: {folder} · {count, plural, one {# wątek} few {# wątki} many {# wątków} other {# wątku}}",
   "mail.deletedForever": "Usunięto na zawsze",
   "mail.deletedCount": "{count, plural, one {Usunięto # wątek} few {Usunięto # wątki} many {Usunięto # wątków} other {Usunięto # wątku}}",
+  "mail.draftsDiscarded": "{count, plural, one {Odrzucono wersję roboczą} few {Odrzucono # wersje robocze} many {Odrzucono # wersji roboczych} other {Odrzucono # wersji roboczej}}",
   "mail.markedRead": "Oznaczono jako przeczytane",
   "mail.markedUnread": "Oznaczono jako nieprzeczytane",
   "mail.snoozedUntil": "Odłożono do: {when}",
@@ -248,6 +250,7 @@
   "message.loadRemoteContent": "Wczytaj zdalną zawartość",
   "message.copySenderAddress": "Kopiuj adres nadawcy",
   "message.addressCopied": "Skopiowano adres",
+  "message.editDraft": "Edytuj wersję roboczą",
   "message.addToCalendar": "Dodaj do kalendarza",
   "message.lookingForEvents": "Szukanie wydarzeń…",
   "message.noEventsFound": "W tej wiadomości nie znaleziono dat ani wydarzeń",
@@ -414,6 +417,7 @@
   "compose.draftSaved": "Zapisano wersję roboczą",
   "compose.draftDiscarded": "Odrzucono wersję roboczą",
   "compose.saveFailed": "Nie udało się zapisać wersji roboczej: {error}",
+  "compose.draftOpenFailed": "Nie udało się otworzyć wersji roboczej: {error}",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Pokaż pasek boczny",

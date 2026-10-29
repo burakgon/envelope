@@ -664,6 +664,24 @@ pub fn remove_from_folder(
     Ok(thread)
 }
 
+/// Removes a message from every folder here, ahead of the server deleting it
+/// (a draft's replaced or discarded server copy). Returns its thread.
+pub fn forget_message(tx: &Transaction<'_>, message_id: i64) -> Result<Option<i64>> {
+    let thread: Option<i64> = tx
+        .query_row(
+            "SELECT thread_id FROM messages WHERE id = ?",
+            [message_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    tx.execute(
+        "DELETE FROM message_folders WHERE message_id = ?",
+        [message_id],
+    )?;
+    delete_message_if_orphan(tx, message_id)?;
+    Ok(thread)
+}
+
 fn delete_message_if_orphan(tx: &Transaction<'_>, message_id: i64) -> Result<Option<i64>> {
     let remaining: i64 = tx.query_row(
         "SELECT count(*) FROM message_folders WHERE message_id = ?",
@@ -923,6 +941,17 @@ pub fn refresh_draft(tx: &Transaction<'_>, message_id: i64, meta: &MessageMeta) 
     tx.execute("DELETE FROM bodies WHERE message_id = ?", [message_id])?;
     tx.execute("DELETE FROM attachments WHERE message_id = ?", [message_id])?;
     index_message(tx, message_id, None)?;
+    // A draft of this computer whose server copy this is, without changes of its
+    // own since: it no longer holds what the server has, and is brought up to
+    // date from the copy when it is opened.
+    tx.execute(
+        "UPDATE drafts SET synced_at = NULL
+         WHERE synced_at IS NOT NULL AND updated_at <= synced_at
+           AND account_id = (SELECT account_id FROM messages WHERE id = ?1)
+           AND ((remote_id IS NOT NULL AND remote_id = (SELECT remote_id FROM messages WHERE id = ?1))
+             OR (message_id IS NOT NULL AND message_id = (SELECT message_id FROM messages WHERE id = ?1)))",
+        [message_id],
+    )?;
     Ok(())
 }
 

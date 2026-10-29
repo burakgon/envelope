@@ -125,6 +125,7 @@
 
   "threadRow.select": "Selecionar",
   "threadRow.draft": "Rascunho",
+  "threadRow.onlyHere": "Somente neste computador: ainda não foi salvo no servidor",
   "threadRow.archive": "Arquivar ({key})",
   "threadRow.delete": "Excluir ({key})",
   "threadRow.markAsRead": "Marcar como lida ({key})",
@@ -190,6 +191,7 @@
   "mail.movedToFolderCount": "{count, plural, one {Movida para “{folder}” · # conversa} other {Movidas para “{folder}” · # conversas}}",
   "mail.deletedForever": "Excluída permanentemente",
   "mail.deletedCount": "{count, plural, one {# conversa excluída} other {# conversas excluídas}}",
+  "mail.draftsDiscarded": "{count, plural, one {Rascunho descartado} other {# rascunhos descartados}}",
   "mail.markedRead": "Marcadas como lidas",
   "mail.markedUnread": "Marcadas como não lidas",
   "mail.snoozedUntil": "Adiado até {when}",
@@ -248,6 +250,7 @@
   "message.loadRemoteContent": "Carregar conteúdo remoto",
   "message.copySenderAddress": "Copiar endereço do remetente",
   "message.addressCopied": "Endereço copiado",
+  "message.editDraft": "Editar rascunho",
   "message.addToCalendar": "Adicionar ao calendário",
   "message.lookingForEvents": "Procurando eventos…",
   "message.noEventsFound": "Nenhuma data ou evento encontrado nesta mensagem",
@@ -414,6 +417,7 @@
   "compose.draftSaved": "Rascunho salvo",
   "compose.draftDiscarded": "Rascunho descartado",
   "compose.saveFailed": "Não foi possível salvar o rascunho: {error}",
+  "compose.draftOpenFailed": "Não foi possível abrir o rascunho: {error}",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Mostrar barra lateral",

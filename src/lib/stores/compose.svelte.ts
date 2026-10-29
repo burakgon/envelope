@@ -1,5 +1,5 @@
 import { api } from '../api';
-import type { Address, DraftInput } from '../api';
+import type { Address, Draft, DraftInput, MessageView, ThreadSummary } from '../api';
 import { mail } from './mail.svelte';
 import { dialogs } from './dialogs.svelte';
 import { errorMessage, toasts } from './toasts.svelte';
@@ -15,6 +15,8 @@ export interface ComposerState {
   /** Reply composer shown inside the conversation instead of floating. */
   inline: boolean;
   threadId: number | null;
+  /** The draft message (in Drafts or a conversation) this composer edits, while it is listed. */
+  sourceMessageId: number | null;
   minimized: boolean;
   maximized: boolean;
   showCc: boolean;
@@ -89,6 +91,7 @@ class Compose {
       data,
       inline: false,
       threadId: null,
+      sourceMessageId: null,
       minimized: false,
       maximized: false,
       showCc: data.cc.length > 0,
@@ -133,15 +136,84 @@ class Compose {
     }
   }
 
-  async openDraft(draftId: number) {
-    const existing = this.list.find((c) => c.draftId === draftId);
+  /** Opens a draft for editing (or brings its composer forward): inline under its conversation when that is open. */
+  async openDraft(draft: number | Draft, opts: { threadId?: number | null } = {}) {
+    const id = typeof draft === 'number' ? draft : draft.id;
+    const existing = this.list.find((c) => c.draftId === id);
     if (existing) {
       existing.minimized = false;
       existing.focus++;
       return;
     }
-    const d = await api.draft(draftId);
-    this.open(d.data, { draftId });
+    try {
+      const d = typeof draft === 'number' ? await api.draft(draft) : draft;
+      const reply = d.data.mode === 'reply' || d.data.mode === 'replyAll';
+      const thread = mail.detail?.thread.id ?? null;
+      const inThread = thread != null && (opts.threadId ?? null) === thread;
+      const replyHere = reply && d.data.replyToMessageId != null && !!mail.detail?.messages.some((m) => m.id === d.data.replyToMessageId);
+      // Inline under the open conversation, unless another reply is being written there.
+      const inline = (inThread || replyHere) && reply && !this.list.some((c) => c.inline && c.threadId === thread);
+      this.open(d.data, {
+        draftId: d.id,
+        sourceMessageId: d.serverMessageId,
+        inline,
+        threadId: inline ? thread : null,
+        focus: 1,
+        savedAt: d.updatedAt,
+      });
+    } catch (e) {
+      toasts.error(t('compose.draftOpenFailed', { error: errorMessage(e) }));
+    }
+  }
+
+  /** Opens a draft message (from Drafts, or in a conversation) in a composer to edit it. */
+  async editMessage(m: MessageView) {
+    const open = this.list.find((c) => c.sourceMessageId === m.id);
+    if (open) {
+      open.minimized = false;
+      open.focus++;
+      return;
+    }
+    try {
+      if (isEncrypted(m)) await pgp.open(m.id);
+      const d = await api.draftForMessage(m.id);
+      await this.openDraft(d, { threadId: m.threadId });
+    } catch (e) {
+      toasts.error(t('compose.draftOpenFailed', { error: errorMessage(e) }));
+    }
+  }
+
+  /**
+   * Opens a row of the message list: a draft only on this computer in its composer; in Drafts,
+   * the conversation with its draft open to be edited; anything else in the reader.
+   */
+  async openRow(th: ThreadSummary) {
+    if (th.localDraftId != null) {
+      mail.select(th.id);
+      await this.openDraft(th.localDraftId);
+      return;
+    }
+    if (!mail.inDrafts || th.draftCount === 0) {
+      mail.select(th.id);
+      return;
+    }
+    mail.select(th.id, { open: false });
+    await mail.openThread(th.id);
+    if (mail.selectedId === th.id) await this.editThread(th.id);
+  }
+
+  /** Opens the newest draft of a conversation, if it has one; true when it did. */
+  async editThread(threadId: number): Promise<boolean> {
+    try {
+      const d = mail.detail?.thread.id === threadId ? mail.detail : await api.thread(threadId);
+      const draft = [...d.messages].reverse().find((m) => m.flags.draft);
+      if (!draft) return false;
+      await this.editMessage(draft);
+      return true;
+    } catch (e) {
+      toasts.error(errorMessage(e));
+      return false;
+    }
   }
 
   get(key: number): ComposerState | undefined {
@@ -163,6 +235,7 @@ class Compose {
     try {
       c.draftId = await api.saveDraft(c.draftId, $state.snapshot(c.data) as DraftInput, upload);
       c.savedAt = Date.now();
+      mail.draftsChanged();
     } catch (e) {
       toasts.error(t('compose.saveFailed', { error: errorMessage(e) }));
     } finally {

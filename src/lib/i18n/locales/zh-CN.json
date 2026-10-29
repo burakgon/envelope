@@ -125,6 +125,7 @@
 
   "threadRow.select": "选择",
   "threadRow.draft": "草稿",
+  "threadRow.onlyHere": "仅在此电脑上：尚未保存到服务器",
   "threadRow.archive": "归档（{key}）",
   "threadRow.delete": "删除（{key}）",
   "threadRow.markAsRead": "标为已读（{key}）",
@@ -190,6 +191,7 @@
   "mail.movedToFolderCount": "已移至“{folder}” · {count, plural, other {# 个会话}}",
   "mail.deletedForever": "已永久删除",
   "mail.deletedCount": "{count, plural, other {已永久删除 # 个会话}}",
+  "mail.draftsDiscarded": "{count, plural, other {已舍弃 # 个草稿}}",
   "mail.markedRead": "已标为已读",
   "mail.markedUnread": "已标为未读",
   "mail.snoozedUntil": "已延后至 {when}",
@@ -248,6 +250,7 @@
   "message.loadRemoteContent": "加载远程内容",
   "message.copySenderAddress": "复制发件人地址",
   "message.addressCopied": "地址已复制",
+  "message.editDraft": "编辑草稿",
   "message.addToCalendar": "添加到日历",
   "message.lookingForEvents": "正在查找日程…",
   "message.noEventsFound": "此邮件中未找到日期或日程",
@@ -414,6 +417,7 @@
   "compose.draftSaved": "草稿已保存",
   "compose.draftDiscarded": "已舍弃草稿",
   "compose.saveFailed": "无法保存草稿：{error}",
+  "compose.draftOpenFailed": "无法打开草稿：{error}",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "显示侧边栏",

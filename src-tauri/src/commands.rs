@@ -335,6 +335,12 @@ pub fn delete_draft(state: State<'_, AppState>, id: i64) -> R<()> {
     Ok(state.engine.delete_draft(id)?)
 }
 
+/// The draft to edit for a draft message: its local draft, or one made from it.
+#[tauri::command]
+pub async fn draft_for_message(state: State<'_, AppState>, message_id: i64) -> R<Draft> {
+    Ok(state.engine.draft_for_message(message_id).await?)
+}
+
 #[tauri::command]
 pub fn compose_reply(state: State<'_, AppState>, message_id: i64, mode: String) -> R<DraftInput> {
     Ok(state.engine.compose_reply(message_id, &mode)?)

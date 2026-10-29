@@ -42,9 +42,14 @@ export interface Api {
   messageSource(id: number): Promise<string>;
   unsubscribe(messageId: number): Promise<boolean>;
 
+  /** Drafts not waiting in the outbox, with their server copies. */
   drafts(): Promise<T.Draft[]>;
   draft(id: number): Promise<T.Draft>;
+  /** The draft to edit for a draft message: its local draft, or one made from it (written elsewhere). */
+  draftForMessage(messageId: number): Promise<T.Draft>;
+  /** Saves a draft (a new one when `id` is gone); `upload` also stores it on the server. */
   saveDraft(id: number | null, data: T.DraftInput, upload: boolean): Promise<number>;
+  /** Discards a draft and its server copy. */
   deleteDraft(id: number): Promise<void>;
   composeReply(messageId: number, mode: 'reply' | 'replyAll' | 'forward'): Promise<T.DraftInput>;
   send(draftId: number | null, data: T.DraftInput, delayMs: number, sendAt: number | null): Promise<number>;

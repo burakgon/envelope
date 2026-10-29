@@ -125,6 +125,7 @@
 
   "threadRow.select": "Sélectionner",
   "threadRow.draft": "Brouillon",
+  "threadRow.onlyHere": "Uniquement sur cet ordinateur : pas encore enregistré sur le serveur",
   "threadRow.archive": "Archiver ({key})",
   "threadRow.delete": "Supprimer ({key})",
   "threadRow.markAsRead": "Marquer comme lu ({key})",
@@ -190,6 +191,7 @@
   "mail.movedToFolderCount": "Déplacé vers {folder} · {count, plural, one {# conversation} other {# conversations}}",
   "mail.deletedForever": "Supprimé définitivement",
   "mail.deletedCount": "{count, plural, one {# conversation supprimée} other {# conversations supprimées}}",
+  "mail.draftsDiscarded": "{count, plural, one {Brouillon supprimé} other {# brouillons supprimés}}",
   "mail.markedRead": "Marqué comme lu",
   "mail.markedUnread": "Marqué comme non lu",
   "mail.snoozedUntil": "En attente jusqu’à {when}",
@@ -248,6 +250,7 @@
   "message.loadRemoteContent": "Charger le contenu distant",
   "message.copySenderAddress": "Copier l’adresse de l’expéditeur",
   "message.addressCopied": "Adresse copiée",
+  "message.editDraft": "Modifier le brouillon",
   "message.addToCalendar": "Ajouter au calendrier",
   "message.lookingForEvents": "Recherche d’événements…",
   "message.noEventsFound": "Aucune date ni aucun événement trouvé dans ce message",
@@ -414,6 +417,7 @@
   "compose.draftSaved": "Brouillon enregistré",
   "compose.draftDiscarded": "Brouillon supprimé",
   "compose.saveFailed": "Impossible d’enregistrer le brouillon : {error}",
+  "compose.draftOpenFailed": "Impossible d’ouvrir le brouillon : {error}",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Afficher la barre latérale",

@@ -160,9 +160,15 @@ fn after_sent(engine: &Engine, row: &OutboxRow) -> Result<()> {
     let save_copy = account.config.save_sent_copy.unwrap_or(
         !AUTO_SAVES_SENT.contains(&account.provider.as_str()) && account.kind == AccountKind::Imap,
     );
+    let mut discarded = None;
+    let mut changed = std::collections::BTreeSet::new();
     engine.db.write(|tx| {
         if save_copy {
-            tx.execute("UPDATE outbox SET state = 'sent' WHERE id = ?", [row.id])?;
+            // The draft goes below; its id may be given to a new one.
+            tx.execute(
+                "UPDATE outbox SET state = 'sent', draft_id = NULL WHERE id = ?",
+                [row.id],
+            )?;
             misc::queue_op(
                 tx,
                 row.account_id,
@@ -172,19 +178,12 @@ fn after_sent(engine: &Engine, row: &OutboxRow) -> Result<()> {
         } else {
             misc::outbox_delete(tx, row.id)?;
         }
+        // The draft is done with: its server copy goes, here and on the server.
         if let Some(draft_id) = row.draft_id
-            && let Some(draft) = misc::draft_delete(tx, draft_id)?
-            && (draft.remote_uid.is_some() || draft.remote_id.is_some())
+            && let Some((draft, threads)) = misc::draft_discard(tx, draft_id)?
         {
-            misc::queue_op(
-                tx,
-                draft.account_id,
-                &PendingOp::DeleteDraft {
-                    remote_uid: draft.remote_uid,
-                    remote_id: draft.remote_id,
-                },
-                0,
-            )?;
+            discarded = Some(draft);
+            changed = threads;
         }
         let replied = row.meta.reply_to_message_id.map(|id| (id, "\\Answered"));
         let forwarded = row.meta.forward_of.map(|id| (id, "$Forwarded"));
@@ -211,5 +210,17 @@ fn after_sent(engine: &Engine, row: &OutboxRow) -> Result<()> {
         }
         misc::record_addresses(tx, &row.meta.to, true, now_ms())?;
         Ok(())
-    })
+    })?;
+    if let Some(draft) = discarded {
+        engine.forget_draft_files(&draft.data);
+        if !changed.is_empty() {
+            engine.emit(EngineEvent::MailChanged {
+                account_id: draft.account_id,
+                folder_ids: Vec::new(),
+                thread_ids: changed.into_iter().collect(),
+            });
+        }
+        engine.wake(draft.account_id);
+    }
+    Ok(())
 }

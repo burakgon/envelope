@@ -125,6 +125,7 @@
 
   "threadRow.select": "Seleziona",
   "threadRow.draft": "Bozza",
+  "threadRow.onlyHere": "Solo su questo computer: non ancora salvato sul server",
   "threadRow.archive": "Archivia ({key})",
   "threadRow.delete": "Elimina ({key})",
   "threadRow.markAsRead": "Segna come letto ({key})",
@@ -190,6 +191,7 @@
   "mail.movedToFolderCount": "{count, plural, one {# conversazione spostata in {folder}} other {# conversazioni spostate in {folder}}}",
   "mail.deletedForever": "Eliminato definitivamente",
   "mail.deletedCount": "{count, plural, one {# conversazione eliminata} other {# conversazioni eliminate}}",
+  "mail.draftsDiscarded": "{count, plural, one {Bozza eliminata} other {# bozze eliminate}}",
   "mail.markedRead": "Segnato come letto",
   "mail.markedUnread": "Segnato come da leggere",
   "mail.snoozedUntil": "Posticipato fino a {when}",
@@ -248,6 +250,7 @@
   "message.loadRemoteContent": "Carica contenuti remoti",
   "message.copySenderAddress": "Copia indirizzo del mittente",
   "message.addressCopied": "Indirizzo copiato",
+  "message.editDraft": "Modifica bozza",
   "message.addToCalendar": "Aggiungi al calendario",
   "message.lookingForEvents": "Ricerca di eventi…",
   "message.noEventsFound": "Nessuna data o evento trovato in questo messaggio",
@@ -414,6 +417,7 @@
   "compose.draftSaved": "Bozza salvata",
   "compose.draftDiscarded": "Bozza eliminata",
   "compose.saveFailed": "Impossibile salvare la bozza: {error}",
+  "compose.draftOpenFailed": "Impossibile aprire la bozza: {error}",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Mostra barra laterale",

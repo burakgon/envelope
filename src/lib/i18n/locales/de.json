@@ -125,6 +125,7 @@
 
   "threadRow.select": "Auswählen",
   "threadRow.draft": "Entwurf",
+  "threadRow.onlyHere": "Nur auf diesem Computer: noch nicht auf dem Server gespeichert",
   "threadRow.archive": "Archivieren ({key})",
   "threadRow.delete": "Löschen ({key})",
   "threadRow.markAsRead": "Als gelesen markieren ({key})",
@@ -190,6 +191,7 @@
   "mail.movedToFolderCount": "In „{folder}“ verschoben · {count, plural, one {# Konversation} other {# Konversationen}}",
   "mail.deletedForever": "Endgültig gelöscht",
   "mail.deletedCount": "{count, plural, one {# Konversation gelöscht} other {# Konversationen gelöscht}}",
+  "mail.draftsDiscarded": "{count, plural, one {Entwurf verworfen} other {# Entwürfe verworfen}}",
   "mail.markedRead": "Als gelesen markiert",
   "mail.markedUnread": "Als ungelesen markiert",
   "mail.snoozedUntil": "Zurückgestellt bis {when}",
@@ -248,6 +250,7 @@
   "message.loadRemoteContent": "Externe Inhalte laden",
   "message.copySenderAddress": "Absenderadresse kopieren",
   "message.addressCopied": "Adresse kopiert",
+  "message.editDraft": "Entwurf bearbeiten",
   "message.addToCalendar": "Zum Kalender hinzufügen",
   "message.lookingForEvents": "Suche nach Terminen…",
   "message.noEventsFound": "Keine Datumsangaben oder Termine in dieser Nachricht gefunden",
@@ -414,6 +417,7 @@
   "compose.draftSaved": "Entwurf gespeichert",
   "compose.draftDiscarded": "Entwurf verworfen",
   "compose.saveFailed": "Entwurf konnte nicht gespeichert werden: {error}",
+  "compose.draftOpenFailed": "Entwurf konnte nicht geöffnet werden: {error}",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Seitenleiste einblenden",

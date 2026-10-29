@@ -4,7 +4,7 @@
   import { ui } from '../stores/ui.svelte';
   import { listDate, participantSummary, displayName, previewText } from '../utils/format';
   import Avatar from './Avatar.svelte';
-  import { Archive, Calendar, Check, Clock, File, MailOpen, Mail, Paperclip, Star, Trash } from '../icons';
+  import { Archive, Calendar, Check, Clock, CloudOff, File, MailOpen, Mail, Paperclip, Star, Trash } from '../icons';
   import { t } from '../i18n';
 
   let {
@@ -34,6 +34,8 @@
       .slice(0, 3),
   );
   const compact = $derived(ui.settings.density === 'compact');
+  /** A draft only on this computer: it can be opened or discarded, nothing else. */
+  const local = $derived(thread.localDraftId != null);
 
   function dragStart(e: DragEvent) {
     const ids = checked && mail.checked.size > 0 ? [...mail.checked] : [thread.id];
@@ -57,7 +59,7 @@
   role="option"
   aria-selected={selected}
   tabindex="-1"
-  draggable="true"
+  draggable={!local}
   ondragstart={dragStart}
   onclick={onopen}
   oncontextmenu={oncontext}
@@ -68,7 +70,11 @@
   {/if}
   <div class="lead">
     {#if unread}<span class="dot"></span>{/if}
-    {#if ui.settings.showAvatars && !compact}
+    {#if local && ui.settings.showAvatars && !compact}
+      <span class="local-av"><Avatar person={lastSender} size={34} /></span>
+    {:else if local}
+      <span class="local-box"></span>
+    {:else if ui.settings.showAvatars && !compact}
       <button class="avatar-btn" class:on={checked} aria-label={t('threadRow.select')} onclick={(e) => act(e, () => mail.toggleCheck(thread.id))}>
         <span class="av"><Avatar person={lastSender} size={34} /></span>
         <span class="tick"><Check size={16} strokeWidth={3} /></span>
@@ -85,6 +91,7 @@
       <span class="from truncate" title={lastSender ? `${displayName(lastSender)} <${lastSender.email}>` : ''}>{names}</span>
       {#if thread.messageCount > 1}<span class="n">{thread.messageCount}</span>{/if}
       {#if thread.draftCount > 0}<span class="draft">{t('threadRow.draft')}</span>{/if}
+      {#if local}<span class="here" title={t('threadRow.onlyHere')} aria-label={t('threadRow.onlyHere')}><CloudOff size={13} /></span>{/if}
       <span class="spacer"></span>
       <span class="meta">
         {#if thread.isInvite}<Calendar size={13} />{/if}
@@ -113,6 +120,9 @@
   </div>
 
   <div class="actions" role="toolbar">
+    {#if local}
+      <button class="icon-btn sm" title={t('composer.discardDraft')} aria-label={t('composer.discardDraft')} onclick={(e) => act(e, () => mail.trash([thread.id]))}><Trash size={15} /></button>
+    {:else}
     <button class="icon-btn sm" title={t('threadRow.archive', { key: 'E' })} onclick={(e) => act(e, () => mail.archive([thread.id]))}><Archive size={15} /></button>
     <button class="icon-btn sm" title={t('threadRow.delete', { key: '#' })} onclick={(e) => act(e, () => mail.trash([thread.id]))}><Trash size={15} /></button>
     <button class="icon-btn sm" title={unread ? t('threadRow.markAsRead', { key: 'U' }) : t('threadRow.markAsUnread', { key: 'U' })} onclick={(e) => act(e, () => mail.toggleRead([thread.id]))}>
@@ -122,6 +132,7 @@
     <button class="icon-btn sm star-btn" class:on={thread.flagged} title={t('threadRow.star', { key: 'S' })} onclick={(e) => act(e, () => mail.toggleStar([thread.id]))}>
       <Star size={15} fill={thread.flagged ? 'currentColor' : 'none'} />
     </button>
+    {/if}
   </div>
 </div>
 
@@ -272,6 +283,21 @@
     font-weight: 600;
     color: var(--red);
     white-space: nowrap;
+  }
+  .here {
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    color: var(--text-3);
+  }
+  .local-av {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+  }
+  .local-box {
+    width: 16px;
   }
   .spacer {
     flex: 1;

@@ -2,6 +2,8 @@ import { SvelteSet } from 'svelte/reactivity';
 import { api } from '../api';
 import type {
   Account,
+  Address,
+  Draft,
   EngineEvent,
   Folder,
   FolderRole,
@@ -36,6 +38,40 @@ const movedMessages: Record<MoveTarget['kind'], [MessageKey, MessageKey]> = {
   junk: ['mail.markedAsSpam', 'mail.markedAsSpamCount'],
   folder: ['mail.moved', 'mail.movedCount'],
 };
+
+/** A draft only on this computer as a row of Drafts (id: the draft's, negated). */
+function localDraftRow(d: Draft, me: Address | null): ThreadSummary {
+  const text = d.data.html
+    .replace(/<div class="envelope-(?:quote|forward|signature)">[\s\S]*$/, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const to = [...d.data.to, ...d.data.cc];
+  return {
+    id: -d.id,
+    accountId: d.data.accountId,
+    subject: d.data.subject,
+    snippet: text.slice(0, 200),
+    lastDate: d.updatedAt,
+    messageCount: 1,
+    unreadCount: 0,
+    flagged: false,
+    hasAttachments: d.data.attachments.length > 0,
+    draftCount: 1,
+    participants: to.length ? to : me ? [me] : [],
+    lastSender: to[0] ?? me,
+    folderIds: [],
+    category: 'people',
+    isInvite: false,
+    muted: false,
+    snoozedUntil: null,
+    localDraftId: d.id,
+  };
+}
 
 function debounce(fn: () => void, ms: number) {
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -84,6 +120,13 @@ class Mail {
         (this.mailbox.kind === 'folder' && this.folderById.get(this.mailbox.id)?.role === 'inbox')),
   );
   splitActive = $derived(this.isInboxView && ui.settings.splitInbox);
+
+  /** Drafts are listed: drafts only on this computer join the server's. */
+  inDrafts = $derived(
+    !this.search &&
+      ((this.mailbox.kind === 'unified' && this.mailbox.role === 'drafts') ||
+        (this.mailbox.kind === 'folder' && this.folderById.get(this.mailbox.id)?.role === 'drafts')),
+  );
 
   mailboxTitle = $derived.by(() => {
     if (this.search) return t('mailbox.search');
@@ -208,14 +251,38 @@ class Mail {
     });
   }
 
+  /** A draft was saved or discarded here: Drafts, if on screen, lists it as it is now. */
+  draftsChanged() {
+    if (this.inDrafts) this.refreshSoon();
+  }
+
+  /** Drafts only on this computer that belong in the Drafts being viewed. */
+  private async localDrafts(): Promise<ThreadSummary[]> {
+    if (!this.inDrafts || this.filter.unread || this.filter.starred) return [];
+    const mb = this.mailbox;
+    const account = mb.kind === 'folder' ? this.folderById.get(mb.id)?.accountId : null;
+    try {
+      const drafts = await api.drafts();
+      return drafts
+        .filter((d) => d.localOnly && (account == null || d.data.accountId === account))
+        .filter((d) => !this.filter.attachments || d.data.attachments.length > 0)
+        .map((d) => {
+          const me = this.identities.find((i) => i.id === d.data.identityId) ?? this.identities.find((i) => i.accountId === d.data.accountId);
+          return localDraftRow(d, me ? { name: me.name, email: me.email } : null);
+        });
+    } catch {
+      return [];
+    }
+  }
+
   async refresh() {
     const seq = ++this.seq;
-    const want = Math.max(this.items.length, PAGE);
+    const want = Math.max(this.items.filter((t) => t.id > 0).length, PAGE);
     try {
-      const page = await this.query(0, want);
+      const [page, local] = await Promise.all([this.query(0, want), this.localDrafts()]);
       if (seq !== this.seq) return;
-      this.items = page.items;
-      this.total = page.total;
+      this.items = local.length ? [...local, ...page.items].sort((a, b) => b.lastDate - a.lastDate) : page.items;
+      this.total = page.total + local.length;
       this.loading = false;
       if (this.splitActive) this.loadCategoryCounts();
     } catch (e) {
@@ -240,11 +307,12 @@ class Mail {
   async loadMore() {
     if (this.items.length >= this.total) return;
     const seq = this.seq;
-    const page = await this.query(this.items.length, PAGE);
+    const local = this.items.filter((t) => t.id < 0).length;
+    const page = await this.query(this.items.length - local, PAGE);
     if (seq !== this.seq) return;
     const known = new Set(this.items.map((t) => t.id));
     this.items = [...this.items, ...page.items.filter((t) => !known.has(t.id))];
-    this.total = page.total;
+    this.total = page.total + local;
   }
 
   setMailbox(mb: Mailbox) {
@@ -292,7 +360,9 @@ class Mail {
   select(id: number | null, opts: { open?: boolean } = {}) {
     this.selectedId = id;
     this.anchorId = id;
-    if (id != null && opts.open !== false) this.openThread(id);
+    // A draft only on this computer has no conversation to read: it opens in a composer.
+    if (id != null && id < 0) this.detail = null;
+    else if (id != null && opts.open !== false) this.openThread(id);
     if (id == null) this.detail = null;
   }
 
@@ -311,10 +381,10 @@ class Mail {
     for (let i = from; i <= to; i++) this.checked.add(ids[i]);
   }
 
-  /** Threads an action applies to: the checked ones, or the selected one. */
-  targets(): number[] {
-    if (this.checked.size > 0) return [...this.checked];
-    return this.selectedId != null ? [this.selectedId] : [];
+  /** Threads an action applies to: the checked ones, or the selected one (`local`: with drafts only on this computer). */
+  targets(local = false): number[] {
+    const ids = this.checked.size > 0 ? [...this.checked] : this.selectedId != null ? [this.selectedId] : [];
+    return local ? ids : ids.filter((id) => id > 0);
   }
 
   move(delta: number) {
@@ -368,8 +438,9 @@ class Mail {
       const old = new Map(this.detail.messages.map((m) => [m.id, m]));
       d.messages = d.messages.map((m) => (m.body ? m : { ...m, body: old.get(m.id)?.body ?? null }));
       this.detail = d;
-    } catch {
-      /* thread was removed */
+    } catch (e) {
+      // Gone (a draft saved again is a new message): not shown as if it were still there.
+      if ((e as { kind?: string })?.kind === 'notFound' && this.detail?.thread.id === id) this.detail = null;
     }
   }
 
@@ -432,10 +503,31 @@ class Mail {
     return this.moveTo({ kind: 'archive' }, ids);
   }
 
-  trash(ids?: number[]) {
+  trash(ids = this.targets(true)) {
+    const local = ids.filter((id) => id < 0);
+    if (local.length) this.discardLocal(local);
+    ids = ids.filter((id) => id > 0);
+    if (!ids.length) return;
     const inTrash = this.mailbox.kind === 'folder' && this.folderById.get(this.mailbox.id)?.role === 'trash';
     if (inTrash) return this.deleteForever(ids);
     return this.moveTo({ kind: 'trash' }, ids);
+  }
+
+  /** Discards drafts only on this computer (rows of Drafts), with Undo. */
+  private async discardLocal(rowIds: number[]) {
+    const ids = this.items.filter((t) => rowIds.includes(t.id) && t.localDraftId != null).map((t) => t.localDraftId!);
+    this.removeLocally(rowIds);
+    try {
+      const drafts = await Promise.all(ids.map((id) => api.draft(id)));
+      await Promise.all(ids.map((id) => api.deleteDraft(id)));
+      toasts.undoable(ids.length > 1 ? t('mail.draftsDiscarded', { count: ids.length }) : t('compose.draftDiscarded'), async () => {
+        for (const d of drafts) await api.saveDraft(null, d.data, false);
+        this.refresh();
+      });
+    } catch (e) {
+      toasts.error(errorMessage(e));
+      this.refresh();
+    }
   }
 
   async deleteForever(ids = this.targets()) {

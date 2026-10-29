@@ -361,6 +361,48 @@ await step('links say where they go, and warn when their text names another site
   await pill.waitFor({ state: 'detached', timeout: 5000 });
 });
 
+await step('a draft in Drafts opens in the composer and comes back with its changes', async () => {
+  await w.locator('.search .clear').click();
+  await w.locator('body').press('g');
+  await w.locator('body').press('d');
+  await w.locator('.row', { hasText: 'Talk outline' }).first().click();
+  await w.locator('.dock .composer .subject input').waitFor({ timeout: 5000 });
+  if ((await w.locator('.dock .composer .subject input').inputValue()) !== 'Talk outline for the meetup') throw new Error('the composer has another subject');
+  await w.locator('.dock .composer .att', { hasText: 'talk-outline.pdf' }).waitFor({ timeout: 5000 });
+  await editor().locator('p', { hasText: 'Hi Maya' }).click();
+  await w.keyboard.press('End');
+  await w.keyboard.type(' a quick update:');
+  await closeComposer();
+  // Stored on the server again; opening it once more shows the change.
+  const row = w.locator('.row', { hasText: 'Talk outline' }).first();
+  await wUntil(async () => (await row.innerText()).includes('quick update'), 'Drafts does not show the saved draft');
+  await row.click();
+  await editor().locator('p', { hasText: 'Hi Maya, a quick update:' }).waitFor({ timeout: 5000 });
+  await closeComposer();
+});
+
+await step('a reply draft opens under its conversation', async () => {
+  await w.locator('.row', { hasText: 'Apartment viewing' }).first().click();
+  const inline = w.locator('.reader .composer.inline');
+  await inline.waitFor({ timeout: 5000 });
+  if (!(await inline.locator('.ProseMirror').innerText()).includes('bring a friend along')) throw new Error('the inline composer has another text');
+  if (await w.locator('.reader .card.draft').count()) throw new Error('the draft is shown as well as edited');
+});
+
+await step('a draft only on this computer is listed in Drafts', async () => {
+  await w.locator('body').press('Escape');
+  await w.locator('.sidebar .compose').click();
+  await w.keyboard.type('noah.w@fastmail.test');
+  await w.keyboard.press('Enter');
+  await w.locator('.dock .composer .subject input').fill('Dinner on Friday');
+  await editor().click();
+  await w.keyboard.type('Are we still on for Friday?');
+  const row = w.locator('.row', { hasText: 'Dinner on Friday' });
+  await row.waitFor({ timeout: 5000 });
+  await row.locator('.here').waitFor({ timeout: 5000 });
+  await closeComposer();
+});
+
 await w.close();
 
 await step('no page errors', async () => {

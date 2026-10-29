@@ -13,7 +13,7 @@
   import EmptyState from './EmptyState.svelte';
   import {
     Archive, Check, CheckCircle, Clock, Filter, Folder, Forward, Mail, MailOpen, More, Newspaper, PanelLeft, Paperclip,
-    Bell, Reply, ReplyAll, Search, ShieldAlert, Star, Tag, Trash, Users, X, Refresh, Sparkles,
+    Bell, Pen, Reply, ReplyAll, Search, ShieldAlert, Star, Tag, Trash, Users, X, Refresh, Sparkles,
   } from '../icons';
   import { t } from '../i18n';
 
@@ -132,7 +132,8 @@
     else if (e.ctrlKey || e.metaKey) mail.toggleCheck(th.id);
     else {
       if (mail.checked.size) mail.checked.clear();
-      mail.select(th.id);
+      // In Drafts a draft opens to be edited.
+      compose.openRow(th);
     }
   }
 
@@ -153,7 +154,8 @@
     if (!th) return;
     mail.select(th.id);
     const d = await api.thread(th.id);
-    const last = d.messages[d.messages.length - 1];
+    // Replies go to the newest message that is not a draft.
+    const last = [...d.messages].reverse().find((m) => !m.flags.draft) ?? d.messages[d.messages.length - 1];
     if (last) compose.reply(last.id, mode, mode !== 'forward');
   }
 
@@ -245,7 +247,7 @@
       <!-- Side by side when they fit, stacked when a translation is longer. -->
       <span class="sel-box">
         <span class="sel">{t('threadList.selectedCount', { count: mail.checked.size })}</span>
-        <button class="link" title={t('threadList.selectAll')} onclick={() => mail.items.forEach((th) => mail.checked.add(th.id))}>{t('threadList.selectAll')}</button>
+        <button class="link" title={t('threadList.selectAll')} onclick={() => mail.items.forEach((th) => th.id > 0 && mail.checked.add(th.id))}>{t('threadList.selectAll')}</button>
       </span>
       <span class="spacer"></span>
       <button class="icon-btn sm" title={t('threadList.archive')} onclick={() => mail.archive()}><Archive size={15} /></button>
@@ -294,7 +296,13 @@
   <div class="resizer" role="separator" aria-orientation="vertical" onpointerdown={startResize}></div>
 </section>
 
-{#if menu}
+{#if menu && menu.thread.localDraftId != null}
+  {@const row = menu.thread}
+  <Popover x={menu.x} y={menu.y} onclose={() => (menu = null)} width={232}>
+    <button class="menu-item" onclick={() => { menu = null; compose.openRow(row); }}><Pen size={15} />{t('message.editDraft')}</button>
+    <button class="menu-item" onclick={() => { menu = null; mail.trash([row.id]); }}><Trash size={15} />{t('composer.discardDraft')}<span class="hint">#</span></button>
+  </Popover>
+{:else if menu}
   {@const ids = menuIds()}
   <Popover x={menu.x} y={menu.y} onclose={() => (menu = null)} width={232}>
     {#if ids.length === 1}

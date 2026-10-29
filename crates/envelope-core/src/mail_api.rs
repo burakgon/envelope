@@ -574,17 +574,14 @@ impl Engine {
 
     // ----- drafts and sending ---------------------------------------------------
 
+    /// Drafts not waiting in the outbox, with their server copies.
     pub fn drafts(&self) -> Result<Vec<Draft>> {
         self.db.read(misc::draft_list)
     }
 
     pub fn draft(&self, id: i64) -> Result<Draft> {
-        let d = self.db.read(|c| misc::draft_get(c, id))?;
-        Ok(Draft {
-            id: d.id,
-            data: d.data,
-            updated_at: d.updated_at,
-        })
+        self.db
+            .read(|c| misc::draft_info(c, misc::draft_get(c, id)?))
     }
 
     /// Saves a draft locally; with `upload`, also stores it on the server.
@@ -596,8 +593,9 @@ impl Engine {
                 || crate::sync::draft_identity(self, data)
                     .and_then(|(from, _)| self.own_key_for(&from.email))
                     .is_ok_and(|k| k.is_some()));
-        let id = self.db.write(|tx| {
-            let id = misc::draft_save(tx, id, data)?;
+        let stored = self.db.write(|tx| {
+            let stored = misc::draft_store(tx, id, data)?;
+            let id = stored.id;
             if upload {
                 // Coalesce: one pending upload per draft is enough.
                 tx.execute(
@@ -614,36 +612,210 @@ impl Engine {
                     2_000,
                 )?;
             }
-            Ok(id)
+            Ok(stored)
         })?;
+        // Sent from another account now: its copy left the old account's server.
+        if let Some((account, threads)) = &stored.left {
+            self.after_local_change(&[*account], threads)?;
+        }
         if upload {
             self.wake(data.account_id);
         }
-        Ok(id)
+        Ok(stored.id)
     }
 
+    /// Discards a draft: its server copy is deleted too.
     pub fn delete_draft(&self, id: i64) -> Result<()> {
-        let account = self.db.write(|tx| {
-            let Some(d) = misc::draft_delete(tx, id)? else {
-                return Ok(None);
-            };
-            if d.remote_uid.is_some() || d.remote_id.is_some() {
-                misc::queue_op(
-                    tx,
-                    d.account_id,
-                    &PendingOp::DeleteDraft {
-                        remote_uid: d.remote_uid,
-                        remote_id: d.remote_id,
-                    },
-                    0,
-                )?;
+        let Some((draft, threads)) = self.db.write(|tx| misc::draft_discard(tx, id))? else {
+            return Ok(());
+        };
+        self.forget_draft_files(&draft.data);
+        self.after_local_change(&[draft.account_id], &threads)
+    }
+
+    /// Where the attachments of drafts made from server copies are kept.
+    fn draft_files_dir(&self) -> PathBuf {
+        self.paths.data.join("draft-files")
+    }
+
+    /// Deletes the files kept for a draft that is done with.
+    pub(crate) fn forget_draft_files(&self, data: &DraftInput) {
+        let dir = self.draft_files_dir();
+        for a in &data.attachments {
+            // Each draft's files are in a folder of their own under `dir`.
+            if let Some(own) = a
+                .path
+                .as_deref()
+                .and_then(|p| std::path::Path::new(p).strip_prefix(&dir).ok())
+                .and_then(|rest| rest.components().next())
+            {
+                let _ = std::fs::remove_dir_all(dir.join(own));
             }
-            Ok(Some(d.account_id))
-        })?;
-        if let Some(a) = account {
-            self.wake(a);
         }
-        Ok(())
+    }
+
+    /// The draft to edit for a draft message (one in Drafts, or a draft in a
+    /// conversation): the local draft whose server copy it is, or else a new
+    /// local draft made from it (written on another computer, or here before
+    /// Envelope knew it), keeping its recipients, text and attachments.
+    /// Saving that draft replaces the server copy; sending or discarding it
+    /// deletes the copy.
+    pub async fn draft_for_message(&self, message_id: i64) -> Result<Draft> {
+        let mine = self.db.read(|c| misc::draft_of_message(c, message_id))?;
+        // Changed on the server since (edited elsewhere), and not here: brought up to date.
+        let stale = mine
+            .as_ref()
+            .is_some_and(|d| d.uploaded() && d.synced_at.is_none());
+        if let Some(d) = mine.as_ref().filter(|_| !stale) {
+            return self.db.read(|c| misc::draft_info(c, d.clone()));
+        }
+        let m = self
+            .load_bodies(vec![message_id])
+            .await?
+            .pop()
+            .ok_or_else(|| Error::NotFound(format!("message {message_id}")))?;
+        // An encrypted draft: what was decrypted (the interface opens it first).
+        let opened = m
+            .crypto
+            .as_ref()
+            .and_then(|_| self.crypto.opened(message_id));
+        let encrypted = m
+            .crypto
+            .as_deref()
+            .is_some_and(|k| k == "encrypted" || k == "inline-encrypted");
+        if encrypted && opened.as_ref().is_none_or(|o| o.view.body.is_none()) {
+            return Err(Error::Invalid(
+                "This draft is encrypted and could not be decrypted here.".into(),
+            ));
+        }
+        let (body, attachments, subject) = match &opened {
+            Some(o) if encrypted => (
+                o.view.body.clone(),
+                o.view.attachments.clone(),
+                o.view.subject.clone().unwrap_or_else(|| m.subject.clone()),
+            ),
+            _ => (m.body.clone(), m.attachments.clone(), m.subject.clone()),
+        };
+        let identities = self.db.read(misc::list_identities)?;
+        let identity = m.from.as_ref().and_then(|f| {
+            identities
+                .iter()
+                .find(|i| i.account_id == m.account_id && i.email.eq_ignore_ascii_case(&f.email))
+        });
+        let replied = match &m.in_reply_to {
+            Some(irt) => self.db.read(|c| {
+                Ok(rusqlite::OptionalExtension::optional(c.query_row(
+                    "SELECT id FROM messages WHERE account_id = ? AND message_id = ? AND id != ? ORDER BY date DESC LIMIT 1",
+                    params![m.account_id, irt, m.id],
+                    |r| r.get::<_, i64>(0),
+                ))?)
+            })?,
+            None => None,
+        };
+        let mut html = match &body {
+            Some(MessageBody { html: Some(h), .. }) => sanitize_quoted(h),
+            Some(MessageBody { text: Some(t), .. }) => text_to_paragraphs(t),
+            _ => html_escape::encode_text(&m.snippet).to_string(),
+        };
+        // The files go next to the draft: the server copy, and the
+        // attachments it has, go away once the draft is saved again.
+        let dir = self
+            .draft_files_dir()
+            .join(uuid::Uuid::new_v4().simple().to_string());
+        let mut files = Vec::new();
+        for (n, a) in attachments.iter().enumerate() {
+            let source = self.attachment_file(a.id).await?;
+            let cid = a.content_id.as_deref().map(|c| c.trim_matches(['<', '>']));
+            let pictured = cid.is_some_and(|c| html.contains(&format!("cid:{c}")));
+            if pictured && a.mime_type.starts_with("image/") {
+                // Pictures in the text are shown (and sent again) as they were.
+                let data = tokio::fs::read(&source).await?;
+                let url = format!(
+                    "data:{};base64,{}",
+                    a.mime_type,
+                    base64::Engine::encode(&base64::engine::general_purpose::STANDARD, data)
+                );
+                html = html.replace(&format!("cid:{}", cid.unwrap_or_default()), &url);
+                continue;
+            }
+            let target = dir.join(n.to_string()).join(safe_file_name(&a.filename));
+            if let Some(parent) = target.parent() {
+                tokio::fs::create_dir_all(parent).await?;
+            }
+            tokio::fs::copy(&source, &target).await?;
+            files.push(DraftAttachment {
+                filename: a.filename.clone(),
+                mime_type: a.mime_type.clone(),
+                size: a.size,
+                path: Some(target.to_string_lossy().into_owned()),
+                attachment_id: None,
+                content_id: a.content_id.clone(),
+                inline: a.inline && cid.is_some(),
+            });
+        }
+        let data = DraftInput {
+            account_id: m.account_id,
+            identity_id: identity.map(|i| i.id),
+            // An address this computer has no identity for is kept as it is.
+            from: if identity.is_none() {
+                m.from.clone()
+            } else {
+                None
+            },
+            to: m.to.clone(),
+            cc: m.cc.clone(),
+            bcc: m.bcc.clone(),
+            subject,
+            html,
+            attachments: files,
+            reply_to_message_id: replied,
+            mode: Some(if replied.is_some() { "reply" } else { "new" }.into()),
+            encrypt: encrypted.then_some(true),
+            ..Default::default()
+        };
+        let uid: Option<u32> = self.db.read(|c| {
+            Ok(rusqlite::OptionalExtension::optional(c.query_row(
+                "SELECT mf.uid FROM message_folders mf JOIN folders f ON f.id = mf.folder_id
+                 WHERE mf.message_id = ? AND f.role = 'drafts' AND mf.uid IS NOT NULL",
+                [message_id],
+                |r| r.get(0),
+            ))?)
+        })?;
+        let account = self.account_row(m.account_id)?;
+        // Graph and Exchange address the copy by id; IMAP by its UID in
+        // Drafts, or by Message-ID (Gmail lists drafts in All Mail).
+        let remote_id: Option<String> =
+            if matches!(account.kind, AccountKind::Microsoft | AccountKind::Exchange) {
+                self.db.read(|c| {
+                    Ok(c.query_row(
+                        "SELECT remote_id FROM messages WHERE id = ?",
+                        [message_id],
+                        |r| r.get(0),
+                    )?)
+                })?
+            } else {
+                None
+            };
+        let id = self.db.write(|tx| match &mine {
+            Some(d) => {
+                tx.execute(
+                    "UPDATE drafts SET data = ?, synced_at = updated_at WHERE id = ?",
+                    params![serde_json::to_string(&data)?, d.id],
+                )?;
+                Ok(d.id)
+            }
+            None => misc::draft_adopt(
+                tx,
+                &data,
+                uid,
+                remote_id.as_deref(),
+                m.message_id.as_deref(),
+            ),
+        })?;
+        if let Some(old) = &mine {
+            self.forget_draft_files(&old.data);
+        }
+        self.draft(id)
     }
 
     /// Queues a message for sending after `delay_ms` (undo window) or at `send_at`.
@@ -676,11 +848,8 @@ impl Engine {
             message_id: rendered.message_id.clone(),
         };
         let when = send_at.unwrap_or_else(|| now_ms() + delay_ms.max(0));
-        let id = self.db.write(|tx| {
-            let draft_id = match draft_id {
-                Some(id) => Some(misc::draft_save(tx, Some(id), data)?),
-                None => Some(misc::draft_save(tx, None, data)?),
-            };
+        let (id, left) = self.db.write(|tx| {
+            let stored = misc::draft_store(tx, draft_id, data)?;
             if let Some(days) = data.follow_up_days.filter(|d| *d > 0) {
                 misc::followup_add(
                     tx,
@@ -691,8 +860,21 @@ impl Engine {
                     when + i64::from(days) * 86_400_000,
                 )?;
             }
-            misc::outbox_add(tx, data.account_id, draft_id, &rendered.mime, &meta, when)
+            let id = misc::outbox_add(
+                tx,
+                data.account_id,
+                Some(stored.id),
+                &rendered.mime,
+                &meta,
+                when,
+            )?;
+            Ok((id, stored.left))
         })?;
+        // Sent from another account than the draft was saved in: its copy
+        // left that account's server.
+        if let Some((account, threads)) = &left {
+            self.after_local_change(&[*account], threads)?;
+        }
         self.outbox_wake.notify_one();
         self.emit(EngineEvent::OutboxChanged);
         Ok(id)
@@ -1377,6 +1559,39 @@ fn text_to_html(text: &str) -> String {
     escaped.replace('\n', "<br>")
 }
 
+/// Plain text as editor paragraphs: one per block of lines.
+fn text_to_paragraphs(text: &str) -> String {
+    let text = text.replace("\r\n", "\n");
+    let mut out = String::new();
+    for block in text.split("\n\n").map(|b| b.trim_matches('\n')) {
+        if block.trim().is_empty() {
+            continue;
+        }
+        out.push_str("<p>");
+        out.push_str(&text_to_html(block));
+        out.push_str("</p>");
+    }
+    out
+}
+
+/// A file name that stays inside its folder.
+fn safe_file_name(name: &str) -> String {
+    let safe: String = name
+        .chars()
+        .map(|c| {
+            if matches!(c, '/' | '\\' | '\0') {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+    match safe.trim() {
+        "" | "." | ".." => "attachment".to_string(),
+        _ => safe,
+    }
+}
+
 /// Strips scripts and document wrappers from HTML that gets quoted in replies.
 fn sanitize_quoted(html: &str) -> String {
     let lower = html.to_ascii_lowercase();
@@ -1394,3 +1609,6 @@ fn sanitize_quoted(html: &str) -> String {
         .expect("valid regex");
     re.replace_all(body, "").into_owned()
 }
+
+#[cfg(test)]
+mod tests;

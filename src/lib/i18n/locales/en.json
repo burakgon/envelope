@@ -125,6 +125,7 @@
 
   "threadRow.select": "Select",
   "threadRow.draft": "Draft",
+  "threadRow.onlyHere": "Only on this computer: not saved to the server yet",
   "threadRow.archive": "Archive ({key})",
   "threadRow.delete": "Delete ({key})",
   "threadRow.markAsRead": "Mark as read ({key})",
@@ -190,6 +191,7 @@
   "mail.movedToFolderCount": "Moved to {folder} · {count, plural, one {# conversation} other {# conversations}}",
   "mail.deletedForever": "Deleted forever",
   "mail.deletedCount": "{count, plural, one {Deleted # conversation} other {Deleted # conversations}}",
+  "mail.draftsDiscarded": "{count, plural, one {Draft discarded} other {# drafts discarded}}",
   "mail.markedRead": "Marked as read",
   "mail.markedUnread": "Marked as unread",
   "mail.snoozedUntil": "Snoozed until {when}",
@@ -248,6 +250,7 @@
   "message.loadRemoteContent": "Load remote content",
   "message.copySenderAddress": "Copy sender address",
   "message.addressCopied": "Address copied",
+  "message.editDraft": "Edit draft",
   "message.addToCalendar": "Add to calendar",
   "message.lookingForEvents": "Looking for events…",
   "message.noEventsFound": "No dates or events found in this message",
@@ -414,6 +417,7 @@
   "compose.draftSaved": "Draft saved",
   "compose.draftDiscarded": "Draft discarded",
   "compose.saveFailed": "Could not save draft: {error}",
+  "compose.draftOpenFailed": "Could not open the draft: {error}",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Show sidebar",

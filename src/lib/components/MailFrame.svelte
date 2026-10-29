@@ -42,12 +42,15 @@
     allowRemote,
     onstats,
     onimage,
+    onactivate,
   }: {
     message: MessageView;
     allowRemote: boolean;
     onstats?: (s: { blocked: number; trackers: number; designed: boolean }) => void;
     /** A picture in the message was clicked: all pictures, and the clicked one's index. */
     onimage?: (images: { src: string; filename: string }[], index: number) => void;
+    /** The message was clicked outside its links and pictures (a draft opens to be edited). */
+    onactivate?: () => void;
   } = $props();
 
   let frame: HTMLIFrameElement | undefined = $state();
@@ -114,6 +117,7 @@
       if (img.complete) zoomable(img);
       img.addEventListener('load', () => (measure(), zoomable(img)), { once: true });
     });
+    if (onactivate) doc.documentElement.style.cursor = 'pointer';
 
     doc.addEventListener('click', (e) => {
       const target = e.target as Element | null;
@@ -136,7 +140,10 @@
             pics.map((i, n) => ({ src: i.currentSrc || i.src, filename: i.alt?.trim() || t('mailFrame.picture', { number: n + 1 }) })),
             Math.max(0, pics.indexOf(img)),
           );
+          return;
         }
+        // Not when text is being selected.
+        if (onactivate && !doc.getSelection()?.toString()) onactivate();
         return;
       }
       const href = a.getAttribute('href') ?? '';

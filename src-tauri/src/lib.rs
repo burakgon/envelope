@@ -222,6 +222,7 @@ pub fn run() {
             commands::draft,
             commands::save_draft,
             commands::delete_draft,
+            commands::draft_for_message,
             commands::compose_reply,
             commands::send,
             commands::cancel_send,

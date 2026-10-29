@@ -205,6 +205,8 @@ CREATE TABLE IF NOT EXISTS drafts (
     data        TEXT NOT NULL,              -- JSON DraftInput
     remote_uid  INTEGER,                    -- server copy in the Drafts folder (IMAP)
     remote_id   TEXT,                       -- server copy id (Graph)
+    message_id  TEXT,                       -- Message-ID of the server copy, no brackets
+    synced_at   INTEGER,                    -- updated_at of the version the server copy holds
     updated_at  INTEGER NOT NULL
 );
 

@@ -103,6 +103,8 @@ interface MsgSeed {
   attachments?: { filename: string; mimeType: string; size: number }[];
   unsubscribe?: boolean;
   invite?: boolean;
+  /** A draft stored on the server (written on another computer, say). */
+  draft?: boolean;
 }
 
 interface ThreadSeed {
@@ -195,8 +197,16 @@ const seeds: ThreadSeed[] = [
   T(2, ['inbox'], 'Angebot für das neue Projekt', [
     { from: P.lukas, to: [P.meHome], at: now - 4 * DAY, flagged: true, text: 'Hallo Alex,\n\nanbei unser Angebot für den Relaunch. Wir könnten Anfang Dezember starten.\n\nViele Grüße\nLukas Weber\nKraftwerk Studio', attachments: [{ filename: 'Angebot-Relaunch.pdf', mimeType: 'application/pdf', size: 233_910 }] },
   ]),
-  T(2, ['inbox'], 'Apartment viewing on Saturday', [
+  T(2, ['inbox', 'Drafts'], 'Apartment viewing on Saturday', [
     { from: P.landlord, to: [P.meHome], at: now - 2 * DAY - 3 * HOUR, text: 'Hi Alex,\n\nThe apartment on Rosenthaler Str. is available for a viewing this Saturday at 14:00. Let me know if that works.\n\nBest,\nHannah' },
+    { from: P.meHome, to: [P.landlord], at: now - 2 * DAY - 2 * HOUR, draft: true, html: '<p>Hi Hannah,</p><p>Saturday at 14:00 works for me. Could I bring a friend along?</p>' },
+  ]),
+  T(1, ['Drafts'], 'Talk outline for the meetup', [
+    {
+      from: P.meWork, to: [P.maya], cc: [P.sofia], at: now - 4 * HOUR, draft: true,
+      html: '<p>Hi Maya,</p><p>Here is the outline for Thursday. I kept the demo short so there is time for questions.</p><ul><li>Why another mail client</li><li>Offline search</li><li>Live demo</li></ul>',
+      attachments: [{ filename: 'talk-outline.pdf', mimeType: 'application/pdf', size: 184_220 }],
+    },
   ]),
   T(2, ['inbox'], 'Re: Book recommendations', [
     { from: P.noah, to: [P.meHome], at: now - 6 * DAY, text: 'Ha, I knew you\'d like it. Next up: "The Pragmatic Programmer", then we argue about it over dinner.\n\nOn Mon, Alex Morgan wrote:\n> Finished "A Philosophy of Software Design" — what next?' },
@@ -247,7 +257,7 @@ for (const s of seeds) {
     .map((f) => f.id);
   if (s.account === 1) folderIds.push(folderOf(1, 'all').id);
   const msgs = s.messages.map((m) => {
-    const flags = { seen: m.seen ?? true, flagged: m.flagged ?? false, answered: false, draft: false, forwarded: false };
+    const flags = { seen: m.seen ?? true, flagged: m.flagged ?? false, answered: false, draft: m.draft ?? false, forwarded: false };
     const text = m.text ?? null;
     const view: MessageView = {
       id: mid++, threadId: id, accountId: s.account, folderIds: [...new Set(folderIds)], messageId: `${mid}@demo`, inReplyTo: null, references: [],
@@ -270,7 +280,7 @@ for (const s of seeds) {
     id, accountId: s.account, subject: s.subject, snippet: last.snippet, lastDate: last.date,
     messageCount: msgs.length, unreadCount: msgs.filter((m) => !m.flags.seen).length,
     flagged: msgs.some((m) => m.flags.flagged), hasAttachments: msgs.some((m) => m.hasAttachments),
-    draftCount: 0, participants: senders, lastSender: last.from, folderIds: [...new Set(folderIds)], category: s.category ?? 'people',
+    draftCount: msgs.filter((m) => m.flags.draft).length, participants: senders, lastSender: last.from, folderIds: [...new Set(folderIds)], category: s.category ?? 'people',
     isInvite: msgs.some((m) => m.calendarMethod === 'REQUEST'), muted: false, snoozedUntil: null,
   });
 }

@@ -125,6 +125,7 @@
 
   "threadRow.select": "Seleccionar",
   "threadRow.draft": "Borrador",
+  "threadRow.onlyHere": "Solo en este equipo: aún no se ha guardado en el servidor",
   "threadRow.archive": "Archivar ({key})",
   "threadRow.delete": "Eliminar ({key})",
   "threadRow.markAsRead": "Marcar como leído ({key})",
@@ -190,6 +191,7 @@
   "mail.movedToFolderCount": "Movido a {folder} · {count, plural, one {# conversación} other {# conversaciones}}",
   "mail.deletedForever": "Eliminado para siempre",
   "mail.deletedCount": "{count, plural, one {# conversación eliminada} other {# conversaciones eliminadas}}",
+  "mail.draftsDiscarded": "{count, plural, one {Borrador descartado} other {# borradores descartados}}",
   "mail.markedRead": "Marcado como leído",
   "mail.markedUnread": "Marcado como no leído",
   "mail.snoozedUntil": "Pospuesto hasta {when}",
@@ -248,6 +250,7 @@
   "message.loadRemoteContent": "Cargar contenido remoto",
   "message.copySenderAddress": "Copiar dirección del remitente",
   "message.addressCopied": "Dirección copiada",
+  "message.editDraft": "Editar borrador",
   "message.addToCalendar": "Agregar al calendario",
   "message.lookingForEvents": "Buscando eventos…",
   "message.noEventsFound": "No se encontraron fechas ni eventos en este mensaje",
@@ -414,6 +417,7 @@
   "compose.draftSaved": "Borrador guardado",
   "compose.draftDiscarded": "Borrador descartado",
   "compose.saveFailed": "No se pudo guardar el borrador: {error}",
+  "compose.draftOpenFailed": "No se pudo abrir el borrador: {error}",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Mostrar barra lateral",

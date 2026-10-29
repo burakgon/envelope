@@ -102,9 +102,10 @@
     };
   });
 
+  /** The newest message of the open conversation that is not a draft (replies go to it). */
   function lastMessageId(): number | null {
-    const m = mail.detail?.messages;
-    return m && m.length ? m[m.length - 1].id : null;
+    const m = mail.detail?.messages ?? [];
+    return ([...m].reverse().find((x) => !x.flags.draft) ?? m[m.length - 1])?.id ?? null;
   }
 
   function startG() {
@@ -184,7 +185,7 @@
     }
     if (mod && key.toLowerCase() === 'a' && ui.view === 'mail') {
       e.preventDefault();
-      mail.items.forEach((t) => mail.checked.add(t.id));
+      mail.items.forEach((t) => t.id > 0 && mail.checked.add(t.id));
       return;
     }
     if (e.altKey && !mod && ui.view === 'tasks' && (key === 'ArrowUp' || key === 'ArrowDown')) {
@@ -275,10 +276,14 @@
         mail.move(-1);
         break;
       case 'Enter':
-      case 'o':
-        if (mail.selectedId != null) mail.openThread(mail.selectedId);
+      case 'o': {
+        // In Drafts, a draft opens in a composer.
+        const row = mail.items.find((x) => x.id === mail.selectedId);
+        if (row) compose.openRow(row);
+        else if (mail.selectedId != null) mail.openThread(mail.selectedId);
         else mail.move(0);
         break;
+      }
       case 'e':
       case 'y':
         mail.archive();
