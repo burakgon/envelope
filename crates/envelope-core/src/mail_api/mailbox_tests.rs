@@ -248,6 +248,16 @@ impl Fixture {
     }
 }
 
+/// A folder, by server path.
+impl Fixture {
+    pub(crate) fn row(&self, path: &str) -> Option<FolderRow> {
+        self.engine
+            .db
+            .read(|c| mail::folder_by_remote(c, self.account, path))
+            .expect("folder")
+    }
+}
+
 #[tokio::test]
 async fn mark_all_read_takes_the_list_as_shown_and_can_be_undone() {
     let fx = fixture();

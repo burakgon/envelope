@@ -265,6 +265,48 @@ pub fn set_follow_up(
     Ok(state.engine.set_follow_up(&thread_ids, &change)?)
 }
 
+// ----- folders ------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn folder_create(
+    state: State<'_, AppState>,
+    account_id: i64,
+    parent_id: Option<i64>,
+    name: String,
+    label: bool,
+    color: Option<String>,
+) -> R<Folder> {
+    Ok(state
+        .engine
+        .create_folder(account_id, parent_id, &name, label, color)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn folder_rename(state: State<'_, AppState>, id: i64, name: String) -> R<()> {
+    Ok(state.engine.rename_folder(id, &name).await?)
+}
+
+#[tauri::command]
+pub async fn folder_move(state: State<'_, AppState>, id: i64, parent_id: Option<i64>) -> R<()> {
+    Ok(state.engine.move_folder(id, parent_id).await?)
+}
+
+#[tauri::command]
+pub async fn folder_delete(state: State<'_, AppState>, id: i64) -> R<()> {
+    Ok(state.engine.delete_folder(id).await?)
+}
+
+#[tauri::command]
+pub async fn folder_color(state: State<'_, AppState>, id: i64, color: Option<String>) -> R<()> {
+    Ok(state.engine.set_folder_color(id, color).await?)
+}
+
+#[tauri::command]
+pub fn folder_empty(state: State<'_, AppState>, id: i64) -> R<i64> {
+    Ok(state.engine.empty_folder(id)?)
+}
+
 // ----- rules on existing mail -----------------------------------------------------
 
 #[tauri::command]

@@ -10,6 +10,8 @@
   } from '../icons';
   import Logo from './Logo.svelte';
   import OutboxMenu from './OutboxMenu.svelte';
+  import FolderMenu from './FolderMenu.svelte';
+  import { canNest, isCategory, isFixed, moveTargetOf, nestFolder, newFolder } from '../stores/folders.svelte';
   import DemoBanner from './DemoBanner.svelte';
   import AutoReplyBanner from './AutoReplyBanner.svelte';
   import { api } from '../api';
@@ -28,6 +30,11 @@
   let outboxAt = $state<{ x: number; y: number } | null>(null);
   const pending = $derived(mail.outbox.filter((i) => i.state !== 'sent'));
   let dragOver = $state<number | null>(null);
+  /** The folder being dragged onto another to nest it. */
+  let draggedFolder = $state<Folder | null>(null);
+  /** The account heading a folder is dragged over (to the top of the account). */
+  let dragOverAccount = $state<number | null>(null);
+  let folderMenu = $state<{ x: number; y: number; account: Account; folder: Folder | null } | null>(null);
   let resizing = $state(false);
 
   const unified = $derived.by(() => {
@@ -74,27 +81,63 @@
     mail.setMailbox(mb);
   }
 
-  function onDragOver(e: DragEvent, folderId: number) {
-    if (!e.dataTransfer?.types.includes('application/x-envelope-threads')) return;
+  function onDragOver(e: DragEvent, f: Folder) {
+    const types = e.dataTransfer?.types ?? [];
+    const folder = types.includes('application/x-envelope-folder');
+    if (!types.includes('application/x-envelope-threads') && !(folder && draggedFolder && canNest(draggedFolder, f))) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    dragOver = folderId;
+    e.dataTransfer!.dropEffect = 'move';
+    dragOver = f.id;
   }
 
   function onDrop(e: DragEvent, f: Folder) {
     dragOver = null;
+    if (draggedFolder) {
+      e.preventDefault();
+      const dragged = draggedFolder;
+      draggedFolder = null;
+      nestFolder(dragged, f);
+      return;
+    }
     const raw = e.dataTransfer?.getData('application/x-envelope-threads');
     if (!raw) return;
     e.preventDefault();
     const ids: number[] = JSON.parse(raw);
-    const target =
-      f.role === 'inbox' ? { kind: 'inbox' as const }
-      : f.role === 'trash' ? { kind: 'trash' as const }
-      : f.role === 'junk' ? { kind: 'junk' as const }
-      : f.role === 'archive' || f.role === 'all' ? { kind: 'archive' as const }
-      : { kind: 'folder' as const, id: f.id };
     if (f.kind === 'label') mail.toggleLabel(f.id, ids);
-    else mail.moveTo(target, ids, f.role ? roleLabel(f.role) : f.name);
+    else mail.moveTo(moveTargetOf(f), ids, f.role ? roleLabel(f.role) : f.name);
+  }
+
+  function startFolderDrag(e: DragEvent, f: Folder) {
+    if (!e.dataTransfer) return;
+    draggedFolder = f;
+    e.dataTransfer.setData('application/x-envelope-folder', String(f.id));
+    e.dataTransfer.setData('text/plain', f.name);
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  /** A folder dragged onto its account's heading goes to the top of the account. */
+  function onAccountDragOver(e: DragEvent, a: Account) {
+    if (!draggedFolder || draggedFolder.accountId !== a.id || !canNest(draggedFolder, null)) return;
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'move';
+    dragOverAccount = a.id;
+  }
+
+  function onAccountDrop(e: DragEvent) {
+    dragOverAccount = null;
+    if (!draggedFolder) return;
+    e.preventDefault();
+    const dragged = draggedFolder;
+    draggedFolder = null;
+    nestFolder(dragged, null);
+  }
+
+  function openFolderMenu(e: MouseEvent | KeyboardEvent, account: Account, folder: Folder | null) {
+    if (e instanceof KeyboardEvent && !(e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) return;
+    e.preventDefault();
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const at = e instanceof MouseEvent && e.clientX ? { x: e.clientX, y: e.clientY } : { x: r.left + 24, y: r.bottom + 2 };
+    folderMenu = { ...at, account, folder };
   }
 
   function startResize(e: PointerEvent) {
@@ -277,7 +320,9 @@
             class:active={mail.isMailbox({ kind: 'folder', id: f.id })}
             class:drop={dragOver === f.id}
             onclick={() => go({ kind: 'folder', id: f.id })}
-            ondragover={(e) => onDragOver(e, f.id)}
+            oncontextmenu={(e) => openFolderMenu(e, single!, f)}
+            onkeydown={(e) => openFolderMenu(e, single!, f)}
+            ondragover={(e) => onDragOver(e, f)}
             ondragleave={() => (dragOver = null)}
             ondrop={(e) => onDrop(e, f)}
           >
@@ -297,8 +342,20 @@
       {@const list = accountFolders(account).filter((x) => !single || !x.folder.role)}
       {#if !single || list.length > 0}
       <div class="group account">
-        <div class="account-head">
-          <button class="account-title" onclick={() => (collapsedAccounts[account.id] = open)}>
+        <div
+          class="account-head"
+          class:drop={dragOverAccount === account.id}
+          role="group"
+          ondragover={(e) => onAccountDragOver(e, account)}
+          ondragleave={() => (dragOverAccount = null)}
+          ondrop={onAccountDrop}
+        >
+          <button
+            class="account-title"
+            onclick={() => (collapsedAccounts[account.id] = open)}
+            oncontextmenu={(e) => openFolderMenu(e, account, null)}
+            onkeydown={(e) => openFolderMenu(e, account, null)}
+          >
             {#if single}
               <span class="label truncate">{t('sidebar.folders')}</span>
             {:else}
@@ -307,6 +364,12 @@
             {/if}
             <span class="chev" class:closed={!open}><ChevronDown size={13} /></span>
           </button>
+          <button
+            class="add-folder"
+            title={t(account.kind === 'gmail' ? 'folders.newLabel' : 'folders.newFolder')}
+            aria-label={t(account.kind === 'gmail' ? 'folders.newLabel' : 'folders.newFolder')}
+            onclick={() => newFolder(account)}
+          ><Plus size={14} /></button>
           <span class="status" title={syncLabel(account)}>
             {#if account.sync.state === 'syncing' || account.sync.state === 'connecting'}
               <span class="spin"><Spinner size={13} /></span>
@@ -325,9 +388,15 @@
                 class="item"
                 class:active={mail.isMailbox({ kind: 'folder', id: folder.id })}
                 class:drop={dragOver === folder.id}
+                class:dragging={draggedFolder?.id === folder.id}
                 style:padding-left="{10 + depth * 14}px"
+                draggable={!isFixed(folder) && !isCategory(folder)}
                 onclick={() => go({ kind: 'folder', id: folder.id })}
-                ondragover={(e) => onDragOver(e, folder.id)}
+                oncontextmenu={(e) => openFolderMenu(e, account, folder)}
+                onkeydown={(e) => openFolderMenu(e, account, folder)}
+                ondragstart={(e) => startFolderDrag(e, folder)}
+                ondragend={() => (draggedFolder = null)}
+                ondragover={(e) => onDragOver(e, folder)}
                 ondragleave={() => (dragOver = null)}
                 ondrop={(e) => onDrop(e, folder)}
               >
@@ -370,6 +439,10 @@
 
 {#if outboxAt}
   <OutboxMenu x={outboxAt.x} y={outboxAt.y} onclose={() => (outboxAt = null)} />
+{/if}
+
+{#if folderMenu}
+  <FolderMenu x={folderMenu.x} y={folderMenu.y} account={folderMenu.account} folder={folderMenu.folder} onclose={() => (folderMenu = null)} />
 {/if}
 
 <style>
@@ -529,9 +602,16 @@
   .item.alert .count {
     color: var(--red);
   }
-  .item.drop {
+  .item.drop,
+  .account-head.drop {
     background: var(--accent-soft);
     box-shadow: inset 0 0 0 1.5px var(--accent);
+  }
+  .account-head.drop {
+    border-radius: 8px;
+  }
+  .item.dragging {
+    opacity: 0.5;
   }
   .item :global(svg) {
     flex-shrink: 0;
@@ -618,6 +698,25 @@
     display: grid;
     place-items: center;
     color: var(--text-3);
+  }
+  /* "New folder": shown with the heading's hover, or when reached with the keyboard. */
+  .add-folder {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    color: var(--text-3);
+    opacity: 0;
+    transition: opacity var(--dur-fast), background var(--dur-fast);
+  }
+  .account-head:hover .add-folder,
+  .add-folder:focus-visible {
+    opacity: 1;
+  }
+  .add-folder:hover {
+    background: var(--bg-hover);
+    color: var(--text);
   }
   .alert {
     display: grid;

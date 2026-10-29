@@ -64,6 +64,11 @@ pub struct Inner {
     sync_failures: Mutex<HashMap<i64, u32>>,
     /// Connections used for user-initiated fetches (bodies, attachments).
     pub(crate) interactive: Mutex<HashMap<i64, ImapSlot>>,
+    /// Per account: held while the folder list is read from the server or
+    /// changed by the user, so neither undoes the other.
+    folder_locks: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
+    /// Accounts whose folders changed here: their worker lists them again.
+    folders_dirty: Mutex<std::collections::HashSet<i64>>,
     pub(crate) outbox_wake: Notify,
     pub(crate) calendar_wake: Notify,
     /// Wakes the contacts sync (local edits, account changes, manual sync).
@@ -111,6 +116,8 @@ impl Engine {
                 sync_states: Mutex::new(HashMap::new()),
                 sync_failures: Mutex::new(HashMap::new()),
                 interactive: Mutex::new(HashMap::new()),
+                folder_locks: Mutex::new(HashMap::new()),
+                folders_dirty: Mutex::new(Default::default()),
                 outbox_wake: Notify::new(),
                 calendar_wake: Notify::new(),
                 contacts_wake: Notify::new(),
@@ -204,6 +211,27 @@ impl Engine {
             w.stop.cancel();
         }
         self.interactive.lock().remove(&account_id);
+    }
+
+    /// The lock that keeps folder changes and folder listings of an account apart.
+    pub(crate) fn folder_lock(&self, account_id: i64) -> Arc<tokio::sync::Mutex<()>> {
+        self.folder_locks
+            .lock()
+            .entry(account_id)
+            .or_default()
+            .clone()
+    }
+
+    /// Asks the account's worker to list its folders again soon.
+    pub(crate) fn folders_changed(&self, account_id: i64) {
+        self.folders_dirty.lock().insert(account_id);
+        self.emit(EngineEvent::FoldersChanged { account_id });
+        self.wake(account_id);
+    }
+
+    /// Whether the folders of an account changed here since the worker last asked.
+    pub(crate) fn take_folders_changed(&self, account_id: i64) -> bool {
+        self.folders_dirty.lock().remove(&account_id)
     }
 
     /// Wakes an account worker (new local changes or a manual refresh).

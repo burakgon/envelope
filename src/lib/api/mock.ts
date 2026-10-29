@@ -70,10 +70,38 @@ export function createMockApi(): Api {
     queued: () => new Set([...outbox.values()].map((o) => o.draftId).filter((id): id is number => id != null)),
   });
 
+  // ----- folders --------------------------------------------------------------------
+
+  const invalid = (message: string): T.ApiError => ({ message, kind: 'invalid' });
   const folderById = (id: number) => {
     const f = data.folders.find((x) => x.id === id);
     if (!f) throw { message: 'Folder not found', kind: 'notFound' } satisfies T.ApiError;
     return f;
+  };
+  /** A folder and the folders inside it, parents first. */
+  const subtree = (id: number): T.Folder[] => {
+    const out = [folderById(id)];
+    for (let i = 0; i < out.length; i++) out.push(...data.folders.filter((f) => f.parentId === out[i].id));
+    return out;
+  };
+  const checkName = (accountId: number, parentId: number | null, kind: T.Folder['kind'], name: string, except?: number) => {
+    if (!name.trim()) throw invalid('A folder needs a name');
+    if (data.folders.some((f) => f.accountId === accountId && f.parentId === parentId && f.kind === kind && f.id !== except && f.name.toLowerCase() === name.trim().toLowerCase())) {
+      throw invalid(`There's already a folder called “${name.trim()}” there`);
+    }
+  };
+  /** Sets a folder's place and name, and the paths of the folders inside it. */
+  const rehome = (f: T.Folder, name: string, parentId: number | null) => {
+    const parent = parentId != null ? folderById(parentId) : null;
+    const old = f.path;
+    f.name = name;
+    f.parentId = parentId;
+    f.path = parent ? `${parent.path}/${name}` : name;
+    for (const sub of subtree(f.id).slice(1)) sub.path = f.path + sub.path.slice(old.length);
+  };
+  const foldersChanged = (accountId: number, threadIds: number[] = []) => {
+    emit({ type: 'foldersChanged', accountId });
+    changed(threadIds);
   };
 
   // ----- follow-up reminders: the demo has one conversation waiting for a reply -------
@@ -331,6 +359,71 @@ export function createMockApi(): Api {
         t.folderIds = add ? [...new Set([...t.folderIds, folderId])] : t.folderIds.filter((f) => f !== folderId);
       }
       changed(threadIds);
+    },
+    folder: {
+      create: async (accountId, parentId, name, label, color) => {
+        const account = data.accounts.find((a) => a.id === accountId);
+        if (!account) throw invalid('No such account');
+        if (label && account.kind === 'imap') throw invalid('This account has folders, not labels');
+        const kind: T.Folder['kind'] = account.kind === 'gmail' || label ? 'label' : 'folder';
+        if (parentId != null && account.kind === 'gmail' && folderById(parentId).kind !== 'label') throw invalid('Labels can only go inside other labels');
+        checkName(accountId, parentId, kind, name);
+        const f: T.Folder = {
+          id: Math.max(...data.folders.map((x) => x.id)) + 1, accountId, name: name.trim(), path: name.trim(), parentId: null, role: null, kind,
+          unreadCount: 0, totalCount: 0, color: kind === 'label' ? (color ?? null) : null, hidden: false, selectable: true, sortOrder: 0, delimiter: '/',
+        };
+        data.folders.push(f);
+        rehome(f, f.name, parentId);
+        foldersChanged(accountId);
+        return structuredClone(f);
+      },
+      rename: async (id, name) => {
+        const f = folderById(id);
+        if (f.role) throw invalid('Special folders keep their names');
+        checkName(f.accountId, f.parentId, f.kind, name, id);
+        rehome(f, name.trim(), f.parentId);
+        foldersChanged(f.accountId);
+      },
+      move: async (id, parentId) => {
+        const f = folderById(id);
+        if (f.role) throw invalid('Special folders stay where they are');
+        if (parentId != null && subtree(id).some((x) => x.id === parentId)) throw invalid("A folder can't go inside itself");
+        checkName(f.accountId, parentId, f.kind, f.name, id);
+        rehome(f, f.name, parentId);
+        foldersChanged(f.accountId);
+      },
+      remove: async (id) => {
+        const f = folderById(id);
+        if (f.role) throw invalid("Special folders can't be deleted");
+        const gone = new Set(subtree(id).map((x) => x.id));
+        const trash = role(f.accountId, 'trash');
+        const touched: number[] = [];
+        for (const t of threads.filter((x) => x.folderIds.some((g) => gone.has(g)))) {
+          touched.push(t.id);
+          t.folderIds = t.folderIds.filter((g) => !gone.has(g));
+          // Mail in a deleted folder goes to Trash; a label is only taken off.
+          if (f.kind === 'folder' && trash && !t.folderIds.length) t.folderIds.push(trash.id);
+          messages.filter((m) => m.threadId === t.id).forEach((m) => (m.folderIds = [...t.folderIds]));
+        }
+        data.folders.splice(0, data.folders.length, ...data.folders.filter((x) => !gone.has(x.id)));
+        foldersChanged(f.accountId, touched);
+      },
+      setColor: async (id, color) => {
+        const f = folderById(id);
+        f.color = color;
+        emit({ type: 'foldersChanged', accountId: f.accountId });
+      },
+      empty: async (id) => {
+        const f = folderById(id);
+        if (f.role !== 'trash' && f.role !== 'junk') throw invalid('Only Trash and Spam can be emptied');
+        const inside = new Set(subtree(id).map((x) => x.id));
+        const ids = threads.filter((t) => t.folderIds.some((x) => inside.has(x))).map((t) => t.id);
+        threads.splice(0, threads.length, ...threads.filter((t) => !ids.includes(t.id)));
+        inside.delete(id);
+        data.folders.splice(0, data.folders.length, ...data.folders.filter((x) => !inside.has(x.id)));
+        foldersChanged(f.accountId, ids);
+        return ids.length;
+      },
     },
     rules: {
       fromSender: async (email, limit) => {

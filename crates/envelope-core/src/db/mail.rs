@@ -117,9 +117,13 @@ pub struct FolderRow {
     pub remote_id: String,
     pub name: String,
     pub path: String,
+    pub parent_id: Option<i64>,
     pub role: Option<FolderRole>,
     pub kind: String,
+    /// IMAP hierarchy delimiter (`/`, `.`), if the server has one.
+    pub delimiter: Option<String>,
     pub selectable: bool,
+    pub color: Option<String>,
     pub sync_state: FolderSyncState,
 }
 
@@ -149,9 +153,12 @@ fn folder_from_row(r: &Row<'_>) -> rusqlite::Result<FolderRow> {
         remote_id: r.get("remote_id")?,
         name: r.get("name")?,
         path: r.get("path")?,
+        parent_id: r.get("parent_id")?,
         role: role.as_deref().and_then(FolderRole::parse),
         kind: r.get("kind")?,
+        delimiter: r.get("delimiter")?,
         selectable: r.get::<_, i64>("selectable")? != 0,
+        color: r.get("color")?,
         sync_state: serde_json::from_str(&state).unwrap_or_default(),
     })
 }
@@ -201,25 +208,39 @@ pub fn list_folders(c: &Connection) -> Result<Vec<Folder>> {
         "SELECT f.* FROM folders f JOIN accounts a ON a.id = f.account_id
          WHERE a.enabled = 1 ORDER BY a.sort_order, f.account_id, f.sort_order, f.path COLLATE NOCASE",
     )?;
-    let rows = st.query_map([], |r| {
-        let role: Option<String> = r.get("role")?;
-        Ok(Folder {
-            id: r.get("id")?,
-            account_id: r.get("account_id")?,
-            name: r.get("name")?,
-            path: r.get("path")?,
-            parent_id: r.get("parent_id")?,
-            role: role.as_deref().and_then(FolderRole::parse),
-            kind: r.get("kind")?,
-            unread_count: r.get("unread_count")?,
-            total_count: r.get("total_count")?,
-            color: r.get("color")?,
-            hidden: r.get::<_, i64>("hidden")? != 0,
-            selectable: r.get::<_, i64>("selectable")? != 0,
-            sort_order: r.get("sort_order")?,
-        })
-    })?;
+    let rows = st.query_map([], folder_view_from_row)?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// One folder as the sidebar shows it.
+pub fn folder_view(c: &Connection, id: i64) -> Result<Folder> {
+    c.query_row(
+        "SELECT * FROM folders WHERE id = ?",
+        [id],
+        folder_view_from_row,
+    )
+    .optional()?
+    .ok_or_else(|| Error::NotFound(format!("folder {id}")))
+}
+
+fn folder_view_from_row(r: &Row<'_>) -> rusqlite::Result<Folder> {
+    let role: Option<String> = r.get("role")?;
+    Ok(Folder {
+        id: r.get("id")?,
+        account_id: r.get("account_id")?,
+        name: r.get("name")?,
+        path: r.get("path")?,
+        parent_id: r.get("parent_id")?,
+        role: role.as_deref().and_then(FolderRole::parse),
+        kind: r.get("kind")?,
+        unread_count: r.get("unread_count")?,
+        total_count: r.get("total_count")?,
+        color: r.get("color")?,
+        hidden: r.get::<_, i64>("hidden")? != 0,
+        selectable: r.get::<_, i64>("selectable")? != 0,
+        sort_order: r.get("sort_order")?,
+        delimiter: r.get("delimiter")?,
+    })
 }
 
 /// Data needed to create or update a folder from the server listing.
@@ -296,6 +317,115 @@ pub fn sync_folders(
         }
     }
     Ok(ids)
+}
+
+/// Adds one folder (or updates it) without touching the others, unlike
+/// [`sync_folders`]: a folder the user just created, before the next listing.
+pub fn upsert_folder(
+    tx: &Transaction<'_>,
+    account_id: i64,
+    f: &FolderUpsert,
+    parent_id: Option<i64>,
+) -> Result<i64> {
+    tx.execute(
+        "INSERT INTO folders (account_id, remote_id, name, path, parent_id, role, kind, delimiter, selectable, sort_order, color)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (account_id, remote_id) DO UPDATE SET
+           name = excluded.name, path = excluded.path, parent_id = excluded.parent_id, kind = excluded.kind,
+           delimiter = excluded.delimiter, selectable = excluded.selectable,
+           color = coalesce(excluded.color, folders.color)",
+        params![
+            account_id,
+            f.remote_id,
+            f.name,
+            f.path,
+            parent_id,
+            f.role.map(|r| r.as_str()),
+            f.kind,
+            f.delimiter,
+            f.selectable as i64,
+            f.sort_order,
+            f.color,
+        ],
+    )?;
+    Ok(tx.query_row(
+        "SELECT id FROM folders WHERE account_id = ? AND remote_id = ?",
+        params![account_id, f.remote_id],
+        |r| r.get(0),
+    )?)
+}
+
+/// A folder and every folder below it, parents before their children.
+pub fn folder_subtree(c: &Connection, folder_id: i64) -> Result<Vec<FolderRow>> {
+    let root = get_folder(c, folder_id)?;
+    let all = list_folder_rows(c, root.account_id)?;
+    let mut out = vec![root];
+    let mut i = 0;
+    while i < out.len() {
+        let parent = out[i].id;
+        let children: Vec<FolderRow> = all
+            .iter()
+            .filter(|f| f.parent_id == Some(parent) && !out.iter().any(|o| o.id == f.id))
+            .cloned()
+            .collect();
+        out.extend(children);
+        i += 1;
+    }
+    Ok(out)
+}
+
+/// Gives a renamed or moved folder its new server id, name, path and parent,
+/// and the folders below it their new paths. With `nested_ids` (IMAP, where a
+/// folder's server id is its path) their server ids change along.
+pub fn rehome_folder(
+    tx: &Transaction<'_>,
+    folder_id: i64,
+    remote_id: &str,
+    name: &str,
+    path: &str,
+    parent_id: Option<i64>,
+    nested_ids: bool,
+) -> Result<()> {
+    let subtree = folder_subtree(tx, folder_id)?;
+    let root = &subtree[0];
+    let replace = |value: &str, old: &str, new: &str| match value.strip_prefix(old) {
+        Some(rest) => format!("{new}{rest}"),
+        None => value.to_string(),
+    };
+    for f in &subtree[1..] {
+        let remote = if nested_ids {
+            replace(&f.remote_id, &root.remote_id, remote_id)
+        } else {
+            f.remote_id.clone()
+        };
+        tx.execute(
+            "UPDATE folders SET remote_id = ?, path = ? WHERE id = ?",
+            params![remote, replace(&f.path, &root.path, path), f.id],
+        )?;
+    }
+    tx.execute(
+        "UPDATE folders SET remote_id = ?, name = ?, path = ?, parent_id = ? WHERE id = ?",
+        params![remote_id, name, path, parent_id, folder_id],
+    )?;
+    Ok(())
+}
+
+/// Removes a folder and the folders below it, with every message that only
+/// lived there, and recounts the folders their conversations are still in.
+pub fn delete_folder_tree(tx: &Transaction<'_>, folder_id: i64) -> Result<()> {
+    let subtree = folder_subtree(tx, folder_id)?;
+    let mut threads = BTreeSet::new();
+    for f in subtree.iter().rev() {
+        let mut st =
+            tx.prepare_cached("SELECT thread_id FROM thread_folders WHERE folder_id = ?")?;
+        for t in st.query_map([f.id], |r| r.get::<_, i64>(0))? {
+            threads.insert(t?);
+        }
+        delete_folder(tx, f.id)?;
+    }
+    let folders = refresh_threads(tx, &threads)?;
+    refresh_folder_counts(tx, &folders)?;
+    Ok(())
 }
 
 /// Deletes a folder and every message that only lived there.

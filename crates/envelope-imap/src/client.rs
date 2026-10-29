@@ -1038,7 +1038,11 @@ impl Client {
         if uids.is_empty() {
             return Ok(());
         }
-        let set = uid_set_string(uids);
+        self.uid_store_set(&uid_set_string(uids), op, flags).await
+    }
+
+    /// `UID STORE` on a UID set written out, such as `1:500`.
+    pub async fn uid_store_set(&mut self, set: &str, op: &str, flags: &[&str]) -> Result<()> {
         let done = self
             .run_text(&format!("UID STORE {set} {op} ({})", flags.join(" ")))
             .await?;
@@ -1134,9 +1138,14 @@ impl Client {
     /// Permanently removes messages marked `\Deleted` (only the given UIDs when
     /// UIDPLUS is available).
     pub async fn uid_expunge(&mut self, uids: &[u32]) -> Result<()> {
+        self.uid_expunge_set(&uid_set_string(uids)).await
+    }
+
+    /// Permanently removes the messages marked `\Deleted` in a UID set written
+    /// out, such as `1:500` (all of them without UIDPLUS).
+    pub async fn uid_expunge_set(&mut self, set: &str) -> Result<()> {
         let done = if self.has_cap("UIDPLUS") {
-            self.run_text(&format!("UID EXPUNGE {}", uid_set_string(uids)))
-                .await?
+            self.run_text(&format!("UID EXPUNGE {set}")).await?
         } else {
             self.run_text("EXPUNGE").await?
         };

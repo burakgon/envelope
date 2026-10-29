@@ -264,6 +264,17 @@ pub enum PendingOp {
     },
     /// Append a sent message to the Sent folder.
     AppendSent { outbox_id: i64 },
+    /// Delete for good everything in a folder (Trash, Spam) and the folders
+    /// below it, as it was when the user asked.
+    EmptyFolder {
+        folder: String,
+        /// IMAP: the highest UID known then (mail arriving later stays).
+        #[serde(default)]
+        max_uid: Option<u32>,
+        /// Folders below it, deepest first.
+        #[serde(default)]
+        subfolders: Vec<String>,
+    },
 }
 
 /// A message as it was when the operation was queued (it may be gone locally by
@@ -369,6 +380,64 @@ pub fn fail_op(tx: &Transaction<'_>, id: i64, error: &str, retry_in_ms: i64) -> 
 
 pub fn cancel_op(tx: &Transaction<'_>, id: i64) -> Result<bool> {
     Ok(tx.execute("DELETE FROM pending_ops WHERE id = ?", [id])? > 0)
+}
+
+/// Points queued operations at the new path of an IMAP folder that was
+/// renamed or moved (`old`, and the folders below it, `old` + delimiter + …).
+pub fn rename_folder_in_ops(
+    tx: &Transaction<'_>,
+    account_id: i64,
+    old: &str,
+    new: &str,
+    delimiter: &str,
+) -> Result<()> {
+    let rename = |folder: &mut String| {
+        if folder == old {
+            *folder = new.to_string();
+        } else if let Some(rest) = folder
+            .strip_prefix(old)
+            .filter(|rest| !delimiter.is_empty() && rest.starts_with(delimiter))
+        {
+            *folder = format!("{new}{rest}");
+        }
+    };
+    let rows: Vec<(i64, String)> = {
+        let mut st = tx.prepare("SELECT id, payload FROM pending_ops WHERE account_id = ?")?;
+        st.query_map([account_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?
+    };
+    for (id, payload) in rows {
+        let Ok(mut op) = serde_json::from_str::<PendingOp>(&payload) else {
+            continue;
+        };
+        match &mut op {
+            PendingOp::Move { items, dest_folder } => {
+                rename(dest_folder);
+                items.iter_mut().for_each(|i| rename(&mut i.folder));
+            }
+            PendingOp::Expunge { items } => items.iter_mut().for_each(|i| rename(&mut i.folder)),
+            // Gmail names labels by path.
+            PendingOp::Labels { add, remove, .. } => {
+                add.iter_mut().for_each(rename);
+                remove.iter_mut().for_each(rename);
+            }
+            PendingOp::EmptyFolder {
+                folder, subfolders, ..
+            } => {
+                rename(folder);
+                subfolders.iter_mut().for_each(rename);
+            }
+            _ => continue,
+        }
+        let updated = serde_json::to_string(&op)?;
+        if updated != payload {
+            tx.execute(
+                "UPDATE pending_ops SET payload = ? WHERE id = ?",
+                params![updated, id],
+            )?;
+        }
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

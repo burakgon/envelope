@@ -99,6 +99,8 @@ export interface Folder {
   hidden: boolean;
   selectable: boolean;
   sortOrder: number;
+  /** Separator of nested IMAP folder names (`/`, `.`), which names cannot contain. */
+  delimiter?: string | null;
 }
 
 export interface Address {

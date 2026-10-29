@@ -1458,3 +1458,246 @@ async fn sends_large_messages_as_a_draft_with_uploaded_files() {
         ]
     );
 }
+
+// ---------------------------------------------------------------------------
+// Folder and category management
+
+impl Fixture {
+    fn folder_rows(&self) -> Vec<FolderRow> {
+        self.engine
+            .db
+            .read(|c| mail::list_folder_rows(c, self.account.id))
+            .expect("folders")
+    }
+}
+
+#[tokio::test]
+async fn folders_are_created_renamed_nested_and_deleted_on_the_server() {
+    let f = fixture().await;
+    let _session = f.first_sync().await;
+    let projects = f.folder("f-projects");
+    f.mount(
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/mailFolders/f-projects/childFolders"))
+            .and(body_string_contains(r#""displayName":"Clients""#))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "id": "f-clients", "displayName": "Clients", "parentFolderId": "f-projects"
+            })))
+            .expect(1),
+    )
+    .await;
+    let id = f
+        .engine
+        .graph_create_folder(
+            &f.graph,
+            f.account.id,
+            &f.folder_rows(),
+            Some(&projects),
+            "Clients",
+        )
+        .await
+        .expect("create");
+    let clients = f.folder("f-clients");
+    assert_eq!(clients.id, id);
+    assert_eq!(clients.path, "Projects/Clients");
+    assert_eq!(clients.parent_id, Some(projects.id));
+    let again = f
+        .engine
+        .graph_create_folder(
+            &f.graph,
+            f.account.id,
+            &f.folder_rows(),
+            Some(&projects),
+            " clients ",
+        )
+        .await;
+    assert!(
+        again.is_err(),
+        "the name is taken there; the server is not asked"
+    );
+
+    f.mount(
+        Mock::given(method("PATCH"))
+            .and(path("/v1.0/me/mailFolders/f-clients"))
+            .and(body_string_contains(r#""displayName":"Customers""#))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "f-clients", "displayName": "Customers", "parentFolderId": "f-projects"
+            })))
+            .expect(1),
+    )
+    .await;
+    f.engine
+        .graph_rename_folder(&f.graph, &f.folder_rows(), &clients, "Customers")
+        .await
+        .expect("rename");
+    let renamed = f.folder("f-clients");
+    assert_eq!(
+        (renamed.name.as_str(), renamed.path.as_str()),
+        ("Customers", "Projects/Customers")
+    );
+
+    f.mount(
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/mailFolders/f-clients/move"))
+            .and(body_string_contains("msgfolderroot"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "id": "f-clients", "displayName": "Customers", "parentFolderId": "f-root"
+            })))
+            .expect(1),
+    )
+    .await;
+    f.engine
+        .graph_move_folder(&f.graph, &f.folder_rows(), &renamed, None)
+        .await
+        .expect("to the top");
+    let top = f.folder("f-clients");
+    assert_eq!((top.parent_id, top.path.as_str()), (None, "Customers"));
+
+    // Deleting moves the folder into Deleted Items, as Outlook does.
+    let trash = f.folder("f-deleted");
+    f.mount(
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/mailFolders/f-projects/move"))
+            .and(body_string_contains("f-deleted"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "id": "f-projects", "displayName": "Projects", "parentFolderId": "f-deleted"
+            })))
+            .expect(1),
+    )
+    .await;
+    f.engine
+        .graph_delete_folder(&f.graph, &f.folder("f-projects"), Some(&trash))
+        .await
+        .expect("delete");
+    let deleted = f.folder("f-projects");
+    assert_eq!(deleted.parent_id, Some(trash.id));
+    assert_eq!(deleted.path, "Deleted Items/Projects");
+    assert_eq!(
+        f.folder("f-alpha").path,
+        "Deleted Items/Projects/Alpha",
+        "folders inside go along"
+    );
+}
+
+#[tokio::test]
+async fn categories_are_created_recolored_and_deleted() {
+    let f = fixture().await;
+    let _session = f.first_sync().await;
+    f.mount(
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/outlook/masterCategories"))
+            .and(body_string_contains(r#""displayName":"Receipts""#))
+            .and(body_string_contains("preset4"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "id": "c-new", "displayName": "Receipts", "color": "preset4"
+            })))
+            .expect(1),
+    )
+    .await;
+    let id = f
+        .engine
+        .graph_create_category(
+            &f.graph,
+            f.account.id,
+            &f.folder_rows(),
+            "Receipts",
+            Some("#47b347".into()),
+        )
+        .await
+        .expect("create");
+    let label = f.folder("category:Receipts");
+    assert_eq!(label.id, id);
+    assert_eq!(label.kind, "label");
+    assert_eq!(label.color.as_deref(), Some("#47b347"));
+
+    f.mount(
+        Mock::given(method("PATCH"))
+            .and(path("/v1.0/me/outlook/masterCategories/c-red"))
+            .and(body_string_contains("preset7"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1),
+    )
+    .await;
+    crate::folders::graph_recolor_category(
+        &f.graph,
+        "red category",
+        crate::folders::nearest_preset(Some("#3a96dd")),
+    )
+    .await
+    .expect("recolor");
+
+    f.mount(
+        Mock::given(method("DELETE"))
+            .and(path("/v1.0/me/outlook/masterCategories/c-red"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1),
+    )
+    .await;
+    crate::folders::graph_delete_category(&f.graph, "Red category")
+        .await
+        .expect("delete");
+    // The conversations that had it lose it here and on the server.
+    let red = f.folder("category:Red category");
+    let m1 = f.message("m1").expect("m1");
+    assert!(m1.folder_ids.contains(&red.id));
+    f.engine
+        .drop_category(f.account.id, &red, "Red category")
+        .expect("drop");
+    assert!(!f.message("m1").expect("m1").folder_ids.contains(&red.id));
+    let ops = f
+        .engine
+        .db
+        .read(|c| misc::queued_ops(c, f.account.id))
+        .expect("ops");
+    assert!(
+        ops.iter().any(
+            |op| matches!(op, PendingOp::Labels { message_ids, remove, .. }
+            if message_ids == &vec![m1.id] && remove == &vec!["Red category".to_string()])
+        ),
+        "{ops:?}"
+    );
+}
+
+#[tokio::test]
+async fn emptying_a_folder_deletes_every_message_then_the_folders_inside() {
+    let f = fixture().await;
+    f.mount(
+        Mock::given(method("GET"))
+            .and(path("/v1.0/me/mailFolders/f-deleted/messages"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "value": [
+                { "id": "x1" }, { "id": "x2" }
+            ] })))
+            .up_to_n_times(1)
+            .with_priority(1),
+    )
+    .await;
+    f.mount(
+        Mock::given(method("GET"))
+            .and(path("/v1.0/me/mailFolders/f-deleted/messages"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "value": [] })))
+            .with_priority(2),
+    )
+    .await;
+    f.mount(
+        Mock::given(method("POST"))
+            .and(path("/v1.0/$batch"))
+            .and(body_string_contains("/me/messages/x1"))
+            .and(body_string_contains("/me/messages/x2"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "responses": [
+                { "id": "0", "status": 204 },
+                { "id": "1", "status": 404, "body": { "error": { "code": "ErrorItemNotFound", "message": "gone" } } }
+            ] })))
+            .expect(1),
+    )
+    .await;
+    f.mount(
+        Mock::given(method("DELETE"))
+            .and(path("/v1.0/me/mailFolders/f-old"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1),
+    )
+    .await;
+    empty_folder(&f.graph, "f-deleted", &["f-old".to_string()])
+        .await
+        .expect("empty");
+}

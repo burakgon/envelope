@@ -44,6 +44,23 @@ export interface Api {
   muteThreads(threadIds: number[], muted: boolean): Promise<T.UndoToken[]>;
   setLabel(threadIds: number[], folderId: number, add: boolean): Promise<void>;
 
+  /**
+   * Folders and labels. Changes to the folder tree reach the server at once (and fail
+   * offline); colors and emptying Trash or Spam work offline.
+   */
+  folder: {
+    /** A folder at the top of an account or in `parentId`; a label in Gmail, a category with `label` in Outlook. */
+    create(accountId: number, parentId: number | null, name: string, label: boolean, color?: string | null): Promise<T.Folder>;
+    rename(id: number, name: string): Promise<void>;
+    /** Into another folder of the account, or to the top with null. */
+    move(id: number, parentId: number | null): Promise<void>;
+    /** With its subfolders; their conversations move to Trash (labels are only taken off). */
+    remove(id: number): Promise<void>;
+    setColor(id: number, color: string | null): Promise<void>;
+    /** Deletes everything in Trash or Spam for good; returns how many conversations went. */
+    empty(id: number): Promise<number>;
+  };
+
   /** Mail rules run on mail that is already here. */
   rules: {
     matches(rule: MailRule, limit: number): Promise<T.RuleMatches>;

@@ -259,6 +259,8 @@ pub struct Folder {
     pub hidden: bool,
     pub selectable: bool,
     pub sort_order: i64,
+    /// Separator of nested IMAP folder names (`/`, `.`), which names cannot contain.
+    pub delimiter: Option<String>,
 }
 
 /// An e-mail address with optional display name.

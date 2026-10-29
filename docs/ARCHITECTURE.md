@@ -47,6 +47,8 @@ Every action — archive, move, flag, delete, snooze — changes the database at
 
 Actions return an **undo token** with the previous state. Undoing within a few seconds simply cancels the operation before it reaches the server; later, it is reverted with a new operation.
 
+Changes to the folder tree — creating, renaming, moving and deleting folders, labels and Outlook categories (`folders.rs`) — are the exception: they go to the server at once and are applied locally when it agrees. Queued operations name folders by their server path or id, Microsoft and Exchange choose the ids of new folders, and a refusal (a name already taken, a folder that cannot hold others) must reach the person who asked. While the change runs, the account's folder listing waits (a per-account lock), and the worker lists the folders again afterwards. Emptying Trash or Spam, colors and marking a folder read stay local-first.
+
 ## Showing mail safely
 
 Mail is hostile input. The interface sanitizes message HTML with DOMPurify (`src/lib/utils/html.ts`), blocks remote content until the user allows it, removes tracking pixels, and renders the result in a sandboxed iframe whose Content Security Policy is `default-src 'none'` — no script in a message can run, and nothing loads that was not allowed. Links open in the browser; `mailto:` and `webcal:` links stay in Envelope.

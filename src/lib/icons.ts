@@ -22,6 +22,7 @@ export { default as AlarmClock } from '@lucide/svelte/icons/alarm-clock';
 export { default as Tag } from '@lucide/svelte/icons/tag';
 export { default as Folder } from '@lucide/svelte/icons/folder';
 export { default as FolderOpen } from '@lucide/svelte/icons/folder-open';
+export { default as FolderPlus } from '@lucide/svelte/icons/folder-plus';
 export { default as Ban } from '@lucide/svelte/icons/ban';
 export { default as Play } from '@lucide/svelte/icons/play';
 export { default as ChevronDown } from '@lucide/svelte/icons/chevron-down';

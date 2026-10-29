@@ -322,7 +322,11 @@ impl Engine {
         self.after_local_change(&accounts, &thread_ids.iter().copied().collect())
     }
 
-    fn after_local_change(&self, accounts: &[i64], threads: &BTreeSet<i64>) -> Result<()> {
+    pub(crate) fn after_local_change(
+        &self,
+        accounts: &[i64],
+        threads: &BTreeSet<i64>,
+    ) -> Result<()> {
         let ids: Vec<i64> = threads.iter().copied().collect();
         let folders_by_account: HashMap<i64, Vec<i64>> = self.db.read(|c| {
             let mut map: HashMap<i64, Vec<i64>> = HashMap::new();

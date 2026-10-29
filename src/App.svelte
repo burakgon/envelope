@@ -310,10 +310,10 @@
         if (ids.length) tasks.addFromMail(ids);
         break;
       case 'v':
-        if (ids.length) kbMenu = { kind: 'move', ids };
-        break;
       case 'l':
-        if (ids.length) kbMenu = { kind: 'label', ids };
+        // The menu's filter takes the focus: the key must not be typed into it.
+        e.preventDefault();
+        if (ids.length) kbMenu = { kind: key === 'v' ? 'move' : 'label', ids };
         break;
       case '!':
         if (ids.length) mail.toggleSpam(ids);

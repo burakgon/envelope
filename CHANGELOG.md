@@ -11,6 +11,8 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Save all… for messages with several attachments: they are saved into a folder at once, and Show in folder opens it.
 - Send asks first when an address doesn't look complete (Edit or Send anyway), and when the text mentions an attachment but nothing is attached (Attach or Send anyway), with the words for it in every interface language.
 - Links in messages show where they go in a small pill while they are pointed at or focused, and warn when their text names another site than the one they open.
+- Folder and label management for every kind of account: new folders and subfolders (labels in Gmail, categories in Outlook), rename, delete (asking first, with how many conversations), colors for labels, and nesting by dragging a folder onto another — from a menu on each folder in the sidebar (right-click, Shift+F10 or the Menu key) and a "+" beside each account's folders. The Move and Label menus offer "Create ‘name’" when no folder or label has the name typed.
+- Empty Trash and Empty Spam, after a confirmation with the number of conversations.
 - "Not spam" in Spam (reader toolbar, context menu, command palette, and `!`, which now toggles): the conversation goes back to the inbox, and the server learns it (`$NotJunk` on IMAP servers, the move itself for Gmail, Microsoft 365 and Exchange). Reporting spam on an IMAP server sets `$Junk`.
 - Block sender (from a message's menu, a conversation's right-click menu or the command palette): a "Blocked senders" rule sends their new mail to Spam, and the conversations they wrote move there too. Settings → Privacy lists blocked senders with Unblock.
 - Rules can run on the mail already here: "Also apply to existing messages" when saving one, and "Run now" beside each, with a count and Undo.
@@ -33,6 +35,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - An event's popover could run off the bottom of the window once its guests had loaded.
 - An address still being typed when Send was pressed was left out.
 - Account setup no longer keeps the password and servers of a provider you went back from: they are cleared, servers are detected again when the address moves to another domain, and Google or Microsoft sign-in is no longer offered an address of another provider.
+- The `v` and `l` shortcuts no longer type their letter into the Move and Label menus.
 
 ## [0.3.0] — 2026-10-29
 

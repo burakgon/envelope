@@ -25,7 +25,7 @@ export const accounts: Account[] = [
 
 let folderId = 1;
 function folder(accountId: number, name: string, role: Folder['role'], kind: Folder['kind'] = 'folder', color: string | null = null): Folder {
-  return { id: folderId++, accountId, name, path: name, parentId: null, role, kind, unreadCount: 0, totalCount: 0, color, hidden: false, selectable: true, sortOrder: 0 };
+  return { id: folderId++, accountId, name, path: name, parentId: null, role, kind, unreadCount: 0, totalCount: 0, color, hidden: false, selectable: true, sortOrder: 0, delimiter: '/' };
 }
 
 export const folders: Folder[] = [

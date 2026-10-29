@@ -65,6 +65,14 @@ export function createTauriApi(): Api {
     snooze: (threadIds, until) => invoke('snooze', { threadIds, until }),
     muteThreads: (threadIds, muted) => invoke('mute_threads', { threadIds, muted }),
     setLabel: (threadIds, folderId, add) => invoke('set_label', { threadIds, folderId, add }),
+    folder: {
+      create: (accountId, parentId, name, label, color) => invoke('folder_create', { accountId, parentId, name, label, color: color ?? null }),
+      rename: (id, name) => invoke('folder_rename', { id, name }),
+      move: (id, parentId) => invoke('folder_move', { id, parentId }),
+      remove: (id) => invoke('folder_delete', { id }),
+      setColor: (id, color) => invoke('folder_color', { id, color }),
+      empty: (id) => invoke('folder_empty', { id }),
+    },
     rules: {
       matches: (rule, limit) => invoke('rule_matches', { rule, limit }),
       apply: (rule, threadIds) => invoke('rule_apply', { rule, threadIds }),

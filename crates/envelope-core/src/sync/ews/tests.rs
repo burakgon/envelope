@@ -2967,3 +2967,182 @@ async fn probes_autodiscover_without_credentials() {
             .all(|r| !r.headers.contains_key("authorization"))
     );
 }
+
+// ---------------------------------------------------------------------------
+// Folder and category management
+
+impl Fixture {
+    fn folder_rows(&self) -> Vec<FolderRow> {
+        self.engine
+            .db
+            .read(|c| mail::list_folder_rows(c, self.account.id))
+            .expect("folders")
+    }
+
+    fn answer(&self, op: &str, inner: &str) {
+        self.state()
+            .canned
+            .insert(op.to_string(), response(op, &[success(op, inner)]));
+    }
+}
+
+/// The master category list a `UpdateUserConfiguration` request stores.
+fn stored_categories(body: &str) -> String {
+    let data = capture(r"<t:XmlData>([^<]*)</t:XmlData>", body).expect("XmlData");
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data)
+        .expect("base64");
+    String::from_utf8(bytes).expect("utf-8")
+}
+
+#[tokio::test]
+async fn exchange_folders_are_created_renamed_moved_and_deleted() {
+    let f = fixture().await;
+    let mut session = f.session();
+    session.reload_folders().expect("folders");
+    session.sync_folder_list().await.expect("folder list");
+    let projects = f.folder("projects-id");
+
+    f.answer(
+        "CreateFolder",
+        r#"<m:Folders><t:Folder><t:FolderId Id="clients-id" ChangeKey="ck1"/></t:Folder></m:Folders>"#,
+    );
+    let id = f
+        .engine
+        .ews_create_folder(
+            &f.ews,
+            f.account.id,
+            &f.folder_rows(),
+            Some(&projects),
+            "Clients",
+        )
+        .await
+        .expect("create");
+    let clients = f.folder("clients-id");
+    assert_eq!(clients.id, id);
+    assert_eq!(clients.path, format!("{}/Clients", projects.path));
+    let body = f.requests("CreateFolder").pop().expect("request");
+    assert!(
+        body.contains("<t:DisplayName>Clients</t:DisplayName>") && body.contains("projects-id")
+    );
+
+    f.answer(
+        "UpdateFolder",
+        r#"<m:Folders><t:Folder><t:FolderId Id="clients-id" ChangeKey="ck2"/></t:Folder></m:Folders>"#,
+    );
+    f.engine
+        .ews_rename_folder(&f.ews, &f.folder_rows(), &clients, "Customers")
+        .await
+        .expect("rename");
+    assert_eq!(f.folder("clients-id").name, "Customers");
+
+    f.answer(
+        "MoveFolder",
+        r#"<m:Folders><t:Folder><t:FolderId Id="clients-id" ChangeKey="ck3"/></t:Folder></m:Folders>"#,
+    );
+    f.engine
+        .ews_move_folder(&f.ews, &f.folder_rows(), &f.folder("clients-id"), None)
+        .await
+        .expect("to the top");
+    let top = f.folder("clients-id");
+    assert_eq!((top.parent_id, top.path.as_str()), (None, "Customers"));
+    assert!(f.requests("MoveFolder")[0].contains("msgfolderroot"));
+
+    f.answer("DeleteFolder", "");
+    let trash = f.folder("deleteditems-id");
+    f.engine
+        .ews_delete_folder(&f.ews, &top, Some(&trash))
+        .await
+        .expect("delete");
+    assert!(f.requests("DeleteFolder")[0].contains(r#"DeleteType="MoveToDeletedItems""#));
+    let deleted = f.folder("clients-id");
+    assert_eq!(
+        deleted.parent_id,
+        Some(trash.id),
+        "it waits in Deleted Items"
+    );
+}
+
+#[tokio::test]
+async fn exchange_categories_change_in_the_master_list() {
+    let f = fixture().await;
+    f.answer("UpdateUserConfiguration", "");
+    let changed = ews_sync_edit(&f, "blue CATEGORY", CategoryEdit::Recolor(4)).await;
+    assert!(changed);
+    let stored = stored_categories(&f.requests("UpdateUserConfiguration")[0]);
+    assert!(
+        stored.contains(r#"<category name="Blue category" color="4"/>"#),
+        "{stored}"
+    );
+    assert!(
+        stored.contains(r#"<category name="Red category" color="0"/>"#),
+        "{stored}"
+    );
+
+    assert!(ews_sync_edit(&f, "Red category", CategoryEdit::Remove).await);
+    let stored = stored_categories(&f.requests("UpdateUserConfiguration")[1]);
+    assert!(
+        !stored.contains("Red category") && stored.contains("Blue category"),
+        "{stored}"
+    );
+
+    // Only on messages: nothing to change in the list.
+    assert!(!ews_sync_edit(&f, "Somewhere else", CategoryEdit::Remove).await);
+    assert_eq!(f.requests("UpdateUserConfiguration").len(), 2);
+
+    // A refusal is reported.
+    f.state().canned.insert(
+        "UpdateUserConfiguration".into(),
+        response(
+            "UpdateUserConfiguration",
+            &[failure("UpdateUserConfiguration", "ErrorAccessDenied")],
+        ),
+    );
+    assert!(
+        super::edit_category(&f.ews, "Blue category", CategoryEdit::Recolor(1))
+            .await
+            .is_err()
+    );
+}
+
+async fn ews_sync_edit(f: &Fixture, name: &str, edit: CategoryEdit) -> bool {
+    super::edit_category(&f.ews, name, edit)
+        .await
+        .expect("edit")
+}
+
+#[test]
+fn category_list_edits_keep_everything_else() {
+    let xml = r#"<?xml version="1.0"?><categories default="Red category" xmlns="CategoryList.xsd"><category name="Red category" color="0" keyboardShortcut="0" guid="{1}"><extra a="b"/></category><category name="Plain" guid="{2}"/></categories>"#;
+    let removed =
+        mapping::edit_category_list(xml, "red category", CategoryEdit::Remove).expect("removed");
+    assert_eq!(
+        removed,
+        r#"<?xml version="1.0"?><categories default="Red category" xmlns="CategoryList.xsd"><category name="Plain" guid="{2}"/></categories>"#
+    );
+    let colored =
+        mapping::edit_category_list(xml, "Plain", CategoryEdit::Recolor(7)).expect("colored");
+    assert!(
+        colored.contains(r#"<category name="Plain" guid="{2}" color="7"/>"#),
+        "{colored}"
+    );
+    assert!(colored.contains(r#"keyboardShortcut="0" guid="{1}"><extra a="b"/></category>"#));
+    assert_eq!(
+        mapping::edit_category_list(xml, "Nope", CategoryEdit::Remove),
+        None
+    );
+}
+
+#[tokio::test]
+async fn exchange_folders_are_emptied_with_their_subfolders() {
+    let f = fixture().await;
+    f.answer("EmptyFolder", "");
+    super::empty_folder(&f.ews, "deleteditems-id")
+        .await
+        .expect("empty");
+    let body = f.requests("EmptyFolder").pop().expect("request");
+    assert!(
+        body.contains(r#"DeleteSubFolders="true""#) && body.contains("deleteditems-id"),
+        "{body}"
+    );
+}

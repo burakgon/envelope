@@ -251,13 +251,125 @@ pub(super) const CATEGORY_LIST_REQUEST: &str = concat!(
 /// response for the master category list, or `None` when it holds none
 /// (the mailbox never had categories, or the server refused).
 pub(super) fn category_list(response: &str) -> Option<Vec<(String, Option<String>)>> {
+    Some(parse_categories(&category_list_xml(response)?))
+}
+
+/// The master category list document of a `GetUserConfiguration` response.
+pub(super) fn category_list_xml(response: &str) -> Option<String> {
     let data = element_text(response, "XmlData")?;
     let compact: String = data.chars().filter(|c| !c.is_whitespace()).collect();
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(compact.as_bytes())
         .ok()?;
     let xml = String::from_utf8_lossy(&bytes);
-    Some(parse_categories(xml.trim_start_matches('\u{feff}')))
+    Some(xml.trim_start_matches('\u{feff}').to_string())
+}
+
+/// A change to one category of the master list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CategoryEdit {
+    /// A new color preset (`-1` for none).
+    Recolor(i32),
+    Remove,
+}
+
+/// The master category list with one category recolored or removed, keeping
+/// everything else Outlook stored there; `None` when it does not name the
+/// category or cannot be read.
+pub(super) fn edit_category_list(xml: &str, name: &str, edit: CategoryEdit) -> Option<String> {
+    use quick_xml::events::{BytesStart, Event as Xml};
+    use quick_xml::{Reader, Writer};
+    let is_target = |e: &BytesStart<'_>| {
+        e.local_name().as_ref() == "category"
+            && e.attributes().flatten().any(|a| {
+                a.key.local_name().as_ref() == "name"
+                    && a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                        .is_ok_and(|v| v.trim().eq_ignore_ascii_case(name.trim()))
+            })
+    };
+    let mut reader = Reader::from_str(xml);
+    let mut writer = Writer::new(Vec::new());
+    let mut found = false;
+    // Depth inside a removed element.
+    let mut skipping = 0usize;
+    loop {
+        let event = match reader.read_event() {
+            Ok(Xml::Eof) => break,
+            Ok(event) => event,
+            Err(_) => return None,
+        };
+        if skipping > 0 {
+            match event {
+                Xml::Start(_) => skipping += 1,
+                Xml::End(_) => skipping -= 1,
+                _ => {}
+            }
+            continue;
+        }
+        let (target, open) = match &event {
+            Xml::Start(e) => (is_target(e), true),
+            Xml::Empty(e) => (is_target(e), false),
+            _ => (false, false),
+        };
+        if !target {
+            writer.write_event(event).ok()?;
+            continue;
+        }
+        found = true;
+        let (Xml::Start(e) | Xml::Empty(e)) = &event else {
+            continue;
+        };
+        match edit {
+            CategoryEdit::Remove => {
+                if open {
+                    skipping = 1;
+                }
+            }
+            CategoryEdit::Recolor(color) => {
+                let color = color.to_string();
+                let mut element = BytesStart::new(e.name().as_ref().to_string());
+                let mut colored = false;
+                for a in e.attributes().flatten() {
+                    if a.key.local_name().as_ref() == "color" {
+                        element.push_attribute(("color", color.as_str()));
+                        colored = true;
+                    } else {
+                        element.push_attribute(a);
+                    }
+                }
+                if !colored {
+                    element.push_attribute(("color", color.as_str()));
+                }
+                let out = if open {
+                    Xml::Start(element)
+                } else {
+                    Xml::Empty(element)
+                };
+                writer.write_event(out).ok()?;
+            }
+        }
+    }
+    found.then(|| String::from_utf8(writer.into_inner()).ok())?
+}
+
+/// Stores a master category list (`UpdateUserConfiguration`).
+pub(super) fn category_update_request(xml: &str) -> String {
+    let data = base64::engine::general_purpose::STANDARD.encode(xml.as_bytes());
+    format!(
+        "<m:UpdateUserConfiguration><m:UserConfiguration>\
+         <t:UserConfigurationName Name=\"CategoryList\"><t:DistinguishedFolderId Id=\"calendar\"/></t:UserConfigurationName>\
+         <t:XmlData>{data}</t:XmlData>\
+         </m:UserConfiguration></m:UpdateUserConfiguration>"
+    )
+}
+
+/// The message of a response that reports an error, if it does.
+pub(super) fn response_error(response: &str) -> Option<String> {
+    response.contains("ResponseClass=\"Error\"").then(|| {
+        element_text(response, "MessageText")
+            .filter(|m| !m.trim().is_empty())
+            .unwrap_or_else(|| "Exchange refused the change".into())
+    })
 }
 
 /// Text of the first element with the given local name.

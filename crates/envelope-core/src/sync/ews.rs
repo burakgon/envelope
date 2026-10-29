@@ -214,7 +214,7 @@ impl EwsMail {
 
     /// Converts a failure, remembering how long the server asked us to back
     /// off.
-    fn err(&self, e: EwsError) -> Error {
+    pub(crate) fn err(&self, e: EwsError) -> Error {
         if let Some(after) = e.retry_after() {
             *self.throttled_until.lock() = Some(Instant::now() + after);
         }
@@ -843,6 +843,9 @@ impl Session {
                 return Ok(());
             }
             self.process_ops().await?;
+            if self.engine.take_folders_changed(self.id()) {
+                self.sync_folder_list().await?;
+            }
             // First: a new subscription may ask for a full sync.
             let pushed = self.take_pushed_folders();
             let (_, full_interval) = self.intervals();
@@ -993,6 +996,9 @@ impl Session {
     }
 
     async fn sync_folder_list(&mut self) -> Result<()> {
+        // Folder changes made meanwhile must not be undone by an older listing.
+        let lock = self.engine.folder_lock(self.id());
+        let _guard = lock.lock().await;
         let mut tree = self
             .ews
             .client
@@ -1902,6 +1908,7 @@ impl Session {
                     .db
                     .write(|tx| misc::outbox_delete(tx, id).map(|_| ()))
             }
+            PendingOp::EmptyFolder { folder, .. } => empty_folder(&self.ews, folder).await,
         }
     }
 
@@ -2389,6 +2396,48 @@ async fn source(
         save_source(&path, &raw).await;
     }
     Ok(raw)
+}
+
+pub(crate) use mapping::CategoryEdit;
+
+/// Recolors or removes a category in the mailbox's master category list.
+/// Returns false when the list does not name it (a category only found on
+/// messages).
+pub(crate) async fn edit_category(ews: &EwsMail, name: &str, edit: CategoryEdit) -> Result<bool> {
+    let response = ews
+        .client
+        .execute_raw(mapping::CATEGORY_LIST_REQUEST, true)
+        .await
+        .map_err(|e| ews.err(e))?;
+    let Some(updated) = mapping::category_list_xml(&response)
+        .and_then(|xml| mapping::edit_category_list(&xml, name, edit))
+    else {
+        return Ok(false);
+    };
+    let response = ews
+        .client
+        .execute_raw(&mapping::category_update_request(&updated), false)
+        .await
+        .map_err(|e| ews.err(e))?;
+    match mapping::response_error(&response) {
+        Some(message) => Err(Error::Other(message)),
+        None => Ok(true),
+    }
+}
+
+/// Deletes everything in a folder (Deleted Items, Junk Email) with the
+/// folders below it. Exchange keeps them in Recoverable Items for its
+/// retention period.
+pub(crate) async fn empty_folder(ews: &EwsMail, folder: &str) -> Result<()> {
+    match ews
+        .client
+        .empty_folder(FolderId::new(folder), ews::DeleteType::SoftDelete, true)
+        .await
+    {
+        Ok(()) => Ok(()),
+        Err(e) if e.is_not_found() => Ok(()),
+        Err(e) => Err(ews.err(e)),
+    }
 }
 
 /// Downloads message bodies for the reader.

@@ -535,15 +535,20 @@ class Mail {
     }
   }
 
-  /** Deletes conversations for good (from Trash), once the question with their count is answered yes. */
-  async deleteForever(ids = this.targets()) {
-    if (!ids.length) return;
-    const ok = await dialogs.confirm({
-      title: t('mail.deleteForeverTitle', { count: ids.length }),
-      message: t('mail.deleteForeverMessage', { count: ids.length }),
+  /** Asks before `count` conversations are deleted for good: from Trash, or by emptying Trash or Spam. */
+  confirmDeleteForever(count: number) {
+    return dialogs.confirm({
+      title: t('mail.deleteForeverTitle', { count }),
+      message: t('mail.deleteForeverMessage', { count }),
       confirmLabel: t('threadList.deleteForever'),
       danger: true,
     });
+  }
+
+  /** Deletes conversations for good (from Trash), once the question with their count is answered yes. */
+  async deleteForever(ids = this.targets()) {
+    if (!ids.length) return;
+    const ok = await this.confirmDeleteForever(ids.length);
     if (!ok) return;
     this.removeLocally(ids);
     try {

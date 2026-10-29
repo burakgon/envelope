@@ -208,6 +208,9 @@ impl Session {
                 return Ok(());
             }
             self.process_ops().await?;
+            if self.engine.take_folders_changed(self.id()) {
+                self.sync_folder_list().await?;
+            }
             let full_due = self
                 .last_full
                 .is_none_or(|t| t.elapsed() >= FULL_SYNC_INTERVAL);
@@ -317,6 +320,10 @@ impl Session {
     // ----- folders -----------------------------------------------------------
 
     async fn sync_folder_list(&mut self) -> Result<()> {
+        // A folder the user creates or renames meanwhile must not be undone by
+        // a listing taken just before.
+        let lock = self.engine.folder_lock(self.id());
+        let _guard = lock.lock().await;
         let (entries, _) = self.client.list(false).await?;
         let mut entries = entries;
         let has_archive = entries.iter().any(|e| {
@@ -735,7 +742,18 @@ impl Session {
                 // Messages with a queued move or delete are leaving this folder:
                 // seeing them here again before the server catches up must not
                 // bring them back as new mail.
-                let leaving: HashSet<u32> = misc::queued_ops(tx, account_id)?
+                let queued = misc::queued_ops(tx, account_id)?;
+                // Likewise everything in a folder being emptied, up to where it was emptied.
+                let emptied = queued
+                    .iter()
+                    .filter_map(|op| match op {
+                        PendingOp::EmptyFolder {
+                            folder, max_uid, ..
+                        } if *folder == folder_remote => *max_uid,
+                        _ => None,
+                    })
+                    .max();
+                let leaving: HashSet<u32> = queued
                     .into_iter()
                     .flat_map(|op| match op {
                         PendingOp::Move { items, .. } | PendingOp::Expunge { items } => items,
@@ -749,7 +767,7 @@ impl Session {
                 let mut arrivals = Vec::new();
                 let mine = crate::crypto::my_emails(tx)?;
                 for (uid, meta, attachments, labels) in prepared {
-                    if leaving.contains(&uid) {
+                    if leaving.contains(&uid) || emptied.is_some_and(|max| uid <= max) {
                         continue;
                     }
                     let stored = mail::upsert_message(tx, account_id, folder_id, Some(uid), &meta)?;
@@ -1092,6 +1110,36 @@ impl Session {
                 self.engine
                     .db
                     .write(|tx| misc::outbox_delete(tx, id).map(|_| ()))?;
+                Ok(())
+            }
+            PendingOp::EmptyFolder {
+                folder,
+                max_uid,
+                subfolders,
+            } => {
+                if let Some(max) = max_uid {
+                    match self.select(folder).await {
+                        Ok(()) => {
+                            let set = format!("1:{max}");
+                            self.client
+                                .uid_store_set(&set, "+FLAGS.SILENT", &["\\Deleted"])
+                                .await?;
+                            self.client.uid_expunge_set(&set).await?;
+                        }
+                        // Gone already: nothing is left to delete.
+                        Err(Error::Imap(envelope_imap::Error::No { .. })) => {}
+                        Err(e) => return Err(e),
+                    }
+                }
+                for sub in subfolders {
+                    if self.client.selected() == Some(sub.as_str()) {
+                        self.client.unselect().await?;
+                    }
+                    match self.client.delete(sub).await {
+                        Ok(()) | Err(envelope_imap::Error::No { .. }) => {}
+                        Err(e) => return Err(e.into()),
+                    }
+                }
                 Ok(())
             }
         }

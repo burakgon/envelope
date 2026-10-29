@@ -94,7 +94,7 @@ impl GraphMail {
     }
 
     #[cfg(test)]
-    fn with_client(client: GraphClient) -> GraphMail {
+    pub(crate) fn with_client(client: GraphClient) -> GraphMail {
         GraphMail {
             client,
             tokens: None,
@@ -102,9 +102,13 @@ impl GraphMail {
         }
     }
 
+    pub(crate) fn client(&self) -> &GraphClient {
+        &self.client
+    }
+
     /// Converts a Graph failure, remembering how long the server asked us to
     /// back off.
-    fn err(&self, e: GraphError) -> Error {
+    pub(crate) fn err(&self, e: GraphError) -> Error {
         if let Some(after) = e.retry_after() {
             *self.throttled_until.lock() = Some(Instant::now() + after);
         }
@@ -560,6 +564,9 @@ impl Session {
                 return Ok(());
             }
             self.process_ops().await?;
+            if self.engine.take_folders_changed(self.id()) {
+                self.sync_folder_list().await?;
+            }
             let full_due = self
                 .last_full
                 .is_none_or(|t| t.elapsed() >= FULL_SYNC_INTERVAL);
@@ -630,6 +637,9 @@ impl Session {
     // ----- folders -----------------------------------------------------------
 
     async fn sync_folder_list(&mut self) -> Result<()> {
+        // Folder changes made meanwhile must not be undone by an older listing.
+        let lock = self.engine.folder_lock(self.id());
+        let _guard = lock.lock().await;
         let mut tree = self
             .graph
             .client
@@ -1188,6 +1198,9 @@ impl Session {
                     .db
                     .write(|tx| misc::outbox_delete(tx, id).map(|_| ()))
             }
+            PendingOp::EmptyFolder {
+                folder, subfolders, ..
+            } => empty_folder(&self.graph, folder, subfolders).await,
         }
     }
 
@@ -1522,6 +1535,68 @@ impl Session {
         }
         Ok(())
     }
+}
+
+/// Deletes everything in a folder (Deleted Items, Junk Email), then the
+/// folders below it. Exchange keeps them in Recoverable Items for its
+/// retention period.
+pub(crate) async fn empty_folder(
+    graph: &GraphMail,
+    folder: &str,
+    subfolders: &[String],
+) -> Result<()> {
+    let options = MessageListOptions {
+        top: 200,
+        select: vec!["id".into()],
+        ..Default::default()
+    };
+    // Each round deletes the first page, so the next round lists from the start.
+    for _ in 0..500 {
+        let page = match graph.client.list_messages(folder, &options).await {
+            Ok(page) => page,
+            Err(e) if e.is_not_found() => break,
+            Err(e) => return Err(graph.err(e)),
+        };
+        if page.items.is_empty() {
+            break;
+        }
+        let requests = page
+            .items
+            .iter()
+            .enumerate()
+            .map(|(i, m)| {
+                BatchRequest::new(
+                    i.to_string(),
+                    GraphRequest::delete(["me", "messages", m.id.as_str()]),
+                )
+            })
+            .collect();
+        let responses = graph
+            .client
+            .batch(requests)
+            .await
+            .map_err(|e| graph.err(e))?;
+        let mut gone = 0;
+        for response in responses {
+            match response.into_result() {
+                Ok(_) => gone += 1,
+                Err(e) if e.is_not_found() => gone += 1,
+                Err(e) => return Err(graph.err(e)),
+            }
+        }
+        if gone == 0 {
+            break;
+        }
+    }
+    for sub in subfolders {
+        match graph.client.delete_mail_folder(sub).await {
+            Ok(()) => {}
+            // Went with the folder above it.
+            Err(e) if e.is_not_found() => {}
+            Err(e) => return Err(graph.err(e)),
+        }
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

@@ -700,6 +700,108 @@ await step('account setup forgets the provider it backed out of', async () => {
   }
 });
 
+await step('folders are made, renamed, nested, colored and deleted in the sidebar', async () => {
+  const p = await fresh();
+  try {
+    const item = (name) => p.locator('.sidebar .account .item', { hasText: name });
+    const prompt = p.locator('[role="dialog"] input');
+    await item('Travel').click({ button: 'right' });
+    await p.locator('.menu-item', { hasText: 'New subfolder' }).click();
+    await prompt.waitFor({ timeout: 5000 });
+    await p.keyboard.type('Paris');
+    await p.keyboard.press('Enter');
+    await toast(p, 'Folder “Paris” created');
+    // Inside Travel: indented below it.
+    const indent = async (name) => parseFloat(await item(name).evaluate((el) => getComputedStyle(el).paddingLeft));
+    if ((await indent('Paris')) <= (await indent('Travel'))) throw new Error('Paris is not inside Travel');
+    await item('Paris').click({ button: 'right' });
+    await p.locator('.menu-item', { hasText: 'Rename' }).click();
+    await prompt.fill('Lyon');
+    await p.keyboard.press('Enter');
+    await toast(p, 'Renamed to “Lyon”');
+    if (await item('Paris').count()) throw new Error('Paris is still listed');
+    // A name already used there is refused before anything is asked of the server.
+    await personal(p).locator('.add-folder').click();
+    await prompt.fill('Receipts');
+    await p.keyboard.press('Enter');
+    await p.locator('[role="dialog"] .message', { hasText: 'already a folder called “Receipts”' }).waitFor({ timeout: 5000 });
+    await p.keyboard.press('Escape');
+    // Dragged onto Travel, Receipts goes inside it; Undo brings it back.
+    await item('Receipts').dragTo(item('Travel'));
+    await toast(p, 'Moved “Receipts” into “Travel”');
+    if ((await indent('Receipts')) <= (await indent('Travel'))) throw new Error('Receipts did not go inside Travel');
+    await p.locator('.toast', { hasText: 'Moved “Receipts”' }).first().locator('.action').click();
+    await eventually(p, async () => (await indent('Receipts')) === (await indent('Travel')), 'Undo left Receipts inside Travel');
+    // A label gets a color.
+    await item('Design').click({ button: 'right' });
+    await p.locator('.swatches .sw[aria-label="Teal"]').click();
+    await eventually(p, async () => (await item('Design').locator('.label-dot').evaluate((el) => getComputedStyle(el).backgroundColor)) === 'rgb(0, 183, 195)', 'Design is not teal');
+    // Deleting asks first, with what happens to the conversations.
+    await item('Lyon').click({ button: 'right' });
+    await p.locator('.menu-item', { hasText: 'Delete folder' }).click();
+    const ask = p.locator('[role="alertdialog"]');
+    await ask.locator('h3', { hasText: 'Delete folder “Lyon”?' }).waitFor({ timeout: 5000 });
+    await ask.locator('.message', { hasText: 'It is empty.' }).waitFor({ timeout: 5000 });
+    await ask.locator('button.danger').click();
+    await toast(p, 'Deleted “Lyon”');
+    if (await item('Lyon').count()) throw new Error('Lyon is still listed');
+  } finally {
+    await p.close();
+  }
+});
+
+await step('“Create ‘name’” in the Move and Label menus', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('.row', { hasText: 'Hafta sonu planı?' }).click();
+    await p.locator('body').press('v');
+    await p.keyboard.type('Clients');
+    const create = p.locator('.menu-item.create');
+    if ((await create.innerText()).trim() !== 'Create folder “Clients”') throw new Error(`the menu offers "${await create.innerText()}"`);
+    await p.keyboard.press('Enter');
+    await toast(p, 'Moved to Clients');
+    await personal(p).locator('.item', { hasText: 'Clients' }).click();
+    await p.locator('.row', { hasText: 'Hafta sonu planı?' }).waitFor({ timeout: 5000 });
+    // Gmail: a new label, put on the conversation.
+    await p.locator('body').press('g');
+    await p.locator('body').press('i');
+    await p.locator('.row', { hasText: 'New onboarding flow' }).click();
+    await p.locator('body').press('l');
+    await p.keyboard.type('Urgent');
+    await p.locator('.menu-item.create', { hasText: 'Create label “Urgent”' }).waitFor({ timeout: 5000 });
+    await p.keyboard.press('Enter');
+    await toast(p, 'Added label “Urgent”');
+    await p.locator('.row', { hasText: 'New onboarding flow' }).locator('.label', { hasText: 'Urgent' }).waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
+await step('Empty Trash asks with the count, then deletes everything', async () => {
+  const p = await fresh();
+  try {
+    // Near the top of the list, clear of the toasts at the bottom.
+    for (const subject of ['Hafta sonu planı?', 'Photos from the weekend']) {
+      await p.locator('.row', { hasText: subject }).click();
+      await p.locator('body').press('#');
+      await toast(p, 'Moved to Trash');
+    }
+    const trash = personal(p).locator('.item', { hasText: 'Trash' });
+    await trash.click();
+    await eventually(p, async () => (await p.locator('.row').count()) === 2, 'Trash does not list the two conversations');
+    await trash.click({ button: 'right' });
+    await p.locator('.menu-item', { hasText: 'Empty Trash' }).click();
+    // The question deleting forever asks, with the count.
+    const ask = p.locator('[role="alertdialog"]');
+    await ask.locator('h3', { hasText: 'Delete 2 conversations forever?' }).waitFor({ timeout: 5000 });
+    await ask.locator('button.danger', { hasText: 'Delete forever' }).click();
+    await toast(p, 'Deleted 2 conversations');
+    await eventually(p, async () => (await p.locator('.row').count()) === 0, 'Trash is not empty');
+  } finally {
+    await p.close();
+  }
+});
+
 await step('Not spam brings a conversation back, and ! toggles', async () => {
   const p = await fresh();
   try {

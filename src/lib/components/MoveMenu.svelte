@@ -1,7 +1,8 @@
 <script lang="ts">
   import Popover from './Popover.svelte';
   import { mail, roleLabel } from '../stores/mail.svelte';
-  import { Check, Folder, Search, Tag } from '../icons';
+  import { createAndLabel, createAndMove, moveTargetOf } from '../stores/folders.svelte';
+  import { Check, Folder, Plus, Search, Tag } from '../icons';
   import { t } from '../i18n';
 
   let { x, y, ids, labels = false, onclose }: { x: number; y: number; ids: number[]; labels?: boolean; onclose: () => void } = $props();
@@ -10,7 +11,19 @@
   let input: HTMLInputElement | undefined = $state();
   let hi = $state(0);
 
-  const accountIds = $derived(new Set(mail.items.filter((th) => ids.includes(th.id)).map((th) => th.accountId)));
+  const accountIds = $derived(
+    new Set([...mail.items, ...(mail.detail ? [mail.detail.thread] : [])].filter((th) => ids.includes(th.id)).map((th) => th.accountId)),
+  );
+  /** The one account of the conversations, where a missing folder or label can be made. */
+  const account = $derived(accountIds.size === 1 ? mail.accountById.get([...accountIds][0]) : undefined);
+  const newKind = $derived(labels || account?.kind === 'gmail' ? 'label' : 'folder');
+  /** "Create ‘name’" when no folder (or label) of the account is called what was typed. */
+  const canCreate = $derived(
+    !!account &&
+      !!q.trim() &&
+      !(labels && account.kind === 'imap') &&
+      !mail.folders.some((f) => f.accountId === account.id && f.kind === newKind && f.name.toLowerCase() === q.trim().toLowerCase()),
+  );
   const options = $derived(
     mail.folders
       .filter((f) => accountIds.size === 0 || accountIds.has(f.accountId))
@@ -18,29 +31,29 @@
       .filter((f) => !q || f.path.toLowerCase().includes(q.toLowerCase()) || (f.role && roleLabel(f.role).toLowerCase().includes(q.toLowerCase())))
       .slice(0, 40),
   );
+  /** The last row: "Create ‘name’" when it is offered. */
+  const last = $derived(options.length - (canCreate ? 0 : 1));
 
   $effect(() => {
     input?.focus();
   });
 
   function pick(i: number) {
-    const f = options[i];
-    if (!f) return;
+    // Read before closing: a menu opened from the keyboard has no props once it is closed.
+    const [asLabels, targets, owner, name, f] = [labels, ids, account, q, options[i]];
+    const create = i === options.length && canCreate;
+    if (!create && !f) return;
     onclose();
-    if (labels) return mail.toggleLabel(f.id, ids);
-    const target =
-      f.role === 'inbox' ? { kind: 'inbox' as const }
-      : f.role === 'trash' ? { kind: 'trash' as const }
-      : f.role === 'junk' ? { kind: 'junk' as const }
-      : f.role === 'archive' || f.role === 'all' ? { kind: 'archive' as const }
-      : { kind: 'folder' as const, id: f.id };
-    mail.moveTo(target, ids, f.role ? roleLabel(f.role) : f.name);
+    if (create && owner) return asLabels ? createAndLabel(owner, name, targets) : createAndMove(owner, name, targets);
+    if (!f) return;
+    if (asLabels) return mail.toggleLabel(f.id, targets);
+    mail.moveTo(moveTargetOf(f), targets, f.role ? roleLabel(f.role) : f.name);
   }
 
   function key(e: KeyboardEvent) {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      hi = Math.min(options.length - 1, hi + 1);
+      hi = Math.min(last, hi + 1);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       hi = Math.max(0, hi - 1);
@@ -70,8 +83,14 @@
         {#if has}<Check size={14} />{/if}
       </button>
     {:else}
-      <div class="empty"><Tag size={14} /> {t('moveMenu.noMatches')}</div>
+      {#if !canCreate}<div class="empty"><Tag size={14} /> {t('moveMenu.noMatches')}</div>{/if}
     {/each}
+    {#if canCreate}
+      <button class="menu-item create" class:highlighted={hi === options.length} onmouseenter={() => (hi = options.length)} onclick={() => pick(options.length)}>
+        <Plus size={15} />
+        <span class="truncate">{t(newKind === 'label' ? (account?.kind === 'gmail' ? 'folders.createLabelNamed' : 'folders.createCategoryNamed') : 'folders.createFolderNamed', { name: q.trim() })}</span>
+      </button>
+    {/if}
   </div>
 </Popover>
 
@@ -100,6 +119,10 @@
     height: 9px;
     border-radius: 3px;
     margin: 0 3px;
+  }
+  .create {
+    color: var(--accent-text);
+    font-weight: 550;
   }
   .empty {
     display: flex;
