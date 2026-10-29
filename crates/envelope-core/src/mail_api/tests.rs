@@ -505,3 +505,99 @@ async fn a_draft_edited_elsewhere_opens_as_the_server_has_it() {
     assert_eq!(draft.data.subject, "Plan, edited");
     assert!(!draft.local_only);
 }
+
+/// Records what the engine tells the interface.
+#[derive(Clone, Default)]
+struct Captured(std::sync::Arc<parking_lot::Mutex<Vec<EngineEvent>>>);
+
+impl EventSink for Captured {
+    fn emit(&self, event: EngineEvent) {
+        self.0.lock().push(event);
+    }
+}
+
+#[tokio::test]
+async fn new_mail_notifies_as_its_account_says() {
+    let dir = std::env::temp_dir().join(format!("envelope-notify-{}", uuid::Uuid::new_v4()));
+    let events = Captured::default();
+    let engine = Engine::start(
+        Paths {
+            data: dir.join("data"),
+            cache: dir.join("cache"),
+        },
+        events.clone(),
+    )
+    .unwrap();
+    let account = |notify: NotifyMode| {
+        engine
+            .db
+            .write(|tx| {
+                let id = mail::insert_account(
+                    tx,
+                    AccountKind::Imap,
+                    "generic",
+                    &format!("{notify:?}@example.com"),
+                    "Alex Morgan",
+                    "#000",
+                    &AccountConfig {
+                        notify,
+                        ..AccountConfig::default()
+                    },
+                )?;
+                tx.execute("UPDATE accounts SET enabled = 0 WHERE id = ?", [id])?;
+                Ok(id)
+            })
+            .unwrap()
+    };
+    let thread = |id: i64, category: Option<&str>| ThreadSummary {
+        id,
+        account_id: 0,
+        subject: format!("Thread {id}"),
+        snippet: String::new(),
+        last_date: 0,
+        message_count: 1,
+        unread_count: 1,
+        flagged: false,
+        has_attachments: false,
+        draft_count: 0,
+        participants: Vec::new(),
+        last_sender: None,
+        folder_ids: Vec::new(),
+        category: category.map(str::to_string),
+        is_invite: false,
+        muted: false,
+        snoozed_until: None,
+    };
+    let arrived = || {
+        vec![
+            thread(1, Some("people")),
+            thread(2, Some("newsletters")),
+            thread(3, Some("notifications")),
+            thread(4, None),
+        ]
+    };
+    let notified = |account_id: i64| -> Option<Vec<i64>> {
+        events.0.lock().iter().rev().find_map(|e| match e {
+            EngineEvent::NewMail {
+                account_id: a,
+                threads,
+            } if *a == account_id => Some(threads.iter().map(|t| t.id).collect()),
+            _ => None,
+        })
+    };
+    for (mode, expected) in [
+        (NotifyMode::All, Some(vec![1, 2, 3, 4])),
+        // Unsorted conversations count as people's.
+        (NotifyMode::People, Some(vec![1, 4])),
+        (NotifyMode::None, None),
+    ] {
+        let id = account(mode);
+        engine.emit(EngineEvent::NewMail {
+            account_id: id,
+            threads: arrived(),
+        });
+        assert_eq!(notified(id), expected, "{mode:?}");
+    }
+    engine.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -86,9 +86,24 @@ pub struct AccountConfig {
     pub save_sent_copy: Option<bool>,
     /// How many days of mail to download message bodies for (None = all).
     pub body_sync_days: Option<u32>,
+    /// Which new mail of the account notifies.
+    pub notify: NotifyMode,
     /// Exchange Web Services settings (Exchange accounts only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exchange: Option<ExchangeConfig>,
+}
+
+/// Which new mail of an account notifies (on top of the app's own switch).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NotifyMode {
+    /// Every new conversation in the inbox.
+    #[default]
+    All,
+    /// Conversations with people: no newsletters or automatic notifications.
+    People,
+    /// Nothing.
+    None,
 }
 
 /// How an Exchange account signs in.

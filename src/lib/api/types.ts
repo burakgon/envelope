@@ -20,9 +20,14 @@ export interface AccountConfig {
   acceptInvalidCerts: boolean;
   saveSentCopy: boolean | null;
   bodySyncDays: number | null;
+  /** Which new mail notifies (all when missing). */
+  notify?: NotifyMode;
   /** Exchange Web Services settings (Exchange accounts only). */
   exchange?: ExchangeConfig | null;
 }
+
+/** Which new mail of an account notifies: all of it, conversations with people (no newsletters or automatic notifications), or none. */
+export type NotifyMode = 'all' | 'people' | 'none';
 
 /** How an Exchange account signs in: NTLM with a Basic fallback, or one of them. */
 export type ExchangeAuth = 'auto' | 'ntlm' | 'basic';

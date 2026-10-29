@@ -17,6 +17,7 @@
   // account itself changes once saved.
   const initial: AccountConfig = untrack(() => {
     const c = structuredClone($state.snapshot(account.config));
+    c.notify ??= 'all';
     if (account.kind === 'imap') {
       c.imap ??= blank(993);
       c.smtp ??= blank(465);
@@ -136,6 +137,14 @@
     <div class="fields">
       <label class="label" for="acct-name">{t('onboarding.yourName')}</label>
       <input id="acct-name" class="input" bind:this={first} bind:value={name} autocomplete="name" />
+
+      <label class="label" for="acct-notify">{t('accountSettings.notify')}</label>
+      <select id="acct-notify" class="input" bind:value={config.notify}>
+        <option value="all">{t('accountSettings.notifyAll')}</option>
+        <option value="people">{t('accountSettings.notifyPeople')}</option>
+        <option value="none">{t('accountSettings.notifyNone')}</option>
+      </select>
+      <span class="hint">{t('accountSettings.notifyDesc')}</span>
 
       <label class="label" for="acct-keep">{t('accountSettings.download')}</label>
       <select id="acct-keep" class="input" bind:value={config.bodySyncDays}>

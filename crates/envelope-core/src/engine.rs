@@ -149,6 +149,33 @@ impl Engine {
     }
 
     pub fn emit(&self, event: EngineEvent) {
+        let event = match event {
+            // New mail notifies as its account's settings say.
+            EngineEvent::NewMail {
+                account_id,
+                mut threads,
+            } => {
+                let mode = self
+                    .account_row(account_id)
+                    .map(|a| a.config.notify)
+                    .unwrap_or_default();
+                match mode {
+                    NotifyMode::All => {}
+                    NotifyMode::People => {
+                        threads.retain(|t| t.category.as_deref().is_none_or(|c| c == "people"))
+                    }
+                    NotifyMode::None => threads.clear(),
+                }
+                if threads.is_empty() {
+                    return;
+                }
+                EngineEvent::NewMail {
+                    account_id,
+                    threads,
+                }
+            }
+            other => other,
+        };
         self.events.emit(event);
     }
 

@@ -1020,11 +1020,13 @@ await step('account settings are edited after setup, and a wrong server is caugh
     await dialog.locator('button', { hasText: 'Test connection' }).click();
     await dialog.locator('.passed').waitFor({ timeout: 5000 });
     await dialog.locator('#acct-keep').selectOption({ label: 'From the last year' });
+    await dialog.locator('#acct-notify').selectOption({ label: 'Mail from people only' });
     await dialog.locator('button.primary', { hasText: 'Save' }).click();
     await p.locator('.toast', { hasText: 'Account settings saved' }).first().waitFor({ timeout: 5000 });
     await dialog.waitFor({ state: 'detached', timeout: 5000 });
     await row.locator('.icon-btn[aria-label="Account settings"]').click();
-    if ((await dialog.locator('#acct-keep option:checked').innerText()) !== 'From the last year') throw new Error('the setting was not kept');
+    if ((await dialog.locator('#acct-keep option:checked').innerText()) !== 'From the last year') throw new Error('the time kept was not saved');
+    if ((await dialog.locator('#acct-notify option:checked').innerText()) !== 'Mail from people only') throw new Error('the notification choice was not saved');
   } finally {
     await p.close();
   }
