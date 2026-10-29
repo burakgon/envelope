@@ -71,6 +71,17 @@ pub struct ListFeatures {
     pub reorder: bool,
 }
 
+/// The longest title and notes a service takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MaxLengths {
+    /// The service, as messages name it.
+    pub service: &'static str,
+    /// Characters of a title.
+    pub title: usize,
+    /// Characters of notes.
+    pub notes: usize,
+}
+
 impl TaskListKind {
     pub fn as_str(self) -> &'static str {
         match self {
@@ -111,6 +122,20 @@ impl TaskListKind {
             importance,
             subtasks,
             reorder,
+        }
+    }
+
+    /// How long a title and notes may be on the service, where it refuses
+    /// longer ones: Google Tasks takes titles of up to 1024 characters and
+    /// notes of up to 8192.
+    pub fn max_lengths(self) -> Option<MaxLengths> {
+        match self {
+            TaskListKind::Google => Some(MaxLengths {
+                service: "Google Tasks",
+                title: 1024,
+                notes: 8192,
+            }),
+            _ => None,
         }
     }
 }
@@ -382,6 +407,27 @@ fn clean_notes(notes: &str) -> String {
     notes.replace("\r\n", "\n").trim().to_owned()
 }
 
+/// Fails for a title or notes longer than the service of `list` takes,
+/// which would refuse to save the task.
+fn check_lengths(list: &ListRow, fields: &TaskFields) -> Result<()> {
+    let Some(max) = list.kind.max_lengths() else {
+        return Ok(());
+    };
+    if fields.title.chars().count() > max.title {
+        return Err(Error::Invalid(format!(
+            "The title is too long for {}, which takes up to {} characters.",
+            max.service, max.title
+        )));
+    }
+    if fields.notes.chars().count() > max.notes {
+        return Err(Error::Invalid(format!(
+            "The notes are too long for {}, which takes up to {} characters.",
+            max.service, max.notes
+        )));
+    }
+    Ok(())
+}
+
 fn clean_name(name: &str) -> Result<String> {
     let name = name.trim();
     if name.is_empty() {
@@ -503,6 +549,7 @@ fn create_task_tx(tx: &rusqlite::Transaction<'_>, input: &TaskInput) -> Result<(
         parent_uid: parent.as_ref().map(|p| p.uid.clone()),
         position: end_position(tx, list.id, parent.as_ref().map(|p| p.id))?,
     };
+    check_lengths(&list, &fields)?;
     let uid = uuid::Uuid::new_v4().to_string();
     let remote = list.account_id.is_some();
     let id = tdb::insert_local(
@@ -567,7 +614,7 @@ fn apply_edits(
             }
         }
     }
-    Ok(())
+    check_lengths(list, fields)
 }
 
 fn update_task_tx(
@@ -640,6 +687,7 @@ fn move_task_tx(
         if !list.kind.features().due_times {
             fields.due_at = None;
         }
+        check_lengths(&list, &fields)?;
         let id = tdb::insert_local(
             tx,
             &tdb::NewTask {

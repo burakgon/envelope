@@ -936,6 +936,57 @@ async fn google_lists_deleted_there_keep_what_was_not_uploaded() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn google_takes_titles_and_notes_up_to_its_limits() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = oauth_account(&fx, AccountKind::Gmail, TASKS_SCOPE);
+    let service = google_tasks(&fx, &server);
+    mount_lists(&server).await;
+    store_lists(&fx, &account, &service).await;
+    let l1 = list_named(&fx, &account, "My Tasks");
+    let local = fx.local_list();
+    let refused = |result: Result<Task>, what: &str| match result {
+        Err(Error::Invalid(message)) => assert!(message.contains(what), "{message}"),
+        other => panic!("{other:?}"),
+    };
+
+    let longest = "a".repeat(1024);
+    let task = fx.create(input(l1.id, &longest)).await;
+    refused(
+        fx.engine.create_task(input(l1.id, &"a".repeat(1025))).await,
+        "title",
+    );
+    refused(
+        fx.engine
+            .update_task(
+                task.id,
+                TaskInput {
+                    notes: Some("n".repeat(8193)),
+                    ..input(l1.id, "Short")
+                },
+            )
+            .await,
+        "notes",
+    );
+    assert_eq!(fx.row(task.id).title, longest, "nothing changed");
+    // Fine on this computer, but not moved to Google, subtasks included.
+    let report = fx.create(input(local, "Write the report")).await;
+    fx.create(TaskInput {
+        parent_id: Some(Some(report.id)),
+        notes: Some("n".repeat(9000)),
+        ..input(local, "Collect the numbers")
+    })
+    .await;
+    refused(
+        fx.engine
+            .update_task(report.id, input(l1.id, "Write the report"))
+            .await,
+        "notes",
+    );
+    assert_eq!(fx.row(report.id).list_id, local);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn google_accounts_without_tasks_access_are_passed_over() {
     let fx = fixture();
     // Signed in before Envelope asked for tasks.
