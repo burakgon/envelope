@@ -15,7 +15,7 @@
 //! content of a series master carries Exchange's own `RRULE`; these
 //! conversions serve creating and updating series through properties.
 
-use chrono::{Datelike, NaiveDate, NaiveTime, TimeZone, Utc, Weekday};
+use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc, Weekday};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 
@@ -500,8 +500,21 @@ impl Recurrence {
     ///
     /// Rules Exchange cannot represent (hourly or secondly frequencies,
     /// several month days, yearly intervals, `BYWEEKNO`, ...) are rejected
-    /// with [`EwsError::InvalidInput`].
+    /// with [`EwsError::InvalidInput`]. A UTC `UNTIL` is taken as a UTC date;
+    /// see [`Recurrence::from_rrule_in`] for series planned in another zone.
     pub fn from_rrule(rrule: &str, start: NaiveDate) -> Result<Recurrence, EwsError> {
+        Recurrence::from_rrule_in(rrule, start, None)
+    }
+
+    /// [`Recurrence::from_rrule`] for a series planned in `tz`: a UTC
+    /// `UNTIL` (RFC 5545 wants one for zoned series, usually the end of the
+    /// last day there) becomes the date it falls on in `tz`, which is what
+    /// Exchange's end date means.
+    pub fn from_rrule_in(
+        rrule: &str,
+        start: NaiveDate,
+        tz: Option<Tz>,
+    ) -> Result<Recurrence, EwsError> {
         let unsupported = |what: &str| {
             EwsError::InvalidInput(format!("RRULE {what} cannot be represented in Exchange"))
         };
@@ -530,7 +543,7 @@ impl Recurrence {
                 "FREQ" => freq = Some(value.to_ascii_uppercase()),
                 "INTERVAL" => interval = value.parse().map_err(|_| invalid())?,
                 "COUNT" => count = Some(value.parse::<u32>().map_err(|_| invalid())?),
-                "UNTIL" => until = Some(parse_until(value).ok_or_else(invalid)?),
+                "UNTIL" => until = Some(parse_until(value, tz).ok_or_else(invalid)?),
                 "WKST" => wkst = Some(parse_weekday(value).ok_or_else(invalid)?),
                 "BYDAY" => {
                     for day in value.split(',') {
@@ -708,7 +721,13 @@ fn parse_by_day(entry: &str) -> Option<(Option<i32>, Weekday)> {
     Some((ordinal, day))
 }
 
-fn parse_until(value: &str) -> Option<NaiveDate> {
+/// The last date of an `UNTIL` value; a UTC one is read in `tz` when known.
+fn parse_until(value: &str, tz: Option<Tz>) -> Option<NaiveDate> {
+    let value = value.trim();
+    if let (Some(tz), Some(utc)) = (tz, value.strip_suffix(['Z', 'z'])) {
+        let at = NaiveDateTime::parse_from_str(utc, "%Y%m%dT%H%M%S").ok()?;
+        return Some(at.and_utc().with_timezone(&tz).date_naive());
+    }
     let date = value.get(..8)?;
     NaiveDate::parse_from_str(date, "%Y%m%d").ok()
 }
@@ -943,6 +962,82 @@ mod tests {
                 end: date(2024, 6, 30)
             }
         );
+    }
+
+    #[test]
+    fn rules_of_the_event_editor() {
+        // A series on Tuesday 10 November 2026, the month's second Tuesday.
+        let start = date(2026, 11, 10);
+        let new_york: Tz = "America/New_York".parse().unwrap();
+        let second_tuesday =
+            Recurrence::from_rrule("FREQ=MONTHLY;BYDAY=2TU;COUNT=5", start).unwrap();
+        assert_eq!(
+            second_tuesday,
+            Recurrence {
+                pattern: RecurrencePattern::RelativeMonthly {
+                    interval: 1,
+                    days: vec![DayOfWeek::Tuesday],
+                    index: DayOfWeekIndex::Second,
+                },
+                range: RecurrenceRange::Numbered { start, count: 5 },
+            }
+        );
+        assert_eq!(
+            written(&second_tuesday, true),
+            "<t:Recurrence><t:RelativeMonthlyRecurrence><t:Interval>1</t:Interval>\
+             <t:DaysOfWeek>Tuesday</t:DaysOfWeek><t:DayOfWeekIndex>Second</t:DayOfWeekIndex>\
+             </t:RelativeMonthlyRecurrence><t:NumberedRecurrence><t:StartDate>2026-11-10</t:StartDate>\
+             <t:NumberOfOccurrences>5</t:NumberOfOccurrences></t:NumberedRecurrence></t:Recurrence>"
+        );
+        for rule in [
+            "FREQ=MONTHLY;BYDAY=2TU;COUNT=5",
+            "FREQ=MONTHLY;INTERVAL=2;BYDAY=-1FR",
+            "FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=31",
+            "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE,FR",
+            "FREQ=DAILY;INTERVAL=4;COUNT=10",
+            "FREQ=YEARLY;BYMONTH=11;BYMONTHDAY=10",
+            // The end of 31 December in New York, in UTC.
+            "FREQ=WEEKLY;BYDAY=TU;UNTIL=20270101T045959Z",
+        ] {
+            let recurrence = Recurrence::from_rrule_in(rule, start, Some(new_york))
+                .unwrap_or_else(|e| panic!("{rule}: {e}"));
+            assert_eq!(recurrence.to_rrule(Some(new_york), false), rule);
+        }
+        // Exchange keeps the date the series ends on where it is planned,
+        // not the UTC one.
+        let until = Recurrence::from_rrule_in(
+            "FREQ=WEEKLY;BYDAY=TU;UNTIL=20270101T045959Z",
+            start,
+            Some(new_york),
+        )
+        .unwrap();
+        assert_eq!(
+            until.range,
+            RecurrenceRange::EndDate {
+                start,
+                end: date(2026, 12, 31)
+            }
+        );
+        let tokyo: Tz = "Asia/Tokyo".parse().unwrap();
+        let until =
+            Recurrence::from_rrule_in("FREQ=DAILY;UNTIL=20261230T150000Z", start, Some(tokyo))
+                .unwrap();
+        assert_eq!(
+            until.range,
+            RecurrenceRange::EndDate {
+                start,
+                end: date(2026, 12, 31)
+            }
+        );
+        // An all-day series ends on a date.
+        let all_day =
+            Recurrence::from_rrule_in("FREQ=DAILY;INTERVAL=2;UNTIL=20261231", start, None).unwrap();
+        assert_eq!(
+            all_day.to_rrule(None, true),
+            "FREQ=DAILY;INTERVAL=2;UNTIL=20261231"
+        );
+        // Every other year is the editor's one rule Exchange cannot keep.
+        assert!(Recurrence::from_rrule_in("FREQ=YEARLY;INTERVAL=2", start, None).is_err());
     }
 
     #[test]

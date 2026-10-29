@@ -1140,6 +1140,23 @@ mod tests {
         .unwrap();
         assert_eq!(utc_day.start, utc(2024, 7, 1, 0, 0));
         assert_eq!(utc_day.zone_id, "UTC");
+        // Zones that are not the primary zone of a Windows zone keep theirs
+        // rather than falling back to UTC (which would move repeating
+        // events by an hour at every DST change).
+        for (iana, id) in [
+            ("Europe/Rome", "W. Europe Standard Time"),
+            ("America/Toronto", "Eastern Standard Time"),
+            ("Asia/Calcutta", "India Standard Time"),
+        ] {
+            let timed = EventTiming::Timed {
+                start: utc(2024, 7, 1, 8, 0),
+                end: utc(2024, 7, 1, 9, 0),
+                time_zone: Some(iana.parse().unwrap()),
+            }
+            .resolve()
+            .unwrap();
+            assert_eq!(timed.zone_id, id, "{iana}");
+        }
         assert!(
             EventTiming::AllDay {
                 start: date(2024, 7, 1),

@@ -565,7 +565,7 @@ pub(crate) async fn write_update(
                     event
                         .rrule
                         .as_deref()
-                        .map(|rule| mapping::recurrence(rule, start))
+                        .map(|rule| mapping::recurrence(rule, start, &event, tz))
                         .transpose()?,
                 );
             }
@@ -657,7 +657,7 @@ async fn update_series(
             event
                 .rrule
                 .as_deref()
-                .map(|rule| mapping::recurrence(rule, first))
+                .map(|rule| mapping::recurrence(rule, first, event, tz))
                 .transpose()?,
         );
     }

@@ -882,9 +882,16 @@ fn location(event: &Event) -> Option<String> {
         .map(str::to_string)
 }
 
-/// A repeat rule as an Exchange recurrence for a series starting on `start`.
-pub(super) fn recurrence(rrule: &str, start: NaiveDate) -> Result<ews::Recurrence> {
-    ews::Recurrence::from_rrule(rrule, start)
+/// A repeat rule as an Exchange recurrence for `event`'s series, starting on
+/// `start` (its `UNTIL` read where the event is planned).
+pub(super) fn recurrence(
+    rrule: &str,
+    start: NaiveDate,
+    event: &Event,
+    default_tz: Tz,
+) -> Result<ews::Recurrence> {
+    let zone = (!event.is_all_day()).then(|| zone_of(&event.start, default_tz));
+    ews::Recurrence::from_rrule_in(rrule, start, zone)
         .map_err(|e| Error::Invalid(format!("Exchange cannot repeat an event this way ({e})")))
 }
 
@@ -944,7 +951,7 @@ pub(super) fn new_calendar_item(
     item.recurrence = event
         .rrule
         .as_deref()
-        .map(|rule| recurrence(rule, start_date(event, default_tz)))
+        .map(|rule| recurrence(rule, start_date(event, default_tz), event, default_tz))
         .transpose()?;
     item.uid = Some(event.uid.clone()).filter(|u| !u.trim().is_empty());
     Ok(item)

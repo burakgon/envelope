@@ -8,7 +8,9 @@ use std::sync::LazyLock;
 use chrono::{NaiveDate, Offset, TimeZone};
 use chrono_tz::{OffsetComponents, TZ_VARIANTS, Tz};
 
-use super::windows::{LEGACY_DISPLAY_NAMES, LEGACY_WINDOWS_ZONES, WINDOWS_ZONES};
+use super::windows::{
+    IANA_WINDOWS_ZONES, LEGACY_DISPLAY_NAMES, LEGACY_WINDOWS_ZONES, WINDOWS_ZONES,
+};
 
 static IANA_LOWER: LazyLock<HashMap<String, Tz>> = LazyLock::new(|| {
     TZ_VARIANTS
@@ -317,10 +319,22 @@ pub fn windows_to_iana(windows_id: &str) -> Option<Tz> {
         .copied()
 }
 
-/// Maps an IANA zone to the Windows zone id whose primary zone it is
-/// (`Europe/Berlin` → `W. Europe Standard Time`). Common aliases of the
-/// canonical names are understood too.
+/// Maps an IANA zone to its Windows zone id: the one whose primary zone it
+/// is (`Europe/Berlin` → `W. Europe Standard Time`), or else the one CLDR
+/// puts it in (`Europe/Rome` → `W. Europe Standard Time`). Aliases of the
+/// canonical names are understood too. Only zones Windows has no
+/// equivalent for (`Antarctica/Troll`) have none.
 pub fn iana_to_windows(tz: Tz) -> Option<&'static str> {
+    primary_windows_zone(tz).or_else(|| {
+        IANA_WINDOWS_ZONES
+            .iter()
+            .find(|(iana, _)| *iana == tz.name())
+            .map(|(_, id)| *id)
+    })
+}
+
+/// The Windows zone whose primary zone `tz` (or the zone it is an alias of) is.
+fn primary_windows_zone(tz: Tz) -> Option<&'static str> {
     let name = match tz.name() {
         "Asia/Calcutta" => "Asia/Kolkata",
         "Asia/Katmandu" => "Asia/Kathmandu",
@@ -447,7 +461,56 @@ mod tests {
             Some("Turkey Standard Time")
         );
         assert_eq!(iana_to_windows(Tz::UTC), Some("UTC"));
-        assert_eq!(iana_to_windows(Tz::Europe__Vaduz), None);
+        // Zones that are not the primary zone of a Windows zone.
+        assert_eq!(
+            iana_to_windows(Tz::Europe__Vaduz),
+            Some("W. Europe Standard Time")
+        );
+        assert_eq!(
+            iana_to_windows(Tz::Europe__Rome),
+            Some("W. Europe Standard Time")
+        );
+        assert_eq!(
+            iana_to_windows(Tz::America__Toronto),
+            Some("Eastern Standard Time")
+        );
+        assert_eq!(
+            iana_to_windows(Tz::US__Eastern),
+            Some("Eastern Standard Time")
+        );
+        assert_eq!(
+            iana_to_windows(Tz::Asia__Hong_Kong),
+            Some("China Standard Time")
+        );
+    }
+
+    #[test]
+    fn every_iana_zone_has_a_windows_zone() {
+        for (iana, id) in IANA_WINDOWS_ZONES {
+            assert!(Tz::from_str(iana).is_ok(), "{iana}");
+            assert!(windows_to_iana(id).is_some(), "{iana} -> {id}");
+        }
+        let now = NaiveDate::from_ymd_opt(2026, 1, 15)
+            .and_then(|d| d.and_hms_opt(12, 0, 0))
+            .unwrap_or_default();
+        let mut missing = Vec::new();
+        let mut elsewhere = Vec::new();
+        for tz in TZ_VARIANTS.iter().copied() {
+            let Some(id) = iana_to_windows(tz) else {
+                missing.push(tz.name());
+                continue;
+            };
+            let primary = windows_to_iana(id).unwrap_or(Tz::UTC);
+            let offset = |zone: Tz| zone.offset_from_utc_datetime(&now).base_utc_offset();
+            if (offset(tz) - offset(primary)).num_minutes().abs() > 60 {
+                elsewhere.push(tz.name());
+            }
+        }
+        assert_eq!(missing, ["Antarctica/Troll"]);
+        // Every zone keeps the base offset of its Windows zone, give or take
+        // DST rules Windows lumps together, but for a research station whose
+        // offset changed since CLDR placed it.
+        assert_eq!(elsewhere, ["Antarctica/Casey"]);
     }
 
     #[test]
