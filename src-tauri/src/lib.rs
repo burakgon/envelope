@@ -214,6 +214,7 @@ pub fn run() {
             commands::rule_matches,
             commands::rule_apply,
             commands::rule_undo,
+            commands::sender_threads,
             commands::move_threads,
             commands::undo,
             commands::delete_forever,

@@ -283,6 +283,11 @@ pub fn rule_undo(state: State<'_, AppState>, undo: RuleUndo) -> R<()> {
 }
 
 #[tauri::command]
+pub fn sender_threads(state: State<'_, AppState>, email: String, limit: i64) -> R<RuleMatches> {
+    Ok(state.engine.sender_threads(&email, limit)?)
+}
+
+#[tauri::command]
 pub fn move_threads(
     state: State<'_, AppState>,
     thread_ids: Vec<i64>,

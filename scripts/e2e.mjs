@@ -765,6 +765,33 @@ await step('a follow-up reminder is done, or comes back later', async () => {
   }
 });
 
+await step('blocking a sender moves their mail to Spam; Privacy unblocks', async () => {
+  const p = await fresh();
+  try {
+    const row = p.locator('.row', { hasText: 'Apartment viewing on Saturday' });
+    await row.click();
+    // Her message is folded above the reply being written.
+    await p.locator('.reader .collapsed', { hasText: 'Hannah Becker' }).click();
+    const card = p.locator('.card').filter({ has: p.locator('.row1 .name', { hasText: 'Hannah Becker' }) });
+    await card.locator('.icon-btn[title="More"]').click();
+    await p.locator('.menu-item', { hasText: 'Block sender' }).click();
+    const ask = p.locator('[role="alertdialog"]');
+    await ask.locator('h3', { hasText: 'Block Hannah Becker?' }).waitFor({ timeout: 5000 });
+    await ask.locator('.message', { hasText: 'already here moves there too' }).waitFor({ timeout: 5000 });
+    await ask.locator('button.danger', { hasText: 'Block' }).click();
+    await toast(p, 'Blocked hannah.becker@mail.test · 1 conversation moved to Spam');
+    await row.waitFor({ state: 'detached', timeout: 5000 });
+    await p.keyboard.press('Control+,');
+    await p.locator('.window .tab', { hasText: 'Privacy' }).click();
+    const blocked = p.locator('.blocked', { hasText: 'hannah.becker@mail.test' });
+    await blocked.locator('button', { hasText: 'Unblock' }).click();
+    await toast(p, 'Unblocked hannah.becker@mail.test');
+    await p.locator('.blocked-list', { hasText: 'You haven’t blocked anyone.' }).waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('a rule runs on mail already here, with a count and Undo', async () => {
   const p = await fresh();
   try {

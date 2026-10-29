@@ -333,6 +333,19 @@ export function createMockApi(): Api {
       changed(threadIds);
     },
     rules: {
+      fromSender: async (email, limit) => {
+        const sender = email.trim().toLowerCase();
+        const mine = new Set([...data.accounts.map((a) => a.email), ...identities.map((i) => i.email)].map((e) => e.toLowerCase()));
+        const skip = new Set(data.folders.filter((f) => ['sent', 'drafts', 'trash', 'junk'].includes(f.role ?? '')).map((f) => f.id));
+        const found = [...threads]
+          .sort((a, b) => b.lastDate - a.lastDate)
+          .filter((t) => {
+            const from = messages.filter((m) => m.threadId === t.id).map((m) => m.from?.email.toLowerCase() ?? '');
+            return from.includes(sender) && from.every((f) => f === sender || mine.has(f)) && t.folderIds.some((f) => !skip.has(f));
+          })
+          .map((t) => t.id);
+        return { total: found.length, threadIds: found.slice(0, limit) };
+      },
       matches: async (rule, limit) => {
         const skip = new Set(data.folders.filter((f) => ['sent', 'drafts', 'trash', 'junk'].includes(f.role ?? '')).map((f) => f.id));
         const mine = new Set([...data.accounts.map((a) => a.email), ...identities.map((i) => i.email)].map((e) => e.toLowerCase()));

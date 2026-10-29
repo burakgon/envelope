@@ -21,7 +21,8 @@
   import { cal } from '../stores/calendar.svelte';
   import type { ExtractedEvent } from '../api';
   import { fileIconKind } from '../utils/format';
-  import { CalendarPlus, Code, Eye, FileArrow, Filter, FolderDown, Forward, Image, Mail, More, Pen, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
+  import { CalendarPlus, Code, Eye, FileArrow, Filter, FolderDown, Forward, Image, Mail, More, Pen, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy, Ban } from '../icons';
+  import { blockSender, isBlocked, unblock } from '../stores/rules.svelte';
 
   let { message, expanded, ontoggle }: { message: MessageView; expanded: boolean; ontoggle: () => void } = $props();
 
@@ -305,6 +306,11 @@
           };
           ui.open('settings', 'rules');
         }}><Filter size={15} />{t('message.createRule')}</button>
+      {#if isBlocked(sender.email)}
+        <button class="menu-item" onclick={() => { menu = null; unblock(sender!.email.toLowerCase()); }}><Ban size={15} />{t('message.unblockSender')}</button>
+      {:else}
+        <button class="menu-item" onclick={() => { menu = null; blockSender(sender!); }}><Ban size={15} />{t('message.blockSender')}</button>
+      {/if}
     {/if}
     <button class="menu-item" onclick={() => { menu = null; printMessage(shown ?? message, remote); }}><Printer size={15} />{t('message.print')}</button>
     <button class="menu-item" onclick={viewSource}><Code size={15} />{t('message.viewSource')}</button>

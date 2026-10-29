@@ -16,7 +16,10 @@
     Bell, Pen, Reply, ReplyAll, Search, ShieldAlert, Star, Tag, Trash, Users, X, Refresh, Sparkles,
     AlarmClock,
     ShieldCheck,
+    Ban,
   } from '../icons';
+  import { blockSender, senderOf } from '../stores/rules.svelte';
+  import { displayName } from '../utils/format';
   import AccountAlerts from './AccountAlerts.svelte';
   import { t } from '../i18n';
 
@@ -339,6 +342,10 @@
       <button class="menu-item" onclick={() => { mail.notSpam(ids); menu = null; }}><ShieldCheck size={15} />{t('threadList.notSpam')}<span class="hint">!</span></button>
     {:else}
       <button class="menu-item" onclick={() => { mail.moveTo({ kind: 'junk' }, ids); menu = null; }}><ShieldAlert size={15} />{t('threadList.reportSpam')}<span class="hint">!</span></button>
+    {/if}
+    {@const sender = ids.length === 1 ? senderOf(menu.thread) : null}
+    {#if sender}
+      <button class="menu-item" onclick={() => { blockSender(sender); menu = null; }}><Ban size={15} /><span class="truncate">{t('threadList.blockSender', { name: displayName(sender) })}</span></button>
     {/if}
     {#if mail.inFollowUp}
       <div class="divider"></div>

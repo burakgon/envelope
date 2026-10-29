@@ -1,4 +1,6 @@
 // Mail rules run on mail that is already here ("Run now", "Also apply to existing messages").
+// Blocked senders: a "Blocked senders" rule sends their new mail to Spam, and blocking someone moves
+// what they sent before there too.
 
 import { api } from '../api';
 import type { Address, RuleUndo } from '../api';
@@ -52,4 +54,84 @@ export async function runRule(rule: MailRule) {
     toasts.dismiss(progress);
     toasts.error(t('rules.runFailed', { name: rule.name, error: errorMessage(e) }));
   }
+}
+
+// ----- blocked senders ----------------------------------------------------------------
+
+/** The rule holding the blocked senders. */
+export const BLOCKED_RULE = 'blocked-senders';
+
+/** Addresses whose mail goes to Spam. */
+export function blockedSenders(): string[] {
+  const rule = ui.settings.rules.find((r) => r.id === BLOCKED_RULE);
+  return rule ? rule.conditions.filter((c) => c.field === 'from' && c.op === 'is').map((c) => c.value) : [];
+}
+
+export const isBlocked = (email: string) => blockedSenders().includes(email.trim().toLowerCase());
+
+/** A rule that sends one sender's mail to Spam. */
+const blockRule = (emails: string[], name = ''): MailRule => ({
+  id: BLOCKED_RULE,
+  name,
+  enabled: true,
+  accountId: null,
+  match: 'any',
+  conditions: emails.map((value) => ({ field: 'from', op: 'is', value })),
+  actions: [{ kind: 'spam' }],
+  stop: true,
+});
+
+/** Who a conversation is from, for "Block sender": the newest sender who isn't the user. */
+export function senderOf(thread: { lastSender: Address | null; participants: Address[] }): Address | null {
+  const mine = (a: Address | null | undefined) => !a || mail.meEmails.has(a.email.toLowerCase());
+  if (!mine(thread.lastSender)) return thread.lastSender;
+  return [...thread.participants].reverse().find((p) => !mine(p)) ?? null;
+}
+
+/**
+ * Blocks a sender after asking: their new mail goes to Spam (the "Blocked senders" rule, first among
+ * the rules), and so do the conversations from them already here. Undo unblocks and moves them back.
+ */
+export async function blockSender(sender: Address) {
+  const email = sender.email.trim().toLowerCase();
+  const once = blockRule([email]);
+  // Conversations they alone wrote: a group conversation they joined stays.
+  const found = await api.rules.fromSender(email, RUN_LIMIT).catch(() => ({ total: 0, threadIds: [] as number[] }));
+  const sure = await dialogs.confirm({
+    title: t('blocking.title', { name: displayName(sender) }),
+    message: t('blocking.message', { email, count: found.total }),
+    confirmLabel: t('blocking.block'),
+    danger: true,
+  });
+  if (!sure) return;
+  const rules = ui.settings.rules;
+  const current = rules.find((r) => r.id === BLOCKED_RULE);
+  const updated = current
+    ? rules.map((r) => (r.id === BLOCKED_RULE ? { ...r, conditions: [...r.conditions.filter((c) => c.value !== email), { field: 'from' as const, op: 'is' as const, value: email }] } : r))
+    : [blockRule([email], t('blocking.ruleName')), ...rules];
+  ui.set('rules', updated);
+  let undos: RuleUndo[] = [];
+  const progress = found.threadIds.length > CHUNK ? toasts.show(t('blocking.moving'), { kind: 'progress', duration: 0 }) : 0;
+  try {
+    undos = await applyInChunks(once, found.threadIds, progress);
+  } catch (e) {
+    toasts.error(errorMessage(e));
+  } finally {
+    if (progress) toasts.dismiss(progress);
+  }
+  mail.refresh();
+  toasts.undoable(t('blocking.blocked', { email, count: found.threadIds.length }), async () => {
+    unblock(email, true);
+    await undoAll(undos);
+  }, 10_000);
+}
+
+/** Lets a sender's mail into the inbox again. */
+export function unblock(email: string, quiet = false) {
+  const rules = ui.settings.rules;
+  const rule = rules.find((r) => r.id === BLOCKED_RULE);
+  if (!rule) return;
+  const conditions = rule.conditions.filter((c) => !(c.field === 'from' && c.value === email));
+  ui.set('rules', conditions.length ? rules.map((r) => (r.id === BLOCKED_RULE ? { ...r, conditions } : r)) : rules.filter((r) => r.id !== BLOCKED_RULE));
+  if (!quiet) toasts.show(t('blocking.unblocked', { email }));
 }

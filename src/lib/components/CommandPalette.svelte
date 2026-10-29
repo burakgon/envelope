@@ -18,7 +18,9 @@
     ListChecks, ListPlus,
     Check, AlarmClock,
     ShieldAlert, ShieldCheck,
+    Ban,
   } from '../icons';
+  import { blockSender, senderOf } from '../stores/rules.svelte';
 
   type Group = 'actions' | 'goTo' | 'help' | 'calendar' | 'conversation' | 'folders';
 
@@ -111,6 +113,7 @@
           mail.isSpam()
             ? { id: 'not-spam', label: t('palette.notSpam'), group: 'conversation', icon: ShieldCheck, hint: '!', keywords: t('palette.kw.notSpam'), run: () => mail.notSpam() }
             : { id: 'spam', label: t('palette.reportSpam'), group: 'conversation', icon: ShieldAlert, hint: '!', keywords: t('palette.kw.reportSpam'), run: () => mail.moveTo({ kind: 'junk' }) },
+          ...blockCommand(),
           ...(mail.inFollowUp
             ? [
                 { id: 'follow-up-done', label: t('palette.followUpDone'), group: 'conversation', icon: Check, run: () => mail.followUpDone() } satisfies Command,
@@ -120,6 +123,15 @@
         ]
       : [],
   );
+
+  /** "Block …" for the one conversation selected. */
+  function blockCommand(): Command[] {
+    const ids = mail.targets();
+    const thread = ids.length === 1 ? (mail.items.find((th) => th.id === ids[0]) ?? (mail.detail?.thread.id === ids[0] ? mail.detail.thread : undefined)) : undefined;
+    const sender = thread ? senderOf(thread) : null;
+    if (!sender) return [];
+    return [{ id: 'block', label: t('palette.blockSender', { name: displayName(sender) }), group: 'conversation', icon: Ban, searchOnly: true, keywords: t('palette.kw.blockSender'), run: () => blockSender(sender) }];
+  }
 
   function tomorrowMorning(): number {
     const d = new Date();

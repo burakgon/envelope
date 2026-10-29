@@ -12,6 +12,7 @@
   import { autoReplies } from '../../stores/autoReplies.svelte';
   import RulesSettings from './RulesSettings.svelte';
   import { health } from '../../stores/accountHealth.svelte';
+  import { blockedSenders, unblock } from '../../stores/rules.svelte';
   import Toggle from './Toggle.svelte';
   import Logo from '../Logo.svelte';
   import {
@@ -480,6 +481,18 @@
             <button class="btn sm" disabled={!ui.settings.trustedSenders.length} onclick={() => ui.set('trustedSenders', [])}>{t('common.clear')}</button>
           </div>
         </div>
+        <h3>{t('blocking.settingsTitle')}</h3>
+        <p class="desc">{t('blocking.settingsDesc')}</p>
+        <div class="group blocked-list">
+          {#each blockedSenders() as email (email)}
+            <div class="blocked">
+              <span class="addr truncate selectable">{email}</span>
+              <button class="btn sm" onclick={() => unblock(email)}>{t('blocking.unblock')}</button>
+            </div>
+          {:else}
+            <p class="desc none">{t('blocking.none')}</p>
+          {/each}
+        </div>
         <p class="desc">{t('settings.privacy.noTelemetry')}</p>
       {:else if ui.settingsTab === 'encryption'}
         <EncryptionSettings />
@@ -764,6 +777,25 @@
   }
   .acct-problem .inline-link {
     font-size: var(--text-sm);
+  }
+  .blocked {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 6px 12px 6px 16px;
+  }
+  .blocked + .blocked {
+    border-top: 1px solid var(--border);
+  }
+  .blocked .addr {
+    flex: 1;
+    min-width: 0;
+  }
+  .blocked-list .none {
+    margin: 0;
+    padding: 14px 16px;
+    color: var(--text-3);
   }
   .editor-card {
     display: grid;

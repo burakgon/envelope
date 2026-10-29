@@ -69,6 +69,7 @@ export function createTauriApi(): Api {
       matches: (rule, limit) => invoke('rule_matches', { rule, limit }),
       apply: (rule, threadIds) => invoke('rule_apply', { rule, threadIds }),
       undo: (undo) => invoke('rule_undo', { undo }),
+      fromSender: (email, limit) => invoke('sender_threads', { email, limit }),
     },
     messageSource: (id) => invoke('message_source', { id }),
     unsubscribe: (messageId) => invoke('unsubscribe', { messageId }),

@@ -533,3 +533,85 @@ async fn rules_run_on_existing_mail_and_undo() {
     );
     assert!(!crate::rules::acts_on_existing(&quiet));
 }
+
+#[tokio::test]
+async fn blocking_moves_only_conversations_the_sender_alone_wrote() {
+    let fx = fixture();
+    let (_, alone) = fx.message(
+        "INBOX",
+        1,
+        "s1@x",
+        None,
+        "Pest@Spam.example",
+        "Buy now",
+        3_000,
+        0,
+    );
+    fx.message(
+        "INBOX",
+        2,
+        "s2@x",
+        Some("s1@x"),
+        "me@example.com",
+        "Re: Buy now",
+        3_100,
+        1,
+    );
+    let (_, group) = fx.message(
+        "INBOX",
+        3,
+        "g1@x",
+        None,
+        "ann@example.com",
+        "Team lunch",
+        2_000,
+        0,
+    );
+    fx.message(
+        "INBOX",
+        4,
+        "g2@x",
+        Some("g1@x"),
+        "pest@spam.example",
+        "Re: Team lunch",
+        2_100,
+        0,
+    );
+    let (_, junk) = fx.message(
+        "Junk",
+        1,
+        "j@x",
+        None,
+        "pest@spam.example",
+        "Again",
+        1_000,
+        0,
+    );
+    let found = fx
+        .engine
+        .sender_threads("pest@spam.example", 100)
+        .expect("threads");
+    assert_eq!(
+        found.thread_ids,
+        [alone],
+        "not the group conversation, not Spam"
+    );
+    assert!(!found.thread_ids.contains(&group) && !found.thread_ids.contains(&junk));
+    // The rule that blocks them moves that conversation to Spam.
+    let block = rule(
+        r#"{"name":"Blocked senders","match":"any","conditions":[{"field":"from","op":"is","value":"pest@spam.example"}],"actions":[{"kind":"spam"}],"stop":true}"#,
+    );
+    let undo = fx
+        .engine
+        .apply_rule(&block, &found.thread_ids)
+        .expect("block");
+    assert!(
+        fx.list(Mailbox::Folder { id: fx.id("Junk") })
+            .contains(&alone)
+    );
+    fx.engine.undo_rule(&undo).expect("unblock");
+    assert!(
+        fx.list(Mailbox::Folder { id: fx.id("INBOX") })
+            .contains(&alone)
+    );
+}

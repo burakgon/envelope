@@ -49,6 +49,8 @@ export interface Api {
     matches(rule: MailRule, limit: number): Promise<T.RuleMatches>;
     apply(rule: MailRule, threadIds: number[]): Promise<T.RuleUndo>;
     undo(undo: T.RuleUndo): Promise<void>;
+    /** Conversations from one sender alone (every message not the user's is theirs), newest first. */
+    fromSender(email: string, limit: number): Promise<T.RuleMatches>;
   };
   messageSource(id: number): Promise<string>;
   unsubscribe(messageId: number): Promise<boolean>;

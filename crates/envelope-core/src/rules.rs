@@ -394,6 +394,46 @@ impl Engine {
         })
     }
 
+    /// Conversations from one sender alone, to move when they are blocked:
+    /// every message not written by the user is from `email`, so a group
+    /// conversation they joined stays. Spam, Trash, Sent and Drafts aside;
+    /// the newest first, at most `limit`.
+    pub fn sender_threads(&self, email: &str, limit: i64) -> crate::Result<RuleMatches> {
+        // As written (the index matches exactly) and in lower case.
+        let original = email.trim().to_string();
+        let email = original.to_lowercase();
+        self.db.read(|c| {
+            let mut candidates = c.prepare(
+                "SELECT t.id FROM threads t
+                 WHERE t.id IN (SELECT thread_id FROM messages WHERE from_email = ?1 OR from_email = ?2)
+                 ORDER BY t.last_date DESC",
+            )?;
+            let mut others = c.prepare_cached(
+                "SELECT EXISTS (SELECT 1 FROM messages m WHERE m.thread_id = ?1
+                                  AND lower(coalesce(m.from_email, '')) != ?2
+                                  AND lower(coalesce(m.from_email, '')) NOT IN
+                                      (SELECT lower(trim(email)) FROM identities UNION SELECT lower(trim(email)) FROM accounts))
+                        OR NOT EXISTS (SELECT 1 FROM thread_folders tf JOIN folders f ON f.id = tf.folder_id
+                                       WHERE tf.thread_id = ?1
+                                         AND (f.role IS NULL OR f.role NOT IN ('sent', 'drafts', 'trash', 'junk')))",
+            )?;
+            let ids: Vec<i64> = candidates
+                .query_map(rusqlite::params![email, original], |r| r.get(0))?
+                .collect::<rusqlite::Result<_>>()?;
+            let mut out = RuleMatches::default();
+            for id in ids {
+                if others.query_row(rusqlite::params![id, email], |r| r.get::<_, bool>(0))? {
+                    continue;
+                }
+                out.total += 1;
+                if (out.thread_ids.len() as i64) < limit {
+                    out.thread_ids.push(id);
+                }
+            }
+            Ok(out)
+        })
+    }
+
     /// Runs a rule's actions on conversations already here, as if their mail
     /// had just arrived, and returns what undoes it.
     pub fn apply_rule(&self, rule: &MailRule, thread_ids: &[i64]) -> crate::Result<RuleUndo> {
