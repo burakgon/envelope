@@ -149,6 +149,8 @@
   async function unsubscribe() {
     try {
       const done = await api.unsubscribe(message.id);
+      // Subscriptions then shows the sender as left.
+      if (done && sender) ui.set('unsubscribed', { ...ui.settings.unsubscribed, [sender.email.toLowerCase()]: Date.now() });
       toasts.show(done ? t('message.unsubscribed') : t('message.unsubscribePageOpened'), { kind: 'success' });
     } catch (e) {
       toasts.error(errorMessage(e));

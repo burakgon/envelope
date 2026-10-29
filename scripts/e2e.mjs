@@ -978,6 +978,8 @@ await step('Subscriptions: unsubscribe, archive what a list left in the inbox, d
     await byte.locator('button', { hasText: 'Unsubscribe' }).click();
     await toast(p, 'Unsubscribed from The Daily Byte');
     await byte.locator('.done', { hasText: 'Unsubscribed' }).waitFor({ timeout: 5000 });
+    // It keeps its place, not to move what is under the pointer.
+    if ((await dialog.locator('.row').first().innerText()).indexOf('The Daily Byte') < 0) throw new Error('the row moved');
     // What it left in the inbox goes to Archive, and comes back with Undo.
     await byte.locator('button[aria-label="Archive 1 conversation from the inbox"]').click();
     await toast(p, 'Archived 1 conversation from The Daily Byte');
@@ -986,7 +988,7 @@ await step('Subscriptions: unsubscribe, archive what a list left in the inbox, d
     await byte.locator('button[aria-label="Archive 1 conversation from the inbox"]').waitFor({ timeout: 5000 });
     // Deleting all of a sender's mail asks first.
     const rust = dialog.locator('.row', { hasText: 'Rust Weekly' });
-    await rust.locator('button[aria-label="More"]').click();
+    await rust.locator('button[aria-label="More for Rust Weekly"]').click();
     await p.locator('.menu-item', { hasText: 'Delete all' }).click();
     const ask = p.locator('[role="alertdialog"]');
     await ask.locator('h3', { hasText: 'Delete all mail from Rust Weekly?' }).waitFor({ timeout: 5000 });

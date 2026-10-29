@@ -26,7 +26,12 @@
 
   async function load() {
     try {
-      subs = await api.subscriptions();
+      // Those already left go last, in the order they had when the dialog opened.
+      const list = await api.subscriptions();
+      const kept = new Map((subs ?? []).map((s, i) => [s.email, i]));
+      subs = subs
+        ? list.sort((a, b) => (kept.get(a.email) ?? Infinity) - (kept.get(b.email) ?? Infinity))
+        : [...list.filter((s) => !left(s)), ...list.filter(left)];
     } catch (e) {
       toasts.error(errorMessage(e));
       ui.close();
@@ -41,19 +46,24 @@
       .filter(Boolean)
       .join(' · ');
 
-  /** The senders matching the search; those already left go last. */
+  /** The senders matching the search. */
   const shown = $derived.by(() => {
     const q = query.trim().toLowerCase();
-    const list = (subs ?? []).filter((s) => !q || s.email.includes(q) || (s.name ?? '').toLowerCase().includes(q));
-    return [...list.filter((s) => !left(s)), ...list.filter(left)];
+    return (subs ?? []).filter((s) => !q || s.email.includes(q) || (s.name ?? '').toLowerCase().includes(q));
   });
+
+  /** Marks a sender unsubscribed from (also when their page was used). */
+  function markLeft(s: Subscription) {
+    ui.set('unsubscribed', { ...ui.settings.unsubscribed, [s.email]: Date.now() });
+  }
 
   async function unsubscribe(s: Subscription) {
     if (s.unsubscribeMessageId == null || busy) return;
     busy = s.email;
     try {
+      // Only a request that unsubscribed counts; a page opened still needs the person to finish there.
       const done = await api.unsubscribe(s.unsubscribeMessageId);
-      ui.set('unsubscribed', { ...ui.settings.unsubscribed, [s.email]: Date.now() });
+      if (done) markLeft(s);
       toasts.show(done ? t('subscriptions.unsubscribed', { name: name(s) }) : t('message.unsubscribePageOpened'), { kind: 'success' });
     } catch (e) {
       toasts.error(errorMessage(e));
@@ -164,14 +174,14 @@
             {#if left(s)}
               <span class="done"><Check size={13} />{t('message.unsubscribed')}</span>
             {:else if s.unsubscribeMessageId != null}
-              <button class="btn sm" disabled={!!busy} onclick={() => unsubscribe(s)}>{t('message.unsubscribe')}</button>
+              <button class="btn sm" disabled={!!busy} aria-label={t('subscriptions.unsubscribeFrom', { name: name(s) })} onclick={() => unsubscribe(s)}>{t('message.unsubscribe')}</button>
             {/if}
             {#if s.inInbox}
               <button class="btn sm" disabled={!!busy} title={t('subscriptions.archiveAll', { count: s.inInbox })} aria-label={t('subscriptions.archiveAll', { count: s.inInbox })} onclick={() => archiveAll(s)}>
-                <Archive size={14} />{s.inInbox}
+                <Archive size={14} />{t('subscriptions.archiveCount', { count: s.inInbox })}
               </button>
             {/if}
-            <button class="icon-btn sm" aria-label={t('common.more')} title={t('common.more')} disabled={!!busy} onclick={(e) => openMenu(e, s)}><More size={15} /></button>
+            <button class="icon-btn sm" aria-label={t('subscriptions.moreFor', { name: name(s) })} title={t('common.more')} disabled={!!busy} onclick={(e) => openMenu(e, s)}><More size={15} /></button>
           </div>
         {/each}
       </div>
@@ -186,6 +196,9 @@
 {#if menu}
   <Popover x={menu.x} y={menu.y} width={220} over onclose={() => (menu = null)}>
     <button class="menu-item" onclick={() => fromMenu(show)}><Mails size={15} />{t('subscriptions.show')}</button>
+    {#if !left(menu.sub)}
+      <button class="menu-item" onclick={() => fromMenu(markLeft)}><Check size={15} />{t('subscriptions.markDone')}</button>
+    {/if}
     <button class="menu-item danger" onclick={() => fromMenu(deleteAll)}><Trash size={15} />{t('subscriptions.deleteAll')}</button>
     <button class="menu-item" onclick={() => fromMenu((s) => blockSender({ name: s.name, email: s.email }).then(load))}><Ban size={15} />{t('message.blockSender')}</button>
   </Popover>
@@ -272,9 +285,6 @@
   }
   .row:hover {
     background: var(--bg-hover);
-  }
-  .row.left {
-    opacity: 0.7;
   }
   .who {
     flex: 1;
