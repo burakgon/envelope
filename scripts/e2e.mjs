@@ -1359,6 +1359,91 @@ await step('e in Contacts edits without typing an e', async () => {
   }
 });
 
+await step('Space, Page Down, Home and End read a conversation; Space at its end opens the next unread', async () => {
+  const p = await fresh();
+  try {
+    await p.setViewportSize({ width: 1280, height: 560 });
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    const scroll = p.locator('.reader .scroll');
+    await p.locator('.reader .card').first().waitFor({ timeout: 5000 });
+    // Every message unfolded (;), so that it is long enough to scroll.
+    await p.keyboard.press(';');
+    const top = () => scroll.evaluate((el) => el.scrollTop);
+    const atEnd = () => scroll.evaluate((el) => el.scrollTop >= el.scrollHeight - el.clientHeight - 2);
+    await eventually(p, async () => !(await atEnd()), 'the conversation is not long enough to scroll');
+    await p.keyboard.press('Space');
+    await eventually(p, async () => (await top()) > 100, 'Space did not scroll the conversation');
+    const down = await top();
+    await p.keyboard.press('Shift+Space');
+    await eventually(p, async () => (await top()) < down, 'Shift+Space did not scroll back');
+    await p.keyboard.press('End');
+    await eventually(p, atEnd, 'End did not go to the end');
+    await p.keyboard.press('Home');
+    await eventually(p, async () => (await top()) === 0, 'Home did not go to the top');
+    await p.keyboard.press('PageDown');
+    await eventually(p, async () => (await top()) > 100, 'Page Down did not scroll');
+    // At the end, Space opens the next unread conversation below.
+    const next = (await p.locator('.row.selected ~ .row.unread .subject').first().innerText()).trim();
+    await p.keyboard.press('End');
+    await eventually(p, atEnd, 'End did not go to the end');
+    await p.keyboard.press('Space');
+    await p.locator('.reader .subject-block h2', { hasText: next }).waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
+await step('n and p move between messages, and ; expands them all', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('.row', { hasText: 'Offsite planning' }).first().click();
+    const cards = p.locator('.reader article.card');
+    await cards.first().waitFor({ timeout: 5000 });
+    const current = () => p.evaluate(() => document.activeElement?.closest('[data-message]')?.getAttribute('data-message') ?? null);
+    const ids = () => p.locator('.reader [data-message]').evaluateAll((els) => els.map((el) => el.getAttribute('data-message')));
+    await p.keyboard.press('n');
+    await eventually(p, async () => (await current()) === (await ids())[1], 'n did not move to the second message');
+    if ((await p.locator('.reader .more').count()) > 0) throw new Error('the folded messages stayed folded');
+    await p.keyboard.press('n');
+    await eventually(p, async () => (await current()) === (await ids())[2], 'n did not move to the third message');
+    await p.keyboard.press('p');
+    await eventually(p, async () => (await current()) === (await ids())[1], 'p did not move back');
+    await p.keyboard.press(';');
+    await eventually(p, async () => (await cards.count()) === (await ids()).length, 'not every message was expanded');
+    // In the command palette too.
+    await p.keyboard.press('Control+k');
+    await p.keyboard.type('next message');
+    await p.locator('.palette .row').filter({ has: p.locator('.label', { hasText: /^Next message$/ }) }).click();
+    await eventually(p, async () => (await current()) === (await ids())[2], 'the palette did not move to the next message');
+  } finally {
+    await p.close();
+  }
+});
+
+await step('Escape leaves a reply for the conversation, and closes it the second time', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    await p.locator('.reader .subject-block h2').waitFor({ timeout: 5000 });
+    await p.locator('body').press('r');
+    const inline = p.locator('.reader .composer.inline');
+    await inline.locator('.ProseMirror').click();
+    await p.keyboard.type('Sounds good, see you at ten.');
+    await p.keyboard.press('Escape');
+    if (!(await inline.count())) throw new Error('the first Escape closed the reply');
+    await eventually(p, () => p.locator('.reader .scroll').evaluate((el) => el === document.activeElement), 'the conversation did not get the focus');
+    await p.keyboard.press('Escape');
+    await inline.waitFor({ state: 'detached', timeout: 5000 });
+    await toast(p, 'Draft saved');
+    // The shortcuts sheet lists the reading keys.
+    await p.keyboard.press('?');
+    const sheet = p.getByRole('dialog', { name: 'Keyboard shortcuts' });
+    for (const text of ['Reading', 'Expand all messages', 'Next / previous message', 'Menu of the selected conversation']) await sheet.getByText(text, { exact: true }).waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

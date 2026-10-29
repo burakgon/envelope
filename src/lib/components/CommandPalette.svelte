@@ -19,9 +19,14 @@
     Check, AlarmClock,
     ShieldAlert, ShieldCheck,
     Ban,
+    ChevronDown, ChevronUp, ChevronsUpDown,
   } from '../icons';
   import { blockSender, senderOf } from '../stores/rules.svelte';
   import { modal } from '../actions/modal';
+  import type Reader from './Reader.svelte';
+
+  /** The open conversation, for its reading commands. */
+  let { reader }: { reader?: ReturnType<typeof Reader> } = $props();
 
   type Group = 'actions' | 'goTo' | 'help' | 'calendar' | 'conversation' | 'folders';
 
@@ -116,6 +121,7 @@
             ? { id: 'not-spam', label: t('palette.notSpam'), group: 'conversation', icon: ShieldCheck, hint: '!', keywords: t('palette.kw.notSpam'), run: () => mail.notSpam() }
             : { id: 'spam', label: t('palette.reportSpam'), group: 'conversation', icon: ShieldAlert, hint: '!', keywords: t('palette.kw.reportSpam'), run: () => mail.moveTo({ kind: 'junk' }) },
           ...blockCommand(),
+          ...readingCommands(),
           ...(mail.inFollowUp
             ? [
                 { id: 'follow-up-done', label: t('palette.followUpDone'), group: 'conversation', icon: Check, run: () => mail.followUpDone() } satisfies Command,
@@ -125,6 +131,17 @@
         ]
       : [],
   );
+
+  /** Moving through the messages of the open conversation (n, p, ;). */
+  function readingCommands(): Command[] {
+    if (!reader || !mail.detail) return [];
+    const r = reader;
+    return [
+      { id: 'next-message', label: t('palette.nextMessage'), group: 'conversation', icon: ChevronDown, hint: 'N', searchOnly: true, run: () => r.step(1) },
+      { id: 'previous-message', label: t('palette.previousMessage'), group: 'conversation', icon: ChevronUp, hint: 'P', searchOnly: true, run: () => r.step(-1) },
+      { id: 'expand-all', label: t('shortcuts.expandAll'), group: 'conversation', icon: ChevronsUpDown, hint: ';', searchOnly: true, run: () => r.expandAll() },
+    ];
+  }
 
   /** "Block …" for the one conversation selected. */
   function blockCommand(): Command[] {

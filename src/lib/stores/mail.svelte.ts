@@ -396,6 +396,14 @@ class Mail {
     if (next > this.items.length - 30) this.loadMore();
   }
 
+  /** Opens the next unread conversation below the selected one (Space at the end of a conversation). */
+  nextUnread() {
+    const i = this.items.findIndex((t) => t.id === this.selectedId);
+    const next = this.items.slice(i + 1).find((t) => t.unreadCount > 0);
+    if (next) this.select(next.id);
+    else toasts.show(t('mail.noMoreUnread'));
+  }
+
   async openThread(id: number) {
     if (this.markReadTimer) clearTimeout(this.markReadTimer);
     this.detailLoading = this.detail?.thread.id !== id;

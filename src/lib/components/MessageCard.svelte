@@ -164,14 +164,14 @@
     <time class="c-date">{messageDate(message.date)}</time>
   </button>
 {:else}
-  <article class="card" class:draft={isDraft}>
+  <article class="card" class:draft={isDraft} tabindex="-1" aria-labelledby="{uid}-from {uid}-date">
     <header>
       <button class="who" onclick={ontoggle} title={t('message.collapse')}>
         <Avatar person={sender} size={36} />
       </button>
       <div class="info">
         <div class="row1">
-          <span class="name selectable">{fromMe ? t('message.senderMe') : displayName(sender)}</span>
+          <span class="name selectable" id="{uid}-from">{fromMe ? t('message.senderMe') : displayName(sender)}</span>
           {#if isDraft}<span class="draft-chip">{t('threadRow.draft')}</span>{/if}
           {#if sender && !fromMe && displayName(sender) !== sender.email}
             <span class="addr selectable">{sender.email}</span>
@@ -193,7 +193,7 @@
         {#if message.unsubscribe}
           <button class="unsub" onclick={unsubscribe}>{t('message.unsubscribe')}</button>
         {/if}
-        <time title={longDate(message.date)}>{messageDate(message.date)}</time>
+        <time id="{uid}-date" title={longDate(message.date)}>{messageDate(message.date)}</time>
         <button class="icon-btn sm" class:starred={message.flags.flagged} title={t('message.star')} onclick={() => { message.flags.flagged = !message.flags.flagged; api.setFlags([], [message.id], { flagged: message.flags.flagged }); }}>
           <Star size={15} fill={message.flags.flagged ? 'currentColor' : 'none'} />
         </button>

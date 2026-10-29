@@ -279,7 +279,11 @@ class Compose {
 
   async save(key: number, upload: boolean) {
     const c = this.get(key);
-    if (!c) return;
+    if (c) await this.store(c, upload);
+  }
+
+  /** Saves a composer's draft (also once it is closed); `upload` stores it on the server too. */
+  private async store(c: ComposerState, upload: boolean) {
     if (isEmpty(c.data) && c.draftId == null) return;
     c.saving = true;
     try {
@@ -303,11 +307,12 @@ class Compose {
   async close(key: number) {
     const c = this.get(key);
     if (!c) return;
+    // Anything written is saved as it is now, also when it was closed before its first save.
+    const written = this.timers.has(key);
     this.remove(key);
-    await this.save(c.key, true).catch(() => {});
+    if (written || c.draftId != null) await this.store(c, true);
     if (c.draftId != null) {
       const draftId = c.draftId;
-      await api.saveDraft(draftId, $state.snapshot(c.data) as DraftInput, true).catch(() => {});
       toasts.show(t('compose.draftSaved'), {
         action: { label: t('common.open'), run: () => this.openDraft(draftId) },
       });

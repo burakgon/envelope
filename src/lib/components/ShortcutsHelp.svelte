@@ -29,6 +29,18 @@
       ],
     },
     {
+      id: 'reading',
+      title: t('shortcuts.groupReading'),
+      keys: [
+        ['Space / PageDown', t('shortcuts.scrollDown')],
+        ['Shift Space / PageUp', t('shortcuts.scrollUp')],
+        ['Home / End', t('shortcuts.topBottom')],
+        ['N / P', t('shortcuts.nextPreviousMessage')],
+        [';', t('shortcuts.expandAll')],
+        ['Esc', t('shortcuts.leaveReply')],
+      ],
+    },
+    {
       id: 'actions',
       title: t('shortcuts.groupActions'),
       keys: [
@@ -45,6 +57,7 @@
         ['X', t('shortcuts.selectConversation')],
         ['Z', t('common.undo')],
         ['Ctrl A', t('shortcuts.selectAll')],
+        ['Shift F10', t('shortcuts.conversationMenu')],
       ],
     },
     {
@@ -101,7 +114,10 @@
   ]);
 
   // Named keys are translated ("Strg", "Entrée"); letters and symbols stay as they are.
-  const keyNames: Record<string, MessageKey> = { Ctrl: 'keys.ctrl', Enter: 'keys.enter', Esc: 'keys.esc', Delete: 'keys.delete', Space: 'tasks.keySpace' };
+  const keyNames: Record<string, MessageKey> = {
+    Ctrl: 'keys.ctrl', Shift: 'keys.shift', Enter: 'keys.enter', Esc: 'keys.esc', Delete: 'keys.delete', Space: 'tasks.keySpace',
+    PageUp: 'keys.pageUp', PageDown: 'keys.pageDown', Home: 'keys.home', End: 'keys.end',
+  };
   function keyLabel(key: string): string {
     const name: MessageKey | undefined = keyNames[key];
     return name ? t(name) : key;

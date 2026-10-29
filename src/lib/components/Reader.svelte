@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { compose } from '../stores/compose.svelte';
   import { mail } from '../stores/mail.svelte';
   import { ui } from '../stores/ui.svelte';
@@ -26,6 +27,9 @@
   let moveAt = $state<{ x: number; y: number; labels: boolean } | null>(null);
   let scroller: HTMLDivElement | undefined = $state();
   let lastThread = -1;
+  const uid = $props.id();
+  /** The message that last had the focus in this conversation (n and p go on from it). */
+  let lastFocused: number | null = null;
 
   const d = $derived(mail.detail);
   const thread = $derived(d?.thread);
@@ -52,6 +56,7 @@
       if (!m.flags.seen || i === d.messages.length - 1) next[m.id] = true;
     });
     expanded = next;
+    lastFocused = null;
     scroller?.scrollTo({ top: 0 });
   });
 
@@ -67,6 +72,62 @@
 
   /** The newest message that is not a draft: replies go to it. */
   const last = $derived([...messages].reverse().find((m) => !m.flags.draft) ?? messages[messages.length - 1]);
+
+  const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
+
+  /** Scrolls the conversation a page down or up (Space, Page Down…); false when it is at that end already. */
+  export function page(dir: 1 | -1): boolean {
+    const el = scroller;
+    if (!el) return false;
+    if (dir > 0 ? el.scrollTop >= el.scrollHeight - el.clientHeight - 2 : el.scrollTop <= 0) return false;
+    el.scrollBy({ top: dir * Math.max(40, el.clientHeight - 60), behavior: smooth() });
+    return true;
+  }
+
+  /** To the top or the bottom of the conversation (Home, End). */
+  export function edge(dir: 1 | -1) {
+    scroller?.scrollTo({ top: dir > 0 ? scroller.scrollHeight : 0, behavior: smooth() });
+  }
+
+  /**
+   * The next or previous message (n, p): from the one with the focus (or that had it, while the
+   * focus is outside the conversation), else the one at the top of the view. It is unfolded,
+   * scrolled to and given the focus, so that a screen reader reads it.
+   */
+  export async function step(dir: 1 | -1) {
+    if (!scroller || !messages.length) return;
+    const inside = scroller.contains(document.activeElement);
+    const focused = inside ? Number(document.activeElement?.closest<HTMLElement>('[data-message]')?.dataset.message) : lastFocused;
+    let at = messages.findIndex((m) => m.id === focused);
+    if (at < 0) {
+      at = 0;
+      const top = scroller.getBoundingClientRect().top + 48;
+      for (const el of scroller.querySelectorAll<HTMLElement>('[data-message]')) {
+        if (el.getBoundingClientRect().top <= top) at = messages.findIndex((m) => m.id === Number(el.dataset.message));
+      }
+    }
+    const next = messages[at + dir];
+    if (!next) return;
+    if (!shown.includes(next)) showAll = true;
+    expanded[next.id] = true;
+    await tick();
+    const el = scroller.querySelector<HTMLElement>(`[data-message="${next.id}"]`);
+    el?.scrollIntoView({ block: 'start', behavior: smooth() });
+    el?.querySelector<HTMLElement>('article, button')?.focus({ preventScroll: true });
+  }
+
+  /** Unfolds every message of the conversation (;). */
+  export function expandAll() {
+    showAll = true;
+    expanded = Object.fromEntries(messages.map((m) => [m.id, true]));
+  }
+
+  /** Closes the reply being written under the conversation, keeping its draft; false without one. */
+  export function closeReply(): boolean {
+    if (!inlineComposer) return false;
+    compose.close(inlineComposer.key);
+    return true;
+  }
 </script>
 
 <section class="reader">
@@ -118,10 +179,21 @@
   </header>
 
   {#if thread}
-    <div class="scroll" bind:this={scroller}>
+    <!-- The conversation: where Escape from a reply puts the focus, and what Space and the arrows scroll. -->
+    <div
+      class="scroll"
+      bind:this={scroller}
+      tabindex="-1"
+      role="region"
+      aria-labelledby="{uid}-subject"
+      onfocusin={(e) => {
+        const id = (e.target as HTMLElement).closest<HTMLElement>('[data-message]')?.dataset.message;
+        if (id) lastFocused = Number(id);
+      }}
+    >
       <div class="inner">
         <div class="subject-block">
-          <h2 class="selectable">{pgp.subjectOf(messages.map((m) => m.id)) ?? (thread.subject || t('common.noSubject'))}</h2>
+          <h2 class="selectable" id="{uid}-subject">{pgp.subjectOf(messages.map((m) => m.id)) ?? (thread.subject || t('common.noSubject'))}</h2>
           <div class="chips">
             {#if mail.multiAccount && account}
               <span class="chip"><span class="dot" style:background={account.color}></span>{account.label ?? account.email}</span>
@@ -144,7 +216,9 @@
                 <span class="line"></span><span class="pill">{t('reader.moreMessages', { count: hiddenCount })}</span><span class="line"></span>
               </button>
             {/if}
-            <MessageCard message={m} expanded={!!expanded[m.id]} ontoggle={() => (expanded[m.id] = !expanded[m.id])} />
+            <div class="msg" data-message={m.id}>
+              <MessageCard message={m} expanded={!!expanded[m.id]} ontoggle={() => (expanded[m.id] = !expanded[m.id])} />
+            </div>
           {/each}
         </div>
 
@@ -244,6 +318,12 @@
   .scroll {
     flex: 1;
     overflow-y: auto;
+  }
+  .scroll:focus-visible {
+    outline: none;
+  }
+  .msg {
+    scroll-margin-top: 8px;
   }
   .inner {
     max-width: 920px;

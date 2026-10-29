@@ -29,6 +29,7 @@ export { default as ChevronDown } from '@lucide/svelte/icons/chevron-down';
 export { default as ChevronRight } from '@lucide/svelte/icons/chevron-right';
 export { default as ChevronLeft } from '@lucide/svelte/icons/chevron-left';
 export { default as ChevronUp } from '@lucide/svelte/icons/chevron-up';
+export { default as ChevronsUpDown } from '@lucide/svelte/icons/chevrons-up-down';
 export { default as More } from '@lucide/svelte/icons/ellipsis';
 export { default as MoreVertical } from '@lucide/svelte/icons/ellipsis-vertical';
 export { default as X } from '@lucide/svelte/icons/x';

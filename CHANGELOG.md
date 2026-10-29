@@ -29,6 +29,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - A time zone for each event (Time zone, beside All day): times are typed in that zone, every kind of calendar keeps it, and the event's popover gives its times there when the zone is not this computer's.
 - A second time zone in the day and week views (Settings → Calendar), with an hour column of its own.
 - A work week view, Monday to Friday (`x`, or from the command palette).
+- Reading with the keyboard: Space and Page Down scroll the open conversation, and Space at its end opens the next unread one; Shift+Space and Page Up scroll back, Home and End go to its top and end; `n` and `p` go from message to message and `;` unfolds them all. In a reply under a conversation, Escape goes back to the conversation and a second Escape closes the reply, keeping the draft. The shortcuts sheet and the command palette list them.
 
 ### Changed
 - The header above a quoted reply or forwarded message ("On …, … wrote:", "Forwarded message") and its date are written in the interface language.
@@ -53,6 +54,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Events planned in a zone that is not the main one of its Windows zone (Rome, Toronto, Hong Kong, …) went to Exchange in UTC, so repeating ones moved by an hour when the clocks changed; a series ending on a date ended a day late west of UTC.
 - Editing a Microsoft 365 event put it in the computer's time zone; it keeps its own now, and zones go to Microsoft 365 by their Windows names, which it knows for every zone.
 - Menus — snooze, move, label, a message's More, templates, the context menus and the others — take the keyboard focus when they open, move with ↑, ↓, Home and End, choose with Enter, keep Tab inside, and close with Escape, putting the focus back where it was; keys pressed in them no longer reach the conversation list behind. Shift+F10 and the Menu key open the context menu of the selected conversation.
+- A message closed right after something was typed in it, before it was first saved, lost what was typed. Enter or Space on a focused button no longer also opens the selected conversation.
 - `e` in Contacts no longer types an “e” into the first name it starts editing. Choosing a time in the snooze menu opened with `h` or a row's snooze button, and Edit or Discard in the menu of a draft kept only on this computer, no longer fail.
 - Dialogs — account setup, Settings, the keyboard shortcuts, the command palette and the others — take the keyboard focus when they open, keep Tab inside, give the focus back when they close, and tell screen readers that they are modal and what they are called.
 - Screen readers name every switch and dropdown in Settings and the composer's From and Subject, and hear which conversation is selected as J and K move through the list. The buttons on a row are reached with Tab on the selected row only, and show while they have the focus; whatever has the keyboard focus shows a ring.

@@ -40,6 +40,7 @@
   let openedFiles = $state<string[]>([]);
   let kbMenu = $state<{ kind: 'snooze' | 'move' | 'label'; ids: number[] } | null>(null);
   let list: ReturnType<typeof ThreadList> | undefined = $state();
+  let reader: ReturnType<typeof Reader> | undefined = $state();
   let gPending = false;
   let gTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -278,6 +279,8 @@
     }
 
     const ids = mail.targets();
+    // Space and Enter on a focused button press it.
+    if ((key === ' ' || key === 'Enter') && target?.closest?.('button, a, select')) return;
     switch (key) {
       case 'j':
       case 'ArrowDown':
@@ -370,6 +373,29 @@
       case '4':
         if (mail.splitActive) mail.setCategory([ 'people', 'newsletters', 'notifications', null ][Number(key) - 1]);
         break;
+      case ' ':
+      case 'PageDown':
+      case 'PageUp': {
+        // Reading: a page further (back with Shift+Space); Space at the end goes on to the next unread conversation.
+        if (!mail.detail) break;
+        e.preventDefault();
+        const down = key === 'PageDown' || (key === ' ' && !e.shiftKey);
+        if (!reader?.page(down ? 1 : -1) && key === ' ' && down) mail.nextUnread();
+        break;
+      }
+      case 'Home':
+      case 'End':
+        if (!mail.detail) break;
+        e.preventDefault();
+        reader?.edge(key === 'End' ? 1 : -1);
+        break;
+      case 'n':
+      case 'p':
+        reader?.step(key === 'n' ? 1 : -1);
+        break;
+      case ';':
+        reader?.expandAll();
+        break;
       case 'F10':
       case 'ContextMenu':
         // The context menu of the selected conversation, as a right click opens it.
@@ -378,6 +404,8 @@
         list?.openRowMenu();
         break;
       case 'Escape':
+        // A reply under the conversation closes first (its draft is kept).
+        if (reader?.closeReply()) break;
         if (mail.checked.size) mail.checked.clear();
         else if (mail.selectedId != null) mail.select(null);
         break;
@@ -394,7 +422,7 @@
   <main>
     {#if ui.view === 'mail'}
       <ThreadList bind:this={list} />
-      <Reader />
+      <Reader bind:this={reader} />
     {:else if ui.view === 'calendar'}
       <CalendarView />
     {:else if ui.view === 'tasks'}
@@ -411,7 +439,7 @@
   </div>
 </div>
 
-{#if ui.overlay === 'palette'}<CommandPalette />{/if}
+{#if ui.overlay === 'palette'}<CommandPalette {reader} />{/if}
 {#if ui.overlay === 'shortcuts'}<ShortcutsHelp />{/if}
 {#if ui.overlay === 'settings'}<Settings />{/if}
 {#if ui.overlay === 'onboarding' || ui.overlay === 'addAccount'}<Onboarding first={ui.overlay === 'onboarding'} />{/if}

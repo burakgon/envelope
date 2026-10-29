@@ -191,6 +191,7 @@ Google and Microsoft sign-in need OAuth client ids, supplied at build time or ru
 | `/` | Search | `Ctrl K` | Command palette |
 | `g` then `i` / `s` / `d` / `t` | Inbox / starred / drafts / sent | `g` then `c` | Calendar |
 | `t` (calendar) | Today | `d` / `x` / `w` / `m` / `a` | Day / work week / week / month / agenda |
+| `Space` / `Shift Space` | Read on (at the end: next unread) / back | `n` / `p`, `;` | Next / previous message, expand all |
 
 Press `?` in the app for the full list.
 

@@ -5,7 +5,8 @@
   import { compose, type ComposerState } from '../stores/compose.svelte';
   import { mail } from '../stores/mail.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
-  import { dateFormat, displayName, fileSize } from '../utils/format';
+  import { composing, dateFormat, displayName, fileSize } from '../utils/format';
+  import { isTyping } from '../utils/focus';
   import { t } from '../i18n';
   import RecipientInput from './RecipientInput.svelte';
   import Editor from './Editor.svelte';
@@ -182,9 +183,14 @@
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !e.defaultPrevented) {
       e.preventDefault();
       send();
-    } else if (e.key === 'Escape' && !c.inline) {
+    } else if (e.key === 'Escape' && !composing(e)) {
       e.stopPropagation();
-      compose.close(c.key);
+      // A reply under the conversation: the first Escape leaves what is being written for the
+      // conversation (Space, n and p read on); the next one closes the reply, keeping the draft.
+      if (c.inline && isTyping(e.target as Element)) {
+        (e.target as HTMLElement).blur();
+        (e.currentTarget as HTMLElement).closest<HTMLElement>('.scroll')?.focus({ preventScroll: true });
+      } else compose.close(c.key);
     }
   }
 
