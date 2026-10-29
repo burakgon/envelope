@@ -114,9 +114,20 @@ export function zoneName(tz: string, style: 'longGeneric' | 'shortOffset' | 'sho
   return f.formatToParts(at).find((p) => p.type === 'timeZoneName')?.value ?? tz;
 }
 
-/** The city a zone is named after: "America/Argentina/Buenos_Aires" → "Buenos Aires". */
+/** A zone without a place: UTC, a fixed offset ("Etc/GMT+3", three hours behind UTC) or an old alias ("EST5EDT"). */
+function placeless(tz: string): boolean {
+  return !tz.includes('/') || tz.startsWith('Etc/');
+}
+
+/** The city a zone is named after ("America/Argentina/Buenos_Aires" → "Buenos Aires"); a zone without one by its offset. */
 export function zoneCity(tz: string): string {
+  if (placeless(tz)) return tz === 'UTC' ? 'UTC' : zoneName(tz, 'shortOffset');
   return (tz.split('/').pop() ?? tz).replace(/_/g, ' ');
+}
+
+/** "New York (GMT-5)", or "UTC". */
+export function zoneLabel(tz: string): string {
+  return placeless(tz) ? zoneCity(tz) : `${zoneCity(tz)} (${zoneName(tz, 'shortOffset')})`;
 }
 
 export interface ZoneChoice {
@@ -133,18 +144,22 @@ export interface ZoneChoice {
 
 let choices: { locale: string; list: ZoneChoice[] } | null = null;
 
-/** Every zone this computer knows, west to east; the computer's own is there even if it is an alias. */
+/**
+ * Every place this computer knows the zone of, west to east, and UTC; the computer's own zone
+ * is there even if it is an alias. Fixed offsets, which some systems list as well, are left out.
+ */
 export function zoneChoices(): ZoneChoice[] {
   const locale = intlLocale();
   if (choices?.locale === locale) return choices.list;
   const now = Date.now();
-  const ids = new Set(typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : []);
+  const known = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [];
+  const ids = new Set(known.filter((id) => !placeless(id)));
   ids.add(localZone());
   ids.add('UTC');
   const list = [...ids]
     .filter(isZone)
     .map((id): ZoneChoice => {
-      const city = id === 'UTC' ? 'UTC' : zoneCity(id);
+      const city = zoneCity(id);
       const name = zoneName(id, 'longGeneric', now);
       const offset = zoneName(id, 'shortOffset', now);
       return { id, city, name, offset, minutes: offsetMinutes(now, id), search: `${city} ${id} ${name} ${offset}`.toLowerCase() };

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { t } from '../../i18n';
-  import { localZone, sameZone, zoneChoices, zoneCity, zoneName, type ZoneChoice } from '../../utils/timezone';
+  import { localZone, sameZone, zoneChoices, zoneLabel, type ZoneChoice } from '../../utils/timezone';
   import Popover from '../Popover.svelte';
   import { Check, Globe, Search } from '../../icons';
 
@@ -27,7 +27,7 @@
   let list: HTMLDivElement | undefined = $state();
 
   const here = localZone();
-  const text = $derived(label ?? `${value === 'UTC' ? 'UTC' : zoneCity(value)} (${zoneName(value, 'shortOffset')})`);
+  const text = $derived(label ?? zoneLabel(value));
 
   // This computer's zone first, then every zone west to east.
   const shown = $derived.by((): ZoneChoice[] => {

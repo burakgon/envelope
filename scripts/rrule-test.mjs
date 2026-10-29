@@ -176,6 +176,8 @@ check('one zone, two names', tz.sameZone('Asia/Kolkata', 'Asia/Calcutta'), true)
 check('a name nobody knows', tz.isZone('Nowhere/Town'), false);
 inLanguage('en', 'en-US');
 check('zone names', [tz.zoneName(NY, 'longGeneric'), tz.zoneName('Asia/Tokyo', 'shortOffset')], ['Eastern Time', 'GMT+9']);
+check('zone labels', ['America/Argentina/Buenos_Aires', 'UTC', 'Etc/GMT+12'].map(tz.zoneLabel), ['Buenos Aires (GMT-3)', 'UTC', 'GMT-12']);
+check('the list has places and UTC, no fixed offsets', tz.zoneChoices().filter((z) => z.id.startsWith('Etc/') || !z.id.includes('/')).map((z) => z.id), ['UTC']);
 
 if (failed) {
   console.log(`\n${failed} of ${checks} check(s) failed`);
