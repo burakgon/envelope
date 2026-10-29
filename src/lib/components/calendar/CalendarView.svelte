@@ -54,7 +54,7 @@
 
 <section class="calendar" onwheel={onWheel}>
   <header data-tauri-drag-region>
-    {#if ui.sidebarCollapsed}
+    {#if ui.sidebarHidden}
       <button class="icon-btn" title={t('calendar.header.showSidebar')} onclick={() => (ui.sidebarCollapsed = false)}><PanelLeft size={17} /></button>
     {/if}
     <button class="btn sm today" onclick={() => cal.today()} title={t('calendar.header.todayTooltip', { key: 'T' })}>{t('time.today')}</button>

@@ -21,6 +21,11 @@
   import { tasks } from '../stores/tasks.svelte';
   import TasksSidebar from './tasks/TasksSidebar.svelte';
   import { intlLocale, t } from '../i18n';
+  import { modal } from '../actions/modal';
+  import type { View } from '../stores/ui.svelte';
+
+  /** A narrow window: a rail of icons, with the whole sidebar opening over the window from it. */
+  let { rail = false }: { rail?: boolean } = $props();
 
   const roleIcon: Record<FolderRole, typeof Inbox> = {
     inbox: Inbox, sent: Send, drafts: File, trash: Trash, junk: ShieldAlert, archive: Archive, all: Mails, starred: Star, important: Flag,
@@ -197,15 +202,103 @@
     ui.open('settings', 'accounts');
     if (a.sync.state === 'authError') toasts.show(t('sidebar.signInAgain', { email: a.email }));
   }
+
+  // The rail: what the top of the sidebar offers, as icons.
+  const primary = $derived(
+    ui.view === 'tasks'
+      ? { label: t('tasks.sidebar.newTask'), icon: Plus, run: () => tasks.newTask() }
+      : ui.view === 'contacts'
+        ? { label: t('sidebar.newContact'), icon: UserPlus, run: () => people.newContact() }
+        : ui.view === 'calendar'
+          ? { label: t('sidebar.newEvent'), icon: Plus, run: () => cal.newEvent() }
+          : { label: t('sidebar.newMessage'), icon: Compose, run: () => compose.new() },
+  );
+  const views = $derived<{ view: View; label: string; icon: typeof Mail }[]>([
+    { view: 'mail', label: t('sidebar.modeMail'), icon: Mail },
+    { view: 'calendar', label: t('sidebar.modeCalendar'), icon: Calendar },
+    { view: 'contacts', label: t('sidebar.modeContacts'), icon: BookUser },
+    { view: 'tasks', label: t('tasks.sidebar.mode'), icon: ListChecks },
+  ]);
+  const boxes = $derived<{ box: Mailbox; label: string; icon: typeof Mail; count?: number }[]>([
+    { box: { kind: 'unified', role: 'inbox' }, label: mail.multiAccount ? t('mailbox.allInboxes') : t('mailbox.inbox'), icon: Inbox, count: unified.inbox },
+    { box: { kind: 'starred' }, label: t('mailbox.starred'), icon: Star },
+    { box: { kind: 'snoozed' }, label: t('mailbox.snoozed'), icon: Clock },
+    ...(mail.followUpCount > 0 ? [{ box: { kind: 'followUp' } as Mailbox, label: t('mailbox.followUp'), icon: BellRing, count: mail.followUpCount }] : []),
+    { box: { kind: 'unified', role: 'drafts' }, label: t('mailbox.drafts'), icon: File },
+    { box: { kind: 'unified', role: 'sent' }, label: t('mailbox.sent'), icon: Send },
+  ]);
+
+  // The whole sidebar over the window closes with the rail, as the window grows wide again.
+  $effect(() => () => {
+    if (rail) ui.railOpen = false;
+  });
+
+  /** Going somewhere from the sidebar over the window (a folder, a new message, Settings) closes it. */
+  function leaveDrawer(e: MouseEvent) {
+    if ((e.target as HTMLElement).closest('button.item, button.compose')) ui.railOpen = false;
+  }
 </script>
 
+{#if rail}
+  <nav class="rail">
+    <div class="rail-head" data-tauri-drag-region>
+      <button class="icon-btn expand" title={t('threadList.showSidebar')} aria-label={t('threadList.showSidebar')} aria-expanded={ui.railOpen} onclick={() => (ui.railOpen = true)}>
+        <PanelLeft size={17} />
+      </button>
+    </div>
+    <button class="rail-compose" title={primary.label} aria-label={primary.label} onclick={primary.run}><primary.icon size={17} strokeWidth={2.3} /></button>
+    <div class="rail-group" role="tablist" aria-orientation="vertical">
+      {#each views as v (v.view)}
+        <button class="rail-item" class:on={ui.view === v.view} role="tab" aria-selected={ui.view === v.view} title={v.label} aria-label={v.label} onclick={() => (ui.view = v.view)}>
+          <v.icon size={17} />
+        </button>
+      {/each}
+    </div>
+    {#if ui.view === 'mail'}
+      <div class="rail-group">
+        {#each boxes as b (b.label)}
+          {@const on = mail.isMailbox(b.box)}
+          <button class="rail-item" class:on title={b.label} aria-label={b.count ? `${b.label} (${b.count})` : b.label} aria-current={on ? 'page' : undefined} onclick={() => go(b.box)}>
+            <b.icon size={17} />
+            {#if b.count}<span class="badge">{b.count > 99 ? '99+' : b.count}</span>{/if}
+          </button>
+        {/each}
+      </div>
+    {/if}
+    <span class="rail-grow" data-tauri-drag-region></span>
+    <button class="rail-item" title={t('sidebar.settings')} aria-label={t('sidebar.settings')} onclick={() => ui.open('settings')}><Settings size={17} /></button>
+  </nav>
+  {#if ui.railOpen}
+    <div class="scrim" role="presentation" onclick={() => (ui.railOpen = false)}></div>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div
+      class="drawer"
+      role="dialog"
+      aria-label={t('sidebar.title')}
+      tabindex="-1"
+      onclick={leaveDrawer}
+      onkeydown={(e) => {
+        if (e.key !== 'Escape' || e.defaultPrevented) return;
+        e.stopPropagation();
+        ui.railOpen = false;
+      }}
+      use:modal
+    >
+      {@render panel()}
+    </div>
+  {/if}
+{:else}
+  {@render panel()}
+{/if}
+
+{#snippet panel()}
 <aside class="sidebar" class:resizing style:width="{ui.settings.sidebarWidth}px">
   <header data-tauri-drag-region>
     <div class="brand" data-tauri-drag-region>
       <Logo size={22} />
       <span class="wordmark" data-tauri-drag-region>Envelope</span>
     </div>
-    <button class="icon-btn sm" title={t('sidebar.hideSidebar')} onclick={() => (ui.sidebarCollapsed = true)}><PanelLeft size={16} /></button>
+    <button class="icon-btn sm" title={t('sidebar.hideSidebar')} onclick={() => (rail ? (ui.railOpen = false) : (ui.sidebarCollapsed = true))}><PanelLeft size={16} /></button>
   </header>
 
   <div class="top">
@@ -434,8 +527,9 @@
     </button>
   </footer>
 
-  <div class="resizer" role="separator" aria-orientation="vertical" onpointerdown={startResize}></div>
+  {#if !rail}<div class="resizer" role="separator" aria-orientation="vertical" onpointerdown={startResize}></div>{/if}
 </aside>
+{/snippet}
 
 {#if outboxAt}
   <OutboxMenu x={outboxAt.x} y={outboxAt.y} onclose={() => (outboxAt = null)} />
@@ -446,6 +540,123 @@
 {/if}
 
 <style>
+  .rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 56px;
+    flex-shrink: 0;
+    height: 100%;
+    padding-bottom: 10px;
+    /* A window too short for every icon scrolls them. */
+    overflow-y: auto;
+    scrollbar-width: none;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+  }
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+  .rail-head {
+    display: grid;
+    place-items: center;
+    align-self: stretch;
+    height: var(--header-h);
+    flex-shrink: 0;
+  }
+  .rail-compose {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: 11px;
+    background: var(--accent-solid);
+    color: var(--accent-fg);
+    box-shadow: 0 1px 2px oklch(0.35 0.2 var(--accent-h) / 0.35), 0 4px 14px oklch(0.55 0.22 var(--accent-h) / 0.28), inset 0 1px 0 rgb(255 255 255 / 0.18);
+    transition: background var(--dur-fast);
+  }
+  .rail-compose:hover {
+    background: var(--accent-solid-hover);
+  }
+  .rail-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .rail-head + .rail-compose + .rail-group {
+    margin-top: 6px;
+  }
+  .rail-item {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 38px;
+    height: 32px;
+    border-radius: 9px;
+    color: var(--text-2);
+    transition: background var(--dur-fast), color var(--dur-fast);
+  }
+  .rail-item:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+  .rail-item.on {
+    background: var(--bg-selected);
+    color: var(--accent-text);
+  }
+  .rail-item .badge {
+    position: absolute;
+    top: 1px;
+    right: 0;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    background: var(--accent-solid);
+    color: var(--accent-fg);
+    box-shadow: 0 0 0 2px var(--bg-sidebar);
+  }
+  .rail-grow {
+    flex: 1;
+    align-self: stretch;
+  }
+  /* The whole sidebar over the window, opened from the rail. */
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    background: var(--overlay);
+    animation: fade-in var(--dur-fast);
+  }
+  .drawer {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 901;
+    display: flex;
+    max-width: calc(100vw - 48px);
+    box-shadow: var(--shadow-lg);
+    animation: drawer-in var(--dur) var(--ease-out);
+  }
+  .drawer .sidebar {
+    max-width: 100%;
+  }
+  @keyframes drawer-in {
+    from {
+      transform: translateX(-24px);
+      opacity: 0;
+    }
+  }
   .sidebar {
     position: relative;
     display: flex;

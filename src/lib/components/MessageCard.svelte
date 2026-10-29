@@ -609,7 +609,7 @@
     font-size: 12px;
     white-space: pre-wrap;
   }
-  @media (max-width: 1100px) {
+  @container (max-width: 640px) {
     .content,
     .files,
     .files-head {

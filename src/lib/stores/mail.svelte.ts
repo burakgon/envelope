@@ -110,6 +110,8 @@ class Mail {
   private seq = 0;
   /** How often a conversation was selected: one opened during a folder change keeps it open. */
   private selections = 0;
+  /** Conversations opened, counted: one closed while it was still loading stays closed. */
+  private opening = 0;
   private markReadTimer: ReturnType<typeof setTimeout> | null = null;
 
   meEmails = $derived(new Set([...this.accounts.map((a) => a.email), ...this.identities.map((i) => i.email)].map((e) => e.toLowerCase())));
@@ -319,6 +321,8 @@ class Mail {
 
   setMailbox(mb: Mailbox) {
     const selections = this.selections;
+    // One pane at a time: the new list shows.
+    if (ui.single) this.closeThread();
     this.mailbox = mb;
     this.search = '';
     this.filter = {};
@@ -422,11 +426,16 @@ class Mail {
     return local ? ids : ids.filter((id) => id > 0);
   }
 
+  /** One pane at a time, and it is the list: moving through it doesn't open the conversations. */
+  private get listing(): boolean {
+    return ui.single && this.detail == null && !this.detailLoading;
+  }
+
   move(delta: number) {
     if (this.items.length === 0) return;
     const i = this.items.findIndex((t) => t.id === this.selectedId);
     const next = i < 0 ? 0 : Math.min(this.items.length - 1, Math.max(0, i + delta));
-    this.select(this.items[next].id);
+    this.select(this.items[next].id, { open: !this.listing });
     if (next > this.items.length - 30) this.loadMore();
   }
 
@@ -440,10 +449,11 @@ class Mail {
 
   async openThread(id: number) {
     if (this.markReadTimer) clearTimeout(this.markReadTimer);
+    const opening = ++this.opening;
     this.detailLoading = this.detail?.thread.id !== id;
     try {
       const d = await api.thread(id);
-      if (this.selectedId !== id) return;
+      if (this.selectedId !== id || this.opening !== opening) return;
       this.detail = d;
       this.detailLoading = false;
       const missing = d.messages.filter((m) => !m.body).map((m) => m.id);
@@ -455,9 +465,18 @@ class Mail {
         }, delay);
       }
     } catch (e) {
+      if (this.opening !== opening) return;
       this.detailLoading = false;
       if (this.selectedId === id) toasts.error(errorMessage(e));
     }
+  }
+
+  /** Back to the list (one pane at a time): the conversation closes, its row stays selected. */
+  closeThread() {
+    if (this.markReadTimer) clearTimeout(this.markReadTimer);
+    this.opening++;
+    this.detail = null;
+    this.detailLoading = false;
   }
 
   private async fetchBodies(threadId: number, ids: number[]) {
@@ -510,7 +529,7 @@ class Mail {
     for (const id of ids) this.checked.delete(id);
     if (wasSelected) {
       const next = this.items[Math.min(idx, this.items.length - 1)];
-      this.select(next ? next.id : null);
+      this.select(next ? next.id : null, { open: !this.listing });
     }
   }
 

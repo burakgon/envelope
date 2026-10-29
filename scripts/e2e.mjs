@@ -1545,6 +1545,99 @@ await step('a custom snooze or send time is picked with the app\'s date and time
   }
 });
 
+/** Whether every element of `selector` lies within the window's width. */
+const inWindow = (p, selector) => p.locator(selector).evaluateAll((els) => els.every((el) => el.getBoundingClientRect().right <= innerWidth + 0.5));
+
+await step('half a screen (960 px): a rail, then the list and the conversation take turns', async () => {
+  const p = await fresh();
+  try {
+    await p.setViewportSize({ width: 960, height: 900 });
+    await p.locator('.rail').waitFor({ timeout: 5000 });
+    if (await p.locator('.sidebar').count()) throw new Error('the full sidebar is still beside the list');
+    const list = p.getByRole('listbox', { name: 'Conversations' });
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    const back = p.locator('.reader .back');
+    await back.waitFor({ timeout: 5000 });
+    if (await list.count()) throw new Error('the list stays beside the open conversation');
+    if (!(await inWindow(p, '.reader header button'))) throw new Error('the toolbar runs out of the window');
+    // Escape goes back to the list, with the conversation still selected and the keyboard on it.
+    await p.keyboard.press('Escape');
+    await list.waitFor({ timeout: 5000 });
+    if (await p.locator('.reader').count()) throw new Error('the conversation stays beside the list');
+    if (!(await list.getByRole('option', { selected: true }).innerText()).includes('Q4 roadmap')) throw new Error('the conversation is no longer selected');
+    await eventually(p, () => holdsFocus(list), 'the list did not get the focus back');
+    // j moves in the list without opening; Enter opens, Backspace and the Back button go back.
+    await p.keyboard.press('j');
+    if (await p.locator('.reader').count()) throw new Error('j in the list opened a conversation');
+    await p.keyboard.press('Enter');
+    await back.waitFor({ timeout: 5000 });
+    await p.keyboard.press('Backspace');
+    await list.waitFor({ timeout: 5000 });
+    await p.keyboard.press('Enter');
+    await back.click();
+    await list.waitFor({ timeout: 5000 });
+    // The rail opens the whole sidebar over the window; a folder there closes it.
+    await p.locator('.rail .expand').click();
+    const drawer = p.getByRole('dialog', { name: 'Sidebar' });
+    await drawer.waitFor({ timeout: 5000 });
+    await eventually(p, () => holdsFocus(drawer), 'the sidebar did not take the focus');
+    await p.keyboard.press('Escape');
+    await drawer.waitFor({ state: 'detached', timeout: 5000 });
+    await p.locator('.rail .expand').click();
+    await drawer.locator('.item', { hasText: 'Sent' }).first().click();
+    await drawer.waitFor({ state: 'detached', timeout: 5000 });
+    await p.locator('.list h1', { hasText: 'Sent' }).waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
+await step('the smallest window (780 px): mail, calendar, tasks and contacts fit', async () => {
+  const p = await fresh();
+  try {
+    await p.setViewportSize({ width: 780, height: 560 });
+    await p.locator('.row', { hasText: 'New onboarding flow' }).first().click();
+    await p.locator('.reader .back').waitFor({ timeout: 5000 });
+    if (!(await inWindow(p, '.reader header button, .reader .card header'))) throw new Error('the conversation runs out of the window');
+    for (const [keys, sel] of [[['g', 'c'], '.grid-wrap'], [['g', 'k'], '.tasks .quick input'], [['g', 'p'], '.contacts .search input']]) {
+      for (const k of keys) await p.locator('body').press(k);
+      await p.locator(sel).waitFor({ timeout: 5000 });
+      // Nothing to press lies past the window's edge.
+      const out = await p.evaluate(() =>
+        [...document.querySelectorAll('main button, main input')].filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.right > innerWidth + 1;
+        }).length,
+      );
+      if (out) throw new Error(`${keys.join(' ')}: ${out} buttons or fields run out of the window`);
+    }
+    await p.locator('.contacts .row', { hasText: 'Maya Chen' }).click();
+    await p.locator('.contacts .detail').waitFor({ timeout: 5000 });
+    if (!(await inWindow(p, '.contacts .detail button'))) throw new Error('the contact runs out of the window');
+  } finally {
+    await p.close();
+  }
+});
+
+await step('a toolbar short of room puts the rest in More', async () => {
+  // Narrower than the window can be made, as with a large text size: the conversation's toolbar
+  // has less room than its buttons need.
+  const p = await fresh();
+  try {
+    await p.setViewportSize({ width: 400, height: 700 });
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    const more = p.locator('.reader header .more-btn');
+    await more.waitFor({ timeout: 5000 });
+    if (!(await inWindow(p, '.reader header button'))) throw new Error('the toolbar runs out of the window');
+    await more.click();
+    await p.locator('.popover .menu-item', { hasText: 'Label…' }).waitFor({ timeout: 5000 });
+    await p.locator('.popover .menu-item', { hasText: 'Move to…' }).click();
+    await p.locator('.popover input[placeholder="Move to…"]').waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

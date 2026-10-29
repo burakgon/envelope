@@ -91,6 +91,8 @@
       if (viewport) height = viewport.clientHeight;
     });
     if (viewport) ro.observe(viewport);
+    // Back from a conversation with one pane at a time: the keyboard goes on in the list.
+    if (ui.single && !document.querySelector('[aria-modal="true"]')) viewport?.focus({ preventScroll: true });
     return () => ro.disconnect();
   });
 
@@ -220,9 +222,9 @@
   const inSnoozed = $derived(mail.mailbox.kind === 'snoozed');
 </script>
 
-<section class="list" class:resizing style:width="{ui.settings.listWidth}px">
+<section class="list" class:resizing class:single={ui.single} style:width={ui.single ? null : `${ui.settings.listWidth}px`}>
   <header data-tauri-drag-region>
-    {#if ui.sidebarCollapsed}
+    {#if ui.sidebarHidden}
       <button class="icon-btn" title={t('threadList.showSidebar')} onclick={() => (ui.sidebarCollapsed = false)}><PanelLeft size={17} /></button>
     {/if}
     <div class="title" data-tauri-drag-region>
@@ -350,7 +352,7 @@
       </div>
     {/if}
   </div>
-  <div class="resizer" role="separator" aria-orientation="vertical" onpointerdown={startResize}></div>
+  {#if !ui.single}<div class="resizer" role="separator" aria-orientation="vertical" onpointerdown={startResize}></div>{/if}
 </section>
 
 {#if menu && menu.thread.localDraftId != null}
@@ -443,6 +445,15 @@
     min-width: 0;
     background: var(--bg);
     border-right: 1px solid var(--border);
+  }
+  /* However wide it was made, the conversation beside it keeps room to be read. */
+  .list:not(.single) {
+    max-width: max(300px, calc(100% - 440px));
+  }
+  /* The list alone in a narrow window. */
+  .list.single {
+    flex: 1;
+    border-right: none;
   }
   header {
     display: flex;

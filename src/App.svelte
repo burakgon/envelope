@@ -41,6 +41,8 @@
   let kbMenu = $state<{ kind: 'snooze' | 'move' | 'label'; ids: number[] } | null>(null);
   let list: ReturnType<typeof ThreadList> | undefined = $state();
   let reader: ReturnType<typeof Reader> | undefined = $state();
+  /** A conversation is open (or opening): with one pane at a time, it takes the window. */
+  const reading = $derived(mail.detail != null || mail.detailLoading);
   let gPending = false;
   let gTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -193,6 +195,11 @@
     if (cal.editor || cal.scopeAsk) return;
     if (ui.overlay) {
       if (key === 'Escape') ui.close();
+      return;
+    }
+    // The whole sidebar over a narrow window has the keyboard until it closes.
+    if (ui.railOpen) {
+      if (key === 'Escape') ui.railOpen = false;
       return;
     }
     if (mod && key.toLowerCase() === 'a' && ui.view === 'mail') {
@@ -396,6 +403,13 @@
       case ';':
         reader?.expandAll();
         break;
+      case 'Backspace':
+        // Back to the list, with one pane at a time.
+        if (ui.single && reading) {
+          e.preventDefault();
+          mail.closeThread();
+        }
+        break;
       case 'F10':
       case 'ContextMenu':
         // The context menu of the selected conversation, as a right click opens it.
@@ -406,7 +420,8 @@
       case 'Escape':
         // A reply under the conversation closes first (its draft is kept).
         if (reader?.closeReply()) break;
-        if (mail.checked.size) mail.checked.clear();
+        if (ui.single && reading) mail.closeThread();
+        else if (mail.checked.size) mail.checked.clear();
         else if (mail.selectedId != null) mail.select(null);
         break;
     }
@@ -416,13 +431,16 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="app" class:booted>
-  {#if !ui.sidebarCollapsed}
+  {#if ui.rail}
+    <Sidebar rail />
+  {:else if !ui.sidebarCollapsed}
     <Sidebar />
   {/if}
   <main>
     {#if ui.view === 'mail'}
-      <ThreadList bind:this={list} />
-      <Reader bind:this={reader} />
+      <!-- One pane at a time in a narrow window: the list, or the conversation open from it. -->
+      {#if !ui.single || !reading}<ThreadList bind:this={list} />{/if}
+      {#if !ui.single || reading}<Reader bind:this={reader} />{/if}
     {:else if ui.view === 'calendar'}
       <CalendarView />
     {:else if ui.view === 'tasks'}

@@ -10,12 +10,13 @@
   import MoveMenu from './MoveMenu.svelte';
   import AiSummary from './AiSummary.svelte';
   import LinkStatus from './LinkStatus.svelte';
+  import OverflowBar, { type BarAction } from './OverflowBar.svelte';
   import { pgp } from '../stores/pgp.svelte';
   import { tasks } from '../stores/tasks.svelte';
   import {
     Archive, BellOff, Clock, Folder, Forward, ListChecks, ListPlus, Mail, MailOpen, Reply, ReplyAll, ShieldAlert, Star, Tag, Trash, Inbox,
     Check, AlarmClock,
-    ShieldCheck,
+    ShieldCheck, ArrowLeft,
   } from '../icons';
   import { t } from '../i18n';
 
@@ -46,6 +47,57 @@
   /** An open task made from this conversation. */
   const linkedTask = $derived(thread ? tasks.linked.get(thread.id) : undefined);
 
+  /** The toolbar's buttons, in order; those the window has no room for go into its More menu. */
+  const actions = $derived.by((): BarAction[] => {
+    if (!thread) return [];
+    const ids = [thread.id];
+    const list: BarAction[] = [];
+    if (mail.inFollowUp) list.push({ id: 'remind', title: t('reader.followUpLater'), icon: AlarmClock, run: (at) => (remindAt = at) });
+    list.push(
+      inInbox || !mail.isInboxView
+        ? { id: 'archive', title: t('reader.toolbarArchive', { key: 'E' }), label: t('threadList.archive'), key: 'E', icon: Archive, run: () => mail.archive(ids), group: true }
+        : { id: 'inbox', title: t('reader.toolbarMoveToInbox'), icon: Inbox, run: () => mail.moveTo({ kind: 'inbox' }, ids), group: true },
+      { id: 'delete', title: t('reader.toolbarDelete', { key: '#' }), label: t('common.delete'), key: '#', icon: Trash, run: () => mail.trash(ids) },
+    );
+    if (!inSpam) list.push({ id: 'spam', title: t('reader.toolbarSpam', { key: '!' }), label: t('threadList.reportSpam'), key: '!', icon: ShieldAlert, run: () => mail.moveTo({ kind: 'junk' }, ids) });
+    list.push(
+      { id: 'snooze', title: t('reader.toolbarSnooze', { key: 'H' }), label: t('threadList.snoozeMenu'), key: 'H', icon: Clock, run: (at) => (snoozeAt = at), group: true },
+      linkedTask
+        ? { id: 'task', title: t('tasks.calendar.open'), icon: ListChecks, active: true, run: () => tasks.reveal(linkedTask.id) }
+        : { id: 'task', title: t('tasks.reader.addToTasks', { key: 'T' }), label: t('tasks.palette.addToTasks'), key: 'T', icon: ListPlus, run: () => tasks.addFromMail(ids) },
+      {
+        id: 'mute',
+        title: thread.muted ? t('reader.toolbarUnmute', { key: 'M' }) : t('reader.toolbarMute', { key: 'M' }),
+        label: thread.muted ? t('reader.unmute') : t('reader.mute'),
+        key: 'M',
+        icon: BellOff,
+        active: thread.muted,
+        run: () => mail.toggleMute(ids),
+      },
+      {
+        id: 'read',
+        title: thread.unreadCount ? t('reader.toolbarMarkRead', { key: 'U' }) : t('reader.toolbarMarkUnread', { key: 'U' }),
+        label: thread.unreadCount ? t('threadList.markAsRead') : t('threadList.markAsUnread'),
+        key: 'U',
+        icon: thread.unreadCount ? MailOpen : Mail,
+        run: () => mail.toggleRead(ids),
+      },
+      { id: 'move', title: t('reader.toolbarMove', { key: 'V' }), label: t('threadList.moveTo'), key: 'V', icon: Folder, run: (at) => (moveAt = { ...at, labels: false }) },
+    );
+    if (account?.kind === 'gmail' || account?.kind === 'microsoft' || account?.kind === 'exchange') {
+      const gmail = account.kind === 'gmail';
+      list.push({
+        id: 'label',
+        title: gmail ? t('reader.toolbarLabel', { key: 'L' }) : t('reader.toolbarCategorize', { key: 'L' }),
+        label: gmail ? t('threadList.labelMenu') : t('threadList.categorizeMenu'),
+        key: 'L',
+        icon: Tag,
+        run: (at) => (moveAt = { ...at, labels: true }),
+      });
+    }
+    return list;
+  });
+
   $effect(() => {
     // Expand unread messages and the latest one when a conversation opens.
     if (!d || d.thread.id === lastThread) return;
@@ -64,11 +116,6 @@
   const shown = $derived(
     showAll ? messages : [messages[0], ...messages.slice(messages.length - 2)].filter((m, i, arr) => m && arr.indexOf(m) === i),
   );
-
-  function rect(e: MouseEvent) {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    return { x: r.left, y: r.bottom + 4 };
-  }
 
   /** The newest message that is not a draft: replies go to it. */
   const last = $derived([...messages].reverse().find((m) => !m.flags.draft) ?? messages[messages.length - 1]);
@@ -132,48 +179,23 @@
 
 <section class="reader">
   <header data-tauri-drag-region>
-    {#if thread}
-      <div class="actions">
-        {#if mail.inFollowUp}
-          <button class="btn sm pill" title={t('reader.followUpDoneTitle')} onclick={() => mail.followUpDone([thread.id])}><Check size={14} />{t('reader.followUpDone')}</button>
-          <button class="icon-btn" title={t('reader.followUpLater')} aria-label={t('reader.followUpLater')} onclick={(e) => (remindAt = rect(e))}><AlarmClock size={17} /></button>
-          <span class="sep"></span>
-        {/if}
-        {#if inSpam}
-          <button class="btn sm pill" title={t('reader.toolbarNotSpam', { key: '!' })} onclick={() => mail.notSpam([thread.id])}><ShieldCheck size={14} />{t('reader.notSpam')}</button>
-          <span class="sep"></span>
-        {/if}
-        {#if inInbox || !mail.isInboxView}
-          <button class="icon-btn" title={t('reader.toolbarArchive', { key: 'E' })} onclick={() => mail.archive([thread.id])}><Archive size={17} /></button>
-        {:else}
-          <button class="icon-btn" title={t('reader.toolbarMoveToInbox')} onclick={() => mail.moveTo({ kind: 'inbox' }, [thread.id])}><Inbox size={17} /></button>
-        {/if}
-        <button class="icon-btn" title={t('reader.toolbarDelete', { key: '#' })} onclick={() => mail.trash([thread.id])}><Trash size={17} /></button>
-        {#if !inSpam}
-          <button class="icon-btn" title={t('reader.toolbarSpam', { key: '!' })} onclick={() => mail.moveTo({ kind: 'junk' }, [thread.id])}><ShieldAlert size={17} /></button>
-        {/if}
-        <span class="sep"></span>
-        <button class="icon-btn" title={t('reader.toolbarSnooze', { key: 'H' })} onclick={(e) => (snoozeAt = rect(e))}><Clock size={17} /></button>
-        {#if linkedTask}
-          <button class="icon-btn active" title={t('tasks.calendar.open')} aria-label={t('tasks.calendar.open')} onclick={() => tasks.reveal(linkedTask.id)}><ListChecks size={17} /></button>
-        {:else}
-          <button class="icon-btn" title={t('tasks.reader.addToTasks', { key: 'T' })} aria-label={t('tasks.reader.addToTasks', { key: 'T' })} onclick={() => tasks.addFromMail([thread.id])}><ListPlus size={17} /></button>
-        {/if}
-        <button class="icon-btn" class:active={thread.muted} title={thread.muted ? t('reader.toolbarUnmute', { key: 'M' }) : t('reader.toolbarMute', { key: 'M' })} onclick={() => mail.toggleMute([thread.id])}><BellOff size={17} /></button>
-        <button class="icon-btn" title={thread.unreadCount ? t('reader.toolbarMarkRead', { key: 'U' }) : t('reader.toolbarMarkUnread', { key: 'U' })} onclick={() => mail.toggleRead([thread.id])}>
-          {#if thread.unreadCount}<MailOpen size={17} />{:else}<Mail size={17} />{/if}
-        </button>
-        <button class="icon-btn" title={t('reader.toolbarMove', { key: 'V' })} onclick={(e) => (moveAt = { ...rect(e), labels: false })}><Folder size={17} /></button>
-        {#if account?.kind === 'gmail' || account?.kind === 'microsoft' || account?.kind === 'exchange'}
-          <button class="icon-btn" title={account?.kind === 'gmail' ? t('reader.toolbarLabel', { key: 'L' }) : t('reader.toolbarCategorize', { key: 'L' })} onclick={(e) => (moveAt = { ...rect(e), labels: true })}><Tag size={17} /></button>
-        {/if}
-      </div>
+    {#if ui.single}
+      <button class="icon-btn back" title={t('reader.backToList')} aria-label={t('reader.backToList')} onclick={() => mail.closeThread()}><ArrowLeft size={17} /></button>
     {/if}
-    <span class="grow" data-tauri-drag-region></span>
     {#if thread}
+      {#if mail.inFollowUp}
+        <button class="btn sm pill" title={t('reader.followUpDoneTitle')} onclick={() => mail.followUpDone([thread.id])}><Check size={14} />{t('reader.followUpDone')}</button>
+      {/if}
+      {#if inSpam}
+        <button class="btn sm pill" title={t('reader.toolbarNotSpam', { key: '!' })} onclick={() => mail.notSpam([thread.id])}><ShieldCheck size={14} />{t('reader.notSpam')}</button>
+      {/if}
+      {#if mail.inFollowUp || inSpam}<span class="sep"></span>{/if}
+      <OverflowBar {actions} />
       <button class="icon-btn" class:star={thread.flagged} title={t('reader.toolbarStar', { key: 'S' })} onclick={() => mail.toggleStar([thread.id])}>
         <Star size={17} fill={thread.flagged ? 'currentColor' : 'none'} />
       </button>
+    {:else}
+      <span class="grow" data-tauri-drag-region></span>
     {/if}
     <WindowControls />
   </header>
@@ -272,6 +294,8 @@
     position: relative;
     flex: 1;
     min-width: 0;
+    /* Messages lay themselves out by the width they get (MessageCard). */
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -285,13 +309,12 @@
     padding: 0 12px;
     flex-shrink: 0;
   }
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: 2px;
+  .back {
+    margin-right: 4px;
   }
   /* A labeled action: the one that matters most in this list (Not spam, Done). */
   .pill {
+    flex-shrink: 0;
     height: 28px;
     margin-right: 2px;
     color: var(--accent-text);
@@ -303,6 +326,7 @@
     background: color-mix(in oklab, var(--accent) 18%, transparent);
   }
   .sep {
+    flex-shrink: 0;
     width: 1px;
     height: 18px;
     margin: 0 6px;

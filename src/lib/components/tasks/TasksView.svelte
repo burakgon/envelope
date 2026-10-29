@@ -122,7 +122,7 @@
     <!-- The title lines up with the list; the window's own buttons stay at its edges. -->
     <header data-tauri-drag-region>
       <div class="edge" data-tauri-drag-region>
-        {#if ui.sidebarCollapsed}
+        {#if ui.sidebarHidden}
           <button class="icon-btn" title={t('tasks.showSidebar')} onclick={() => (ui.sidebarCollapsed = false)}><PanelLeft size={17} /></button>
         {/if}
       </div>

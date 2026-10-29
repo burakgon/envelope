@@ -1,3 +1,4 @@
+import { MediaQuery } from 'svelte/reactivity';
 import { api } from '../api';
 import { setLanguage, type LanguageSetting } from '../i18n';
 
@@ -135,6 +136,12 @@ class Ui {
   /** A rule to open in the rules editor (from "Create rule…" on a message). */
   rulesDraft = $state<MailRule | null>(null);
   sidebarCollapsed = $state(false);
+  /** In a narrow window (half a screen): the sidebar is a rail of icons, and opens over the rest on demand. */
+  private wide = new MediaQuery('min-width: 1200px', true);
+  /** Narrower still: the conversation list and the open conversation take turns instead of sharing the window. */
+  private roomy = new MediaQuery('min-width: 1000px', true);
+  /** The rail's full sidebar is open over the window. */
+  railOpen = $state(false);
   settings = $state<Settings>({ ...defaultSettings });
   systemDark = $state(typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches);
   maximized = $state(false);
@@ -142,6 +149,19 @@ class Ui {
   askAi = $state('');
 
   isDark = $derived(this.settings.theme === 'dark' || (this.settings.theme === 'system' && this.systemDark));
+
+  get rail(): boolean {
+    return !this.wide.current;
+  }
+
+  get single(): boolean {
+    return !this.roomy.current;
+  }
+
+  /** Hidden by the person, so the views offer to show it again (the rail always shows). */
+  get sidebarHidden(): boolean {
+    return this.sidebarCollapsed && !this.rail;
+  }
 
   async load() {
     try {

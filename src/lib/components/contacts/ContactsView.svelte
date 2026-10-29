@@ -85,7 +85,7 @@
 <section class="contacts">
   <div class="list">
     <header data-tauri-drag-region>
-      {#if ui.sidebarCollapsed}
+      {#if ui.sidebarHidden}
         <button class="icon-btn" title={t('contacts.showSidebar')} onclick={() => (ui.sidebarCollapsed = false)}><PanelLeft size={17} /></button>
       {/if}
       <h1 data-tauri-drag-region>{t('contacts.title')}</h1>
