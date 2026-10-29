@@ -46,6 +46,14 @@ impl EventSink for TauriSink {
         {
             notify::follow_up(&self.app, *thread_id, subject);
         }
+        if let EngineEvent::TaskDue {
+            task_id,
+            title,
+            due_at,
+        } = &event
+        {
+            notify::task_due(&self.app, *task_id, title, *due_at);
+        }
         let _ = self.app.emit("engine", &event);
     }
 }
@@ -267,6 +275,20 @@ pub fn run() {
             commands::contact_get,
             commands::contact_save,
             commands::contact_delete,
+            commands::task_lists,
+            commands::tasks_query,
+            commands::tasks_due,
+            commands::task_get,
+            commands::task_subtasks,
+            commands::task_create,
+            commands::task_update,
+            commands::task_complete,
+            commands::task_reorder,
+            commands::task_delete,
+            commands::task_list_create,
+            commands::task_list_rename,
+            commands::task_list_delete,
+            commands::tasks_clear_completed,
             commands::autostart_get,
             commands::autostart_set,
             commands::set_native_strings,

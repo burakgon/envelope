@@ -903,3 +903,89 @@ pub async fn contact_save(state: State<'_, AppState>, contact: ContactInput) -> 
 pub async fn contact_delete(state: State<'_, AppState>, id: i64) -> R<()> {
     Ok(state.engine.delete_contact(id).await?)
 }
+
+// ----- tasks ---------------------------------------------------------------------------
+
+use envelope_core::tasks::{Task, TaskInput, TaskList, TaskView};
+
+#[tauri::command]
+pub async fn task_lists(state: State<'_, AppState>) -> R<Vec<TaskList>> {
+    let engine = state.engine.clone();
+    tauri::async_runtime::spawn_blocking(move || engine.task_lists())
+        .await
+        .map_err(|e| CmdError::from(e.to_string()))?
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn tasks_query(
+    state: State<'_, AppState>,
+    view: TaskView,
+    include_completed: bool,
+) -> R<Vec<Task>> {
+    Ok(state.engine.tasks_query(view, include_completed).await?)
+}
+
+#[tauri::command]
+pub async fn tasks_due(state: State<'_, AppState>, from: i64, to: i64) -> R<Vec<Task>> {
+    Ok(state.engine.tasks_due(from, to).await?)
+}
+
+#[tauri::command]
+pub async fn task_get(state: State<'_, AppState>, id: i64) -> R<Task> {
+    Ok(state.engine.task(id).await?)
+}
+
+#[tauri::command]
+pub async fn task_subtasks(state: State<'_, AppState>, id: i64) -> R<Vec<Task>> {
+    Ok(state.engine.task_subtasks(id).await?)
+}
+
+#[tauri::command]
+pub async fn task_create(state: State<'_, AppState>, input: TaskInput) -> R<Task> {
+    Ok(state.engine.create_task(input).await?)
+}
+
+#[tauri::command]
+pub async fn task_update(state: State<'_, AppState>, id: i64, input: TaskInput) -> R<Task> {
+    Ok(state.engine.update_task(id, input).await?)
+}
+
+#[tauri::command]
+pub async fn task_complete(state: State<'_, AppState>, id: i64, completed: bool) -> R<Task> {
+    Ok(state.engine.complete_task(id, completed).await?)
+}
+
+#[tauri::command]
+pub async fn task_reorder(state: State<'_, AppState>, id: i64, before_id: Option<i64>) -> R<()> {
+    Ok(state.engine.reorder_task(id, before_id).await?)
+}
+
+#[tauri::command]
+pub async fn task_delete(state: State<'_, AppState>, id: i64) -> R<()> {
+    Ok(state.engine.delete_task(id).await?)
+}
+
+#[tauri::command]
+pub async fn task_list_create(
+    state: State<'_, AppState>,
+    account_id: Option<i64>,
+    name: String,
+) -> R<TaskList> {
+    Ok(state.engine.create_task_list(account_id, &name).await?)
+}
+
+#[tauri::command]
+pub async fn task_list_rename(state: State<'_, AppState>, id: i64, name: String) -> R<()> {
+    Ok(state.engine.rename_task_list(id, &name).await?)
+}
+
+#[tauri::command]
+pub async fn task_list_delete(state: State<'_, AppState>, id: i64) -> R<()> {
+    Ok(state.engine.delete_task_list(id).await?)
+}
+
+#[tauri::command]
+pub async fn tasks_clear_completed(state: State<'_, AppState>, list_id: i64) -> R<()> {
+    Ok(state.engine.clear_completed_tasks(list_id).await?)
+}

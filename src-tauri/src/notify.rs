@@ -163,6 +163,43 @@ pub fn follow_up(app: &AppHandle, thread_id: i64, subject: &str) {
     );
 }
 
+/// A task is due at this time of day. Clicking opens it; the button
+/// completes it without opening the window.
+pub fn task_due(app: &AppHandle, task_id: i64, title: &str, due_at: i64) {
+    if !enabled(app, "taskNotifications") {
+        return;
+    }
+    let late = (now_ms() - due_at) / 60_000;
+    let body = if late < 1 {
+        strings::get("native.task.dueNow", "Due now")
+    } else {
+        strings::fill(
+            "native.task.overdue",
+            "Overdue by {minutes} min",
+            &[("minutes", &late.to_string())],
+        )
+    };
+    let buttons = vec![(
+        "complete",
+        strings::get("native.task.complete", "Mark as Done"),
+    )];
+    show_with(app, title.to_string(), body, buttons, move |app, action| {
+        if action != "complete" {
+            let _ = app.emit("open-task", task_id);
+            return;
+        }
+        let Some(state) = app.try_state::<AppState>() else {
+            return;
+        };
+        let engine = state.engine.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = engine.complete_task(task_id, true).await {
+                tracing::warn!("completing task {task_id} from its notification failed: {e}");
+            }
+        });
+    });
+}
+
 pub fn reminder(app: &AppHandle, event_id: i64, title: &str, start: i64, location: Option<&str>) {
     if !enabled(app, "calendarNotifications") {
         return;
@@ -177,13 +214,15 @@ pub fn reminder(app: &AppHandle, event_id: i64, title: &str, start: i64, locatio
     });
 }
 
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
 fn chrono_like(start_ms: i64) -> String {
-    let mins = (start_ms
-        - std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as i64)
-            .unwrap_or(0))
-        / 60_000;
+    let mins = (start_ms - now_ms()) / 60_000;
     match mins {
         m if m <= 0 => strings::get("native.reminder.now", "Starting now"),
         1 => strings::get("native.reminder.inOneMinute", "In 1 minute"),
