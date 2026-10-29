@@ -2,7 +2,7 @@
   import { tick } from 'svelte';
   import { slide } from 'svelte/transition';
   import type { TaskInput } from '../../api';
-  import { listName, tasks } from '../../stores/tasks.svelte';
+  import { listName, maxLengths, tasks } from '../../stores/tasks.svelte';
   import { mail } from '../../stores/mail.svelte';
   import { ui } from '../../stores/ui.svelte';
   import { intlLocale, t, type MessageKey } from '../../i18n';
@@ -112,6 +112,7 @@
     placeholder={readOnly ? t('tasks.quickAdd.readOnly', { list: listName(list) }) : t('tasks.quickAdd.placeholder')}
     aria-label={t('tasks.quickAdd.label')}
     aria-describedby={showChips ? 'quick-chips' : undefined}
+    maxlength={maxLengths(list)?.title}
     disabled={readOnly}
     spellcheck="true"
     onkeydown={key}

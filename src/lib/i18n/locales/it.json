@@ -1061,6 +1061,7 @@
   "tasks.detail.list": "Lista",
   "tasks.detail.notes": "Note",
   "tasks.detail.notesPlaceholder": "Aggiungi note",
+  "tasks.detail.maxLength": "{count, plural, one {Questa lista accetta qui fino a # carattere} other {Questa lista accetta qui fino a # caratteri}}",
   "tasks.detail.subtasks": "Sottoattività",
   "tasks.detail.subtaskTitle": "Sottoattività",
   "tasks.detail.addSubtask": "Aggiungi una sottoattività",

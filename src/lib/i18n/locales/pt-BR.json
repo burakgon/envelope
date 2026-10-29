@@ -1061,6 +1061,7 @@
   "tasks.detail.list": "Lista",
   "tasks.detail.notes": "Notas",
   "tasks.detail.notesPlaceholder": "Adicionar notas",
+  "tasks.detail.maxLength": "{count, plural, one {Esta lista aceita aqui até # caractere} other {Esta lista aceita aqui até # caracteres}}",
   "tasks.detail.subtasks": "Subtarefas",
   "tasks.detail.subtaskTitle": "Subtarefa",
   "tasks.detail.addSubtask": "Adicionar uma subtarefa",

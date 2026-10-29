@@ -1061,6 +1061,7 @@
   "tasks.detail.list": "列表",
   "tasks.detail.notes": "备注",
   "tasks.detail.notesPlaceholder": "添加备注",
+  "tasks.detail.maxLength": "{count, plural, other {此列表在这里最多可输入 # 个字符}}",
   "tasks.detail.subtasks": "子任务",
   "tasks.detail.subtaskTitle": "子任务",
   "tasks.detail.addSubtask": "添加子任务",

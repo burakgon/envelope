@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte';
   import type { Task } from '../../api';
-  import { listName, tasks } from '../../stores/tasks.svelte';
+  import { listName, maxLengths, tasks } from '../../stores/tasks.svelte';
   import { mail } from '../../stores/mail.svelte';
   import { ui } from '../../stores/ui.svelte';
   import { t } from '../../i18n';
@@ -18,6 +18,8 @@
   const task = $derived(tasks.detail);
   const list = $derived(task ? tasks.listById.get(task.listId) : undefined);
   const readOnly = $derived(!!list?.readOnly);
+  // Google Tasks refuses longer titles and notes.
+  const max = $derived(maxLengths(list));
   const done = $derived(!!task && (task.completedAt != null || tasks.completing.has(task.id)));
   const parent = $derived(task?.parentId != null ? (tasks.items.find((x) => x.id === task.parentId) ?? tasks.all.find((x) => x.id === task.parentId)) : undefined);
   const subsDone = $derived(tasks.subtasks.filter((s) => s.completedAt != null).length);
@@ -162,6 +164,7 @@
           class="title"
           class:done
           rows="1"
+          maxlength={max?.title}
           bind:value={title}
           aria-label={t('tasks.detail.title')}
           readonly={readOnly}
@@ -195,6 +198,9 @@
         {/if}
       </div>
 
+      {#if max && title.length >= max.title}
+        <p class="limit" role="status">{t('tasks.detail.maxLength', { count: max.title })}</p>
+      {/if}
       {#if task.error}
         <div class="status error" role="status"><CloudAlert size={15} /><span>{t('tasks.detail.notSaved', { error: task.error })}</span></div>
       {:else if task.pending}
@@ -278,6 +284,7 @@
             placeholder={t('tasks.detail.notesPlaceholder')}
             aria-label={t('tasks.detail.notes')}
             readonly={readOnly}
+            maxlength={max?.notes}
             bind:value={notes}
             oninput={() => grow(notesEl)}
             onfocus={() => (editing = 'notes')}
@@ -287,6 +294,9 @@
             }}
           ></textarea>
         </div>
+        {#if max && notes.length >= max.notes}
+          <p class="limit" role="status">{t('tasks.detail.maxLength', { count: max.notes })}</p>
+        {/if}
         {/if}
       </div>
 
@@ -308,6 +318,7 @@
               />
               <input
                 class="sub-title"
+                maxlength={max?.title}
                 value={s.title}
                 title={s.title}
                 aria-label={t('tasks.detail.subtaskTitle')}
@@ -328,6 +339,7 @@
               <span class="add-ico"><Plus size={13} strokeWidth={2.4} /></span>
               <input
                 class="sub-title"
+                maxlength={max?.title}
                 placeholder={t('tasks.detail.addSubtask')}
                 aria-label={t('tasks.detail.addSubtask')}
                 bind:value={newSub}
@@ -516,6 +528,14 @@
   .status.error {
     color: var(--red);
     background: var(--red-soft);
+  }
+  .limit {
+    margin: -4px 0 6px 34px;
+    font-size: var(--text-sm);
+    color: var(--text-3);
+  }
+  .fields .limit {
+    margin: -6px 0 0 34px;
   }
   .status.pending {
     color: var(--text-3);

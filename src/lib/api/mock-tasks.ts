@@ -251,6 +251,13 @@ function touch(t: Stored) {
   setTimeout(() => settle(t.listId), 950);
 }
 
+/** Google Tasks refuses longer titles and notes (the engine's `TaskListKind::max_lengths`). */
+function checkLengths(list: StoredList, title: string, notes: string) {
+  if (list.kind !== 'google') return;
+  if ([...title].length > 1024) throw invalid('The title is too long for Google Tasks, which takes up to 1024 characters.');
+  if ([...notes].length > 8192) throw invalid('The notes are too long for Google Tasks, which takes up to 8192 characters.');
+}
+
 function writable(listId: number): StoredList {
   const l = listOf(listId);
   if (l.readOnly) throw invalid('This list is read-only');
@@ -295,6 +302,7 @@ export function create(input: T.TaskInput): T.Task {
     repeats: false, every: null, source: null, createdAt: now, updatedAt: now, error: null, position, pendingUntil: 0,
   };
   apply(t, input, list);
+  checkLengths(list, t.title, t.notes);
   if (input.fromMessage != null) {
     const m = messages.find((x) => x.id === input.fromMessage);
     const thread = m && threads.find((x) => x.id === m.threadId);
@@ -309,6 +317,7 @@ export function update(id: number, input: T.TaskInput): T.Task {
   const t = find(id);
   writable(t.listId);
   const list = writable(input.listId);
+  checkLengths(list, input.title.trim() || t.title, input.notes ?? t.notes);
   if (input.listId !== t.listId) {
     if (t.parentId != null) throw invalid('Subtasks stay in the list of their task');
     const target = tasks.filter((x) => x.listId === input.listId && x.parentId == null);

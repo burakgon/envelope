@@ -16,6 +16,11 @@ const COMPLETE_MS = 720;
 /** How long the undo of a delete is offered (the engine keeps a deleted task 12 seconds). */
 const UNDO_MS = 6000;
 
+/** The longest title and notes a list's service takes, where it refuses longer ones (as the engine knows them). */
+export function maxLengths(l: TaskList | null | undefined): { title: number; notes: number } | null {
+  return l?.kind === 'google' ? { title: 1024, notes: 8192 } : null;
+}
+
 /** A list's name in the interface: the local list is named in the interface language. */
 export function listName(l: TaskList | null | undefined): string {
   if (!l) return '';

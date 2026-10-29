@@ -1061,6 +1061,7 @@
   "tasks.detail.list": "リスト",
   "tasks.detail.notes": "メモ",
   "tasks.detail.notesPlaceholder": "メモを追加",
+  "tasks.detail.maxLength": "{count, plural, other {このリストでは、ここに入力できるのは # 文字までです}}",
   "tasks.detail.subtasks": "サブタスク",
   "tasks.detail.subtaskTitle": "サブタスク",
   "tasks.detail.addSubtask": "サブタスクを追加",

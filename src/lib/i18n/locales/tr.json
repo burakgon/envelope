@@ -1061,6 +1061,7 @@
   "tasks.detail.list": "Liste",
   "tasks.detail.notes": "Notlar",
   "tasks.detail.notesPlaceholder": "Not ekle",
+  "tasks.detail.maxLength": "{count, plural, other {Bu liste burada en fazla # karakter kabul eder}}",
   "tasks.detail.subtasks": "Alt görevler",
   "tasks.detail.subtaskTitle": "Alt görev",
   "tasks.detail.addSubtask": "Alt görev ekle",
