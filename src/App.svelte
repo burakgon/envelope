@@ -115,7 +115,7 @@
     const key = e.key;
     // Enter and Space on a focused button press that button.
     if ((key === 'Enter' || key === ' ') && (e.target as HTMLElement | null)?.closest?.('button, a, select')) return;
-    const task = tasks.selected();
+    const task = tasks.target();
     const actions: Record<string, () => void> = {
       g: startG,
       c: () => tasks.newTask(),

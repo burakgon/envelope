@@ -243,6 +243,17 @@ class Tasks {
     return this.items.find((x) => x.id === this.selectedId) ?? (this.detail?.id === this.selectedId ? this.detail : undefined);
   }
 
+  /**
+   * The task the keyboard completes, stars and deletes: the selected one, or the subtask in the
+   * detail panel when it has no row of its own and its task's row is selected instead (as when
+   * a notification or the calendar opened it).
+   */
+  target(): Task | undefined {
+    const d = this.detail;
+    if (d && this.openId === d.id && d.parentId != null && d.parentId === this.selectedId && !this.visible.some((x) => x.id === d.id)) return d;
+    return this.selected();
+  }
+
   async openTask(id: number) {
     this.openId = id;
     if (this.items.some((x) => x.id === id)) this.selectedId = id;
