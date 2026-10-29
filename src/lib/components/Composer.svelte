@@ -141,7 +141,8 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    // In the body the editor sends (and says so by preventing the default).
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !e.defaultPrevented) {
       e.preventDefault();
       send();
     } else if (e.key === 'Escape' && !c.inline) {
