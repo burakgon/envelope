@@ -444,7 +444,8 @@ class Tasks {
 
   /** Moves a task in its list before another (null: after the last open one). */
   async reorder(task: Task, beforeId: number | null) {
-    if (beforeId === task.id || !this.writableList(task)) return;
+    // Microsoft To Do and Exchange keep an order of their own.
+    if (beforeId === task.id || !this.listById.get(task.listId)?.reorder || !this.writableList(task)) return;
     const prev = this.items;
     const rest = prev.filter((x) => x.id !== task.id);
     const at = beforeId == null ? rest.findIndex((x) => x.completedAt != null) : rest.findIndex((x) => x.id === beforeId);
@@ -461,7 +462,7 @@ class Tasks {
   /** Moves the selected task one place up or down in its list. */
   nudge(dir: 1 | -1) {
     const task = this.selected();
-    if (!task || !this.currentList || task.completedAt != null) return;
+    if (!task || !this.currentList?.reorder || task.completedAt != null) return;
     const open = this.open;
     const i = open.findIndex((x) => x.id === task.id);
     if (i < 0 || i + dir < 0 || i + dir >= open.length) return;

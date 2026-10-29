@@ -50,10 +50,12 @@
     tick().then(() => document.getElementById(`task-${id}`)?.scrollIntoView({ block: 'nearest' }));
   });
 
-  // A list's open tasks can be dragged into another order (and onto another list in the sidebar).
+  // A list's open tasks can be dragged onto another list in the sidebar, and into another order
+  // where the service keeps the order it is given (not Microsoft To Do or Exchange).
   let dragId = $state<number | null>(null);
   let dropAt = $state<{ id: number; after: boolean } | null>(null);
   const canDrag = $derived(!!list && !list.readOnly);
+  const canReorder = $derived(canDrag && !!list?.reorder);
 
   function dragStart(e: DragEvent, task: Task) {
     dragId = task.id;
@@ -70,6 +72,7 @@
   }
 
   function drop(e: DragEvent) {
+    if (!canReorder) return;
     e.preventDefault();
     const task = tasks.open.find((x) => x.id === dragId);
     const at = dropAt;
@@ -187,7 +190,7 @@
                       role="presentation"
                       draggable={canDrag}
                       ondragstart={(e) => dragStart(e, task)}
-                      ondragover={(e) => canDrag && dragOver(e, task)}
+                      ondragover={(e) => canReorder && dragOver(e, task)}
                       ondrop={drop}
                       ondragend={dragEnd}
                       animate:flip={{ duration: 220, easing: cubicOut }}
