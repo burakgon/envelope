@@ -942,7 +942,7 @@
   "settings.notifications.newMail": "New mail",
   "settings.notifications.newMailDesc": "Show a desktop notification when new mail arrives in an inbox. Each account can narrow it down to mail from people in its settings (the gear in Accounts).",
   "settings.notifications.sound": "Sound",
-  "settings.notifications.soundDesc": "Play the desktop’s new-mail sound with each new-mail notification.",
+  "settings.notifications.soundDesc": "Play the desktop’s sounds with notifications of new mail, event reminders and tasks that come due.",
   "settings.privacy.remoteImages": "Remote images",
   "settings.privacy.remoteImagesDesc": "Images loaded from the internet can tell senders when and where you read their mail.",
   "settings.privacy.askFirst": "Ask first",

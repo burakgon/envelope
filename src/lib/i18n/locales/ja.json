@@ -942,7 +942,7 @@
   "settings.notifications.newMail": "新着メール",
   "settings.notifications.newMailDesc": "受信トレイに新しいメールが届いたら、デスクトップ通知を表示します。アカウントごとに、設定 (「アカウント」の歯車) で人からのメールだけに絞り込めます。",
   "settings.notifications.sound": "サウンド",
-  "settings.notifications.soundDesc": "新着メールの通知ごとに、デスクトップの新着メール音を鳴らします。",
+  "settings.notifications.soundDesc": "新着メール、予定のリマインダー、期限が来たタスクの通知で、デスクトップのサウンドを鳴らします。",
   "settings.privacy.remoteImages": "外部画像",
   "settings.privacy.remoteImagesDesc": "インターネットから読み込まれる画像によって、メールを読んだ日時や場所が送信者に伝わることがあります。",
   "settings.privacy.askFirst": "読み込む前に確認",

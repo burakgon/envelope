@@ -942,7 +942,7 @@
   "settings.notifications.newMail": "Nowa poczta",
   "settings.notifications.newMailDesc": "Pokazuj powiadomienie na pulpicie, gdy nowa poczta trafi do skrzynki odbiorczej. Każde konto może je ograniczyć do wiadomości od ludzi w swoich ustawieniach (koło zębate w sekcji Konta).",
   "settings.notifications.sound": "Dźwięk",
-  "settings.notifications.soundDesc": "Odtwarzaj dźwięk nowej poczty z pulpitu przy każdym powiadomieniu o nowej poczcie.",
+  "settings.notifications.soundDesc": "Odtwarzaj dźwięki pulpitu przy powiadomieniach o nowej poczcie, przypomnieniach o wydarzeniach i zadaniach, których termin mija.",
   "settings.privacy.remoteImages": "Obrazy zdalne",
   "settings.privacy.remoteImagesDesc": "Obrazy wczytywane z internetu mogą zdradzić nadawcom, kiedy i gdzie czytasz ich wiadomości.",
   "settings.privacy.askFirst": "Najpierw pytaj",

@@ -28,11 +28,17 @@ fn show(
     app: &AppHandle,
     summary: String,
     body: String,
+    sound: Option<&'static str>,
     on_click: impl FnOnce(&AppHandle) + Send + 'static,
 ) {
-    show_with(app, summary, body, Vec::new(), None, move |app, _| {
+    show_with(app, summary, body, Vec::new(), sound, move |app, _| {
         on_click(app)
     });
+}
+
+/// A sound of the desktop's sound theme, unless sounds are turned off in Settings.
+fn sound(app: &AppHandle, name: &'static str) -> Option<&'static str> {
+    enabled(app, "notificationSound").then_some(name)
 }
 
 /// Shows a notification with extra buttons (`(action id, label)`) and, if
@@ -127,8 +133,7 @@ pub fn new_mail(app: &AppHandle, account_id: i64, threads: &[ThreadSummary]) {
     } else {
         Vec::new()
     };
-    // The sound theme's new-mail sound, unless turned off in Settings.
-    let sound = enabled(app, "notificationSound").then_some("message-new-email");
+    let sound = sound(app, "message-new-email");
     show_with(app, summary, body, buttons, sound, move |app, action| {
         let Some(state) = app.try_state::<AppState>() else {
             return;
@@ -166,6 +171,7 @@ pub fn follow_up(app: &AppHandle, thread_id: i64, subject: &str) {
             "{subject}\n{}",
             strings::get("native.notify.followUp", "Follow up on this conversation?")
         ),
+        None,
         move |app| {
             let _ = app.emit("open-thread", Some(thread_id));
         },
@@ -197,7 +203,7 @@ pub fn task_due(app: &AppHandle, task_id: i64, title: &str, due_at: i64) {
         title.to_string(),
         body,
         buttons,
-        None,
+        sound(app, "alarm-clock-elapsed"),
         move |app, action| {
             if action != "complete" {
                 let _ = app.emit("open-task", task_id);
@@ -225,7 +231,8 @@ pub fn reminder(app: &AppHandle, event_id: i64, title: &str, start: i64, locatio
         Some(l) if !l.is_empty() => format!("{when} · {l}"),
         _ => when,
     };
-    show(app, title.to_string(), body, move |app| {
+    let sound = sound(app, "alarm-clock-elapsed");
+    show(app, title.to_string(), body, sound, move |app| {
         let _ = app.emit("open-event", event_id);
     });
 }

@@ -942,7 +942,7 @@
   "settings.notifications.newMail": "新邮件",
   "settings.notifications.newMailDesc": "收件箱收到新邮件时显示桌面通知。每个账户都可以在其设置（“账户”中的齿轮）里限定为仅来自真人的邮件。",
   "settings.notifications.sound": "声音",
-  "settings.notifications.soundDesc": "每次收到新邮件通知时，播放桌面的新邮件提示音。",
+  "settings.notifications.soundDesc": "收到新邮件、日程提醒和到期任务的通知时，播放桌面提示音。",
   "settings.privacy.remoteImages": "远程图片",
   "settings.privacy.remoteImagesDesc": "从网络加载的图片可能会让发件人得知你阅读邮件的时间和地点。",
   "settings.privacy.askFirst": "先询问",

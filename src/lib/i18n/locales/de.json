@@ -942,7 +942,7 @@
   "settings.notifications.newMail": "Neue E-Mails",
   "settings.notifications.newMailDesc": "Zeigt eine Desktop-Benachrichtigung, wenn neue E-Mails in einem Posteingang eintreffen. Für jedes Konto lässt sich das in seinen Einstellungen (Zahnrad unter „Konten“) auf Nachrichten von Personen beschränken.",
   "settings.notifications.sound": "Ton",
-  "settings.notifications.soundDesc": "Spielt bei jeder Benachrichtigung über neue E-Mails den Ton des Desktops für neue Nachrichten ab.",
+  "settings.notifications.soundDesc": "Spielt die Töne des Desktops zu Benachrichtigungen über neue E-Mails, Terminerinnerungen und fällige Aufgaben ab.",
   "settings.privacy.remoteImages": "Externe Bilder",
   "settings.privacy.remoteImagesDesc": "Aus dem Internet geladene Bilder können Absendern verraten, wann und wo Sie ihre E-Mails lesen.",
   "settings.privacy.askFirst": "Vorher fragen",

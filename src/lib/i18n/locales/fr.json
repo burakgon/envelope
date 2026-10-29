@@ -942,7 +942,7 @@
   "settings.notifications.newMail": "Nouveaux messages",
   "settings.notifications.newMailDesc": "Affiche une notification sur le bureau à l’arrivée d’un nouveau message dans une boîte de réception. Chaque compte peut le limiter aux messages de personnes dans ses paramètres (la roue dentée dans Comptes).",
   "settings.notifications.sound": "Son",
-  "settings.notifications.soundDesc": "Joue le son de nouveau message du bureau avec chaque notification de nouveau message.",
+  "settings.notifications.soundDesc": "Joue les sons du bureau avec les notifications de nouveaux messages, de rappels d’événements et de tâches arrivées à échéance.",
   "settings.privacy.remoteImages": "Images distantes",
   "settings.privacy.remoteImagesDesc": "Les images chargées depuis Internet peuvent indiquer aux expéditeurs quand et où vous lisez leurs messages.",
   "settings.privacy.askFirst": "Demander d’abord",

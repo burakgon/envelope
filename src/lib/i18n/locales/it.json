@@ -942,7 +942,7 @@
   "settings.notifications.newMail": "Nuova posta",
   "settings.notifications.newMailDesc": "Mostra una notifica sul desktop quando arriva nuova posta nella Posta in arrivo. Ogni account può limitarle alla posta di persone nelle sue impostazioni (l’ingranaggio in Account).",
   "settings.notifications.sound": "Suono",
-  "settings.notifications.soundDesc": "Riproduce il suono di nuova posta del desktop con ogni notifica di nuova posta.",
+  "settings.notifications.soundDesc": "Riproduce i suoni del desktop con le notifiche di nuova posta, promemoria degli eventi e attività in scadenza.",
   "settings.privacy.remoteImages": "Immagini remote",
   "settings.privacy.remoteImagesDesc": "Le immagini caricate da Internet possono rivelare ai mittenti quando e dove leggi la loro posta.",
   "settings.privacy.askFirst": "Chiedi prima",

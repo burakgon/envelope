@@ -11,7 +11,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Search results show the folder each conversation is in.
 - VIPs: Add to VIPs in a message's menu, a conversation's right-click menu, the command palette or on a contact's page. Their conversations are gathered under VIPs in the sidebar, a crown marks their messages, `is:vip` (and From a VIP in the search options) finds them, and Settings → Notifications lists them with Remove.
 - Notifications for mail from VIPs only, per account; with "Mail from people only", a VIP's mail notifies even when it was sorted as a newsletter.
-- New-mail notifications play the desktop's new-mail sound (Settings → Notifications → Sound).
+- Notifications play the desktop's sounds: the new-mail sound for mail, the alarm for event reminders and tasks that come due (Settings → Notifications → Sound).
 - Birthdays from the address books appear in the calendar (Contacts → Birthdays in its sidebar, which can hide them), with the age turned and a way to the contact; February 29 falls on the 28th in other years.
 - Week numbers (Settings → Calendar → Week numbers): ISO 8601 numbers in the month view, the mini month, and above the day and week views.
 - Envelope says when a newer version is out: once a day it asks GitHub's public list of releases (nothing about you or your mail is sent), and a notice in the sidebar opens the release page or is put away until the next version. Settings → About turns it off and checks on request; Flatpak installs leave it to where they were installed from.

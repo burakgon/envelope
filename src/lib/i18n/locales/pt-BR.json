@@ -942,7 +942,7 @@
   "settings.notifications.newMail": "Novos e-mails",
   "settings.notifications.newMailDesc": "Mostra uma notificação do sistema quando chega um e-mail novo em uma caixa de entrada. Cada conta pode limitar isso a e-mails de pessoas nas configurações dela (a engrenagem em Contas).",
   "settings.notifications.sound": "Som",
-  "settings.notifications.soundDesc": "Toca o som de e-mail novo do sistema a cada notificação de e-mail novo.",
+  "settings.notifications.soundDesc": "Toca os sons do sistema com as notificações de e-mails novos, lembretes de eventos e tarefas que vencem.",
   "settings.privacy.remoteImages": "Imagens remotas",
   "settings.privacy.remoteImagesDesc": "Imagens carregadas da internet podem revelar aos remetentes quando e onde você leu os e-mails deles.",
   "settings.privacy.askFirst": "Perguntar antes",

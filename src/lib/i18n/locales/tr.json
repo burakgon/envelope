@@ -942,7 +942,7 @@
   "settings.notifications.newMail": "Yeni posta",
   "settings.notifications.newMailDesc": "Bir gelen kutusuna yeni posta geldiğinde masaüstü bildirimi gösterilir. Her hesap, ayarlarında (Hesaplar'daki dişli simgesi) bunu kişilerden gelen postalarla sınırlayabilir.",
   "settings.notifications.sound": "Ses",
-  "settings.notifications.soundDesc": "Her yeni posta bildiriminde masaüstünün yeni posta sesi çalınır.",
+  "settings.notifications.soundDesc": "Yeni posta, etkinlik anımsatıcıları ve zamanı gelen görevler için bildirimlerde masaüstünün sesleri çalınır.",
   "settings.privacy.remoteImages": "Uzak görseller",
   "settings.privacy.remoteImagesDesc": "İnternetten yüklenen görseller, postalarını ne zaman ve nerede okuduğunuzu gönderenlere bildirebilir.",
   "settings.privacy.askFirst": "Önce sor",

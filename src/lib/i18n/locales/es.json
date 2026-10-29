@@ -942,7 +942,7 @@
   "settings.notifications.newMail": "Correo nuevo",
   "settings.notifications.newMailDesc": "Muestra una notificación de escritorio cuando llega correo nuevo a Recibidos. Cada cuenta puede limitarlo al correo de personas en sus ajustes (el engranaje en Cuentas).",
   "settings.notifications.sound": "Sonido",
-  "settings.notifications.soundDesc": "Reproduce el sonido de correo nuevo del escritorio con cada notificación de correo nuevo.",
+  "settings.notifications.soundDesc": "Reproduce los sonidos del escritorio con las notificaciones de correo nuevo, recordatorios de eventos y tareas que vencen.",
   "settings.privacy.remoteImages": "Imágenes remotas",
   "settings.privacy.remoteImagesDesc": "Las imágenes cargadas desde internet pueden revelar a los remitentes cuándo y dónde lees su correo.",
   "settings.privacy.askFirst": "Preguntar antes",
