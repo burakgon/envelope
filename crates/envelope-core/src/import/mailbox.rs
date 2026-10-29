@@ -161,7 +161,7 @@ impl Engine {
         };
         let mut result = MessagesImported::default();
         let progress = |result: &MessagesImported| {
-            if (result.added + result.skipped + result.refused) % 25 == 0 {
+            if (result.added + result.skipped + result.refused).is_multiple_of(25) {
                 self.emit(EngineEvent::ImportProgress {
                     folder_id,
                     done: result.added + result.skipped + result.refused,
