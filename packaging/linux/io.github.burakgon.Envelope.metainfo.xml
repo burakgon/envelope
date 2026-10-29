@@ -94,6 +94,22 @@
     <color type="primary" scheme_preference="dark">#2a1f8f</color>
   </branding>
   <releases>
+    <release version="0.4.0" date="2026-10-29">
+      <description>
+        <p>Switching from other mail apps, staying organized, a calendar that repeats and travels, and an app that works from the keyboard and in half a screen.</p>
+        <ul>
+          <li>Accounts set up in Thunderbird, Evolution, Geary or GNOME Online Accounts are offered when adding an account</li>
+          <li>Mail from mbox files and saved messages can be imported into any folder</li>
+          <li>Contacts can be imported from vCard and from Gmail, Outlook and Thunderbird CSV exports, exported as vCards, and merged when they are in an address book twice</li>
+          <li>Folders and labels can be created, renamed, nested, recolored and deleted, and Trash and Spam emptied</li>
+          <li>Not spam, block sender, rules on existing mail, and follow-up reminders that can be marked done</li>
+          <li>Drafts open for editing from anywhere, with more formatting, forwarding as an attachment and saving all attachments</li>
+          <li>Custom repeating events, event time zones, a second time zone and a work week view</li>
+          <li>Account settings after setup, with a connection test, and notifications per account</li>
+          <li>Narrow windows, keyboard menus and dialogs, screen reader names and higher contrast</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-10-29">
       <description>
         <p>Tasks, next to your mail and in your calendar.</p>

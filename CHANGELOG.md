@@ -4,6 +4,8 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-29
+
 ### Added
 - Drafts open in the composer: from Drafts, from a draft in a conversation (it opens under it), after a restart, and when they were written on another computer or phone, attachments included. Saving such a draft replaces its copy on the server, and sending or discarding it deletes that copy. Drafts kept only on this computer are listed in Drafts too, marked as such.
 - Formatting in the composer: text color, highlight, size and alignment, clearing formatting, and inserting pictures. Pictures, pasted ones too, go along as inline parts that every mail program shows.
@@ -134,7 +136,8 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Tray icon with the unread count, running in the background and starting at login (through the Background portal in Flatpak).
 - Packages: .deb, .rpm, AppImage, a Flatpak manifest and a PKGBUILD.
 
-[Unreleased]: https://github.com/burakgon/envelope/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/burakgon/envelope/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/burakgon/envelope/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/burakgon/envelope/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/burakgon/envelope/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/burakgon/envelope/compare/v0.1.0...v0.1.1
