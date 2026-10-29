@@ -53,6 +53,17 @@ pub(crate) fn graph_client(
     engine: &Engine,
     account_id: i64,
 ) -> Result<envelope_graph::GraphClient> {
+    #[cfg(test)]
+    if let Some(base) = engine.graph_base.lock().clone() {
+        return envelope_graph::GraphClient::builder(std::sync::Arc::new(
+            envelope_graph::StaticToken::new("token"),
+        ))
+        .base_url(base)
+        .retry_policy(envelope_graph::RetryPolicy::none())
+        .time_zone_resolver(envelope_ical::resolve_tzid)
+        .build()
+        .map_err(graph_err);
+    }
     envelope_graph::GraphClient::builder(AccountTokens::new(engine, account_id))
         .time_zone_resolver(envelope_ical::resolve_tzid)
         .build()
@@ -736,6 +747,11 @@ pub(crate) async fn write_update(
     if cal.kind == "ews" {
         return super::ews::calendar::write_update(engine, cal, row, scope, input).await;
     }
+    if cal.kind == "graph"
+        && let Some(master_id) = graph_series_master(row)
+    {
+        return graph_write_occurrence(engine, cal, row, &master_id, scope, input).await;
+    }
     let series = row.is_recurring && rid.is_some();
     let scope = if series { scope } else { EditScope::All };
 
@@ -792,6 +808,119 @@ pub(crate) async fn write_update(
             replace_master(engine, cal, row, &event).await
         }
     }
+}
+
+/// The series an event of a Microsoft 365 calendar is an occurrence of.
+fn graph_series_master(row: &EventRow) -> Option<String> {
+    row.provider_data
+        .as_ref()
+        .and_then(|p| p.get("seriesMasterId"))
+        .and_then(|v| v.as_str())
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+}
+
+/// `time` moved by `ms` milliseconds (whole days for a date), in the same form.
+fn moved_by(time: &EventTime, ms: i64) -> EventTime {
+    let delta = chrono::TimeDelta::milliseconds(ms);
+    match time {
+        EventTime::Date { date } => EventTime::Date {
+            date: *date + chrono::TimeDelta::days(ms.div_euclid(86_400_000)),
+        },
+        EventTime::Zoned { local, tzid } => EventTime::Zoned {
+            local: *local + delta,
+            tzid: tzid.clone(),
+        },
+        EventTime::Utc { at } => EventTime::Utc { at: *at + delta },
+        EventTime::Floating { local } => EventTime::Floating {
+            local: *local + delta,
+        },
+    }
+}
+
+/// Changes an occurrence of a Microsoft 365 series. Microsoft 365 keeps each
+/// occurrence as an event of its own, without the series' rule: one
+/// occurrence changes by its own id (Microsoft 365 makes it an exception);
+/// the whole series changes through its master, moving as far as this
+/// occurrence moved; "this and following" ends the series before it and
+/// starts a new one, as for other calendars.
+async fn graph_write_occurrence(
+    engine: &Engine,
+    cal: &CalendarRow,
+    row: &EventRow,
+    master_id: &str,
+    scope: EditScope,
+    input: &EventInput,
+) -> Result<()> {
+    let account = account_of(engine, cal)?;
+    let client = graph_client(engine, account.id)?;
+    let mut event = engine.event_from_input(input, Some(&row.event), cal)?;
+    event.uid = row.uid.clone();
+    match scope {
+        EditScope::This => {
+            event.rrule = None;
+            let id =
+                provider_id(row).ok_or_else(|| Error::Invalid("event has no server id".into()))?;
+            client
+                .update_event_diff(&id, &row.event, &event, &Default::default())
+                .await
+                .map_err(graph_err)?;
+        }
+        EditScope::Following => {
+            let master = client
+                .get_series_master(master_id)
+                .await
+                .map_err(graph_err)?;
+            let rid = row
+                .event
+                .recurrence_id
+                .clone()
+                .unwrap_or_else(|| row.event.start.clone());
+            let mut ended = master.event.clone();
+            if let Some(rule) = &master.event.rrule {
+                ended.rrule = Some(rrule_with_until(rule, &until_before(&rid)));
+            }
+            client
+                .update_event_diff(master_id, &master.event, &ended, &Default::default())
+                .await
+                .map_err(graph_err)?;
+            let mut fresh = input.clone();
+            fresh.rrule = input.rrule.clone().or(master.event.rrule.clone());
+            let mut created = engine.event_from_input(&fresh, None, cal)?;
+            created.attendees = master.event.attendees.clone();
+            created.organizer = master.event.organizer.clone();
+            // A new series: the calendar is read again as it is created.
+            write_create(engine, cal, &created, false).await?;
+            return Ok(());
+        }
+        EditScope::All => {
+            let master = client
+                .get_series_master(master_id)
+                .await
+                .map_err(graph_err)?;
+            let mut new = master.event.clone();
+            new.summary = event.summary.clone();
+            new.description = event.description.clone();
+            new.location = event.location.clone();
+            new.attendees = event.attendees.clone();
+            new.alarms = event.alarms.clone();
+            if let Some(rule) = &input.rrule {
+                new.rrule = Some(rule.clone());
+            }
+            // The series moves as far as this occurrence was moved, and takes its length.
+            let shift = to_ms(&event.start) - to_ms(&row.event.start);
+            let length = to_ms(&event.end) - to_ms(&event.start);
+            if shift != 0 || length != to_ms(&row.event.end) - to_ms(&row.event.start) {
+                new.start = moved_by(&master.event.start, shift);
+                new.end = moved_by(&new.start, length);
+            }
+            client
+                .update_event_diff(master_id, &master.event, &new, &Default::default())
+                .await
+                .map_err(graph_err)?;
+        }
+    }
+    graph_sync_calendar(engine, &client, cal).await
 }
 
 /// Writes a changed series master / single event.
@@ -1455,3 +1584,6 @@ async fn queue_mail(engine: &Engine, account_id: i64, out: crate::compose::Outgo
     engine.outbox_wake.notify_one();
     Ok(())
 }
+
+#[cfg(test)]
+mod graph_tests;

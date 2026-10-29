@@ -824,10 +824,19 @@ pub fn from_rrule(
             number_of_occurrences: count,
         }
     } else if let Some(until) = rule.until {
-        let end_date = match until {
-            Until::Date(date) => date,
-            Until::Floating(local) => local.date(),
-            Until::Utc(at) => zone.map_or_else(|| at.date_naive(), |zone| zone.to_local(at).date()),
+        let until_local = match until {
+            Until::Date(_) => None,
+            Until::Floating(local) => Some(local),
+            Until::Utc(at) => Some(zone.map_or_else(|| at.naive_utc(), |zone| zone.to_local(at))),
+        };
+        // Graph's endDate takes in its whole local day: an UNTIL earlier on
+        // that day than the series' time leaves that day's occurrence out,
+        // so the series ends the day before.
+        let end_date = match (until, until_local) {
+            (Until::Date(date), _) => date,
+            (_, Some(at)) if at.time() < local.time() => at.date().pred_opt().unwrap_or(at.date()),
+            (_, Some(at)) => at.date(),
+            (_, None) => start_date,
         };
         if end_date < start_date {
             return Err(invalid("UNTIL lies before the start"));
@@ -952,6 +961,33 @@ mod tests {
 
     fn back(rule: &str, start: &EventTime, tz: Option<Tz>) -> PatternedRecurrence {
         from_rrule(rule, start, tz).unwrap_or_else(|e| panic!("from_rrule({rule}): {e}"))
+    }
+
+    #[test]
+    fn an_until_before_the_days_occurrence_ends_the_day_before() {
+        // Weekly on Wednesdays at 9:00 in Istanbul (6:00 UTC).
+        let start = zoned(2026, 11, 4, 9, "Europe/Istanbul");
+        let tz = Some(chrono_tz::Europe::Istanbul);
+        let end = |rule: &str| back(rule, &start, tz).range.end_date;
+        // A second before the occurrence of November 11: that one is left out.
+        assert_eq!(
+            end("FREQ=WEEKLY;BYDAY=WE;UNTIL=20261111T055959Z"),
+            Some(date(2026, 11, 10))
+        );
+        // At the occurrence itself, and later that day: it stays in.
+        assert_eq!(
+            end("FREQ=WEEKLY;BYDAY=WE;UNTIL=20261111T060000Z"),
+            Some(date(2026, 11, 11))
+        );
+        assert_eq!(
+            end("FREQ=WEEKLY;BYDAY=WE;UNTIL=20261111T205959Z"),
+            Some(date(2026, 11, 11))
+        );
+        // A date is a whole day already.
+        assert_eq!(
+            end("FREQ=WEEKLY;BYDAY=WE;UNTIL=20261111"),
+            Some(date(2026, 11, 11))
+        );
     }
 
     /// Converts Graph -> RRULE -> Graph and checks the relevant fields survive.

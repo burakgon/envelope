@@ -80,6 +80,9 @@ pub struct Inner {
     /// OpenPGP session state: unlocked passphrases, decrypted messages.
     pub(crate) crypto: crate::crypto::Session,
     pub(crate) shutdown: CancellationToken,
+    /// Tests: Microsoft Graph at this address (a mock server), with a fixed token.
+    #[cfg(test)]
+    pub(crate) graph_base: Mutex<Option<String>>,
 }
 
 /// Cheaply cloneable engine handle.
@@ -125,6 +128,8 @@ impl Engine {
                 tasks_wake: Notify::new(),
                 crypto: crate::crypto::Session::default(),
                 shutdown: CancellationToken::new(),
+                #[cfg(test)]
+                graph_base: Mutex::new(None),
             }),
         };
         for account in engine.db.read(mail::list_accounts)? {
