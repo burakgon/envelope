@@ -45,7 +45,7 @@
     line-height: 1.5;
   }
   .notice.warn {
-    color: var(--amber);
+    color: var(--amber-text);
     background: var(--amber-soft);
   }
   .notice :global(svg) {

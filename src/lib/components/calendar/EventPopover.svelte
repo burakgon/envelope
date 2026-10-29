@@ -193,10 +193,10 @@
     border-radius: 10px;
     font-weight: 600;
     color: var(--accent-fg);
-    background: var(--accent);
+    background: var(--accent-solid);
   }
   .join:hover {
-    background: var(--accent-hover);
+    background: var(--accent-solid-hover);
   }
   .people {
     display: flex;
@@ -244,10 +244,10 @@
     color: var(--red);
   }
   .st-tentative {
-    color: var(--amber);
+    color: var(--amber-text);
   }
   .st-needsAction {
-    color: var(--text-4);
+    color: var(--text-3);
   }
   .more {
     font-size: 11.5px;
@@ -280,7 +280,7 @@
     background: var(--bg-hover);
   }
   .rsvp button.on {
-    background: var(--accent);
+    background: var(--accent-solid);
     color: var(--accent-fg);
     box-shadow: none;
   }

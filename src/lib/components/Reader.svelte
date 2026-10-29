@@ -241,7 +241,7 @@
     border-radius: 50%;
   }
   .chip.label {
-    color: color-mix(in oklab, var(--c) 80%, var(--text));
+    color: color-mix(in oklab, var(--c) 55%, var(--text));
     background: color-mix(in oklab, var(--c) 14%, transparent);
   }
   .messages {

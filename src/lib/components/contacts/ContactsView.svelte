@@ -265,7 +265,7 @@
     align-items: center;
     justify-content: center;
     gap: 10px;
-    color: var(--text-4);
+    color: var(--text-3);
   }
   .none p {
     margin: 0;

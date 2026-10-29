@@ -251,7 +251,7 @@
   }
   .conflict,
   .conflict :global(svg) {
-    color: var(--amber);
+    color: var(--amber-text);
   }
   .free,
   .free :global(svg) {
@@ -291,12 +291,12 @@
     background: var(--bg-hover);
   }
   .act.on {
-    background: var(--accent);
+    background: var(--accent-solid);
     color: var(--accent-fg);
     box-shadow: none;
   }
   .act.join {
-    background: var(--accent);
+    background: var(--accent-solid);
     color: var(--accent-fg);
     box-shadow: none;
   }
@@ -332,7 +332,7 @@
     display: grid;
     place-items: center;
     color: var(--accent-fg);
-    background: var(--accent);
+    background: var(--accent-solid);
   }
   .cancelled .icon {
     background: var(--red);

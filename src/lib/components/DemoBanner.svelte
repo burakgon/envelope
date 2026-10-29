@@ -66,10 +66,10 @@
   }
   .get {
     color: var(--accent-fg);
-    background: var(--accent);
+    background: var(--accent-solid);
   }
   .get:hover {
-    background: var(--accent-hover);
+    background: var(--accent-solid-hover);
   }
   .gh {
     color: var(--text);

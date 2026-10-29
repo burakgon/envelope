@@ -211,7 +211,7 @@
   }
   .focused .plus {
     color: var(--accent-fg);
-    background: var(--accent);
+    background: var(--accent-solid);
     box-shadow: none;
     opacity: 1;
   }

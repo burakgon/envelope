@@ -535,7 +535,7 @@
     background: var(--green-soft);
   }
   .badge.warn {
-    color: var(--amber);
+    color: var(--amber-text);
     background: var(--amber-soft);
   }
   .badge.muted {
@@ -572,7 +572,7 @@
     border-top: 1px solid var(--border);
   }
   .warnbox .note {
-    color: var(--amber);
+    color: var(--amber-text);
   }
   .note {
     display: flex;

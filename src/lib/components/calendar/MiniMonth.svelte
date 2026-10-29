@@ -119,7 +119,7 @@
   }
   .d.today,
   .d.sel.today {
-    background: var(--accent);
+    background: var(--accent-solid);
     color: var(--accent-fg);
     font-weight: 700;
     border-radius: 8px;

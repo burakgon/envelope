@@ -45,6 +45,9 @@
   --accent-soft: oklch(0.57 0.23 var(--accent-h) / 0.1);
   --accent-softer: oklch(0.57 0.23 var(--accent-h) / 0.06);
   --accent-text: oklch(0.5 0.22 var(--accent-h));
+  /* Under white text (buttons, badges): at least 4.5:1 with it. */
+  --accent-solid: var(--accent);
+  --accent-solid-hover: var(--accent-hover);
 
   --bg: #ffffff;
   --bg-app: #f4f4f6;
@@ -59,7 +62,7 @@
 
   --text: #17181c;
   --text-2: #565a66;
-  --text-3: #8b8f9b;
+  --text-3: #686c78;
   --text-4: #b4b7c0;
   --text-inverse: #ffffff;
 
@@ -72,13 +75,15 @@
   --shadow-md: 0 6px 20px rgb(15 15 30 / 0.08), 0 1px 3px rgb(15 15 30 / 0.06), 0 0 0 1px rgb(20 20 40 / 0.04);
   --shadow-lg: 0 24px 64px rgb(15 15 30 / 0.18), 0 6px 16px rgb(15 15 30 / 0.08), 0 0 0 1px rgb(20 20 40 / 0.05);
 
-  --red: #e5484d;
+  --red: #cd2b31;
   --red-soft: rgb(229 72 77 / 0.1);
-  --green: #2f9e6b;
+  --green: #1f7a50;
   --green-soft: rgb(47 158 107 / 0.12);
   --amber: #e08a00;
   --amber-soft: rgb(224 138 0 / 0.12);
-  --blue: #2f7ff0;
+  /* Amber that reads as text on light backgrounds. */
+  --amber-text: #9c5d00;
+  --blue: #2a6fd6;
   --star: #f5a524;
 
   --scrollbar: rgb(20 20 40 / 0.16);
@@ -92,6 +97,9 @@
   --accent-soft: oklch(0.66 0.19 var(--accent-h) / 0.16);
   --accent-softer: oklch(0.66 0.19 var(--accent-h) / 0.09);
   --accent-text: oklch(0.76 0.15 var(--accent-h));
+  /* Darker than the accent, so white text on it stays readable with every accent hue. */
+  --accent-solid: oklch(0.52 0.16 var(--accent-h));
+  --accent-solid-hover: oklch(0.56 0.16 var(--accent-h));
 
   --bg: #16171b;
   --bg-app: #0f1013;
@@ -106,7 +114,7 @@
 
   --text: #ececf0;
   --text-2: #a3a6b1;
-  --text-3: #70737f;
+  --text-3: #868996;
   --text-4: #4c4f59;
   --text-inverse: #16171b;
 
@@ -125,6 +133,7 @@
   --green-soft: rgb(61 214 140 / 0.12);
   --amber: #ffb224;
   --amber-soft: rgb(255 178 36 / 0.14);
+  --amber-text: #ffb224;
   --blue: #52a9ff;
   --star: #ffb224;
 
@@ -281,12 +290,12 @@ select:focus-visible,
   pointer-events: none;
 }
 .btn.primary {
-  background: var(--accent);
+  background: var(--accent-solid);
   color: var(--accent-fg);
   box-shadow: 0 1px 2px oklch(0.4 0.2 var(--accent-h) / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.16);
 }
 .btn.primary:hover {
-  background: var(--accent-hover);
+  background: var(--accent-solid-hover);
 }
 .btn.danger {
   background: var(--red);

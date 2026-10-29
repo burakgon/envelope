@@ -413,7 +413,7 @@
   .gcount {
     margin-left: auto;
     font-size: var(--text-sm);
-    color: var(--text-4);
+    color: var(--text-3);
     font-variant-numeric: tabular-nums;
   }
   .completed {

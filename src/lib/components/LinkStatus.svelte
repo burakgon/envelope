@@ -79,7 +79,7 @@
     box-shadow: var(--shadow-md), inset 0 0 0 1px color-mix(in oklab, var(--amber) 55%, transparent);
   }
   .warn .ico {
-    color: var(--amber);
+    color: var(--amber-text);
     margin-top: 1px;
   }
   .lines {

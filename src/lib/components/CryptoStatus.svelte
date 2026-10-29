@@ -199,7 +199,7 @@
     background: var(--green-soft);
   }
   .pill.warn {
-    color: var(--amber);
+    color: var(--amber-text);
     background: var(--amber-soft);
   }
   .pill.bad {
@@ -232,7 +232,7 @@
     color: var(--green);
   }
   h4.warn {
-    color: var(--amber);
+    color: var(--amber-text);
   }
   h4.bad {
     color: var(--red);

@@ -48,7 +48,7 @@
     border-radius: 7px;
     font-size: 12px;
     line-height: 1.3;
-    color: color-mix(in oklab, var(--c) 70%, var(--text));
+    color: color-mix(in oklab, var(--c) 55%, var(--text));
     background: color-mix(in oklab, var(--c) 17%, var(--bg));
     border-left: 3px solid var(--c);
     cursor: grab;

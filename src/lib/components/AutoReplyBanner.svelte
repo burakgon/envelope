@@ -44,7 +44,7 @@
   }
   .banner > :global(svg) {
     flex-shrink: 0;
-    color: var(--amber);
+    color: var(--amber-text);
   }
   .text {
     min-width: 0;

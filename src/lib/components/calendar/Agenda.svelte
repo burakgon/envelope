@@ -183,7 +183,7 @@
     font-size: 12px;
     font-weight: 600;
     color: var(--accent-fg);
-    background: var(--accent);
+    background: var(--accent-solid);
   }
   .empty {
     padding: 60px;

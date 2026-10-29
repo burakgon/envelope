@@ -221,7 +221,7 @@
     color: var(--green);
   }
   .lock.warn {
-    color: var(--amber);
+    color: var(--amber-text);
   }
   /* A single column as wide as the panel: long addresses and labels shorten or wrap instead of widening it. */
   .panel {
@@ -267,7 +267,7 @@
     color: var(--text);
   }
   .who.missing {
-    color: var(--amber);
+    color: var(--amber-text);
   }
   .who .what {
     margin-left: auto;

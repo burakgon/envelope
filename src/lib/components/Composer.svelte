@@ -543,7 +543,7 @@
   }
   .followup button.on {
     color: var(--accent-fg);
-    background: var(--accent);
+    background: var(--accent-solid);
     box-shadow: none;
   }
   .receipt input {

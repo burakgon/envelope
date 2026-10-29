@@ -415,7 +415,7 @@
     height: 38px;
     padding: 0 12px 0 14px;
     border-radius: 11px;
-    background: var(--accent);
+    background: var(--accent-solid);
     color: var(--accent-fg);
     font-weight: 600;
     font-size: var(--text-md);
@@ -423,7 +423,7 @@
     transition: transform var(--dur-fast) var(--ease), background var(--dur-fast);
   }
   .compose:hover {
-    background: var(--accent-hover);
+    background: var(--accent-solid-hover);
   }
   .compose:active {
     transform: scale(0.98);
@@ -623,7 +623,7 @@
   }
   .alert {
     display: grid;
-    color: var(--amber);
+    color: var(--amber-text);
   }
   .spin {
     display: grid;

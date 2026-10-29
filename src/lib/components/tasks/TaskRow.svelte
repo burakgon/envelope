@@ -195,7 +195,7 @@
   }
   /* Quick saves never show it: only a change still on its way after a moment does. */
   .sync.pending {
-    color: var(--text-4);
+    color: var(--text-3);
     animation: fade-in var(--dur) 1.2s both;
   }
   .star {
@@ -205,7 +205,7 @@
     height: 28px;
     margin: -4px 0 -4px 0;
     border-radius: var(--r-sm);
-    color: var(--text-4);
+    color: var(--text-3);
     flex-shrink: 0;
     opacity: 0;
     transition: opacity var(--dur-fast), color var(--dur-fast), background var(--dur-fast), transform var(--dur) var(--spring);

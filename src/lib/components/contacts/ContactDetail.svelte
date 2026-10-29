@@ -273,6 +273,6 @@
   .book {
     text-align: center;
     font-size: var(--text-sm);
-    color: var(--text-4);
+    color: var(--text-3);
   }
 </style>

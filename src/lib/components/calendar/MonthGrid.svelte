@@ -184,7 +184,7 @@
     background: var(--bg-hover);
   }
   .num.today {
-    background: var(--accent);
+    background: var(--accent-solid);
     color: var(--accent-fg);
   }
   .events {
@@ -210,7 +210,7 @@
   }
   .item.allday {
     font-weight: 600;
-    color: color-mix(in oklab, var(--c) 70%, var(--text));
+    color: color-mix(in oklab, var(--c) 55%, var(--text));
     background: color-mix(in oklab, var(--c) 18%, var(--bg));
   }
   .item.declined {

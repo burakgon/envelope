@@ -234,7 +234,7 @@
     color: var(--accent-text);
   }
   .chip-addr.sel {
-    background: var(--accent);
+    background: var(--accent-solid);
     color: var(--accent-fg);
   }
   .chip-addr.invalid {

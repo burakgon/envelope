@@ -340,7 +340,7 @@
     font-weight: 600;
     padding: 1px 7px;
     border-radius: 999px;
-    color: color-mix(in oklab, var(--c) 80%, var(--text));
+    color: color-mix(in oklab, var(--c) 55%, var(--text));
     background: color-mix(in oklab, var(--c) 14%, transparent);
   }
   .star {

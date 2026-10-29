@@ -506,7 +506,7 @@
     border-radius: 8px;
     display: grid;
     place-items: center;
-    background: var(--accent);
+    background: var(--accent-solid);
     color: var(--accent-fg);
   }
   .bulk {

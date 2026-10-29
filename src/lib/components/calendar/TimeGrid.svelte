@@ -373,7 +373,7 @@
     background: var(--bg-hover);
   }
   .dayhead.today .num {
-    background: var(--accent);
+    background: var(--accent-solid);
     color: var(--accent-fg);
   }
   .dayhead.today .dow {
@@ -410,7 +410,7 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    color: color-mix(in oklab, var(--c) 72%, var(--text));
+    color: color-mix(in oklab, var(--c) 55%, var(--text));
     background: color-mix(in oklab, var(--c) 18%, var(--bg));
     border-left: 3px solid var(--c);
   }

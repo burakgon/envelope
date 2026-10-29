@@ -19,9 +19,11 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - The inline reply's pop-out button has a pop-out icon, and message frames start close to their size and fit their text as quotes are folded and unfolded.
 - Repeating events with a rule of their own read in words in the event editor ("Weekly on Monday, Wednesday, Friday") instead of the raw rule, and say how often or until when they repeat.
 - The agenda lists tasks due at a time of day among the events, in time order.
+- Text that was too faint to read comfortably is darker: dates, previews and other secondary text, calendar events, labels, amber and red warnings, and the white text on buttons in the dark theme, which are a deeper shade of the accent color now. Each meets the WCAG AA contrast ratio for its size.
 
 ### Fixed
 - A short plain-text reply was hidden together with the quote below it.
+- An event's popover could run off the bottom of the window once its guests had loaded.
 - An address still being typed when Send was pressed was left out.
 
 ## [0.3.0] — 2026-10-29

@@ -79,7 +79,7 @@
     cursor: pointer;
   }
   .md :global(.cite:hover) {
-    background: var(--accent);
+    background: var(--accent-solid);
     color: var(--accent-fg);
   }
   .streaming :global(> :last-child)::after {

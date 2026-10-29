@@ -158,7 +158,7 @@
     width: 32px;
     height: 32px;
     border-radius: 9px;
-    background: var(--accent);
+    background: var(--accent-solid);
     color: var(--accent-fg);
   }
   .go:disabled {

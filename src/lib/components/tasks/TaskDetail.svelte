@@ -758,7 +758,7 @@
     gap: 2px;
     margin-top: 22px;
     font-size: var(--text-sm);
-    color: var(--text-4);
+    color: var(--text-3);
     text-align: center;
   }
 </style>
