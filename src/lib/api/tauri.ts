@@ -33,6 +33,7 @@ export function createTauriApi(): Api {
 
     accounts: () => invoke('accounts'),
     discover: (email) => invoke('discover', { email }),
+    accountsElsewhere: () => invoke('accounts_elsewhere'),
     addPasswordAccount: (input) => invoke('account_add_password', { input }),
     addExchangeAccount: (input) =>
       invoke('account_add_exchange', {

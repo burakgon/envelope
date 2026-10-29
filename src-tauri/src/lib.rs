@@ -195,6 +195,7 @@ pub fn run() {
             commands::app_info,
             commands::accounts,
             commands::discover,
+            commands::accounts_elsewhere,
             commands::account_add_password,
             commands::account_add_exchange,
             commands::account_add_oauth,

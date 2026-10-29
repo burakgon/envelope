@@ -944,6 +944,33 @@ await step('a banner asks to sign in again, and says when a server is out of rea
   }
 });
 
+await step('accounts set up in another mail program are offered and fill in the form', async () => {
+  const p = await open();
+  try {
+    await p.goto(url);
+    await p.locator('.row').first().waitFor({ state: 'visible', timeout: 5000 });
+    await p.locator('.sidebar .item.add').click();
+    const found = p.locator('.found-row', { hasText: 'alex.morgan@posteo.test' });
+    await found.waitFor({ timeout: 5000 });
+    if (!(await found.innerText()).includes('Set up in Thunderbird')) throw new Error(`the row says: ${await found.innerText()}`);
+    await found.click();
+    await p.locator('#pw-pass').waitFor({ timeout: 5000 });
+    const value = (selector) => p.locator(selector).inputValue();
+    if ((await value('#pw-email')) !== 'alex.morgan@posteo.test' || (await value('#pw-name')) !== 'Alex Morgan') throw new Error('the address or the name was not filled in');
+    if (!(await p.locator('.card .sub', { hasText: 'Settings taken from Thunderbird' }).count())) throw new Error('the form does not say where its settings came from');
+    await p.locator('.adv-toggle').click();
+    if ((await p.locator('.srv input').first().inputValue()) !== 'imap.posteo.test') throw new Error('the incoming server was not filled in');
+    // Back on the list and on to Other, the address stays but the other program's servers go.
+    await p.locator('.card .back').click();
+    await p.locator('.found-row').first().waitFor({ timeout: 5000 });
+    await p.locator('.grid .prov').last().click();
+    await p.locator('.adv-toggle').click();
+    if ((await p.locator('.srv input').first().inputValue()) !== '' || (await p.locator('.card .sub', { hasText: 'Thunderbird' }).count())) throw new Error('the other program\'s settings stayed');
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

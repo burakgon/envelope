@@ -16,6 +16,8 @@ export interface Api {
 
   accounts(): Promise<T.Account[]>;
   discover(email: string): Promise<T.Discovery>;
+  /** Accounts set up in other mail programs on this computer, not added here yet. */
+  accountsElsewhere(): Promise<T.FoundAccount[]>;
   addPasswordAccount(input: T.NewAccount): Promise<T.Account>;
   /** Adds an on-premises Exchange account (finds the server when no URL is given). */
   addExchangeAccount(input: T.NewExchangeAccount): Promise<T.Account>;

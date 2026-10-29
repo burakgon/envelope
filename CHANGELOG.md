@@ -19,6 +19,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Follow-up reminders can be marked Done or come back later ("Remind me again…").
 - A banner above the message list when an account needs a new sign-in (with Sign in) or keeps failing to sync (with Retry and Details); the account's entry in Settings says the same.
 - Exchange contacts keep postal addresses (work, home and other), a web site and notes, both ways; the contact editor shows these fields for Exchange address books too.
+- Adding an account lists the accounts already set up on this computer in Thunderbird (also its Flatpak and Snap versions), Evolution, Geary and GNOME Online Accounts; choosing one fills in its address, name and servers, so only the password (or the Google or Microsoft sign-in) is left.
 
 ### Changed
 - The header above a quoted reply or forwarded message ("On …, … wrote:", "Forwarded message") and its date are written in the interface language.

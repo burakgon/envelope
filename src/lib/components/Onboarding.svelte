@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { api } from '../api';
-  import type { AccountConfig, AppInfo, Discovery, OAuthProvider, Security, ServerConfig } from '../api';
+  import type { AccountConfig, AppInfo, Discovery, FoundAccount, OAuthProvider, Security, ServerConfig } from '../api';
   import { mail } from '../stores/mail.svelte';
   import { ui } from '../stores/ui.svelte';
   import { errorMessage } from '../stores/toasts.svelte';
@@ -31,6 +31,10 @@
   let ewsUrl = $state('');
   let ewsUser = $state('');
   let added = $state<string | null>(null);
+  /** Accounts set up in other mail programs on this computer, offered on the provider list. */
+  let elsewhere = $state<FoundAccount[]>([]);
+  /** The program the form's settings were taken from. */
+  let importedFrom = $state<string | null>(null);
   /** The password step was reached through "Use an app password" for Google (its hint is ours, not discovery's). */
   let googleAppPassword = $state(false);
   /**
@@ -64,6 +68,7 @@
     ewsUser = '';
     googleAppPassword = false;
     serversFor = null;
+    importedFrom = null;
   }
 
   function back() {
@@ -73,6 +78,15 @@
 
   onMount(async () => {
     info = await api.info().catch(() => null);
+  });
+
+  // Looked for again each time the list shows: an account just added drops out.
+  $effect(() => {
+    if (step !== 'providers') return;
+    api
+      .accountsElsewhere()
+      .then((found) => (elsewhere = found))
+      .catch(() => (elsewhere = []));
   });
 
   const providers = $derived([
@@ -108,6 +122,22 @@
       step = 'exchange';
     } else {
       step = 'password';
+    }
+  }
+
+  /** Opens the form for an account set up in another mail program, filled in with what that program knows. */
+  function useFound(f: FoundAccount) {
+    pick(f.kind === 'google' ? 'gmail' : f.kind === 'microsoft' ? 'outlook' : f.kind === 'exchange' ? 'exchange' : 'generic');
+    // The address is the provider's own: its other program signs in there.
+    email = f.email;
+    name = f.name;
+    importedFrom = f.source;
+    if (f.kind === 'exchange') ewsUrl = f.ewsUrl ?? '';
+    if (f.kind === 'imap' && f.imap) {
+      imap = { ...f.imap };
+      smtp = f.smtp ? { ...f.smtp } : blankServer(465);
+      // The servers that program uses for this address; another address finds its own again.
+      serversFor = domainOf(f.email);
     }
   }
 
@@ -295,6 +325,17 @@
           {#if busy}<span class="spin"><Spinner size={15} /></span>{:else}{t('common.continue')}{/if}
         </button>
       </form>
+      {#if elsewhere.length}
+        <div class="found">
+          <span class="found-title">{t('onboarding.foundTitle')}</span>
+          {#each elsewhere as f (`${f.source} ${f.email}`)}
+            <button class="found-row" onclick={() => useFound(f)}>
+              <span class="found-who"><b>{f.email}</b><small>{t('onboarding.foundIn', { source: f.source })}</small></span>
+              <span class="found-add">{t('onboarding.foundAdd')} <ArrowRight size={14} /></span>
+            </button>
+          {/each}
+        </div>
+      {/if}
       <div class="grid">
         {#each providers as p (p.id)}
           <button class="prov" onclick={() => pick(p.id)}>
@@ -308,7 +349,7 @@
     {:else if step === 'oauth'}
       <button class="back" onclick={back}><ArrowLeft size={15} /> {t('common.back')}</button>
       <h2>{t('onboarding.oauthTitle', { provider: oauthProvider === 'google' ? 'Google' : 'Microsoft' })}</h2>
-      <p class="sub">{t('onboarding.oauthIntro')}</p>
+      <p class="sub">{importedFrom ? t('onboarding.importedSignIn', { source: importedFrom }) : t('onboarding.oauthIntro')}</p>
       <label class="label" for="ob-email">{t('onboarding.oauthEmailLabel')}</label>
       <input id="ob-email" class="input" type="email" placeholder={oauthProvider === 'google' ? t('onboarding.oauthEmailPlaceholderGoogle') : t('onboarding.oauthEmailPlaceholderMicrosoft')} bind:value={email} />
       {#if oauthConfigured === false}
@@ -331,6 +372,7 @@
     {:else if step === 'password'}
       <button class="back" onclick={back}><ArrowLeft size={15} /> {t('common.back')}</button>
       <h2>{provider === 'generic' ? t('onboarding.passwordTitleGeneric') : t('onboarding.passwordTitle', { provider: providerName })}</h2>
+      {#if importedFrom}<p class="sub">{t('onboarding.importedPassword', { source: importedFrom })}</p>{/if}
       {#if hint}
         <div class="note">
           <Lock size={15} />
@@ -394,6 +436,7 @@
     {:else if step === 'exchange'}
       <button class="back" onclick={back}><ArrowLeft size={15} /> {t('common.back')}</button>
       <h2>{t('onboarding.exchangeTitle')}</h2>
+      {#if importedFrom}<p class="sub">{t('onboarding.importedPassword', { source: importedFrom })}</p>{/if}
       <div class="note">
         <Lock size={15} />
         <span>{t('onboarding.exchangeNote')}</span>
@@ -570,6 +613,56 @@
     height: 40px;
     padding: 0 18px;
     border-radius: 10px;
+  }
+  .found {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .found-title {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .found-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--bg-sunken);
+    box-shadow: inset 0 0 0 1px var(--border);
+    text-align: left;
+    transition: background var(--dur-fast), box-shadow var(--dur-fast);
+  }
+  .found-row:hover {
+    background: var(--bg-elevated);
+    box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-sm);
+  }
+  .found-who {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .found-who b {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .found-who small {
+    font-size: var(--text-sm);
+    color: var(--text-3);
+  }
+  .found-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    color: var(--accent-text);
   }
   .grid {
     display: grid;

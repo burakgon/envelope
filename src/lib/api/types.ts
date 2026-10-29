@@ -488,6 +488,19 @@ export interface Discovery {
   passwordHelpUrl: string | null;
 }
 
+/** An account set up in another mail program on this computer. */
+export interface FoundAccount {
+  /** "Thunderbird", "Evolution", "Geary" or "GNOME Online Accounts". */
+  source: string;
+  email: string;
+  name: string;
+  /** How it is added: IMAP with a password, Google or Microsoft sign-in, or Exchange. */
+  kind: 'imap' | 'google' | 'microsoft' | 'exchange';
+  imap: ServerConfig | null;
+  smtp: ServerConfig | null;
+  ewsUrl: string | null;
+}
+
 export interface NewAccount {
   email: string;
   name: string;

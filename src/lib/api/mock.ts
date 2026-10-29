@@ -229,6 +229,13 @@ export function createMockApi(): Api {
         passwordHint: provider === 'icloud' ? 'iCloud needs an app-specific password.' : null, passwordHelpUrl: null,
       } satisfies T.Discovery, 400);
     },
+    // The demo's computer has Thunderbird with an account not added yet.
+    accountsElsewhere: () =>
+      delay(
+        data.accounts.some((a) => a.email === 'alex.morgan@posteo.test')
+          ? []
+          : [{ source: 'Thunderbird', email: 'alex.morgan@posteo.test', name: 'Alex Morgan', kind: 'imap', imap: { host: 'imap.posteo.test', port: 993, security: 'tls', username: 'alex.morgan@posteo.test' }, smtp: { host: 'smtp.posteo.test', port: 465, security: 'tls', username: 'alex.morgan@posteo.test' }, ewsUrl: null } satisfies T.FoundAccount],
+      ),
     addPasswordAccount: async () => { throw { message: 'Adding accounts is disabled in the demo', kind: 'invalid' }; },
     addExchangeAccount: async () => {
       await delay(null, 900);

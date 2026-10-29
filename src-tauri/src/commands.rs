@@ -120,6 +120,13 @@ pub async fn discover(email: String) -> R<Discovery> {
 }
 
 #[tauri::command]
+pub async fn accounts_elsewhere(
+    state: State<'_, AppState>,
+) -> R<Vec<envelope_core::import::FoundAccount>> {
+    Ok(state.engine.accounts_elsewhere()?)
+}
+
+#[tauri::command]
 pub async fn account_add_password(state: State<'_, AppState>, input: NewAccount) -> R<Account> {
     Ok(state.engine.add_password_account(input).await?)
 }

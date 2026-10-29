@@ -17,6 +17,7 @@ pub mod error;
 pub mod files;
 pub mod folders;
 pub mod free_busy;
+pub mod import;
 pub mod mail_api;
 pub mod mime;
 pub mod model;
