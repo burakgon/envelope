@@ -541,6 +541,14 @@ await step('reply and forward headers are in the interface language', async () =
   await w.keyboard.press('Escape');
 });
 
+await step('an inline reply pops out into a window of its own', async () => {
+  await openConversation('Hafta sonu');
+  await w.locator('body').press('r');
+  await w.locator('.reader .composer.inline .icon-btn[aria-label="Pop out"]').click();
+  await w.locator('.dock .composer').waitFor({ timeout: 5000 });
+  await w.locator('.dock .composer .icon-btn[aria-label="Discard draft"]').click();
+});
+
 await w.close();
 
 await step('no page errors', async () => {

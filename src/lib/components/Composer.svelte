@@ -17,7 +17,7 @@
   import { sanitizeFragment } from '../utils/html';
   import type { Template } from '../stores/ui.svelte';
   import type { Editor as TipTap } from '@tiptap/core';
-  import { ChevronDown, Clock, FileText, Maximize, Minimize, Minus, More, Paperclip, Send, Sparkles, Trash, Type, X, File as FileIcon } from '../icons';
+  import { ChevronDown, Clock, FileText, Maximize, Minimize, Minus, Paperclip, PopOut, Send, Sparkles, Trash, Type, X, File as FileIcon } from '../icons';
 
   let { state: c }: { state: ComposerState } = $props();
 
@@ -333,7 +333,7 @@
       <span class="grow"></span>
       {#if c.inline}
         {#if c.saving}<span class="saved">{t('common.saving')}</span>{:else if c.savedAt}<span class="saved">{t('compose.draftSaved')}</span>{/if}
-        <button class="icon-btn" title={t('composer.popOut')} onclick={() => { c.inline = false; }}><More size={17} /></button>
+        <button class="icon-btn" title={t('composer.popOut')} aria-label={t('composer.popOut')} onclick={() => { c.inline = false; }}><PopOut size={16} /></button>
       {/if}
       <button class="icon-btn" title={t('composer.discardDraft')} aria-label={t('composer.discardDraft')} onclick={() => compose.discard(c.key)}><Trash size={17} /></button>
     </footer>
