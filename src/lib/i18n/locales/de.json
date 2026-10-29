@@ -418,6 +418,12 @@
   "compose.draftDiscarded": "Entwurf verworfen",
   "compose.saveFailed": "Entwurf konnte nicht gespeichert werden: {error}",
   "compose.draftOpenFailed": "Entwurf konnte nicht geöffnet werden: {error}",
+  "compose.quote.wrote": "Am {date} schrieb {sender}:",
+  "compose.quote.forwarded": "---------- Weitergeleitete Nachricht ---------",
+  "compose.quote.from": "Von:",
+  "compose.quote.date": "Datum:",
+  "compose.quote.subject": "Betreff:",
+  "compose.quote.to": "An:",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Seitenleiste einblenden",

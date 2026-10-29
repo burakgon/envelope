@@ -418,6 +418,12 @@
   "compose.draftDiscarded": "Bozza eliminata",
   "compose.saveFailed": "Impossibile salvare la bozza: {error}",
   "compose.draftOpenFailed": "Impossibile aprire la bozza: {error}",
+  "compose.quote.wrote": "Il giorno {date} {sender} ha scritto:",
+  "compose.quote.forwarded": "---------- Messaggio inoltrato ---------",
+  "compose.quote.from": "Da:",
+  "compose.quote.date": "Data:",
+  "compose.quote.subject": "Oggetto:",
+  "compose.quote.to": "A:",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Mostra barra laterale",

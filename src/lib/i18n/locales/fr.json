@@ -418,6 +418,12 @@
   "compose.draftDiscarded": "Brouillon supprimé",
   "compose.saveFailed": "Impossible d’enregistrer le brouillon : {error}",
   "compose.draftOpenFailed": "Impossible d’ouvrir le brouillon : {error}",
+  "compose.quote.wrote": "Le {date}, {sender} a écrit :",
+  "compose.quote.forwarded": "---------- Message transféré ---------",
+  "compose.quote.from": "De :",
+  "compose.quote.date": "Date :",
+  "compose.quote.subject": "Objet :",
+  "compose.quote.to": "À :",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Afficher la barre latérale",

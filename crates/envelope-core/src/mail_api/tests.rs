@@ -386,6 +386,69 @@ async fn saving_a_draft_that_is_gone_starts_a_new_one() {
 }
 
 #[tokio::test]
+async fn quotes_in_the_interface_language() {
+    let f = Fixture::new();
+    let original = crate::compose::render(&Outgoing {
+        from: Address::new(Some("Elif <Y>".into()), "elif@example.com"),
+        to: vec![Address::new(None, "alex@example.com")],
+        subject: "Plan".into(),
+        html: "<p>Merhaba</p>".into(),
+        ..Default::default()
+    })
+    .unwrap();
+    let m = f.store(f.inbox, 1, &original.mime, false);
+    let german = QuoteText {
+        wrote: Some("Am {date} schrieb {sender}:".into()),
+        forwarded: Some("---------- Weitergeleitete Nachricht ---------".into()),
+        from: Some("Von:".into()),
+        date: Some("Datum:".into()),
+        subject: Some("Betreff:".into()),
+        to: Some("An:".into()),
+        when: Some("Do., 29. Okt. 2026, 14:32".into()),
+    };
+    let reply = f.engine.compose_reply(m, "reply", &german).unwrap();
+    assert!(
+        reply.html.contains(
+            "Am Do., 29. Okt. 2026, 14:32 schrieb Elif &lt;Y&gt; &lt;elif@example.com&gt;:"
+        ),
+        "{}",
+        reply.html
+    );
+    let forward = f.engine.compose_reply(m, "forward", &german).unwrap();
+    for part in [
+        "Weitergeleitete Nachricht",
+        "Von: Elif",
+        "Datum: Do., 29. Okt. 2026",
+        "Betreff: Plan",
+        "An: alex@example.com",
+    ] {
+        assert!(forward.html.contains(part), "{part} in {}", forward.html);
+    }
+    // Without texts: English, as before.
+    let english = f
+        .engine
+        .compose_reply(m, "reply", &QuoteText::default())
+        .unwrap();
+    assert!(english.html.contains(" wrote:</div>"), "{}", english.html);
+    let forward = f
+        .engine
+        .compose_reply(m, "forward", &QuoteText::default())
+        .unwrap();
+    assert!(
+        forward
+            .html
+            .contains("---------- Forwarded message ---------<br>From: ")
+    );
+    // Translations are text, not markup.
+    let odd = QuoteText {
+        wrote: Some("<b>{sender}</b> wrote:".into()),
+        ..Default::default()
+    };
+    let reply = f.engine.compose_reply(m, "reply", &odd).unwrap();
+    assert!(reply.html.contains("&lt;b&gt;Elif"), "{}", reply.html);
+}
+
+#[tokio::test]
 async fn a_draft_edited_elsewhere_opens_as_the_server_has_it() {
     let f = Fixture::new();
     let data = DraftInput {

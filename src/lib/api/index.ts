@@ -51,7 +51,8 @@ export interface Api {
   saveDraft(id: number | null, data: T.DraftInput, upload: boolean): Promise<number>;
   /** Discards a draft and its server copy. */
   deleteDraft(id: number): Promise<void>;
-  composeReply(messageId: number, mode: 'reply' | 'replyAll' | 'forward'): Promise<T.DraftInput>;
+  /** `quote`: the header above the quoted original, in the interface language. */
+  composeReply(messageId: number, mode: 'reply' | 'replyAll' | 'forward', quote?: T.QuoteText): Promise<T.DraftInput>;
   send(draftId: number | null, data: T.DraftInput, delayMs: number, sendAt: number | null): Promise<number>;
   cancelSend(outboxId: number): Promise<number | null>;
   retrySend(outboxId: number): Promise<void>;

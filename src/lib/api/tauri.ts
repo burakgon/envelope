@@ -72,7 +72,7 @@ export function createTauriApi(): Api {
     draftForMessage: (messageId) => invoke('draft_for_message', { messageId }),
     saveDraft: (id, data, upload) => invoke('save_draft', { id, data, upload }),
     deleteDraft: (id) => invoke('delete_draft', { id }),
-    composeReply: (messageId, mode) => invoke('compose_reply', { messageId, mode }),
+    composeReply: (messageId, mode, quote) => invoke('compose_reply', { messageId, mode, quote: quote ?? null }),
     send: (draftId, data, delayMs, sendAt) => invoke('send', { draftId, data, delayMs, sendAt }),
     cancelSend: (outboxId) => invoke('cancel_send', { outboxId }),
     retrySend: (outboxId) => invoke('retry_send', { outboxId }),

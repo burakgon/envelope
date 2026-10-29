@@ -530,6 +530,25 @@ pub struct Draft {
     pub local_only: bool,
 }
 
+/// The header above quoted mail in replies and forwards, in the interface
+/// language. Missing texts are English.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct QuoteText {
+    /// The line above a quoted reply, with `{date}` and `{sender}`:
+    /// "On {date}, {sender} wrote:".
+    pub wrote: Option<String>,
+    /// The first line of a forwarded message's header.
+    pub forwarded: Option<String>,
+    /// Field names in a forwarded message's header.
+    pub from: Option<String>,
+    pub date: Option<String>,
+    pub subject: Option<String>,
+    pub to: Option<String>,
+    /// The original's date and time as the interface writes them.
+    pub when: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OutboxItem {

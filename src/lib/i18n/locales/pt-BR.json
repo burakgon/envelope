@@ -418,6 +418,12 @@
   "compose.draftDiscarded": "Rascunho descartado",
   "compose.saveFailed": "Não foi possível salvar o rascunho: {error}",
   "compose.draftOpenFailed": "Não foi possível abrir o rascunho: {error}",
+  "compose.quote.wrote": "Em {date}, {sender} escreveu:",
+  "compose.quote.forwarded": "---------- Mensagem encaminhada ---------",
+  "compose.quote.from": "De:",
+  "compose.quote.date": "Data:",
+  "compose.quote.subject": "Assunto:",
+  "compose.quote.to": "Para:",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Mostrar barra lateral",

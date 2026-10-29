@@ -910,8 +910,14 @@ impl Engine {
         self.db.read(misc::outbox_list)
     }
 
-    /// Prefills a reply / reply-all / forward.
-    pub fn compose_reply(&self, message_id: i64, mode: &str) -> Result<DraftInput> {
+    /// Prefills a reply / reply-all / forward. The header above the quoted
+    /// original is written with `quote`'s texts (the interface language).
+    pub fn compose_reply(
+        &self,
+        message_id: i64,
+        mode: &str,
+        quote: &QuoteText,
+    ) -> Result<DraftInput> {
         let m = self.db.read(|c| mail::get_message(c, message_id))?;
         let identities = self.db.read(misc::list_identities)?;
         let mine: Vec<&Identity> = identities
@@ -962,13 +968,29 @@ impl Engine {
             Some(MessageBody { text: Some(t), .. }) => text_to_html(t),
             _ => html_escape::encode_text(&m.snippet).to_string(),
         };
-        let date = chrono::DateTime::from_timestamp_millis(m.date)
-            .map(|d| {
-                d.with_timezone(&chrono::Local)
-                    .format("%a, %b %-d, %Y at %H:%M")
-                    .to_string()
-            })
-            .unwrap_or_default();
+        let date = quote
+            .when
+            .clone()
+            .filter(|w| !w.trim().is_empty())
+            .unwrap_or_else(|| {
+                chrono::DateTime::from_timestamp_millis(m.date)
+                    .map(|d| {
+                        d.with_timezone(&chrono::Local)
+                            .format("%a, %b %-d, %Y at %H:%M")
+                            .to_string()
+                    })
+                    .unwrap_or_default()
+            });
+        let date = html_escape::encode_text(&date).to_string();
+        // A text of the interface, escaped; English when it is missing.
+        let text = |t: &Option<String>, english: &str| {
+            html_escape::encode_text(
+                t.as_deref()
+                    .filter(|t| !t.trim().is_empty())
+                    .unwrap_or(english),
+            )
+            .to_string()
+        };
         let sender = m
             .from
             .as_ref()
@@ -990,8 +1012,13 @@ impl Engine {
                         .collect::<Vec<_>>()
                         .join(", ");
                 draft.html = format!(
-                    "<p></p><p></p><div class=\"envelope-forward\">---------- Forwarded message ---------<br>From: {sender}<br>Date: {date}<br>Subject: {}<br>To: {}<br><br>{original_html}</div>",
+                    "<p></p><p></p><div class=\"envelope-forward\">{}<br>{} {sender}<br>{} {date}<br>{} {}<br>{} {}<br><br>{original_html}</div>",
+                    text(&quote.forwarded, "---------- Forwarded message ---------"),
+                    text(&quote.from, "From:"),
+                    text(&quote.date, "Date:"),
+                    text(&quote.subject, "Subject:"),
                     html_escape::encode_text(&subject),
+                    text(&quote.to, "To:"),
                     html_escape::encode_text(&to_list)
                 );
                 let attachments = match &opened {
@@ -1043,8 +1070,11 @@ impl Engine {
                     draft.to = to;
                     draft.cc = cc;
                 }
+                let wrote = text(&quote.wrote, "On {date}, {sender} wrote:")
+                    .replace("{date}", &date)
+                    .replace("{sender}", &sender);
                 draft.html = format!(
-                    "<p></p><p></p><div class=\"envelope-quote\"><div>On {date}, {sender} wrote:</div><blockquote style=\"margin:0 0 0 .8ex;border-left:2px solid #d0d4dc;padding-left:1ex\">{original_html}</blockquote></div>"
+                    "<p></p><p></p><div class=\"envelope-quote\"><div>{wrote}</div><blockquote style=\"margin:0 0 0 .8ex;border-left:2px solid #d0d4dc;padding-left:1ex\">{original_html}</blockquote></div>"
                 );
             }
         }

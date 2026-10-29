@@ -156,7 +156,7 @@
     const d = await api.thread(th.id);
     // Replies go to the newest message that is not a draft.
     const last = [...d.messages].reverse().find((m) => !m.flags.draft) ?? d.messages[d.messages.length - 1];
-    if (last) compose.reply(last.id, mode, mode !== 'forward');
+    if (last) compose.reply(last.id, mode, mode !== 'forward', last.date);
   }
 
   function startResize(e: PointerEvent) {

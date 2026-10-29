@@ -418,6 +418,12 @@
   "compose.draftDiscarded": "Draft discarded",
   "compose.saveFailed": "Could not save draft: {error}",
   "compose.draftOpenFailed": "Could not open the draft: {error}",
+  "compose.quote.wrote": "On {date}, {sender} wrote:",
+  "compose.quote.forwarded": "---------- Forwarded message ---------",
+  "compose.quote.from": "From:",
+  "compose.quote.date": "Date:",
+  "compose.quote.subject": "Subject:",
+  "compose.quote.to": "To:",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Show sidebar",

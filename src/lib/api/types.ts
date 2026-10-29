@@ -281,6 +281,21 @@ export interface Draft {
   localOnly: boolean;
 }
 
+/** The header above quoted mail in replies and forwards, in the interface language. */
+export interface QuoteText {
+  /** "On {date}, {sender} wrote:" */
+  wrote?: string | null;
+  /** "---------- Forwarded message ---------" */
+  forwarded?: string | null;
+  /** Field names of a forwarded message's header ("From:"). */
+  from?: string | null;
+  date?: string | null;
+  subject?: string | null;
+  to?: string | null;
+  /** The original's date and time, as the interface writes them. */
+  when?: string | null;
+}
+
 export interface OutboxItem {
   id: number;
   accountId: number;

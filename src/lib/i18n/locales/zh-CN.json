@@ -418,6 +418,12 @@
   "compose.draftDiscarded": "已舍弃草稿",
   "compose.saveFailed": "无法保存草稿：{error}",
   "compose.draftOpenFailed": "无法打开草稿：{error}",
+  "compose.quote.wrote": "{sender} 于 {date} 写道：",
+  "compose.quote.forwarded": "---------- 转发的邮件 ---------",
+  "compose.quote.from": "发件人：",
+  "compose.quote.date": "日期：",
+  "compose.quote.subject": "主题：",
+  "compose.quote.to": "收件人：",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "显示侧边栏",

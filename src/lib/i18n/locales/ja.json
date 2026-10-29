@@ -418,6 +418,12 @@
   "compose.draftDiscarded": "下書きを破棄しました",
   "compose.saveFailed": "下書きを保存できませんでした：{error}",
   "compose.draftOpenFailed": "下書きを開けませんでした：{error}",
+  "compose.quote.wrote": "{date}、{sender} さんは書きました:",
+  "compose.quote.forwarded": "---------- 転送されたメッセージ ---------",
+  "compose.quote.from": "差出人:",
+  "compose.quote.date": "日付:",
+  "compose.quote.subject": "件名:",
+  "compose.quote.to": "宛先:",
 
   "calendar.event.timeRange": "{start}～{end}",
   "calendar.header.showSidebar": "サイドバーを表示",

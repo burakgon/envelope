@@ -341,9 +341,17 @@ pub async fn draft_for_message(state: State<'_, AppState>, message_id: i64) -> R
     Ok(state.engine.draft_for_message(message_id).await?)
 }
 
+/// `quote`: the header above the quoted original, in the interface language.
 #[tauri::command]
-pub fn compose_reply(state: State<'_, AppState>, message_id: i64, mode: String) -> R<DraftInput> {
-    Ok(state.engine.compose_reply(message_id, &mode)?)
+pub fn compose_reply(
+    state: State<'_, AppState>,
+    message_id: i64,
+    mode: String,
+    quote: Option<QuoteText>,
+) -> R<DraftInput> {
+    Ok(state
+        .engine
+        .compose_reply(message_id, &mode, &quote.unwrap_or_default())?)
 }
 
 #[tauri::command]

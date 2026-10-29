@@ -418,6 +418,12 @@
   "compose.draftDiscarded": "Odrzucono wersję roboczą",
   "compose.saveFailed": "Nie udało się zapisać wersji roboczej: {error}",
   "compose.draftOpenFailed": "Nie udało się otworzyć wersji roboczej: {error}",
+  "compose.quote.wrote": "W dniu {date} {sender} napisał(a):",
+  "compose.quote.forwarded": "---------- Przekazana wiadomość ---------",
+  "compose.quote.from": "Od:",
+  "compose.quote.date": "Data:",
+  "compose.quote.subject": "Temat:",
+  "compose.quote.to": "Do:",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Pokaż pasek boczny",

@@ -418,6 +418,12 @@
   "compose.draftDiscarded": "Taslak silindi",
   "compose.saveFailed": "Taslak kaydedilemedi: {error}",
   "compose.draftOpenFailed": "Taslak açılamadı: {error}",
+  "compose.quote.wrote": "{date} tarihinde {sender} şunu yazdı:",
+  "compose.quote.forwarded": "---------- İletilen mesaj ---------",
+  "compose.quote.from": "Kimden:",
+  "compose.quote.date": "Tarih:",
+  "compose.quote.subject": "Konu:",
+  "compose.quote.to": "Kime:",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Kenar çubuğunu göster",

@@ -276,19 +276,25 @@ export function createMockApi(): Api {
     draftForMessage: async (messageId) => delay(drafts.forMessage(messageId), 120),
     saveDraft: async (id, d, upload) => drafts.save(id, d, upload),
     deleteDraft: async (id) => drafts.remove(id),
-    composeReply: async (messageId, mode) => {
+    composeReply: async (messageId, mode, quote) => {
       const m = messages.find((x) => x.id === messageId)!;
       const ident = identities.find((i) => i.accountId === m.accountId)!;
-      const quoted = m.body?.html ?? (m.body?.text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>');
-      const date = new Date(m.date).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+      const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const quoted = m.body?.html ?? esc(m.body?.text ?? '').replace(/\n/g, '<br>');
+      const date = esc(quote?.when || new Date(m.date).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }));
+      const sender = m.from ? (m.from.name ? `${esc(m.from.name)} &lt;${esc(m.from.email)}&gt;` : esc(m.from.email)) : '';
+      const text = (s: string | null | undefined, english: string) => esc(s?.trim() ? s : english);
       const fwd = mode === 'forward';
+      const header = fwd
+        ? `<div class="envelope-forward">${text(quote?.forwarded, '---------- Forwarded message ---------')}<br>${text(quote?.from, 'From:')} ${sender}<br>${text(quote?.date, 'Date:')} ${date}<br>${text(quote?.subject, 'Subject:')} ${esc(m.subject)}<br>${text(quote?.to, 'To:')} ${esc(m.to.map((a) => a.email).join(', '))}<br><br>${quoted}</div>`
+        : `<div class="envelope-quote"><div>${text(quote?.wrote, 'On {date}, {sender} wrote:').replace('{date}', date).replace('{sender}', sender)}</div><blockquote>${quoted}</blockquote></div>`;
       return {
         accountId: m.accountId, identityId: ident.id,
         to: fwd ? [] : [m.from ?? { email: '' }],
         cc: mode === 'replyAll' ? [...m.to, ...m.cc].filter((a) => a.email !== ident.email) : [],
         bcc: [],
         subject: `${fwd ? 'Fwd' : 'Re'}: ${m.subject.replace(/^(re|fwd):\s*/i, '')}`,
-        html: `<p></p>${ident.signature ? `<div class="envelope-signature">${ident.signature}</div>` : ''}<div class="envelope-quote"><div>On ${date}, ${m.from?.name ?? m.from?.email} wrote:</div><blockquote>${quoted}</blockquote></div>`,
+        html: `<p></p>${ident.signature ? `<div class="envelope-signature">${ident.signature}</div>` : ''}${header}`,
         attachments: fwd ? m.attachments.map((a) => ({ filename: a.filename, mimeType: a.mimeType, size: a.size, attachmentId: a.id })) : [],
         replyToMessageId: messageId, mode,
       };

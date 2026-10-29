@@ -403,6 +403,29 @@ await step('a draft only on this computer is listed in Drafts', async () => {
   await closeComposer();
 });
 
+await step('reply and forward headers are in the interface language', async () => {
+  await w.keyboard.press('Control+,');
+  await w.locator('.window select').first().selectOption('de');
+  await w.locator('.window .tab', { hasText: 'Allgemein' }).waitFor({ timeout: 5000 });
+  await w.keyboard.press('Escape');
+  await openConversation('Hafta sonu');
+  await w.locator('body').press('r');
+  const inline = w.locator('.reader .composer.inline');
+  await inline.locator('.quote-toggle').click();
+  await inline.locator('.quoted', { hasText: 'schrieb Elif' }).waitFor({ timeout: 5000 });
+  await inline.locator('.icon-btn[aria-label="Entwurf verwerfen"]').click();
+  await w.locator('body').press('f');
+  const fwd = w.locator('.dock .composer');
+  await fwd.locator('.quote-toggle').click();
+  const quoted = await fwd.locator('.quoted').innerText();
+  if (!quoted.includes('Weitergeleitete Nachricht') || !quoted.includes('Von:') || !quoted.includes('Betreff:')) throw new Error(`the forwarded header reads "${quoted.slice(0, 120)}"`);
+  await fwd.locator('.icon-btn[aria-label="Entwurf verwerfen"]').click();
+  await w.keyboard.press('Control+,');
+  await w.locator('.window select').first().selectOption('en');
+  await w.locator('.window .tab', { hasText: 'General' }).waitFor({ timeout: 5000 });
+  await w.keyboard.press('Escape');
+});
+
 await w.close();
 
 await step('no page errors', async () => {

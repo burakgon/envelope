@@ -1,10 +1,10 @@
 import { api } from '../api';
-import type { Address, Draft, DraftInput, MessageView, ThreadSummary } from '../api';
+import type { Address, Draft, DraftInput, MessageView, QuoteText, ThreadSummary } from '../api';
 import { mail } from './mail.svelte';
 import { dialogs } from './dialogs.svelte';
 import { errorMessage, toasts } from './toasts.svelte';
 import { ui } from './ui.svelte';
-import { t } from '../i18n';
+import { rawMessages, t } from '../i18n';
 import { dateFormat } from '../utils/format';
 import { isEncrypted, pgp } from './pgp.svelte';
 
@@ -55,6 +55,20 @@ function parseMailto(url: string): Partial<DraftInput> {
   } catch {
     return {};
   }
+}
+
+/** The header above quoted mail in the interface language, with the original's date written in it. */
+export function quoteText(date: number | null | undefined): QuoteText {
+  const raw = rawMessages('compose.quote.');
+  return {
+    wrote: raw['compose.quote.wrote'],
+    forwarded: raw['compose.quote.forwarded'],
+    from: raw['compose.quote.from'],
+    date: raw['compose.quote.date'],
+    subject: raw['compose.quote.subject'],
+    to: raw['compose.quote.to'],
+    when: date != null ? dateFormat({ weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date) : null,
+  };
 }
 
 class Compose {
@@ -123,12 +137,13 @@ class Compose {
     this.new(parseMailto(url));
   }
 
-  async reply(messageId: number, mode: 'reply' | 'replyAll' | 'forward', inline = true) {
+  /** `date`: the original's, for the header above the quote, when it is not in the open conversation. */
+  async reply(messageId: number, mode: 'reply' | 'replyAll' | 'forward', inline = true, date?: number) {
     try {
       // An encrypted original is decrypted first, so the reply can quote it.
       const original = mail.detail?.messages.find((m) => m.id === messageId);
       if (original && isEncrypted(original)) await pgp.open(messageId);
-      const data = await api.composeReply(messageId, mode);
+      const data = await api.composeReply(messageId, mode, quoteText(original?.date ?? date));
       const threadId = mail.detail?.thread.id ?? null;
       this.open(data, { inline, threadId, showCc: data.cc.length > 0 });
     } catch (e) {

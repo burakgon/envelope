@@ -280,7 +280,9 @@ async fn sync_read_archive_send() {
     assert_eq!(archived[0].message_count, 1);
 
     // Send a reply to ourselves through SMTP; it must arrive via IDLE.
-    let mut draft = engine.compose_reply(md.messages[0].id, "reply").unwrap();
+    let mut draft = engine
+        .compose_reply(md.messages[0].id, "reply", &QuoteText::default())
+        .unwrap();
     draft.to = vec![Address::new(Some("Alex".into()), "alex@envelope.test")];
     let marker = uuid::Uuid::new_v4().to_string();
     draft.html = format!("<p>Looks great! {marker}</p>{}", draft.html);

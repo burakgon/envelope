@@ -256,7 +256,7 @@ async fn encrypted_and_signed_mail_round_trip() {
 
     // Replying quotes the decrypted text, keeps the real subject and
     // encrypts again.
-    let reply = e.compose_reply(id, "reply").unwrap();
+    let reply = e.compose_reply(id, "reply", &QuoteText::default()).unwrap();
     assert_eq!(reply.encrypt, Some(true));
     assert_eq!(reply.subject, "Re: Gizli plan ☕");
     assert!(reply.html.contains("sır aramızda"));

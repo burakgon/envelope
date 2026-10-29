@@ -418,6 +418,12 @@
   "compose.draftDiscarded": "Borrador descartado",
   "compose.saveFailed": "No se pudo guardar el borrador: {error}",
   "compose.draftOpenFailed": "No se pudo abrir el borrador: {error}",
+  "compose.quote.wrote": "El {date}, {sender} escribió:",
+  "compose.quote.forwarded": "---------- Mensaje reenviado ---------",
+  "compose.quote.from": "De:",
+  "compose.quote.date": "Fecha:",
+  "compose.quote.subject": "Asunto:",
+  "compose.quote.to": "Para:",
 
   "calendar.event.timeRange": "{start} – {end}",
   "calendar.header.showSidebar": "Mostrar barra lateral",

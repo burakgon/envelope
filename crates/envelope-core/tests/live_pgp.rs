@@ -175,7 +175,9 @@ async fn encrypted_signed_mail_to_self() {
     );
 
     // A reply starts encrypted, quoting the decrypted text.
-    let reply = engine.compose_reply(message.id, "reply").unwrap();
+    let reply = engine
+        .compose_reply(message.id, "reply", &QuoteText::default())
+        .unwrap();
     assert_eq!(reply.encrypt, Some(true));
     assert_eq!(reply.subject, format!("Re: {subject}"));
     assert!(reply.html.contains(&marker));
