@@ -3,6 +3,7 @@
   import type { KeyInfo, KeySource, MessageView, OpenedMessage, SignatureView } from '../api';
   import { formatFingerprint, isEncrypted, keyName, pgp } from '../stores/pgp.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
+  import { dialogs } from '../stores/dialogs.svelte';
   import { t, type MessageKey } from '../i18n';
   import { longDate } from '../utils/format';
   import Popover from './Popover.svelte';
@@ -52,7 +53,12 @@
   }
 
   async function verify(key: KeyInfo) {
-    const ok = confirm(t('crypto.status.verifyConfirm', { name: keyName(key), fingerprint: formatFingerprint(key.fingerprint) }));
+    const ok = await dialogs.confirm({
+      title: t('crypto.status.verifyTitle', { name: keyName(key) }),
+      message: t('crypto.status.verifyConfirm', { name: keyName(key) }),
+      detail: formatFingerprint(key.fingerprint),
+      confirmLabel: t('settings.encryption.itMatches'),
+    });
     if (!ok) return;
     try {
       await api.crypto.setVerified(key.fingerprint, true);

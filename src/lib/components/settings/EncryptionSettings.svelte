@@ -4,6 +4,7 @@
   import type { CryptoSettings, KeyInfo, KeySource, OwnKey } from '../../api';
   import { formatFingerprint, keyName, pgp } from '../../stores/pgp.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
+  import { dialogs } from '../../stores/dialogs.svelte';
   import { t, type MessageKey } from '../../i18n';
   import { longDate } from '../../utils/format';
   import Toggle from './Toggle.svelte';
@@ -61,7 +62,14 @@
 
   async function set<K extends keyof CryptoSettings>(key: K, value: CryptoSettings[K]) {
     if (!settings) return;
-    if (key === 'keepDecrypted' && !value && !confirm(t('settings.encryption.forgetDecryptedConfirm'))) return;
+    if (key === 'keepDecrypted' && !value) {
+      const ok = await dialogs.confirm({
+        title: t('settings.encryption.forgetDecryptedTitle'),
+        message: t('settings.encryption.forgetDecryptedConfirm'),
+        confirmLabel: t('settings.encryption.forgetNow'),
+      });
+      if (!ok || !settings) return;
+    }
     const next = { ...settings, [key]: value };
     try {
       await api.crypto.setSettings(next);
@@ -145,11 +153,16 @@
     }, t('settings.encryption.secretKeySaved'));
   }
 
-  function remove(key: KeyInfo) {
-    const msg = key.secret
-      ? t('settings.encryption.deleteOwnKeyConfirm', { fingerprint: formatFingerprint(key.fingerprint) })
-      : t('settings.encryption.deleteKeyConfirm', { name: keyName(key) });
-    if (!confirm(msg)) return;
+  async function remove(key: KeyInfo) {
+    const ok = await dialogs.confirm({
+      ...(key.secret
+        ? { title: t('settings.encryption.deleteOwnKeyTitle'), message: t('settings.encryption.deleteOwnKeyConfirm') }
+        : { title: t('settings.encryption.deleteKeyConfirm', { name: keyName(key) }) }),
+      detail: formatFingerprint(key.fingerprint),
+      confirmLabel: t('settings.encryption.deleteKey'),
+      danger: true,
+    });
+    if (!ok) return;
     run(() => api.crypto.deleteKey(key.fingerprint), t('settings.encryption.keyDeleted'));
   }
 

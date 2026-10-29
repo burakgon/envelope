@@ -5,6 +5,7 @@
   import { mail } from '../../stores/mail.svelte';
   import { ui } from '../../stores/ui.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
+  import { dialogs } from '../../stores/dialogs.svelte';
   import AiSettings from './AiSettings.svelte';
   import EncryptionSettings from './EncryptionSettings.svelte';
   import AutoReplyDialog from './AutoReplyDialog.svelte';
@@ -99,7 +100,13 @@
   }
 
   async function removeAccount(a: Account) {
-    if (!confirm(t('settings.accounts.removeConfirm', { email: a.email }))) return;
+    const sure = await dialogs.confirm({
+      title: t('settings.accounts.removeTitle', { email: a.email }),
+      message: t('settings.accounts.removeConfirm'),
+      confirmLabel: t('settings.accounts.remove'),
+      danger: true,
+    });
+    if (!sure) return;
     try {
       await api.removeAccount(a.id);
       await mail.loadAccounts();
@@ -114,7 +121,7 @@
   async function reauth(a: Account) {
     try {
       if (a.config.auth === 'password') {
-        const pw = prompt(t('settings.accounts.newPassword', { email: a.email }));
+        const pw = await dialogs.prompt({ title: t('settings.accounts.newPassword', { email: a.email }), type: 'password', confirmLabel: t('settings.accounts.signInAgain') });
         if (!pw) return;
         await api.updateAccount(a.id, { password: pw });
       } else {

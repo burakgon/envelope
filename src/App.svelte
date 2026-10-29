@@ -32,6 +32,8 @@
   import { people } from './lib/stores/contacts.svelte';
   import { tasks } from './lib/stores/tasks.svelte';
   import ScopeDialog from './lib/components/calendar/ScopeDialog.svelte';
+  import QuestionDialog from './lib/components/QuestionDialog.svelte';
+  import { dialogs } from './lib/stores/dialogs.svelte';
 
   let booted = $state(false);
   /** Message and calendar files handed to the app, shown one after another. */
@@ -152,6 +154,8 @@
   }
 
   function onKey(e: KeyboardEvent) {
+    // A question on screen has the keyboard until it is answered.
+    if (dialogs.current) return;
     const target = e.target as HTMLElement | null;
     const typing = !!target?.closest?.('input, textarea, select, [contenteditable="true"]');
     const mod = e.ctrlKey || e.metaKey;
@@ -389,6 +393,7 @@
 {#if openedFiles.length}{#key openedFiles[0]}<FileViewer path={openedFiles[0]} onclose={() => (openedFiles = openedFiles.slice(1))} />{/key}{/if}
 {#if cal.scopeAsk}<ScopeDialog />{/if}
 {#if pgp.ask}<PassphraseDialog />{/if}
+{#if dialogs.current}{#key dialogs.current}<QuestionDialog />{/key}{/if}
 
 {#if kbMenu}
   {@const ids = kbMenu.ids}

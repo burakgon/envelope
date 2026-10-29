@@ -6,6 +6,7 @@
   import { Placeholder } from '@tiptap/extensions';
   import { Bold, Code, Italic, Link, List, ListOrdered, Quote, Strikethrough, Underline, Undo, Redo, Type } from '../icons';
   import { t } from '../i18n';
+  import { dialogs } from '../stores/dialogs.svelte';
 
   let {
     html,
@@ -100,11 +101,11 @@
     }
   });
 
-  function setLink() {
+  async function setLink() {
     if (!editor) return;
     const prev = editor.getAttributes('link').href as string | undefined;
-    const url = prompt(t('editor.linkUrl'), prev ?? 'https://');
-    if (url === null) return;
+    const url = await dialogs.prompt({ title: t('editor.linkUrl'), value: prev ?? 'https://', type: 'url' });
+    if (url === null || !editor || editor.isDestroyed) return;
     if (url === '' || url === 'https://') editor.chain().focus().extendMarkRange('link').unsetLink().run();
     else editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
   }

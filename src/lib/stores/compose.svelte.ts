@@ -1,6 +1,7 @@
 import { api } from '../api';
 import type { Address, DraftInput } from '../api';
 import { mail } from './mail.svelte';
+import { dialogs } from './dialogs.svelte';
 import { errorMessage, toasts } from './toasts.svelte';
 import { ui } from './ui.svelte';
 import { t } from '../i18n';
@@ -57,6 +58,8 @@ function parseMailto(url: string): Partial<DraftInput> {
 class Compose {
   list = $state<ComposerState[]>([]);
   private timers = new Map<number, ReturnType<typeof setTimeout>>();
+  /** Composers asking whether to send without a subject. */
+  private asking = new Set<number>();
 
   floating = $derived(this.list.filter((c) => !c.inline));
 
@@ -204,7 +207,13 @@ class Compose {
       toasts.error(t('compose.noRecipients'));
       return;
     }
-    if (!data.subject.trim() && !confirm(t('compose.confirmNoSubject'))) return;
+    if (!data.subject.trim()) {
+      // Asked once, however often Send is pressed meanwhile.
+      if (this.asking.has(key)) return;
+      this.asking.add(key);
+      const ok = await dialogs.confirm({ title: t('compose.confirmNoSubject'), confirmLabel: t('common.send') }).finally(() => this.asking.delete(key));
+      if (!ok || !this.get(key)) return;
+    }
     const replyThread = c.threadId;
     this.remove(key);
     try {
