@@ -47,6 +47,7 @@ export function createTauriApi(): Api {
       }),
     addOAuthAccount: (provider, loginHint) => invoke('account_add_oauth', { provider, loginHint: loginHint ?? null }),
     updateAccount: (id, patch) => invoke('account_update', { id, patch }),
+    verifyAccount: (id, config, password) => invoke('account_verify', { id, config, password }),
     removeAccount: (id) => invoke('account_remove', { id }),
     reorderAccounts: (ids) => invoke('accounts_reorder', { ids }),
     oauthClient: (provider) => invoke('oauth_client_get', { provider }),

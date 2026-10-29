@@ -567,6 +567,73 @@ impl Engine {
         self.account(id)
     }
 
+    /// Checks changed connection settings of an account before they are
+    /// saved: signs in to its IMAP and SMTP servers (Exchange: its EWS
+    /// server) with `password`, or the stored one when none is given.
+    /// Google and Microsoft accounts sign in on their own pages.
+    pub async fn verify_account_settings(
+        &self,
+        id: i64,
+        config: &AccountConfig,
+        password: Option<String>,
+    ) -> Result<()> {
+        let account = self.account_row(id)?;
+        let password = match password.filter(|p| !p.is_empty()) {
+            Some(p) => p,
+            None => self
+                .secrets
+                .get(&secrets::password_key(id))
+                .await?
+                .ok_or_else(|| Error::Auth("Enter the password of this account.".into()))?,
+        };
+        match account.kind {
+            AccountKind::Exchange => {
+                self.verify_exchange_settings(&account.email, config, password)
+                    .await
+            }
+            AccountKind::Imap => {
+                let imap = config
+                    .imap
+                    .clone()
+                    .ok_or_else(|| Error::Invalid("Incoming (IMAP) server is required".into()))?;
+                let user = |username: &str| {
+                    if username.is_empty() {
+                        account.email.clone()
+                    } else {
+                        username.to_string()
+                    }
+                };
+                let mut c = crate::sync::imap::connect_with(
+                    &imap,
+                    config,
+                    &envelope_imap::Auth::Password {
+                        user: user(&imap.username),
+                        password: password.clone(),
+                    },
+                )
+                .await
+                .map_err(|e| explain_setup_error("incoming (IMAP)", &imap.host, imap.port, e))?;
+                let _ = c.logout().await;
+                if let Some(smtp) = &config.smtp {
+                    crate::smtp::test(
+                        smtp,
+                        &crate::smtp::SmtpAuth::Password {
+                            user: user(&smtp.username),
+                            password,
+                        },
+                        config.accept_invalid_certs,
+                    )
+                    .await
+                    .map_err(|e| {
+                        explain_setup_error("outgoing (SMTP)", &smtp.host, smtp.port, e)
+                    })?;
+                }
+                Ok(())
+            }
+            AccountKind::Gmail | AccountKind::Microsoft => Ok(()),
+        }
+    }
+
     /// Removes an account and all of its local data.
     pub async fn remove_account(&self, id: i64) -> Result<()> {
         self.stop_worker(id);

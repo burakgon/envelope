@@ -242,6 +242,11 @@ export function createMockApi(): Api {
       throw { message: 'Adding accounts is disabled in the demo', kind: 'invalid' };
     },
     addOAuthAccount: async () => { throw { message: 'Adding accounts is disabled in the demo', kind: 'invalid' }; },
+    // The demo's servers take any settings but a server named like a mistake.
+    verifyAccount: async (_id, config) => {
+      await delay(null, 500);
+      if (config.imap?.host.includes('wrong')) throw { message: `Could not connect to the incoming (IMAP) server ${config.imap.host}:${config.imap.port}. Check the server name and port.`, kind: 'network' };
+    },
     updateAccount: async (id, patch) => {
       const a = data.accounts.find((x) => x.id === id)!;
       const { password, ...rest } = patch;

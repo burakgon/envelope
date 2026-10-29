@@ -9,6 +9,7 @@
   import AiSettings from './AiSettings.svelte';
   import EncryptionSettings from './EncryptionSettings.svelte';
   import AutoReplyDialog from './AutoReplyDialog.svelte';
+  import AccountDialog from './AccountDialog.svelte';
   import { autoReplies } from '../../stores/autoReplies.svelte';
   import RulesSettings from './RulesSettings.svelte';
   import { health } from '../../stores/accountHealth.svelte';
@@ -66,6 +67,7 @@
 
   let autostart = $state(false);
   let autoReplyFor = $state<Account | null>(null);
+  let settingsFor = $state<Account | null>(null);
 
   onMount(async () => {
     if (!cal.calendars.length) cal.loadCalendars();
@@ -392,6 +394,7 @@
               </div>
               <Toggle checked={a.enabled} onchange={(v) => saveAccount(a, { enabled: v })} />
               <button class="icon-btn" class:active={autoReplies.on[a.id]} title={t('autoReply.title')} aria-label={t('autoReply.title')} onclick={() => (autoReplyFor = a)}><Away size={16} /></button>
+              <button class="icon-btn" title={t('accountSettings.title')} aria-label={t('accountSettings.title')} onclick={() => (settingsFor = a)}><Gear size={16} /></button>
               <button class="btn sm" class:primary={problem === 'signIn'} onclick={() => reauth(a)}><Lock size={13} />{t('settings.accounts.signInAgain')}</button>
               <button class="icon-btn" title={t('settings.accounts.remove')} onclick={() => removeAccount(a)}><Trash size={16} /></button>
             </div>
@@ -548,6 +551,9 @@
 
 {#if autoReplyFor}
   <AutoReplyDialog account={autoReplyFor} onclose={() => (autoReplyFor = null)} />
+{/if}
+{#if settingsFor}
+  <AccountDialog account={settingsFor} onclose={() => (settingsFor = null)} />
 {/if}
 
 <style>

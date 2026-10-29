@@ -399,6 +399,29 @@ impl Engine {
     /// Autodiscover unless a URL is given, checks the sign-in by reading the
     /// inbox and starts mail and calendar sync. Adding an Exchange account
     /// again updates its settings and password.
+    /// Signs in to the EWS server of changed Exchange settings, so that a
+    /// mistake is caught before they replace working ones.
+    pub(crate) async fn verify_exchange_settings(
+        &self,
+        email: &str,
+        config: &AccountConfig,
+        password: String,
+    ) -> Result<()> {
+        let exchange = config.exchange.clone().unwrap_or_default();
+        let creds = Credentials {
+            email: email.to_string(),
+            username: Some(exchange.username.trim())
+                .filter(|u| !u.is_empty())
+                .unwrap_or(email)
+                .to_string(),
+            password,
+            auth: exchange.auth,
+            accept_invalid_certs: config.accept_invalid_certs,
+        };
+        connect(&creds, Some(exchange.ews_url.as_str())).await?;
+        Ok(())
+    }
+
     pub async fn add_exchange_account(&self, input: NewExchangeAccount) -> Result<Account> {
         let email = input.email.trim().to_string();
         if !email.contains('@') {

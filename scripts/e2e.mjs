@@ -993,6 +993,43 @@ await step('contacts are imported from a CSV export, leaving out people already 
   }
 });
 
+await step('account settings are edited after setup, and a wrong server is caught before saving', async () => {
+  const p = await open();
+  try {
+    await p.goto(url);
+    await p.locator('.row').first().waitFor({ state: 'visible', timeout: 5000 });
+    await p.keyboard.press('Control+,');
+    await p.locator('.window .tab', { hasText: 'Accounts' }).click();
+    const row = p.locator('.acct', { hasText: 'alex.morgan@icloud.com' });
+    const dialog = p.locator('[role="dialog"][aria-labelledby="acct-title"]');
+    // Unchanged, it closes without asking.
+    await row.locator('.icon-btn[aria-label="Account settings"]').click();
+    await dialog.waitFor({ timeout: 5000 });
+    await p.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached', timeout: 5000 });
+    // A server that doesn't answer: nothing is saved until "Save anyway".
+    await row.locator('.icon-btn[aria-label="Account settings"]').click();
+    const host = dialog.locator('.srv input').first();
+    const was = await host.inputValue();
+    await host.fill('imap.wrong.example');
+    await dialog.locator('button.primary', { hasText: 'Save' }).click();
+    await dialog.locator('.failure', { hasText: 'Could not connect' }).waitFor({ timeout: 5000 });
+    if (!(await dialog.locator('button', { hasText: 'Save anyway' }).count())) throw new Error('no way to save anyway');
+    // The right server again: tested, then saved with the time kept on this computer.
+    await host.fill(was);
+    await dialog.locator('button', { hasText: 'Test connection' }).click();
+    await dialog.locator('.passed').waitFor({ timeout: 5000 });
+    await dialog.locator('#acct-keep').selectOption({ label: 'From the last year' });
+    await dialog.locator('button.primary', { hasText: 'Save' }).click();
+    await p.locator('.toast', { hasText: 'Account settings saved' }).first().waitFor({ timeout: 5000 });
+    await dialog.waitFor({ state: 'detached', timeout: 5000 });
+    await row.locator('.icon-btn[aria-label="Account settings"]').click();
+    if ((await dialog.locator('#acct-keep option:checked').innerText()) !== 'From the last year') throw new Error('the setting was not kept');
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

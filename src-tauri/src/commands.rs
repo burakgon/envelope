@@ -132,6 +132,19 @@ pub async fn contacts_export(
 }
 
 #[tauri::command]
+pub async fn account_verify(
+    state: State<'_, AppState>,
+    id: i64,
+    config: envelope_core::model::AccountConfig,
+    password: Option<String>,
+) -> R<()> {
+    Ok(state
+        .engine
+        .verify_account_settings(id, &config, password)
+        .await?)
+}
+
+#[tauri::command]
 pub async fn accounts_elsewhere(
     state: State<'_, AppState>,
 ) -> R<Vec<envelope_core::import::FoundAccount>> {

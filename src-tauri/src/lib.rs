@@ -196,6 +196,7 @@ pub fn run() {
             commands::accounts,
             commands::discover,
             commands::accounts_elsewhere,
+            commands::account_verify,
             commands::contacts_export,
             commands::account_add_password,
             commands::account_add_exchange,

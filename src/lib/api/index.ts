@@ -23,6 +23,8 @@ export interface Api {
   addExchangeAccount(input: T.NewExchangeAccount): Promise<T.Account>;
   addOAuthAccount(provider: T.OAuthProvider, loginHint?: string | null): Promise<T.Account>;
   updateAccount(id: number, patch: T.AccountPatch): Promise<T.Account>;
+  /** Signs in with changed connection settings (and a new password, or the stored one) without saving them. */
+  verifyAccount(id: number, config: T.AccountConfig, password: string | null): Promise<void>;
   removeAccount(id: number): Promise<void>;
   reorderAccounts(ids: number[]): Promise<void>;
   oauthClient(provider: T.OAuthProvider): Promise<T.OAuthClient>;
