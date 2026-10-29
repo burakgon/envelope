@@ -231,7 +231,7 @@
 
   "updates.available": "Envelope {version} ist verfügbar",
   "updates.whatsNew": "Neuerungen ansehen",
-  "updates.dismiss": "Später",
+  "updates.dismiss": "Ausblenden",
   "updates.download": "Herunterladen",
   "updates.upToDate": "Envelope ist auf dem neuesten Stand",
   "updates.failed": "Nach einer neuen Version konnte nicht gesucht werden: {error}",

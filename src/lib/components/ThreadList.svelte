@@ -181,7 +181,8 @@
       search(q.trim());
       rememberSearch(q);
       building = false;
-      searchInput?.blur();
+      // On to the results.
+      viewport?.focus({ preventScroll: true });
     } else {
       searchInput?.focus();
       onSearchInput();
@@ -445,6 +446,7 @@
 
   <div
     class="viewport"
+    data-focus-home
     bind:this={viewport}
     onscroll={() => (scrollTop = viewport?.scrollTop ?? 0)}
     role="listbox"

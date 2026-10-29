@@ -231,7 +231,7 @@
 
   "updates.available": "Envelope {version} yayımlandı",
   "updates.whatsNew": "Yeniliklere bakın",
-  "updates.dismiss": "Şimdi değil",
+  "updates.dismiss": "Kapat",
   "updates.download": "İndir",
   "updates.upToDate": "Envelope güncel",
   "updates.failed": "Yeni sürüm denetlenemedi: {error}",

@@ -231,7 +231,7 @@
 
   "updates.available": "Envelope {version} 已发布",
   "updates.whatsNew": "查看新功能",
-  "updates.dismiss": "暂不",
+  "updates.dismiss": "忽略",
   "updates.download": "下载",
   "updates.upToDate": "Envelope 已是最新版本",
   "updates.failed": "无法检查新版本：{error}",

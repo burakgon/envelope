@@ -175,7 +175,7 @@
       <div class="info">
         <div class="row1">
           <span class="name selectable" id="{uid}-from">{fromMe ? t('message.senderMe') : displayName(sender)}</span>
-          {#if !fromMe && vips.has(sender?.email)}<span class="vip" title={t('vip.badge')} aria-label={t('vip.badge')}><Crown size={13} /></span>{/if}
+          {#if !fromMe && vips.has(sender?.email)}<span class="vip" role="img" title={t('vip.badge')} aria-label={t('vip.badge')}><Crown size={13} /></span>{/if}
           {#if message.importance}<span class="importance" class:low={message.importance < 0}>{message.importance > 0 ? t('importance.high') : t('importance.low')}</span>{/if}
           {#if isDraft}<span class="draft-chip">{t('threadRow.draft')}</span>{/if}
           {#if sender && !fromMe && displayName(sender) !== sender.email}

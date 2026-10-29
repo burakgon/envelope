@@ -24,7 +24,7 @@
   }
 </script>
 
-<Popover x={rect.left} y={rect.bottom + 4} width={280} {onclose}>
+<Popover x={rect.left} y={rect.bottom + 4} width={280} role="dialog" label={birthday?.name ?? o.title} {onclose}>
   <div class="birthday">
     <span class="icon" style:--c={BIRTHDAY_COLOR}><Cake size={18} /></span>
     <div class="text">

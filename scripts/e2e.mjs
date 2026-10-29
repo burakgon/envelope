@@ -1018,7 +1018,7 @@ await step('a newer version is announced in the sidebar, and the notice can be p
     await p.keyboard.press('Escape');
     const banner = p.locator('.sidebar .banner', { hasText: 'Envelope 0.9.0 is available' });
     await banner.waitFor({ timeout: 5000 });
-    await banner.locator('button[aria-label="Not now"]').click();
+    await banner.locator('button[aria-label="Dismiss"]').click();
     await banner.waitFor({ state: 'detached', timeout: 5000 });
   } finally {
     await p.close();

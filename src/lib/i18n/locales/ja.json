@@ -231,7 +231,7 @@
 
   "updates.available": "Envelope {version} が利用可能です",
   "updates.whatsNew": "新機能を確認",
-  "updates.dismiss": "後で",
+  "updates.dismiss": "閉じる",
   "updates.download": "ダウンロード",
   "updates.upToDate": "Envelope は最新です",
   "updates.failed": "新しいバージョンを確認できませんでした: {error}",

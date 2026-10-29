@@ -30,13 +30,15 @@ export function isTyping(el: Element | null): boolean {
 
 /**
  * Puts the focus back where it was once something that took it is gone, unless what closed it
- * put the focus somewhere on purpose (another dialog, a field).
+ * put the focus somewhere on purpose (another dialog, a field). When that place is gone too (the
+ * command palette that opened a dialog, a row that was deleted), the focus goes to the view's
+ * main list (`data-focus-home`) rather than to the page.
  */
 export function restoreFocus(before: Element | null) {
   queueMicrotask(() => {
     const now = document.activeElement;
-    if (before instanceof HTMLElement && before.isConnected && (!now || now === document.body || !now.isConnected)) {
-      before.focus({ preventScroll: true });
-    }
+    if (now && now !== document.body && now.isConnected) return;
+    const to = before instanceof HTMLElement && before.isConnected ? before : document.querySelector<HTMLElement>('[data-focus-home]');
+    to?.focus({ preventScroll: true });
   });
 }

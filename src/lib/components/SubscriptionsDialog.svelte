@@ -1,7 +1,7 @@
 <script lang="ts">
   // The senders of newsletters and other list mail, the busiest first: unsubscribe from them, archive
   // what they left in the inbox, delete all of it, or block them.
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { api } from '../api';
   import type { Subscription, UndoToken } from '../api';
   import { t } from '../i18n';
@@ -57,8 +57,18 @@
     ui.set('unsubscribed', { ...ui.settings.unsubscribed, [s.email]: Date.now() });
   }
 
+  let listEl: HTMLDivElement | undefined = $state();
+  /** After acting on a row, the focus goes to what that row (or the next one) still offers. */
+  async function refocus(index: number) {
+    await tick();
+    const rows = listEl?.querySelectorAll<HTMLElement>('.row') ?? [];
+    const row = rows[Math.min(index, rows.length - 1)];
+    (row?.querySelector<HTMLElement>('button:not([disabled])') ?? listEl?.closest<HTMLElement>('[role="dialog"]'))?.focus();
+  }
+
   async function unsubscribe(s: Subscription) {
     if (s.unsubscribeMessageId == null || busy) return;
+    const index = shown.indexOf(s);
     busy = s.email;
     try {
       // Only a request that unsubscribed counts; a page opened still needs the person to finish there.
@@ -69,6 +79,7 @@
       toasts.error(errorMessage(e));
     } finally {
       busy = null;
+      refocus(index);
     }
   }
 
@@ -80,6 +91,7 @@
   /** Runs a change to a sender's conversations, then offers to undo it. */
   async function change(s: Subscription, act: (ids: number[]) => Promise<UndoToken[]>, message: (count: number) => string) {
     if (busy) return;
+    const index = shown.indexOf(s);
     busy = s.email;
     try {
       const ids = await theirs(s);
@@ -95,6 +107,7 @@
       toasts.error(errorMessage(e));
     } finally {
       busy = null;
+      refocus(index);
     }
   }
 
@@ -162,7 +175,7 @@
     {:else if !shown.length}
       <p class="none">{t('subscriptions.noMatch')}</p>
     {:else}
-      <div class="list">
+      <div class="list" bind:this={listEl}>
         {#each shown as s (s.email)}
           <div class="row" class:left={left(s)}>
             <Avatar person={{ name: s.name, email: s.email }} size={32} />

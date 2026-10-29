@@ -5,19 +5,26 @@
   import { Download, X } from '../icons';
   import { ui } from '../stores/ui.svelte';
   import { updates } from '../stores/updates.svelte';
+  import { restoreFocus } from '../utils/focus';
+
+  /** Puts the notice away until the next version; the focus goes on to the list. */
+  function dismiss(version: string) {
+    ui.set('dismissedUpdate', version);
+    restoreFocus(null);
+  }
 </script>
 
 {#if updates.notice}
   {@const release = updates.notice}
   <div class="banner">
-    <button class="open" title={release.url} onclick={() => api.openUrl(release.url)}>
+    <button class="open" onclick={() => api.openUrl(release.url)}>
       <Download size={14} />
       <span class="text">
         <b>{t('updates.available', { version: release.version })}</b>
         <span>{t('updates.whatsNew')}</span>
       </span>
     </button>
-    <button class="icon-btn sm" aria-label={t('updates.dismiss')} title={t('updates.dismiss')} onclick={() => ui.set('dismissedUpdate', release.version)}><X size={13} /></button>
+    <button class="icon-btn sm" aria-label={t('updates.dismiss')} title={t('updates.dismiss')} onclick={() => dismiss(release.version)}><X size={13} /></button>
   </div>
 {/if}
 

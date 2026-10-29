@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { api } from '../../api';
-  import type { Account, AppInfo, Identity, OAuthClient } from '../../api';
+  import type { Account, AppInfo, Identity, OAuthClient, Vip } from '../../api';
   import { mail } from '../../stores/mail.svelte';
   import { ui } from '../../stores/ui.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
@@ -31,6 +31,16 @@
   import { languages, resolveLanguage, t, type LanguageSetting } from '../../i18n';
 
   const uid = $props.id();
+  /** Takes someone off the VIPs, keeping the focus in the list: on the next one, else the window. */
+  async function removeVip(v: Vip, e: MouseEvent) {
+    const list = (e.currentTarget as HTMLElement).closest<HTMLElement>('.blocked-list');
+    const i = vips.list.indexOf(v);
+    await vips.set({ name: v.name, email: v.email }, false);
+    await tick();
+    const buttons = list?.querySelectorAll<HTMLElement>('.blocked button') ?? [];
+    (buttons[Math.min(i, buttons.length - 1)] ?? list?.closest<HTMLElement>('[role="dialog"]'))?.focus();
+  }
+
   let tpl = $state<Template | null>(null);
 
   function saveTemplate() {
@@ -505,8 +515,8 @@
         <div class="group blocked-list">
           {#each vips.list as v (v.email)}
             <div class="blocked">
-              <span class="addr truncate selectable">{#if v.name}<b>{v.name}</b> · {/if}{v.email}</span>
-              <button class="btn sm" onclick={() => vips.set({ name: v.name, email: v.email }, false)}>{t('common.remove')}</button>
+              <span class="addr truncate selectable">{#if v.name}<b>{v.name}</b>{' · '}{/if}{v.email}</span>
+              <button class="btn sm" aria-label={`${t('common.remove')}: ${v.name ?? v.email}`} onclick={(e) => removeVip(v, e)}>{t('common.remove')}</button>
             </div>
           {:else}
             <p class="desc none">{t('vip.none')}</p>

@@ -9,6 +9,8 @@
     align = 'start',
     width = null,
     over = false,
+    role = 'menu',
+    label,
     onclose,
     children,
   }: {
@@ -18,6 +20,10 @@
     width?: number | null;
     /** Opened from a dialog: shown above it. */
     over?: boolean;
+    /** `dialog` for a popover that tells (a certificate, a birthday) rather than offers items. */
+    role?: 'menu' | 'dialog';
+    /** Its name for screen readers, as a dialog. */
+    label?: string;
     onclose: () => void;
     children: Snippet;
   } = $props();
@@ -35,7 +41,8 @@
 
   function place() {
     if (!el) return;
-    const r = el.getBoundingClientRect();
+    // Its laid-out size: the opening animation scales what getBoundingClientRect() reports.
+    const r = { width: el.offsetWidth, height: el.offsetHeight };
     const pad = 8;
     let l = align === 'end' ? x - r.width : align === 'center' ? x - r.width / 2 : x;
     if (l + r.width > innerWidth - pad) l = innerWidth - r.width - pad;
@@ -131,7 +138,8 @@
   bind:this={el}
   class="popover"
   class:over
-  role="menu"
+  {role}
+  aria-label={label}
   tabindex="-1"
   style:left="{left}px"
   style:top="{top}px"

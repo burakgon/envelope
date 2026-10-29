@@ -179,7 +179,7 @@
 {/if}
 
 {#if details && opened}
-  <Popover x={details.x} y={details.y} onclose={() => (details = null)} width={360}>
+  <Popover x={details.x} y={details.y} onclose={() => (details = null)} width={360} role="dialog" label={opened.encrypted ? t('crypto.status.encryptionDetails') : t('crypto.status.signatureDetails')}>
     <div class="details">
       {#if opened.encrypted}
         <section>
