@@ -13,7 +13,7 @@ export const smartViews: SmartView[] = ['today', 'upcoming', 'important', 'all']
 
 /** How long a completed task shows its check and struck-through title before it moves. */
 const COMPLETE_MS = 720;
-/** How long a deleted task can be brought back. */
+/** How long the undo of a delete is offered (the engine keeps a deleted task 12 seconds). */
 const UNDO_MS = 6000;
 
 /** A list's name in the interface: the local list is named in the interface language. */
@@ -54,8 +54,6 @@ class Tasks {
   showCompleted = $state(false);
   /** Tasks playing their completion. */
   completing = new SvelteSet<number>();
-  /** Deleted tasks whose undo has not run out; they are deleted for real afterwards. */
-  private deleting = new SvelteMap<number, () => void>();
   /** Quick add should take the focus (once it is on screen). */
   focusAdd = $state(false);
   /** A task just added, shown and briefly highlighted. */
@@ -142,8 +140,6 @@ class Tasks {
       if (e.type === 'tasksChanged' || e.type === 'accountsChanged') this.refreshSoon();
     });
     setInterval(() => this.tick(), 60_000);
-    // Deletions waiting for their undo are carried out before the window goes.
-    addEventListener('pagehide', () => [...this.deleting.values()].forEach((commit) => commit()));
     await this.refresh();
   }
 
@@ -174,15 +170,14 @@ class Tasks {
         ...smartViews.map((v) => api.tasks.query(v, false)),
       ]);
       if (seq !== this.seq) return;
-      const kept = (list: Task[]) => list.filter((x) => !this.deleting.has(x.id));
       this.lists = lists;
       if (typeof view === 'object' && !lists.some((l) => l.id === view.list)) {
         this.setView('today');
         return;
       }
-      this.items = kept(items);
-      this.counts = { today: kept(smart[0]).length, upcoming: kept(smart[1]).length, important: kept(smart[2]).length, all: kept(smart[3]).length };
-      this.all = kept(smart[3]);
+      this.items = items;
+      this.counts = { today: smart[0].length, upcoming: smart[1].length, important: smart[2].length, all: smart[3].length };
+      this.all = smart[3];
       this.loading = false;
       if (this.openId != null) this.loadDetail(this.openId);
     } catch (e) {
@@ -269,7 +264,7 @@ class Tasks {
       const [task, subs] = await Promise.all([api.tasks.get(id), api.tasks.subtasks(id)]);
       if (this.openId !== id) return;
       this.detail = task;
-      this.subtasks = subs.filter((x) => !this.deleting.has(x.id));
+      this.subtasks = subs;
     } catch (e) {
       if (this.openId !== id) return;
       if ((e as ApiError)?.kind === 'notFound') this.closeDetail();
@@ -309,7 +304,6 @@ class Tasks {
 
   /** Whether a task is part of a view, as the engine decides it. */
   belongs(task: Task, view: TaskView = this.view): boolean {
-    if (this.deleting.has(task.id)) return false;
     if (typeof view === 'object') return task.listId === view.list && task.parentId == null;
     if (task.completedAt != null) return false;
     const today = dayKey(this.now);
@@ -469,45 +463,43 @@ class Tasks {
     this.reorder(task, dir < 0 ? open[i - 1].id : (open[i + 2]?.id ?? null));
   }
 
-  /** Deletes a task: out of sight at once, deleted for real when its undo has run out. */
-  remove(task: Task) {
+  /** Deletes a task and its subtasks at once; for a few seconds the engine can bring them back. */
+  async remove(task: Task) {
     if (!this.writableList(task)) return;
     const rows = this.visible;
     const index = rows.findIndex((x) => x.id === task.id);
-    let done = false;
-    const commit = async () => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      try {
-        await api.tasks.remove(task.id);
-      } catch (e) {
-        toasts.error(errorMessage(e));
-      }
-      this.deleting.delete(task.id);
-      this.refreshSoon();
-    };
-    const timer = setTimeout(commit, UNDO_MS);
-    this.deleting.set(task.id, commit);
-    this.items = this.items.filter((x) => x.id !== task.id);
+    // Its subtasks go with it, also where they have rows of their own (Today, Upcoming).
+    const gone = (x: Task) => x.id === task.id || x.parentId === task.id;
+    // A subtask's task counts one less ("1/2").
+    const fewer = (x: Task): Task =>
+      x.id === task.parentId ? { ...x, subtaskCount: x.subtaskCount - 1, subtasksDone: x.subtasksDone - (task.completedAt != null ? 1 : 0) } : x;
+    this.items = this.items.filter((x) => !gone(x)).map(fewer);
     this.subtasks = this.subtasks.filter((x) => x.id !== task.id);
-    if (this.selectedId === task.id) {
-      const rest = rows.filter((x) => x.id !== task.id);
+    if (this.detail) this.detail = fewer(this.detail);
+    if (rows.some((x) => x.id === this.selectedId && gone(x))) {
+      const rest = rows.filter((x) => !gone(x));
       this.selectedId = rest[Math.min(index, rest.length - 1)]?.id ?? null;
     }
-    if (this.openId === task.id) this.closeDetail();
+    if (this.openId === task.id || (this.detail && gone(this.detail))) this.closeDetail();
+    try {
+      await api.tasks.remove(task.id);
+    } catch (e) {
+      toasts.error(errorMessage(e));
+      this.refresh();
+      return;
+    }
     this.refreshSoon();
-    toasts.undoable(
-      t('tasks.toast.deleted'),
-      () => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        this.deleting.delete(task.id);
-        this.refresh();
-      },
-      UNDO_MS,
-    );
+    toasts.undoable(t('tasks.toast.deleted'), () => this.restore(task.id), UNDO_MS);
+  }
+
+  /** Brings back a task deleted a moment ago, with the subtasks deleted with it. */
+  private async restore(id: number) {
+    try {
+      await api.tasks.restore(id);
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+    await this.refresh();
   }
 
   /** Adds a task from quick add; one that will not show in this view is announced. */
