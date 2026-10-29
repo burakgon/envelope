@@ -25,6 +25,10 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Find duplicates… in the Contacts view's menu: people who are in an address book more than once (the same e-mail address, phone number however it's written, or full name) are listed with the fullest contact chosen to keep; merging adds what the others know to it — e-mail addresses, numbers, postal addresses, web sites, notes, a photo — and deletes them, on the server too.
 - Import messages… in a folder's menu puts the mail of mbox files (Thunderbird's local folders, archives, Google Takeout) and saved messages (.eml) into that folder on the server, as read mail with its original date, leaving out messages the account has already; IMAP, Gmail and Exchange accounts (Microsoft 365 doesn't take messages from apps).
 - Adding an account lists the accounts already set up on this computer in Thunderbird (also its Flatpak and Snap versions), Evolution, Geary and GNOME Online Accounts; choosing one fills in its address, name and servers, so only the password (or the Google or Microsoft sign-in) is left.
+- Custom repeats in the event editor (Repeat → Custom…): every so many days, weeks, months or years; on several weekdays; monthly on a day of the month or on a weekday such as "the second Tuesday" or "the last Friday"; ending never, on a date or after a number of times. The rule reads in words as it is made, and in the event's popover, in every interface language. A calendar that cannot keep a rule says so instead of changing it (Exchange repeats yearly events only every year).
+- A time zone for each event (Time zone, beside All day): times are typed in that zone, every kind of calendar keeps it, and the event's popover gives its times there when the zone is not this computer's.
+- A second time zone in the day and week views (Settings → Calendar), with an hour column of its own.
+- A work week view, Monday to Friday (`x`, or from the command palette).
 
 ### Changed
 - The header above a quoted reply or forwarded message ("On …, … wrote:", "Forwarded message") and its date are written in the interface language.
@@ -44,6 +48,8 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - An address still being typed when Send was pressed was left out.
 - Account setup no longer keeps the password and servers of a provider you went back from: they are cleared, servers are detected again when the address moves to another domain, and Google or Microsoft sign-in is no longer offered an address of another provider.
 - The `v` and `l` shortcuts no longer type their letter into the Move and Label menus.
+- Events planned in a zone that is not the main one of its Windows zone (Rome, Toronto, Hong Kong, …) went to Exchange in UTC, so repeating ones moved by an hour when the clocks changed; a series ending on a date ended a day late west of UTC.
+- Editing a Microsoft 365 event put it in the computer's time zone; it keeps its own now, and zones go to Microsoft 365 by their Windows names, which it knows for every zone.
 
 ## [0.3.0] — 2026-10-29
 

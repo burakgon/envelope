@@ -31,7 +31,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 
 - **Instant.** Lists are read from a local database with precomputed thread aggregates, so opening a folder, switching tabs and searching take milliseconds — online or offline. Every action is optimistic and queued, so the UI never waits for the server.
 - **Keyboard-first.** Gmail-style shortcuts (`j`/`k`, `e`, `#`, `r`, `c`, `g i` …) and a command palette (`Ctrl K`) that can do everything the mouse can.
-- **A real calendar.** Day, week, month and agenda views, drag to create, move and resize, recurring events with "this / following / all" edits, invitations with RSVP and conflict detection, a scheduling assistant, subscriptions and reminders — synced both ways with CalDAV, Google Calendar, Microsoft 365 and Exchange.
+- **A real calendar.** Day, work week, week, month and agenda views, drag to create, move and resize, recurring events with "this / following / all" edits, invitations with RSVP and conflict detection, a scheduling assistant, subscriptions and reminders — synced both ways with CalDAV, Google Calendar, Microsoft 365 and Exchange.
 - **Tasks where your mail is.** Turn a message into a task with one key, type "call Maya tomorrow 3pm !" and get a due time and a star, and see what's due in your calendar — synced with Google Tasks, Microsoft To Do, Exchange and CalDAV.
 - **Private by design.** No telemetry, no proxy servers, no account with us. Your mail goes straight from your provider to your disk. Remote images and trackers are blocked until you allow them, messages render in a locked-down sandbox, and OpenPGP encryption sets itself up with Autocrypt.
 - **AI you control.** Summaries, smart replies, writing help, translation and "ask your inbox" — using OpenRouter, OpenAI, Anthropic, Google Gemini, Groq, Mistral, a local Ollama or LM Studio model, or any OpenAI-compatible endpoint. Off until you turn it on, and your API keys live in the system keyring.
@@ -86,9 +86,10 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - Desktop notifications with Archive and Mark as Read buttons — for all new mail, only mail from people, or nothing, per account — an unread badge, `mailto:` handling, **Save all** for attachments, and saved messages (`.eml`), calendar files (`.ics`) and contact cards (`.vcf`, `.csv`) open straight from your file manager.
 
 ### Calendar
-- Day, week, month and agenda views; mini month; per-calendar visibility and colors.
+- Day, work week, week, month and agenda views; mini month; per-calendar visibility and colors; a second time zone beside the hours.
 - Drag to create, drag to move (across days), drag to resize; double-click in month view to add.
-- Recurring events with editing scopes (*this event*, *this and following*, *all events*).
+- Recurring events with editing scopes (*this event*, *this and following*, *all events*), and custom repeats: every so many days, weeks, months or years, several weekdays, "the second Tuesday" or "the last Friday", until a date or a number of times.
+- Events in a time zone of their own, kept by every provider.
 - Guests, RSVP, Google Meet / Teams links and one-click **Join**, reminders, busy/free.
 - **Scheduling assistant**: see when guests are busy (Google, Microsoft 365 and Exchange) and jump to the next time everyone is free.
 - Invitations in mail (iTIP) become cards with **Yes / Maybe / No**, a conflict check against your calendar and replies sent to the organizer.
@@ -189,7 +190,7 @@ Google and Microsoft sign-in need OAuth client ids, supplied at build time or ru
 | `u` | Mark read / unread | `z` | Undo |
 | `/` | Search | `Ctrl K` | Command palette |
 | `g` then `i` / `s` / `d` / `t` | Inbox / starred / drafts / sent | `g` then `c` | Calendar |
-| `t` (calendar) | Today | `d` / `w` / `m` / `a` | Day / week / month / agenda |
+| `t` (calendar) | Today | `d` / `x` / `w` / `m` / `a` | Day / work week / week / month / agenda |
 
 Press `?` in the app for the full list.
 
