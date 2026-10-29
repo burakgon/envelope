@@ -40,7 +40,7 @@ const jobs = {
   'inbox-light': () => shot('inbox-light', { actions: openFirst }),
   'inbox-dark': () => shot('inbox-dark', { theme: 'dark', actions: openFirst }),
   thread: () => shot('thread', { actions: async (p) => { await p.locator('.row', { hasText: 'Q4 roadmap' }).click(); await p.waitForTimeout(600); } }),
-  compose: () => shot('compose', { actions: async (p) => { await openFirst(p); await p.keyboard.press('c'); await p.waitForTimeout(300); await p.keyboard.type('pri'); await p.waitForTimeout(400); } }),
+  compose: () => shot('compose', { actions: async (p) => { await openFirst(p); await p.keyboard.press('c'); await p.waitForTimeout(300); await p.keyboard.type('pri'); await p.mouse.move(1100, 160); await p.waitForTimeout(400); } }),
   palette: () => shot('palette', { theme: 'dark', actions: async (p) => { await openFirst(p); await p.keyboard.press('Control+k'); await p.keyboard.type('arch'); } }),
   'ai-summary': () => shot('ai-summary', { actions: async (p) => { await p.locator('.row', { hasText: 'Q4 roadmap' }).click(); await p.waitForTimeout(400); await p.locator('.pill', { hasText: 'Summarize' }).click(); await p.waitForTimeout(3500); await p.locator('.pill', { hasText: 'Suggest replies' }).click(); await p.waitForTimeout(2000); } }),
   'ai-ask': () => shot('ai-ask', { theme: 'dark', actions: async (p) => { await openFirst(p); await p.keyboard.press('Control+k'); await p.keyboard.type('When is my flight to Berlin?'); await p.waitForTimeout(300); await p.locator('.row', { hasText: 'Ask AI' }).click(); await p.waitForTimeout(3500); } }),
