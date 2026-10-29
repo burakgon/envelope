@@ -6,6 +6,7 @@
     color,
     label,
     size = 18,
+    focusable = false,
     onclick,
   }: {
     checked: boolean;
@@ -13,6 +14,8 @@
     color: string;
     label: string;
     size?: number;
+    /** A tab stop of its own (in the detail panel); rows are completed with X. */
+    focusable?: boolean;
     onclick: () => void;
   } = $props();
 
@@ -25,7 +28,7 @@
   });
 </script>
 
-<!-- Not a tab stop: in lists the keyboard completes with X; elsewhere it sits next to fields that are. -->
+<!-- In lists and the calendar no tab stop: the keyboard completes the selected task with X. -->
 <button
   class="check"
   class:checked
@@ -34,7 +37,7 @@
   aria-checked={checked}
   aria-label={label}
   title={label}
-  tabindex="-1"
+  tabindex={focusable ? undefined : -1}
   style:--c={color}
   style:--s="{size}px"
   onclick={(e) => {

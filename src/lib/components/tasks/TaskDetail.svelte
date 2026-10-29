@@ -156,7 +156,7 @@
   {#if task}
     <div class="scroll">
       <div class="head">
-        <TaskCheck checked={done} color={list?.color ?? 'var(--text-3)'} size={22} label={t(done ? 'tasks.row.reopen' : 'tasks.row.complete', { title: task.title })} onclick={() => tasks.complete(task)} />
+        <TaskCheck checked={done} color={list?.color ?? 'var(--text-3)'} size={22} focusable label={t(done ? 'tasks.row.reopen' : 'tasks.row.complete', { title: task.title })} onclick={() => tasks.complete(task)} />
         <textarea
           bind:this={titleEl}
           class="title"
@@ -300,6 +300,7 @@
             <div class="sub" class:done={s.completedAt != null}>
               <TaskCheck
                 size={16}
+                focusable
                 checked={s.completedAt != null}
                 color={list.color}
                 label={t(s.completedAt != null ? 'tasks.row.reopen' : 'tasks.row.complete', { title: s.title })}

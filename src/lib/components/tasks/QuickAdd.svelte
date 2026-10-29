@@ -109,7 +109,7 @@
     bind:value={text}
     placeholder={readOnly ? t('tasks.quickAdd.readOnly', { list: listName(list) }) : t('tasks.quickAdd.placeholder')}
     aria-label={t('tasks.quickAdd.label')}
-    aria-describedby="quick-chips"
+    aria-describedby={showChips ? 'quick-chips' : undefined}
     disabled={readOnly}
     spellcheck="true"
     onkeydown={key}
