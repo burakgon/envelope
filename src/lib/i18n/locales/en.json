@@ -1124,7 +1124,10 @@
   "tasks.shortcuts.move": "Move up / down in the list",
   "tasks.shortcuts.close": "Close details",
   "tasks.keySpace": "Space",
+  "tasks.settings.showInCalendar": "Show tasks",
+  "tasks.settings.showInCalendarDesc": "Open tasks with a due date appear on their day.",
   "tasks.calendar.open": "Open in Tasks",
+  "tasks.calendar.due": "Due",
 
   "crypto.keyCreated": "Created a key for {email}",
   "crypto.keyVerified": "Key verified",

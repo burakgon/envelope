@@ -1,8 +1,9 @@
 <script lang="ts">
-  import type { Occurrence } from '../../api';
+  import type { Occurrence, Task } from '../../api';
   import { cal, DAY, addDays, sameDay, span, startOfWeek } from '../../stores/calendar.svelte';
   import { t } from '../../i18n';
   import { dateFormat, timeOf } from '../../utils/format';
+  import TaskChip from './TaskChip.svelte';
 
   let { onopen }: { onopen: (o: Occurrence, rect: DOMRect) => void } = $props();
 
@@ -24,6 +25,27 @@
     for (const list of map.values()) list.sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start);
     return map;
   });
+
+  const tasksByDay = $derived.by(() => {
+    const map = new Map<number, Task[]>();
+    for (const task of cal.dueTasks) {
+      if (!task.dueDate) continue;
+      const day = new Date(`${task.dueDate}T00:00:00`).getTime();
+      map.set(day, [...(map.get(day) ?? []), task]);
+    }
+    return map;
+  });
+
+  type Item = { o: Occurrence; task?: undefined } | { task: Task; o?: undefined };
+  /** A day's all-day events, then its tasks, then the rest. */
+  function itemsOf(day: number): Item[] {
+    const list = byDay.get(day) ?? [];
+    return [
+      ...list.filter((o) => o.allDay).map((o) => ({ o })),
+      ...(tasksByDay.get(day) ?? []).map((task) => ({ task })),
+      ...list.filter((o) => !o.allDay).map((o) => ({ o })),
+    ];
+  }
 
   let dragging = $state<Occurrence | null>(null);
   let over = $state<number | null>(null);
@@ -47,7 +69,7 @@
   </div>
   <div class="cells">
     {#each days as d (d.getTime())}
-      {@const list = byDay.get(d.getTime()) ?? []}
+      {@const list = itemsOf(d.getTime())}
       {@const today = sameDay(d, Date.now())}
       <div
         class="cell"
@@ -62,19 +84,24 @@
       >
         <button class="num" class:today onclick={() => { cal.view = 'day'; cal.goto(d.getTime()); }}>{d.getDate()}</button>
         <div class="events">
-          {#each list.slice(0, 4) as o (o.key)}
-            <button
-              class="item"
-              class:allday={o.allDay}
-              class:declined={o.myStatus === 'declined'}
-              style:--c={o.color}
-              draggable={!o.readOnly}
-              ondragstart={() => (dragging = o)}
-              onclick={(e) => onopen(o, (e.currentTarget as HTMLElement).getBoundingClientRect())}
-            >
-              {#if !o.allDay}<span class="dot"></span><span class="t">{timeOf(o.start)}</span>{/if}
-              <span class="title">{o.title}</span>
-            </button>
+          {#each list.slice(0, 4) as it (it.o ? it.o.key : `task-${it.task.id}`)}
+            {#if it.task}
+              <TaskChip task={it.task} variant="month" />
+            {:else}
+              {@const o = it.o}
+              <button
+                class="item"
+                class:allday={o.allDay}
+                class:declined={o.myStatus === 'declined'}
+                style:--c={o.color}
+                draggable={!o.readOnly}
+                ondragstart={() => (dragging = o)}
+                onclick={(e) => onopen(o, (e.currentTarget as HTMLElement).getBoundingClientRect())}
+              >
+                {#if !o.allDay}<span class="dot"></span><span class="t">{timeOf(o.start)}</span>{/if}
+                <span class="title">{o.title}</span>
+              </button>
+            {/if}
           {/each}
           {#if list.length > 4}
             {@const more = t('calendar.monthGrid.more', { count: list.length - 4 })}

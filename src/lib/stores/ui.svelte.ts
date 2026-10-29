@@ -69,6 +69,8 @@ export interface Settings {
   defaultEventMinutes: number;
   defaultAlarm: number; // minutes before; -1 = none
   showDeclined: boolean;
+  /** Open tasks with a due date appear in the calendar. */
+  calendarTasks: boolean;
   /** Where quick add puts tasks outside a list (the last list chosen there). */
   defaultTaskListId: number | null;
   templates: Template[];
@@ -104,6 +106,7 @@ export const defaultSettings: Settings = {
   defaultEventMinutes: 60,
   defaultAlarm: 10,
   showDeclined: true,
+  calendarTasks: true,
   defaultTaskListId: null,
   templates: [],
   rules: [],

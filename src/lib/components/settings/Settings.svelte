@@ -325,6 +325,10 @@
             <Toggle checked={ui.settings.showDeclined} onchange={(v) => { ui.set('showDeclined', v); cal.load(); }} />
           </div>
           <div class="row">
+            <div class="txt"><b>{t('tasks.settings.showInCalendar')}</b><span>{t('tasks.settings.showInCalendarDesc')}</span></div>
+            <Toggle checked={ui.settings.calendarTasks} label={t('tasks.settings.showInCalendar')} onchange={(v) => { ui.set('calendarTasks', v); cal.loadTasks(); }} />
+          </div>
+          <div class="row">
             <div class="txt"><b>{t('settings.calendar.eventReminders')}</b><span>{t('settings.calendar.eventRemindersDesc')}</span></div>
             <Toggle checked={ui.settings.calendarNotifications} onchange={(v) => ui.set('calendarNotifications', v)} />
           </div>

@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { Occurrence } from '../../api';
+  import type { Occurrence, Task } from '../../api';
   import { cal, DAY, addDays, sameDay, span, startOfDay } from '../../stores/calendar.svelte';
   import { t } from '../../i18n';
   import { dateFormat, timeOf } from '../../utils/format';
   import EventChip from './EventChip.svelte';
+  import TaskChip from './TaskChip.svelte';
 
   let { days, onopen }: { days: Date[]; onopen: (o: Occurrence, rect: DOMRect) => void } = $props();
 
@@ -20,9 +21,10 @@
   const rangeStart = $derived(dayStarts[0]);
   const rangeEnd = $derived(addDays(days[days.length - 1], 1).getTime());
 
-  // All-day and multi-day events go into the lane above the grid.
+  // All-day and multi-day events go into the lane above the grid, and tasks on their day.
+  type LaneItem = ({ o: Occurrence; task?: undefined } | { task: Task; o?: undefined }) & { first: number; last: number };
   const laneItems = $derived.by(() => {
-    const items = cal.occurrences
+    const items: LaneItem[] = cal.occurrences
       .filter((o) => {
         const s = span(o);
         return (o.allDay || s.end - s.start >= DAY) && s.end > rangeStart && s.start < rangeEnd;
@@ -35,8 +37,12 @@
         return { o, first, last: Math.max(first, last) };
       })
       .sort((a, b) => a.first - b.first || b.last - b.first - (a.last - a.first));
+    for (const task of cal.dueTasks) {
+      const day = task.dueDate ? dayStarts.indexOf(new Date(`${task.dueDate}T00:00:00`).getTime()) : -1;
+      if (day >= 0) items.push({ task, first: day, last: day });
+    }
     const rows: number[][] = [];
-    const placed: { o: Occurrence; first: number; last: number; row: number }[] = [];
+    const placed: (LaneItem & { row: number })[] = [];
     for (const it of items) {
       let row = rows.findIndex((r) => r.every((c) => c < it.first || c > it.last));
       if (row < 0) {
@@ -48,6 +54,11 @@
     }
     return { placed, rows: rows.length };
   });
+  // A day column has room for more of them than a week's.
+  const laneMax = $derived(days.length === 1 ? 8 : 4);
+  /** Rows shown; when some do not fit, the last row says how many more each day has. */
+  const laneShown = $derived(laneItems.rows > laneMax ? laneMax - 1 : laneMax);
+  const laneMore = $derived(days.map((_, i) => laneItems.placed.filter((p) => p.row >= laneShown && p.first <= i && i <= p.last).length));
 
   interface Placed {
     o: Occurrence;
@@ -212,20 +223,39 @@
   </div>
 
   {#if laneItems.rows > 0}
-    <div class="lane" style:height="{Math.min(laneItems.rows, 4) * 26 + 6}px">
+    <div class="lane" style:height="{Math.min(laneItems.rows, laneMax) * 26 + 6}px">
       <div class="gutter lane-label" title={t('calendar.timeGrid.allDay')}>{t('calendar.timeGrid.allDay')}</div>
       <div class="lane-body">
-        {#each laneItems.placed.filter((p) => p.row < 4) as p (p.o.key)}
-          <button
-            class="lane-ev"
-            style:left="calc({p.first} * 100% / var(--n) + 2px)"
-            style:width="calc({p.last - p.first + 1} * 100% / var(--n) - 4px)"
-            style:top="{p.row * 26 + 3}px"
-            style:--c={p.o.color}
-            onclick={(e) => onopen(p.o, (e.currentTarget as HTMLElement).getBoundingClientRect())}
-          >
-            {p.o.title}
-          </button>
+        {#each laneItems.placed.filter((p) => p.row < laneShown) as p (p.o ? p.o.key : `task-${p.task.id}`)}
+          {#if p.task}
+            <div class="lane-task" style:left="calc({p.first} * 100% / var(--n) + 2px)" style:width="calc(100% / var(--n) - 4px)" style:top="{p.row * 26 + 3}px">
+              <TaskChip task={p.task} variant="lane" />
+            </div>
+          {:else}
+            {@const o = p.o}
+            <button
+              class="lane-ev"
+              style:left="calc({p.first} * 100% / var(--n) + 2px)"
+              style:width="calc({p.last - p.first + 1} * 100% / var(--n) - 4px)"
+              style:top="{p.row * 26 + 3}px"
+              style:--c={o.color}
+              onclick={(e) => onopen(o, (e.currentTarget as HTMLElement).getBoundingClientRect())}
+            >
+              {o.title}
+            </button>
+          {/if}
+        {/each}
+        {#each laneMore as more, i (i)}
+          {#if more > 0}
+            {@const label = t('calendar.monthGrid.more', { count: more })}
+            <button
+              class="lane-more"
+              style:left="calc({i} * 100% / var(--n) + 2px)"
+              style:width="calc(100% / var(--n) - 4px)"
+              style:top="{laneShown * 26 + 3}px"
+              title={label}
+              onclick={() => { cal.view = 'day'; cal.goto(days[i].getTime()); }}>{label}</button>
+          {/if}
         {/each}
       </div>
     </div>
@@ -384,6 +414,26 @@
   }
   .lane-ev:hover {
     background: color-mix(in oklab, var(--c) 26%, var(--bg));
+  }
+  .lane-task {
+    position: absolute;
+  }
+  .lane-more {
+    position: absolute;
+    height: 23px;
+    padding: 0 8px;
+    border-radius: 6px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-3);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .lane-more:hover {
+    color: var(--text);
+    background: var(--bg-hover);
   }
   .scroll {
     flex: 1;

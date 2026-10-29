@@ -1,7 +1,8 @@
 import { api } from '../api';
-import type { CalendarInfo, EditScope, EventInput, ExtractedEvent, Occurrence } from '../api';
+import type { CalendarInfo, EditScope, EventInput, ExtractedEvent, Occurrence, Task } from '../api';
 import { t } from '../i18n';
 import { dateFormat } from '../utils/format';
+import { tasks } from './tasks.svelte';
 import { errorMessage, toasts } from './toasts.svelte';
 import { ui } from './ui.svelte';
 
@@ -57,12 +58,15 @@ class Cal {
   view = $state<CalView>('week');
   focus = $state(startOfDay(new Date()).getTime());
   occurrences = $state<Occurrence[]>([]);
+  /** Open tasks due in the range, shown on their day (unless turned off in the settings). */
+  dueTasks = $state<Task[]>([]);
   loading = $state(false);
   editor = $state<EditorState | null>(null);
   scopeAsk = $state<{ title: string; resolve: (s: EditScope | null) => void } | null>(null);
   /** The address being subscribed to (from a `webcal:` link or the sidebar); null when no dialog is open. */
   subscribing = $state<string | null>(null);
   private seq = 0;
+  private taskSeq = 0;
   private started = false;
 
   weekStart = $derived(ui.settings.weekStart ?? 1);
@@ -109,6 +113,8 @@ class Cal {
       if (e.type === 'calendarChanged' || e.type === 'accountsChanged') {
         this.loadCalendars();
         this.load();
+      } else if (e.type === 'tasksChanged') {
+        this.loadTasks();
       }
     });
     await this.loadCalendars();
@@ -127,6 +133,7 @@ class Cal {
     const seq = ++this.seq;
     const [from, to] = this.range;
     this.loading = true;
+    this.loadTasks();
     try {
       const list = await api.calendar.occurrences(from - DAY, to + DAY);
       if (seq === this.seq) this.occurrences = ui.settings.showDeclined ? list : list.filter((o) => o.myStatus !== 'declined');
@@ -135,6 +142,30 @@ class Cal {
     } finally {
       if (seq === this.seq) this.loading = false;
     }
+  }
+
+  async loadTasks() {
+    const seq = ++this.taskSeq;
+    if (!ui.settings.calendarTasks) {
+      this.dueTasks = [];
+      return;
+    }
+    const [from, to] = this.range;
+    try {
+      const list = await api.tasks.due(from - DAY, to + DAY);
+      if (seq !== this.taskSeq) return;
+      // A task being ticked off stays until its check has played.
+      const ticking = this.dueTasks.filter((x) => tasks.completing.has(x.id) && !list.some((y) => y.id === x.id));
+      this.dueTasks = [...list, ...ticking];
+    } catch {
+      if (seq === this.taskSeq) this.dueTasks = [];
+    }
+  }
+
+  /** Ticks a task off from the calendar; it goes once its check has played. */
+  async completeTask(task: Task) {
+    await tasks.complete(task);
+    this.loadTasks();
   }
 
   setView(v: CalView) {
