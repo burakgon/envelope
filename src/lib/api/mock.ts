@@ -1090,9 +1090,43 @@ export function createMockApi(): Api {
     window: {
       minimize: async () => {},
       toggleMaximize: async () => {},
-      close: async () => {},
+      // A window of its own is a page the demo opened, which may close; the main page stays.
+      close: async () => {
+        if (window.opener) window.close();
+      },
       isMaximized: async () => false,
       onResized: () => () => {},
+      setTitle: async (title) => {
+        document.title = title;
+      },
+      onCloseRequested: (cb) => {
+        const run = () => void cb();
+        addEventListener('pagehide', run);
+        return () => removeEventListener('pagehide', run);
+      },
+    },
+
+    // Windows of their own are pages of their own, with demo data of their own: they show the
+    // same conversations and drafts, but don't hand toasts over.
+    windows: {
+      open: async (kind, id) => {
+        if (kind === 'compose' && id != null) drafts.stash(id);
+        const size = kind === 'compose' ? 'width=760,height=700' : 'width=920,height=840';
+        window.open(`${location.pathname}?window=${kind}${id != null ? `&id=${id}` : ''}`, '_blank', `popup,${size}`);
+      },
+      focus: async () => false,
+      handOver: async () => false,
+      onHandOver: () => () => {},
+      // Settings are kept in the browser's storage, which tells the other pages of a change.
+      onSetting: (cb) => {
+        const listen = (e: StorageEvent) => {
+          if (e.key !== settingsKey) return;
+          const [before, after] = [JSON.parse(e.oldValue ?? '{}'), JSON.parse(e.newValue ?? '{}')];
+          for (const key of Object.keys(after)) if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) cb(key, after[key]);
+        };
+        addEventListener('storage', listen);
+        return () => removeEventListener('storage', listen);
+      },
     },
   };
   return api;

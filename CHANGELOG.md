@@ -22,9 +22,12 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - A View menu in the list's header (also in the command palette and Settings → Appearance) for the reading pane: on the right, below the list (with a divider to drag), or off, where the list fills the window and a conversation opens in its place with Back. Below 1000 pixels the list and the conversation still take turns.
 - Group into conversations can be turned off (View menu, command palette, Settings → Appearance): the list then has a row for each message, newest first, and archive, delete, move, label, read, star and select all take the messages chosen, leaving the rest of their conversations where they are. Snooze, mute and follow-up reminders still apply to the whole conversation. An open message says how many messages its conversation has.
 - Lists sort newest first, oldest first or by sender (whom a conversation is with, without case or accents), from the View menu or the command palette. Each folder keeps its own order; paging stays fast in every order.
+- Conversations open in a window of their own: double-click a row, press Shift+Enter, or choose Open in a new window in the reader's toolbar, a conversation's right-click menu or the command palette. Escape closes it. With conversations off, an open message links to its conversation, which opens in one.
+- A message being written pops out into a window of its own (the button beside Minimize, and the one on a reply under a conversation). Closing that window, however it is closed, keeps the draft. Windows of their own open at the size the last one had, follow settings changed in another window, and hand what was done in them, with Undo, to the main window; notifications, `mailto:` links and files still open in the main window.
 
 ### Fixed
 - Dragging the edge of the conversation list over an open message no longer stops resizing it halfway.
+- Undoing a send with `z` after the message had already gone out says so, instead of opening it again as a new draft.
 - A few German texts (blocked senders, account alerts) addressed the reader as "du" instead of "Sie" like the rest.
 - Messages signed with S/MIME showed an `smime.p7s` attachment, and S/MIME encrypted or opaque signed ones looked empty with an `smime.p7m` attachment.
 

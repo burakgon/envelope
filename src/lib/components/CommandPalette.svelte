@@ -20,7 +20,7 @@
     ShieldAlert, ShieldCheck,
     Ban, Crown, Newspaper,
     ChevronDown, ChevronUp, ChevronsUpDown,
-    PanelBottom, PanelOff, PanelRight, SortNewest, SortOldest, SortSender,
+    PanelBottom, PanelOff, PanelRight, SortNewest, SortOldest, SortSender, PopOut,
   } from '../icons';
   import { vips } from '../stores/vips.svelte';
   import { blockSender, senderOf } from '../stores/rules.svelte';
@@ -159,11 +159,15 @@
     ];
   }
 
-  /** Moving through the messages of the open conversation (n, p, ;). */
+  /** Moving through the messages of the open conversation (n, p, ;), or opening it in a window of its own. */
   function readingCommands(): Command[] {
     if (!reader || !mail.detail) return [];
     const r = reader;
+    const open = mail.detail.thread;
     return [
+      ...(ui.window === 'main'
+        ? [{ id: 'window', label: t('view.openInWindow'), group: 'conversation', icon: PopOut, hint: `${t('keys.shift')} ${t('keys.enter')}`, run: () => mail.openWindow(open) } satisfies Command]
+        : []),
       { id: 'next-message', label: t('palette.nextMessage'), group: 'conversation', icon: ChevronDown, hint: 'N', searchOnly: true, run: () => r.step(1) },
       { id: 'previous-message', label: t('palette.previousMessage'), group: 'conversation', icon: ChevronUp, hint: 'P', searchOnly: true, run: () => r.step(-1) },
       { id: 'expand-all', label: t('shortcuts.expandAll'), group: 'conversation', icon: ChevronsUpDown, hint: ';', searchOnly: true, run: () => r.expandAll() },

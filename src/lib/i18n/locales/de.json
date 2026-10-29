@@ -397,6 +397,7 @@
   "view.sortOldest": "Älteste zuerst",
   "view.sortSender": "Nach Absender",
   "view.resizeList": "Größe der Liste ändern",
+  "view.openInWindow": "In neuem Fenster öffnen",
 
   "messages.list": "Nachrichten",
   "messages.archived": "Archiviert · {count, plural, one {# Nachricht} other {# Nachrichten}}",
@@ -447,6 +448,8 @@
   "reader.keyHintCompose": "verfassen",
   "reader.keyHintCommands": "Befehle",
   "reader.oneOfConversation": "{count, plural, other {Eine von # Nachrichten dieser Konversation}}",
+  "reader.toolbarOpenInWindow": "In neuem Fenster öffnen ({key})",
+  "reader.openConversation": "Konversation öffnen",
 
   "message.senderMe": "Ich",
   "message.collapse": "Einklappen",

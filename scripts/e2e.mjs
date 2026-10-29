@@ -680,12 +680,22 @@ await step('reply and forward headers are in the interface language', async () =
   await w.keyboard.press('Escape');
 });
 
-await step('an inline reply pops out into a window of its own', async () => {
+await step('an inline reply pops out into a window of its own, keeping what was written', async () => {
   await openConversation('Hafta sonu');
   await w.locator('body').press('r');
-  await w.locator('.reader .composer.inline .icon-btn[aria-label="Pop out"]').click();
-  await w.locator('.dock .composer').waitFor({ timeout: 5000 });
-  await w.locator('.dock .composer .icon-btn[aria-label="Discard draft"]').click();
+  await w.locator('.reader .composer.inline .ProseMirror').click();
+  await w.keyboard.type('Cumartesi uyar.');
+  // The demo opens it as a page of its own, as the app opens a window.
+  const [win] = await Promise.all([w.context().waitForEvent('page'), w.locator('.reader .composer.inline .icon-btn[aria-label="Pop out"]').click()]);
+  win.on('pageerror', (e) => problems.push(`window: ${e.message}`));
+  try {
+    if (!/[?&]window=compose&id=\d+/.test(win.url())) throw new Error(`it opened ${win.url()}`);
+    await win.locator('.composer.windowed .ProseMirror', { hasText: 'Cumartesi uyar.' }).waitFor({ timeout: 5000 });
+    if (await win.locator('.list, .reader').count()) throw new Error('the window shows more than the message');
+    if (await w.locator('.reader .composer.inline').count()) throw new Error('the reply stayed under the conversation');
+  } finally {
+    await win.close();
+  }
 });
 
 await w.close();
@@ -2059,6 +2069,78 @@ await step('a list sorts oldest first or by sender, and each folder keeps its or
       const names = (await senders()).map((n) => n.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''));
       return names.length > 3 && names.every((n, i) => i === 0 || names[i - 1] <= n);
     }, async () => `senders in the order ${(await senders()).join(', ')}`);
+  } finally {
+    await p.close();
+  }
+});
+
+/** A window of its own opened by `action` (a page of its own in the demo), its errors reported. */
+async function popup(p, action) {
+  const [win] = await Promise.all([p.context().waitForEvent('page'), action()]);
+  win.on('pageerror', (e) => problems.push(`window: ${e.message}`));
+  await win.waitForLoadState();
+  return win;
+}
+
+/** Waits for `win` to close as `action` (a key that closes it as it is pressed, perhaps) is done. */
+async function closedBy(win, action) {
+  await Promise.all([win.waitForEvent('close', { timeout: 5000 }), action().catch(() => {})]);
+}
+
+await step('a conversation opens in a window of its own: Shift+Enter, a double click, the toolbar, the palette', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    await p.locator('.reader .subject-block h2').waitFor({ timeout: 5000 });
+    const win = await popup(p, () => p.keyboard.press('Shift+Enter'));
+    if (!/[?&]window=thread&id=\d+/.test(win.url())) throw new Error(`it opened ${win.url()}`);
+    await win.locator('.reader .subject-block h2', { hasText: 'Q4 roadmap' }).waitFor({ timeout: 5000 });
+    if (await win.locator('.list, .sidebar').count()) throw new Error('the window shows more than the conversation');
+    await eventually(win, async () => (await win.title()) === 'Q4 roadmap — final review', async () => `the window is called "${await win.title()}"`);
+    // Its keys act on the conversation; Escape closes it.
+    await win.locator('body').press('s');
+    await win.locator('.reader header .icon-btn.star').waitFor({ timeout: 5000 });
+    await closedBy(win, () => win.keyboard.press('Escape'));
+    // A double click on a row, the reader's button and the palette open one too.
+    const two = await popup(p, () => p.locator('.row', { hasText: 'Offsite planning' }).first().dblclick());
+    await two.locator('.reader .subject-block h2', { hasText: 'Offsite planning' }).waitFor({ timeout: 5000 });
+    await two.close();
+    const three = await popup(p, () => p.locator('.reader header button[aria-label="Open in a new window (Shift+Enter)"]').click());
+    await three.locator('.reader .subject-block h2', { hasText: 'Offsite planning' }).waitFor({ timeout: 5000 });
+    await three.close();
+    await p.keyboard.press('Control+k');
+    await p.keyboard.type('new window');
+    const four = await popup(p, () => p.locator('.palette .row .label', { hasText: /^Open in a new window$/ }).click());
+    await four.locator('.reader .subject-block h2', { hasText: 'Offsite planning' }).waitFor({ timeout: 5000 });
+    await four.close();
+    // Without conversations, a message opens its conversation in one.
+    await view(p, 'Group into conversations');
+    await p.locator('.list .search input').fill('Q4 roadmap in:inbox');
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    const five = await popup(p, () => p.locator('.reader .of-conversation button', { hasText: 'Open the conversation' }).click());
+    await five.locator('.reader .subject-block .chip', { hasText: '4 messages' }).waitFor({ timeout: 5000 });
+    await five.close();
+  } finally {
+    await p.close();
+  }
+});
+
+await step('a new message pops out into a window of its own, and Escape puts it away', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('body').press('c');
+    await p.locator('.dock .composer .subject input').fill('Picnic');
+    const win = await popup(p, () => p.locator('.dock .composer .icon-btn[aria-label="Pop out"]').click());
+    await win.locator('.composer.windowed .subject input').waitFor({ timeout: 5000 });
+    if ((await win.locator('.composer.windowed .subject input').inputValue()) !== 'Picnic') throw new Error('the subject was lost');
+    if (await p.locator('.dock .composer').count()) throw new Error('the composer stayed in the main window');
+    await eventually(win, async () => (await win.title()) === 'Picnic', async () => `the window is called "${await win.title()}"`);
+    // A new message with nothing in it opens empty, and closes with Escape.
+    await p.locator('body').press('c');
+    const empty = await popup(p, () => p.locator('.dock .composer .icon-btn[aria-label="Pop out"]').click());
+    await empty.locator('.composer.windowed .ProseMirror').click();
+    await closedBy(empty, () => empty.keyboard.press('Escape'));
+    await win.close();
   } finally {
     await p.close();
   }

@@ -20,7 +20,7 @@
     BookmarkPlus,
     Sliders,
     Crown,
-    LayoutPanel, Mails, PanelBottom, PanelOff, PanelRight, SortNewest, SortOldest, SortSender,
+    LayoutPanel, Mails, PanelBottom, PanelOff, PanelRight, SortNewest, SortOldest, SortSender, PopOut,
   } from '../icons';
   import type { SortOrder } from '../api';
   import type { ReadingPane } from '../stores/ui.svelte';
@@ -457,6 +457,10 @@
               selected={mail.selectedId === th.id}
               checked={mail.checked.has(th.id)}
               onopen={(e) => open(e, th)}
+              onwindow={() => {
+                // In Drafts the click opened the draft to write on; Pop out moves it into a window.
+                if (!(mail.inDrafts && th.draftCount > 0)) mail.openWindow(th);
+              }}
               oncontext={(e) => context(e, th)}
               onsnooze={(e) => {
                 const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -491,6 +495,7 @@
       <button class="menu-item" onclick={() => replyTo('replyAll')}><ReplyAll size={15} />{t('threadList.replyAll')}<span class="hint">A</span></button>
       <button class="menu-item" onclick={() => replyTo('forward')}><Forward size={15} />{t('threadList.forward')}<span class="hint">F</span></button>
       <button class="menu-item" onclick={() => replyTo('attachment')}><FileArrow size={15} />{t('message.forwardAsAttachment')}</button>
+      <button class="menu-item" onclick={() => { mail.openWindow(menu!.thread); menu = null; }}><PopOut size={15} />{t('view.openInWindow')}<span class="hint">{t('keys.shift')}+{t('keys.enter')}</span></button>
       <div class="divider"></div>
     {/if}
     {#if inSnoozed}

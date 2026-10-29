@@ -297,6 +297,26 @@ export interface Api {
     close(): Promise<void>;
     isMaximized(): Promise<boolean>;
     onResized(cb: () => void): () => void;
+    setTitle(title: string): Promise<void>;
+    /** Runs `cb` before this window closes, however it is closed (its button, Alt+F4, the window manager), and waits for it. */
+    onCloseRequested(cb: () => Promise<void>): () => void;
+  };
+
+  /**
+   * Windows of their own: a conversation, or a message being written. They show the same
+   * interface (`?window=thread&id=…`), hear the same engine events, and keep their size.
+   */
+  windows: {
+    /** Opens a conversation or a draft (`null`: a new message) in a window of its own, or brings it forward. */
+    open(kind: T.WindowKind, id: number | null, title: string): Promise<void>;
+    /** Brings forward the window of its own of a conversation or a draft; false without one. */
+    focus(kind: T.WindowKind, id: number): Promise<boolean>;
+    /** Gives the main window a toast for something done in this one as it closes; false when the main window isn't on screen. */
+    handOver(toast: T.HandOver): Promise<boolean>;
+    /** A toast another window handed over (heard by the main window). */
+    onHandOver(cb: (toast: T.HandOver) => void): () => void;
+    /** A setting changed, perhaps in another window. */
+    onSetting(cb: (key: string, value: unknown) => void): () => void;
   };
 }
 

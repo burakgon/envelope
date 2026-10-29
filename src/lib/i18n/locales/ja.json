@@ -397,6 +397,7 @@
   "view.sortOldest": "古い順",
   "view.sortSender": "差出人順",
   "view.resizeList": "一覧のサイズを変更",
+  "view.openInWindow": "新しいウィンドウで開く",
 
   "messages.list": "メッセージ一覧",
   "messages.archived": "アーカイブしました · {count, plural, other {# 件のメッセージ}}",
@@ -447,6 +448,8 @@
   "reader.keyHintCompose": "作成",
   "reader.keyHintCommands": "コマンド",
   "reader.oneOfConversation": "{count, plural, other {このスレッドの # 件のメッセージのうちの 1 件}}",
+  "reader.toolbarOpenInWindow": "新しいウィンドウで開く（{key}）",
+  "reader.openConversation": "スレッドを開く",
 
   "message.senderMe": "自分",
   "message.collapse": "折りたたむ",

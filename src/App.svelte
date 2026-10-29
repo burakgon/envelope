@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { api } from './lib/api';
-  import { rawMessages } from './lib/i18n';
+  import { rawMessages, t } from './lib/i18n';
   import { compose } from './lib/stores/compose.svelte';
   import { mail } from './lib/stores/mail.svelte';
   import { vips } from './lib/stores/vips.svelte';
@@ -37,6 +37,7 @@
   import ScopeDialog from './lib/components/calendar/ScopeDialog.svelte';
   import QuestionDialog from './lib/components/QuestionDialog.svelte';
   import { dialogs } from './lib/stores/dialogs.svelte';
+  import { windows } from './lib/stores/windows.svelte';
 
   let booted = $state(false);
   /** Message and calendar files handed to the app, shown one after another. */
@@ -57,17 +58,39 @@
     root.style.setProperty('--accent-h', String(ui.settings.accentHue));
   });
 
+  // The badge, notifications and the tray belong to the main window.
   $effect(() => {
-    api.setBadge(mail.inboxUnread);
+    if (ui.window === 'main') api.setBadge(mail.inboxUnread);
   });
 
   // Notifications and the tray menu are drawn by the desktop shell: hand it their
   // texts in the interface language, again whenever the language changes.
   $effect(() => {
-    api.setNativeStrings(rawMessages('native.')).catch(() => {});
+    if (ui.window === 'main') api.setNativeStrings(rawMessages('native.')).catch(() => {});
+  });
+
+  // A window of its own closes when what it showed is gone (the conversation archived or
+  // deleted, the message sent or put away), once what was done in it is handed over; an Undo
+  // the main window could not take keeps it open until it goes.
+  let held = false;
+  $effect(() => {
+    if (ui.window === 'main' || !booted) return;
+    const showing = ui.window === 'thread' ? mail.detail != null : compose.list.length > 0;
+    if (showing) held = true;
+    else if (held && windows.pending === 0 && !toasts.items.some((x) => x.action?.undo)) api.window.close();
+  });
+
+  // Its title: the conversation's subject.
+  $effect(() => {
+    const subject = ui.window === 'thread' ? mail.detail?.thread.subject : undefined;
+    if (subject != null) api.window.setTitle(subject || t('common.noSubject')).catch(() => {});
   });
 
   onMount(() => {
+    if (ui.window !== 'main') return openWindow();
+    // Toasts of windows of their own that closed, and settings changed in them.
+    const offHandOver = api.windows.onHandOver((toast) => windows.show(toast));
+    const offSetting = api.windows.onSetting((key, value) => ui.changedElsewhere(key, value));
     (async () => {
       await ui.load();
       await mail.init();
@@ -102,6 +125,8 @@
     const offTask = api.onOpenTask((id) => tasks.reveal(id));
     const offResize = api.window.onResized(async () => (ui.maximized = await api.window.isMaximized()));
     return () => {
+      offHandOver();
+      offSetting();
       offMailto();
       offFile();
       offWebcal();
@@ -110,6 +135,46 @@
       offResize();
     };
   });
+
+  /**
+   * A window of its own: a conversation (`?window=thread&id=…`), or a message being written
+   * (`?window=compose`, with the draft's id). Links, files and notifications stay with the main window.
+   */
+  function openWindow() {
+    (async () => {
+      await ui.load();
+      await mail.initWindow();
+      vips.load();
+      await ai.load();
+      if (ui.window === 'thread') {
+        tasks.init();
+        if (ui.windowId != null) mail.select(ui.windowId);
+      } else if (ui.windowId != null) {
+        await compose.openDraft(ui.windowId);
+      } else {
+        compose.new();
+      }
+      booted = true;
+      await tick();
+      api.ready();
+    })().catch((e) => {
+      booted = true;
+      toasts.error(String(e?.message ?? e));
+      api.ready();
+    });
+    const offSetting = api.windows.onSetting((key, value) => ui.changedElsewhere(key, value));
+    // However it is closed (its button, Alt+F4, the window manager), what is written in it is saved first.
+    const offClose = api.window.onCloseRequested(async () => {
+      await compose.closeAll();
+      while (windows.pending) await new Promise((r) => setTimeout(r, 50));
+    });
+    const offResize = api.window.onResized(async () => (ui.maximized = await api.window.isMaximized()));
+    return () => {
+      offSetting();
+      offClose();
+      offResize();
+    };
+  }
 
   /** The newest message of the open conversation that is not a draft (replies go to it). */
   function lastMessageId(): number | null {
@@ -181,12 +246,13 @@
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key;
 
-    if (mod && key.toLowerCase() === 'k' && !target?.closest?.('[contenteditable="true"]')) {
+    if (ui.window === 'compose' && !(mod && key.toLowerCase() === 'n')) return;
+    if (mod && key.toLowerCase() === 'k' && !target?.closest?.('[contenteditable="true"]') && ui.window === 'main') {
       e.preventDefault();
       ui.overlay === 'palette' ? ui.close() : ui.open('palette');
       return;
     }
-    if (mod && key === ',') {
+    if (mod && key === ',' && ui.window === 'main') {
       e.preventDefault();
       ui.open('settings');
       return;
@@ -293,6 +359,8 @@
     const ids = mail.targets();
     // Space and Enter on a focused button press it.
     if ((key === ' ' || key === 'Enter') && target?.closest?.('button, a, select')) return;
+    // A conversation's window of its own: no list to move in, no folders to go to.
+    if (ui.window === 'thread' && ['j', 'k', 'ArrowDown', 'ArrowUp', 'Enter', 'o', 'x', '/', 'g', '1', '2', '3', '4', 'Backspace', 'F10', 'ContextMenu'].includes(key)) return;
     switch (key) {
       case 'j':
       case 'ArrowDown':
@@ -308,8 +376,14 @@
         break;
       case 'Enter':
       case 'o': {
-        // In Drafts, a draft opens in a composer.
         const row = mail.items.find((x) => x.id === mail.selectedId);
+        // Shift+Enter: in a window of its own.
+        if (key === 'Enter' && e.shiftKey) {
+          if (row) mail.openWindow(row);
+          else if (mail.detail) mail.openWindow(mail.detail.thread);
+          break;
+        }
+        // In Drafts, a draft opens in a composer.
         if (row) compose.openRow(row);
         else if (mail.selectedId != null) mail.openThread(mail.selectedId);
         else mail.move(0);
@@ -425,6 +499,10 @@
       case 'Escape':
         // A reply under the conversation closes first (its draft is kept).
         if (reader?.closeReply()) break;
+        if (ui.window === 'thread') {
+          api.window.close();
+          break;
+        }
         if (ui.single && reading) mail.closeThread();
         else if (mail.checked.size) mail.checked.clear();
         else if (mail.selectedId != null) mail.select(null);
@@ -435,6 +513,24 @@
 
 <svelte:window onkeydown={onKey} />
 
+{#if ui.window === 'thread'}
+  <!-- A conversation in a window of its own: the reader alone, and what is written from it. -->
+  <div class="app" class:booted>
+    <main><Reader bind:this={reader} /></main>
+    <div class="dock">
+      {#each compose.floating as c (c.key)}
+        <Composer state={c} />
+      {/each}
+    </div>
+  </div>
+{:else if ui.window === 'compose'}
+  <!-- A message being written in a window of its own. -->
+  <div class="app" class:booted>
+    {#each compose.list.slice(0, 1) as c (c.key)}
+      <Composer state={c} windowed />
+    {/each}
+  </div>
+{:else}
 <div class="app" class:booted>
   {#if ui.rail}
     <Sidebar rail />
@@ -461,6 +557,7 @@
     {/each}
   </div>
 </div>
+{/if}
 
 {#if ui.overlay === 'palette'}<CommandPalette {reader} />{/if}
 {#if ui.overlay === 'shortcuts'}<ShortcutsHelp />{/if}

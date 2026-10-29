@@ -397,6 +397,7 @@
   "view.sortOldest": "Od najstarszych",
   "view.sortSender": "Według nadawcy",
   "view.resizeList": "Zmień rozmiar listy",
+  "view.openInWindow": "Otwórz w nowym oknie",
 
   "messages.list": "Wiadomości",
   "messages.archived": "Zarchiwizowano · {count, plural, one {# wiadomość} few {# wiadomości} many {# wiadomości} other {# wiadomości}}",
@@ -447,6 +448,8 @@
   "reader.keyHintCompose": "nowa wiadomość",
   "reader.keyHintCommands": "polecenia",
   "reader.oneOfConversation": "{count, plural, few {Jedna z # wiadomości tego wątku} many {Jedna z # wiadomości tego wątku} other {Jedna z # wiadomości tego wątku}}",
+  "reader.toolbarOpenInWindow": "Otwórz w nowym oknie ({key})",
+  "reader.openConversation": "Otwórz wątek",
 
   "message.senderMe": "Ja",
   "message.collapse": "Zwiń",

@@ -16,7 +16,7 @@
   import {
     Archive, BellOff, Clock, Folder, Forward, ListChecks, ListPlus, Mail, MailOpen, Reply, ReplyAll, ShieldAlert, Star, Tag, Trash, Inbox,
     Check, AlarmClock,
-    ShieldCheck, ArrowLeft,
+    ShieldCheck, ArrowLeft, PopOut,
   } from '../icons';
   import { t } from '../i18n';
 
@@ -95,6 +95,17 @@
         key: 'L',
         icon: Tag,
         run: (at) => (moveAt = { ...at, labels: true }),
+      });
+    }
+    // In a window of its own (unless this is one).
+    if (ui.window === 'main') {
+      list.push({
+        id: 'window',
+        title: t('reader.toolbarOpenInWindow', { key: `${t('keys.shift')}+${t('keys.enter')}` }),
+        label: t('view.openInWindow'),
+        icon: PopOut,
+        run: () => mail.openWindow(thread),
+        group: true,
       });
     }
     return list;
@@ -181,7 +192,7 @@
 
 <section class="reader" class:below={ui.paneBelow}>
   <header data-tauri-drag-region>
-    {#if ui.single}
+    {#if ui.single && ui.window === 'main'}
       <button class="icon-btn back" title={t('reader.backToList')} aria-label={t('reader.backToList')} onclick={() => mail.closeThread()}><ArrowLeft size={17} /></button>
     {/if}
     {#if thread}
@@ -230,7 +241,10 @@
           </div>
           {#if d?.conversation && d.conversation.messageCount > 1}
             <!-- One message of a conversation (a list of messages one by one). -->
-            <p class="of-conversation">{t('reader.oneOfConversation', { count: d.conversation.messageCount })}</p>
+            <p class="of-conversation">
+              {t('reader.oneOfConversation', { count: d.conversation.messageCount })}
+              <button class="link" onclick={() => mail.openWindow(thread)}><PopOut size={13} />{t('reader.openConversation')}</button>
+            </p>
           {/if}
         </div>
 
@@ -322,9 +336,24 @@
     flex-shrink: 0;
   }
   .of-conversation {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 10px;
     margin: 10px 0 0;
     color: var(--text-3);
     font-size: var(--text-sm);
+  }
+  .of-conversation .link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent-text);
+    font-weight: 550;
+  }
+  .of-conversation .link:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
   .back {
     margin-right: 4px;

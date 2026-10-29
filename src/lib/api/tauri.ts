@@ -259,6 +259,25 @@ export function createTauriApi(): Api {
         win.onResized(() => cb()).then((u) => (un = u));
         return () => un?.();
       },
+      setTitle: (title) => win.setTitle(title),
+      onCloseRequested: (cb) => {
+        let un: (() => void) | null = null;
+        let cancelled = false;
+        // The window closes once the promise is done (Tauri destroys it then).
+        win.onCloseRequested(() => cb()).then((u) => (cancelled ? u() : (un = u)));
+        return () => {
+          cancelled = true;
+          un?.();
+        };
+      },
+    },
+
+    windows: {
+      open: (kind, id, title) => invoke('window_open', { kind, id, title }),
+      focus: (kind, id) => invoke('window_focus', { kind, id }),
+      handOver: (toast) => invoke('window_hand_over', { toast }),
+      onHandOver: (cb) => subscribe<T.HandOver>('hand-over', cb),
+      onSetting: (cb) => subscribe<{ key: string; value: unknown }>('setting', (p) => cb(p.key, p.value)),
     },
   };
 }

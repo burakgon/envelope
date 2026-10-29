@@ -397,6 +397,7 @@
   "view.sortOldest": "Önce en eski",
   "view.sortSender": "Gönderene göre",
   "view.resizeList": "Listeyi yeniden boyutlandır",
+  "view.openInWindow": "Yeni pencerede aç",
 
   "messages.list": "İletiler",
   "messages.archived": "Arşivlendi · {count, plural, one {# ileti} other {# ileti}}",
@@ -447,6 +448,8 @@
   "reader.keyHintCompose": "yeni ileti",
   "reader.keyHintCommands": "komutlar",
   "reader.oneOfConversation": "{count, plural, other {Bu konuşmadaki # iletiden biri}}",
+  "reader.toolbarOpenInWindow": "Yeni pencerede aç ({key})",
+  "reader.openConversation": "Konuşmayı aç",
 
   "message.senderMe": "Ben",
   "message.collapse": "Daralt",

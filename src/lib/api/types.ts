@@ -260,6 +260,32 @@ export interface UndoToken {
   snoozed: [number, number | null][];
 }
 
+/** A window of its own: a conversation, or a message being written. */
+export type WindowKind = 'thread' | 'compose';
+
+/** What the button of a toast does, as data that one window can hand to another. */
+export type ToastStep =
+  /** Undo moves (archive, delete, move, spam). */
+  | { kind: 'moves'; tokens: UndoToken[] }
+  /** Undo snoozing conversations. */
+  | { kind: 'snooze'; threadIds: number[] }
+  /** Undo muting conversations (and archiving them from the inbox). */
+  | { kind: 'mute'; threadIds: number[]; tokens: UndoToken[] }
+  /** Undo sending: the message comes back to be written on (under its conversation, if that is open). */
+  | { kind: 'send'; outboxId: number; data: DraftInput; threadId?: number | null }
+  /** Undo discarding a draft. */
+  | { kind: 'discard'; data: DraftInput; threadId?: number | null }
+  /** Open a draft that was saved. */
+  | { kind: 'open'; draftId: number };
+
+/** A toast for something done in a window of its own that closed with it, for the main window to show. */
+export interface HandOver {
+  message: string;
+  step: ToastStep;
+  /** Milliseconds it shows. */
+  duration?: number;
+}
+
 /** What "Mark all as read" changed. */
 /** A conversation of a list, with its account. */
 export interface ThreadRef {

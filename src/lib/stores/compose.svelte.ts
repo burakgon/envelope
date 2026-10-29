@@ -1,6 +1,7 @@
 import { api } from '../api';
-import type { Address, Draft, DraftInput, MessageView, QuoteText, ThreadSummary } from '../api';
+import type { Address, Draft, DraftInput, MessageView, QuoteText, ThreadSummary, ToastStep } from '../api';
 import { mail } from './mail.svelte';
+import { windows } from './windows.svelte';
 import { dialogs } from './dialogs.svelte';
 import { errorMessage, toasts } from './toasts.svelte';
 import { ui } from './ui.svelte';
@@ -95,6 +96,53 @@ class Compose {
 
   floating = $derived(this.list.filter((c) => !c.inline));
 
+  constructor() {
+    // Undo sending or discarding, and opening a draft put away: here, or handed over by a window of its own.
+    windows.handle(['send', 'discard', 'open'], (step) => this.runStep(step));
+  }
+
+  private async runStep(step: ToastStep) {
+    if (step.kind === 'open') return this.openDraft(step.draftId);
+    if (step.kind !== 'send' && step.kind !== 'discard') return;
+    const draftId = step.kind === 'send' ? await api.cancelSend(step.outboxId) : await api.saveDraft(null, step.data, false);
+    // Undone (with z) once it had gone out: it stays sent.
+    if (draftId == null) {
+      toasts.show(t('outbox.alreadySent'));
+      return;
+    }
+    // Back where it was: under its conversation if that is still open.
+    const threadId = step.threadId ?? null;
+    const here = threadId != null && !!mail.detail && mail.conversationOf(mail.detail.thread) === threadId;
+    this.open(step.data, { draftId, inline: here, threadId: here ? threadId : null, focus: 1, savedAt: Date.now() });
+    mail.draftsChanged();
+    if (step.kind === 'send') toasts.show(t('compose.sendingCancelled'));
+  }
+
+  /** Composers of a window of its own: every one is put away (saved) as the window closes. */
+  async closeAll() {
+    await Promise.all(this.list.map((c) => this.close(c.key)));
+  }
+
+  /**
+   * Moves a composer into a window of its own: what is written is saved as a draft first, and the
+   * window opens it (a message with nothing in it yet opens as a new one).
+   */
+  async popOut(key: number) {
+    const c = this.get(key);
+    if (!c) return;
+    const data = $state.snapshot(c.data) as DraftInput;
+    const title = data.subject || t('composer.titleNewMessage');
+    try {
+      let id = c.draftId;
+      if (!isEmpty(data) || id != null) id = await api.saveDraft(id, data, false);
+      this.remove(key);
+      mail.draftsChanged();
+      await api.windows.open('compose', id, title);
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+  }
+
   defaultAccount(): number {
     const mb = mail.mailbox;
     if (mb.kind === 'folder') {
@@ -151,6 +199,11 @@ class Compose {
       ui.open('addAccount');
       return;
     }
+    // Another new message from a message's window of its own: in a window of its own too.
+    if (ui.window === 'compose' && this.list.length) {
+      api.windows.open('compose', null, t('composer.titleNewMessage')).catch((e) => toasts.error(errorMessage(e)));
+      return;
+    }
     const data = this.withSignature({ ...emptyDraft(prefill.accountId ?? this.defaultAccount()), ...prefill });
     this.open(data);
   }
@@ -198,6 +251,9 @@ class Compose {
       existing.focus++;
       return;
     }
+    // Being written in a window of its own (not this one): that comes forward.
+    const mine = ui.window === 'compose' && ui.windowId === id;
+    if (!mine && (await api.windows.focus('compose', id).catch(() => false))) return;
     try {
       const d = typeof draft === 'number' ? await api.draft(draft) : draft;
       const reply = d.data.mode === 'reply' || d.data.mode === 'replyAll';
@@ -311,39 +367,28 @@ class Compose {
     if (!c) return;
     // Anything written is saved as it is now, also when it was closed before its first save.
     const written = this.timers.has(key);
-    this.remove(key);
-    if (written || c.draftId != null) await this.store(c, true);
-    if (c.draftId != null) {
-      const draftId = c.draftId;
-      toasts.show(t('compose.draftSaved'), {
-        action: { label: t('common.open'), run: () => this.openDraft(draftId) },
-      });
-    }
+    await windows.hold(async () => {
+      this.remove(key);
+      if (written || c.draftId != null) await this.store(c, true);
+      if (c.draftId != null) await windows.toast(t('compose.draftSaved'), { kind: 'open', draftId: c.draftId });
+    });
   }
 
   /** Throws a draft away (with its server copy); Undo brings it back as it was. */
   async discard(key: number) {
     const c = this.get(key);
     if (!c) return;
-    this.remove(key);
     const data = $state.snapshot(c.data) as DraftInput;
     const { inline, threadId } = c;
-    if (c.draftId != null) await api.deleteDraft(c.draftId).catch(() => {});
-    mail.draftsChanged();
-    if (isEmpty(data)) {
-      toasts.show(t('compose.draftDiscarded'));
-      return;
-    }
-    toasts.undoable(t('compose.draftDiscarded'), async () => {
-      try {
-        const draftId = await api.saveDraft(null, data, false);
-        // Back where it was: under its conversation if that is still open.
-        const here = inline && threadId != null && !!mail.detail && mail.conversationOf(mail.detail.thread) === threadId;
-        this.open(data, { draftId, inline: here, threadId: here ? threadId : null, focus: 1, savedAt: Date.now() });
-        mail.draftsChanged();
-      } catch (e) {
-        toasts.error(errorMessage(e));
+    await windows.hold(async () => {
+      this.remove(key);
+      if (c.draftId != null) await api.deleteDraft(c.draftId).catch(() => {});
+      mail.draftsChanged();
+      if (isEmpty(data)) {
+        toasts.show(t('compose.draftDiscarded'));
+        return;
       }
+      await windows.toast(t('compose.draftDiscarded'), { kind: 'discard', data, threadId: inline ? threadId : null });
     });
   }
 
@@ -404,32 +449,40 @@ class Compose {
     }
     if (!this.get(key)) return null;
     const replyThread = c.threadId;
-    this.remove(key);
-    try {
-      const delay = sendAt ? 0 : ui.settings.undoSendSeconds * 1000;
-      const outboxId = await api.send(c.draftId, data, delay, sendAt);
-      const label = sendAt
-        ? t('compose.scheduledFor', { time: dateFormat({ weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(sendAt) })
-        : t('compose.sending');
-      toasts.undoable(
-        label,
-        async () => {
-          const draftId = await api.cancelSend(outboxId);
-          this.open(data, { draftId, inline: c.inline, threadId: c.threadId });
-          toasts.show(t('compose.sendingCancelled'));
-        },
-        sendAt ? 8000 : Math.max(3000, delay),
-      );
-      // The conversation replied in goes; with messages one by one, the message answered.
-      const archived = mail.byMessage ? data.replyToMessageId : replyThread;
-      if (ui.settings.sendAndArchive && replyThread != null && archived != null && data.mode !== 'forward') {
-        setTimeout(() => mail.archive([archived]), 300);
+    return windows.hold(async () => {
+      this.remove(key);
+      try {
+        const delay = sendAt ? 0 : ui.settings.undoSendSeconds * 1000;
+        const outboxId = await api.send(c.draftId, data, delay, sendAt);
+        const label = sendAt
+          ? t('compose.scheduledFor', { time: dateFormat({ weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(sendAt) })
+          : t('compose.sending');
+        await windows.toast(label, { kind: 'send', outboxId, data, threadId: c.inline ? c.threadId : null }, sendAt ? 8000 : Math.max(3000, delay));
+        if (ui.settings.sendAndArchive && data.mode !== 'forward') await this.archiveAnswered(data, replyThread);
+        return 'sent' as const;
+      } catch (e) {
+        toasts.error(errorMessage(e));
+        this.open(data, { draftId: c.draftId, inline: c.inline, threadId: c.threadId });
+        return null;
       }
-      return 'sent';
-    } catch (e) {
-      toasts.error(errorMessage(e));
-      this.open(data, { draftId: c.draftId, inline: c.inline, threadId: c.threadId });
-      return null;
+    });
+  }
+
+  /** "Send and archive": the conversation replied in goes; with messages one by one, the message answered. */
+  private async archiveAnswered(data: DraftInput, threadId: number | null) {
+    const message = data.replyToMessageId;
+    if (mail.byMessage) {
+      if (message != null && threadId != null) setTimeout(() => mail.archive([message]), 300);
+      return;
+    }
+    if (threadId != null) {
+      setTimeout(() => mail.archive([threadId]), 300);
+      return;
+    }
+    // A reply written in a window of its own: the conversation of the message answered, before the window closes.
+    if (ui.window === 'compose' && message != null && (data.mode === 'reply' || data.mode === 'replyAll')) {
+      const conversation = (await api.message(message).catch(() => null))?.conversation?.id;
+      if (conversation != null) await mail.archive([conversation]);
     }
   }
 }

@@ -10,7 +10,7 @@ use envelope_core::subscriptions::Subscription;
 use envelope_core::vip::Vip;
 use envelope_core::{AccountPatch, UndoToken};
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::AppState;
@@ -68,8 +68,14 @@ impl From<String> for CmdError {
 type R<T> = Result<T, CmdError>;
 
 #[tauri::command]
-pub fn app_ready(app: AppHandle, state: State<'_, AppState>) {
+pub fn app_ready(app: AppHandle, window: tauri::WebviewWindow, state: State<'_, AppState>) {
     tracing::debug!("interface ready");
+    // A window of its own (a conversation, a message being written) shows as soon as it can.
+    if window.label() != "main" {
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
     // Launched at login: stay in the tray.
     if state
         .start_hidden
@@ -931,16 +937,51 @@ pub fn settings_get(state: State<'_, AppState>) -> R<serde_json::Map<String, ser
     Ok(state.engine.settings()?)
 }
 
+/// Saves a setting; the other windows hear of it (`setting`) and follow.
 #[tauri::command]
-pub fn settings_set(state: State<'_, AppState>, key: String, value: serde_json::Value) -> R<()> {
-    Ok(state.engine.set_setting(&key, &value)?)
+pub fn settings_set(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    key: String,
+    value: serde_json::Value,
+) -> R<()> {
+    state.engine.set_setting(&key, &value)?;
+    let _ = app.emit("setting", serde_json::json!({ "key": key, "value": value }));
+    Ok(())
 }
 
 #[tauri::command]
 pub fn set_decorations(app: AppHandle, native: bool) {
-    if let Some(w) = app.get_webview_window("main") {
+    for w in app.webview_windows().values() {
         let _ = w.set_decorations(native);
     }
+}
+
+// ----- windows of their own -------------------------------------------------------
+
+/// Opens a conversation or a draft (none: a new message) in a window of its own.
+#[tauri::command]
+pub async fn window_open(
+    app: AppHandle,
+    kind: crate::windows::Kind,
+    id: Option<i64>,
+    title: String,
+) -> R<()> {
+    crate::windows::open(&app, kind, id, &title).map_err(|e| CmdError::from(e.to_string()))
+}
+
+/// Brings forward the window of its own of a conversation or a draft; false without one.
+#[tauri::command]
+pub fn window_focus(app: AppHandle, kind: crate::windows::Kind, id: i64) -> bool {
+    crate::windows::focus(&app, kind, id)
+}
+
+/// Gives the main window a toast for something done in a window of its own
+/// that is closing (with what its button does); false when the main window is
+/// not on screen to show it.
+#[tauri::command]
+pub fn window_hand_over(app: AppHandle, toast: serde_json::Value) -> bool {
+    crate::windows::main_shown(&app) && app.emit_to("main", "hand-over", toast).is_ok()
 }
 
 #[tauri::command]

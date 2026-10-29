@@ -397,6 +397,7 @@
   "view.sortOldest": "最早的在前",
   "view.sortSender": "按发件人",
   "view.resizeList": "调整列表大小",
+  "view.openInWindow": "在新窗口中打开",
 
   "messages.list": "邮件",
   "messages.archived": "已归档 · {count, plural, other {# 封邮件}}",
@@ -447,6 +448,8 @@
   "reader.keyHintCompose": "写邮件",
   "reader.keyHintCommands": "命令",
   "reader.oneOfConversation": "{count, plural, other {本会话 # 封邮件中的一封}}",
+  "reader.toolbarOpenInWindow": "在新窗口中打开（{key}）",
+  "reader.openConversation": "打开会话",
 
   "message.senderMe": "我",
   "message.collapse": "收起",

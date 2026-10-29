@@ -171,8 +171,21 @@ export const defaultSettings: Settings = {
 
 export type View = 'mail' | 'calendar' | 'contacts' | 'tasks';
 export type Overlay = null | 'settings' | 'palette' | 'shortcuts' | 'onboarding' | 'addAccount' | 'ask' | 'subscriptions';
+/** A window: the main one, or one of its own for a conversation or a message being written. */
+export type WindowKind = 'main' | 'thread' | 'compose';
+
+/** Which window this is, from its address (`?window=thread&id=12`, see src-tauri/src/windows.rs). */
+function windowOf(): { kind: WindowKind; id: number | null } {
+  const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
+  const kind = params.get('window');
+  const id = Number(params.get('id'));
+  return { kind: kind === 'thread' || kind === 'compose' ? kind : 'main', id: Number.isInteger(id) && id > 0 ? id : null };
+}
 
 class Ui {
+  /** This window, and the conversation or draft it is for. */
+  readonly window: WindowKind;
+  readonly windowId: number | null;
   view = $state<View>('mail');
   overlay = $state<Overlay>(null);
   settingsTab = $state('general');
@@ -192,6 +205,14 @@ class Ui {
   askAi = $state('');
 
   isDark = $derived(this.settings.theme === 'dark' || (this.settings.theme === 'system' && this.systemDark));
+  /** Told of settings another window changed. */
+  private listeners = new Set<(key: keyof Settings) => void>();
+
+  constructor() {
+    const w = windowOf();
+    this.window = w.kind;
+    this.windowId = w.id;
+  }
 
   get rail(): boolean {
     return !this.wide.current;
@@ -202,9 +223,9 @@ class Ui {
     return !this.roomy.current || this.settings.readingPane === 'off';
   }
 
-  /** The open conversation is below the list. */
+  /** The open conversation is below the list (of the main window). */
   get paneBelow(): boolean {
-    return !this.single && this.settings.readingPane === 'bottom';
+    return this.window === 'main' && !this.single && this.settings.readingPane === 'bottom';
   }
 
   /** Hidden by the person, so the views offer to show it again (the rail always shows). */
@@ -232,6 +253,20 @@ class Ui {
     if (key === 'accentHue') localStorage.setItem('envelope.accent', String(value));
     if (key === 'nativeTitlebar') api.setDecorations(Boolean(value));
     if (key === 'language') setLanguage(value as LanguageSetting);
+  }
+
+  /** A setting changed in another window: this one follows. */
+  changedElsewhere(key: string, value: unknown) {
+    if (!(key in defaultSettings) || JSON.stringify(this.settings[key as keyof Settings]) === JSON.stringify(value)) return;
+    (this.settings as unknown as Record<string, unknown>)[key] = value;
+    if (key === 'language') setLanguage(value as LanguageSetting);
+    for (const listener of this.listeners) listener(key as keyof Settings);
+  }
+
+  /** Hears of settings changed in another window; returns how to stop. */
+  onChangedElsewhere(listener: (key: keyof Settings) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   open(overlay: Overlay, tab?: string) {

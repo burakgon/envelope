@@ -397,6 +397,7 @@
   "view.sortOldest": "Plus anciens d’abord",
   "view.sortSender": "Par expéditeur",
   "view.resizeList": "Redimensionner la liste",
+  "view.openInWindow": "Ouvrir dans une nouvelle fenêtre",
 
   "messages.list": "Messages",
   "messages.archived": "Archivé · {count, plural, one {# message} other {# messages}}",
@@ -447,6 +448,8 @@
   "reader.keyHintCompose": "rédiger",
   "reader.keyHintCommands": "commandes",
   "reader.oneOfConversation": "{count, plural, other {Un des # messages de cette conversation}}",
+  "reader.toolbarOpenInWindow": "Ouvrir dans une nouvelle fenêtre ({key})",
+  "reader.openConversation": "Ouvrir la conversation",
 
   "message.senderMe": "Moi",
   "message.collapse": "Réduire",

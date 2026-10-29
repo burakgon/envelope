@@ -16,10 +16,12 @@ import type {
   SortOrder,
   ThreadDetail,
   ThreadSummary,
+  ToastStep,
 } from '../api';
 import { errorMessage, toasts } from './toasts.svelte';
 import { dialogs } from './dialogs.svelte';
 import { ui } from './ui.svelte';
+import { windows } from './windows.svelte';
 import { t, type MessageKey } from '../i18n';
 import { dateFormat } from '../utils/format';
 
@@ -191,20 +193,42 @@ class Mail {
    * Messages one by one ("Group into conversations" off): the rows are messages (`id` the
    * message's, `threadId` its conversation's), and actions take them rather than conversations.
    */
-  byMessage = $derived(!ui.settings.conversationView);
+  byMessage = $derived(!ui.settings.conversationView && ui.window === 'main');
   /** The order of the list shown: each folder (and search) keeps its own. */
   sort = $derived<SortOrder>(ui.settings.sortOrders[listKey(this.mailbox, this.search)] ?? 'newest');
 
   private refreshSoon = debounce(() => this.refresh(), 60);
   private foldersSoon = debounce(() => this.loadFolders(), 120);
 
+  /** The list is shown (the main window); a window of its own has only its conversation. */
+  private listed = true;
+
+  constructor() {
+    // Undo, here or handed over by a window of its own that closed.
+    windows.handle(['moves', 'snooze', 'mute'], (step) => this.undoStep(step));
+  }
+
   async init() {
     await Promise.all([this.loadAccounts(), this.loadFolders()]);
     api.onEvent((e) => this.onEvent(e));
+    // Changed in another window: the list as it says now.
+    ui.onChangedElsewhere((key) => {
+      if (key === 'conversationView') this.relist();
+      else if (key === 'sortOrders') this.refresh();
+    });
     await this.refresh();
     this.ready = true;
     this.loadOutbox();
     this.loadFollowUps();
+  }
+
+  /** A window of its own: accounts, folders and what changes, but no list. */
+  async initWindow() {
+    this.listed = false;
+    await Promise.all([this.loadAccounts(), this.loadFolders()]);
+    api.onEvent((e) => this.onEvent(e));
+    this.loading = false;
+    this.ready = true;
   }
 
   private followUpsSoon = debounce(() => this.loadFollowUps(), 400);
@@ -226,7 +250,7 @@ class Mail {
 
   async loadFolders() {
     this.folders = await api.folders();
-    api.setBadge(this.inboxUnread);
+    if (ui.window === 'main') api.setBadge(this.inboxUnread);
   }
 
   async loadOutbox() {
@@ -317,6 +341,34 @@ class Mail {
     this.refresh();
   }
 
+  /** A row's conversation in a window of its own (Shift+Enter, a double click, the reader's button). */
+  openWindow(row: ThreadSummary) {
+    if (row.id < 0) return;
+    api.windows.open('thread', this.conversationOf(row), row.subject || t('common.noSubject')).catch((e) => toasts.error(errorMessage(e)));
+  }
+
+  /** A row of the list, or the one open in the reader. */
+  private rowOf(id: number): ThreadSummary | undefined {
+    return this.items.find((r) => r.id === id) ?? (this.detail?.thread.id === id ? this.detail.thread : undefined);
+  }
+
+  /** Undoes what a toast offers to undo. */
+  private async undoStep(step: ToastStep) {
+    try {
+      if (step.kind === 'moves') {
+        for (const token of step.tokens) await api.undo(token);
+      } else if (step.kind === 'snooze') {
+        await api.snooze(step.threadIds, null);
+      } else if (step.kind === 'mute') {
+        await api.muteThreads(step.threadIds, false);
+        for (const token of step.tokens) await api.undo(token);
+      }
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+    this.refresh();
+  }
+
   /** Rows of another kind than before: nothing selected, the conversation closed, read again. */
   relist() {
     this.select(null);
@@ -351,6 +403,7 @@ class Mail {
   }
 
   async refresh() {
+    if (!this.listed) return;
     const seq = ++this.seq;
     const want = Math.max(this.items.filter((t) => t.id > 0).length, PAGE);
     try {
@@ -642,26 +695,25 @@ class Mail {
       const s = this.sourceFor(byThread.get(id)?.accountId ?? this.accountOf.get(id));
       groups.set(s, [...(groups.get(s) ?? []), id]);
     }
-    this.removeLocally(ids);
     const one = this.byMessage;
-    try {
-      const tokens = await Promise.all(
-        [...groups].map(([source, rows]) => (one ? api.moveMessages(rows, source, target) : api.moveThreads(rows, source, target))),
-      );
-      const count = ids.length;
-      const which = count < 2 ? 0 : one ? 2 : 1;
-      const message =
-        folderName != null
-          ? t((['mail.movedToFolder', 'mail.movedToFolderCount', 'messages.movedToFolder'] as const)[which], { folder: folderName, count })
-          : t((messages ?? movedMessages[target.kind])[which], { count });
-      toasts.undoable(message, async () => {
-        for (const token of tokens) await api.undo(token);
+    await windows.hold(async () => {
+      this.removeLocally(ids);
+      try {
+        const tokens = await Promise.all(
+          [...groups].map(([source, rows]) => (one ? api.moveMessages(rows, source, target) : api.moveThreads(rows, source, target))),
+        );
+        const count = ids.length;
+        const which = count < 2 ? 0 : one ? 2 : 1;
+        const message =
+          folderName != null
+            ? t((['mail.movedToFolder', 'mail.movedToFolderCount', 'messages.movedToFolder'] as const)[which], { folder: folderName, count })
+            : t((messages ?? movedMessages[target.kind])[which], { count });
+        await windows.toast(message, { kind: 'moves', tokens });
+      } catch (e) {
+        toasts.error(errorMessage(e));
         this.refresh();
-      });
-    } catch (e) {
-      toasts.error(errorMessage(e));
-      this.refresh();
-    }
+      }
+    });
   }
 
   archive(ids?: number[]) {
@@ -712,13 +764,15 @@ class Mail {
     const one = this.byMessage;
     const ok = await this.confirmDeleteForever(ids.length, one);
     if (!ok) return;
-    this.removeLocally(ids);
-    try {
-      await (one ? api.deleteMessagesForever(ids) : api.deleteForever(ids));
-      toasts.show(ids.length > 1 ? t(one ? 'messages.deleted' : 'mail.deletedCount', { count: ids.length }) : t('mail.deletedForever'));
-    } catch (e) {
-      toasts.error(errorMessage(e));
-    }
+    await windows.hold(async () => {
+      this.removeLocally(ids);
+      try {
+        await (one ? api.deleteMessagesForever(ids) : api.deleteForever(ids));
+        toasts.show(ids.length > 1 ? t(one ? 'messages.deleted' : 'mail.deletedCount', { count: ids.length }) : t('mail.deletedForever'));
+      } catch (e) {
+        toasts.error(errorMessage(e));
+      }
+    });
   }
 
   async setRead(ids: number[], seen: boolean, silent = false) {
@@ -737,7 +791,7 @@ class Mail {
   }
 
   toggleRead(ids = this.targets()) {
-    const first = this.items.find((t) => t.id === ids[0]);
+    const first = this.rowOf(ids[0]);
     const seen = (first?.unreadCount ?? 0) > 0;
     if (!seen && this.markReadTimer) clearTimeout(this.markReadTimer);
     return this.setRead(ids, seen);
@@ -755,7 +809,7 @@ class Mail {
   }
 
   toggleStar(ids = this.targets()) {
-    const first = this.items.find((t) => t.id === ids[0]) ?? (this.detail?.thread.id === ids[0] ? this.detail.thread : undefined);
+    const first = this.rowOf(ids[0]);
     return this.setStar(ids, !first?.flagged);
   }
 
@@ -763,43 +817,40 @@ class Mail {
   async snooze(until: number, ids = this.targets()) {
     if (!ids.length) return;
     const threads = this.threadsOf(ids);
-    this.removeLocally(this.byMessage ? this.rowsOf(threads) : ids);
-    try {
-      await api.snooze(threads, until);
-      const when = dateFormat({ weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(until);
-      toasts.undoable(t('mail.snoozedUntil', { when }), async () => {
-        await api.snooze(threads, null);
-        this.refresh();
-      });
-    } catch (e) {
-      toasts.error(errorMessage(e));
-    }
+    await windows.hold(async () => {
+      this.removeLocally(this.byMessage ? this.rowsOf(threads) : ids);
+      try {
+        await api.snooze(threads, until);
+        const when = dateFormat({ weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(until);
+        await windows.toast(t('mail.snoozedUntil', { when }), { kind: 'snooze', threadIds: threads });
+      } catch (e) {
+        toasts.error(errorMessage(e));
+      }
+    });
   }
 
   /** Mutes the conversations (archiving them from the inbox), or unmutes them when all are muted. */
   async toggleMute(ids = this.targets()) {
     if (!ids.length) return;
-    const byId = new Map(this.items.map((t) => [t.id, t]));
-    const allMuted = ids.every((id) => byId.get(id)?.muted);
+    const allMuted = ids.every((id) => this.rowOf(id)?.muted);
     const threads = this.threadsOf(ids);
-    try {
-      if (allMuted) {
-        await api.muteThreads(threads, false);
-        toasts.show(t('mail.unmuted'));
+    await windows.hold(async () => {
+      try {
+        if (allMuted) {
+          await api.muteThreads(threads, false);
+          toasts.show(t('mail.unmuted'));
+          this.refresh();
+          if (this.detail && threads.includes(this.conversationOf(this.detail.thread))) this.detail.thread.muted = false;
+          return;
+        }
+        this.removeLocally(this.byMessage ? this.rowsOf(threads) : ids);
+        const tokens = await api.muteThreads(threads, true);
+        await windows.toast(threads.length > 1 ? t('mail.mutedCount', { count: threads.length }) : t('mail.muted'), { kind: 'mute', threadIds: threads, tokens });
+      } catch (e) {
+        toasts.error(errorMessage(e));
         this.refresh();
-        return;
       }
-      this.removeLocally(this.byMessage ? this.rowsOf(threads) : ids);
-      const tokens = await api.muteThreads(threads, true);
-      toasts.undoable(threads.length > 1 ? t('mail.mutedCount', { count: threads.length }) : t('mail.muted'), async () => {
-        await api.muteThreads(threads, false);
-        for (const token of tokens) await api.undo(token);
-        this.refresh();
-      });
-    } catch (e) {
-      toasts.error(errorMessage(e));
-      this.refresh();
-    }
+    });
   }
 
   async unsnooze(ids = this.targets()) {
@@ -810,7 +861,7 @@ class Mail {
   }
 
   async toggleLabel(folderId: number, ids = this.targets()) {
-    const has = this.items.filter((th) => ids.includes(th.id)).every((th) => th.folderIds.includes(folderId));
+    const has = ids.map((id) => this.rowOf(id)).every((th) => !th || th.folderIds.includes(folderId));
     try {
       await (this.byMessage ? api.labelMessages(ids, folderId, !has) : api.setLabel(ids, folderId, !has));
       const name = this.folderById.get(folderId)?.name ?? '';

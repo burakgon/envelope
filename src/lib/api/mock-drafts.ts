@@ -29,6 +29,22 @@ export function createMockDrafts(opts: {
   const { threads, messages } = data;
 
   const drafts = (accountId: number) => data.folders.find((f) => f.accountId === accountId && f.role === 'drafts');
+
+  /** A draft another page of the demo handed over (see `stash`). */
+  function unstash(id: number): Kept | undefined {
+    try {
+      const d = JSON.parse(localStorage.getItem(`envelope.demo.draft.${id}`) ?? 'null') as Kept | null;
+      if (!d) return undefined;
+      // Its server copy was the other page's.
+      d.serverMessageId = null;
+      d.syncedAt = null;
+      kept.set(id, d);
+      seq = Math.max(seq, id + 1);
+      return d;
+    } catch {
+      return undefined;
+    }
+  }
   const alive = (id: number | null) => id != null && messages.some((m) => m.id === id);
 
   function view(d: Kept): T.Draft {
@@ -122,9 +138,14 @@ export function createMockDrafts(opts: {
   return {
     list: (): T.Draft[] => [...kept.values()].filter((d) => !opts.queued().has(d.id)).sort((a, b) => b.updatedAt - a.updatedAt).map(view),
     get: (id: number): T.Draft => {
-      const d = kept.get(id);
+      const d = kept.get(id) ?? unstash(id);
       if (!d) throw { message: `Not found: draft ${id}`, kind: 'notFound' } satisfies T.ApiError;
       return view(d);
+    },
+    /** A draft going to a window of its own: the demo's other pages have demo data of their own, so it goes along. */
+    stash: (id: number) => {
+      const d = kept.get(id);
+      if (d) localStorage.setItem(`envelope.demo.draft.${id}`, JSON.stringify(d));
     },
     forMessage: (messageId: number): T.Draft => {
       const mine = [...kept.values()].find((d) => d.serverMessageId === messageId && !opts.queued().has(d.id));
