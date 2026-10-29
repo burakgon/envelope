@@ -30,6 +30,9 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - A time proposed for one of your meetings shows as a card in the message: who proposed it, the new time against the current one, their note and whether you are free then. Accept moves the event (or that occurrence) and sends the update to everyone invited; Decline tells them it stays. A proposal for an event that has changed since, or is gone, says so instead.
 
 ### Fixed
+- Moving or changing one occurrence of a Microsoft 365 series kept its old time (the change went to the whole series, with only its title and notes); it now changes that occurrence, the whole series moves as far as the occurrence was moved, and "this and following" ends the series before it and starts a new one.
+- A Microsoft 365 series ended before a day's occurrence kept that occurrence, because Microsoft's end date takes in the whole day.
+- Enter in the command palette could run the row under a resting mouse pointer instead of the best match.
 - Dragging the edge of the conversation list over an open message no longer stops resizing it halfway.
 - Undoing a send with `z` after the message had already gone out says so, instead of opening it again as a new draft.
 - A few German texts (blocked senders, account alerts) addressed the reader as "du" instead of "Sie" like the rest.
