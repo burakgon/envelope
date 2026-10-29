@@ -44,6 +44,13 @@ export interface MailRule {
   stop: boolean;
 }
 
+/** A search kept in the sidebar. */
+export interface SavedSearch {
+  id: string;
+  name: string;
+  query: string;
+}
+
 /** User preferences persisted through the backend settings store. */
 export interface Settings {
   /** Interface language; 'system' follows the desktop's preferred languages. */
@@ -82,6 +89,10 @@ export interface Settings {
   defaultTaskListId: number | null;
   templates: Template[];
   rules: MailRule[];
+  /** Searches kept in the sidebar. */
+  savedSearches: SavedSearch[];
+  /** The last searches made, newest first. */
+  recentSearches: string[];
   /** Closing the window keeps Envelope running in the tray. */
   closeToTray: boolean;
   sidebarWidth: number;
@@ -119,6 +130,8 @@ export const defaultSettings: Settings = {
   secondTimeZone: 'UTC',
   defaultTaskListId: null,
   templates: [],
+  savedSearches: [],
+  recentSearches: [],
   rules: [],
   closeToTray: false,
   sidebarWidth: 236,

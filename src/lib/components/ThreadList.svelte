@@ -17,10 +17,14 @@
     AlarmClock,
     ShieldCheck,
     Ban,
+    BookmarkPlus,
+    Sliders,
   } from '../icons';
   import { blockSender, senderOf } from '../stores/rules.svelte';
   import { displayName } from '../utils/format';
   import AccountAlerts from './AccountAlerts.svelte';
+  import SearchPanel from './SearchPanel.svelte';
+  import { rememberSearch, saveSearch } from '../stores/searches.svelte';
   import { t } from '../i18n';
 
   let viewport: HTMLDivElement | undefined = $state();
@@ -31,6 +35,11 @@
   /** What this box last searched for: a search set anywhere else, or cleared by going to a folder, shows in it. */
   let sent = untrack(() => mail.search);
   let searchFocused = $state(false);
+  /** The focus is in the search box or the panel below it. */
+  let searchWithin = $state(false);
+  /** The search options are open below the box. */
+  let building = $state(false);
+  let searchArea: HTMLDivElement | undefined = $state();
   let menu = $state<{ x: number; y: number; thread: ThreadSummary } | null>(null);
   let snoozeAt = $state<{ x: number; y: number; ids: number[] } | null>(null);
   let remindAt = $state<{ x: number; y: number; ids: number[] } | null>(null);
@@ -135,7 +144,22 @@
   function clearSearch() {
     query = '';
     search('');
+    building = false;
     searchInput?.blur();
+  }
+
+  /** A query from the panel below the box: searched at once (and kept among the recent ones), or put in the box to go on with. */
+  function pick(q: string, run: boolean) {
+    query = q;
+    if (run) {
+      search(q.trim());
+      rememberSearch(q);
+      building = false;
+      searchInput?.blur();
+    } else {
+      searchInput?.focus();
+      onSearchInput();
+    }
   }
 
   function onSearchKey(e: KeyboardEvent) {
@@ -144,10 +168,16 @@
       clearSearch();
     } else if (e.key === 'Enter') {
       search(query.trim());
+      rememberSearch(query);
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      searchInput?.blur();
-      mail.move(0);
+      // Into the panel below the box when it shows something, else to the list.
+      const first = searchArea?.querySelector<HTMLElement>('.panel button, .panel input');
+      if (first) first.focus();
+      else {
+        searchInput?.blur();
+        mail.move(0);
+      }
     }
   }
 
@@ -236,6 +266,9 @@
       {/if}
     </div>
     <div class="tools">
+      {#if mail.search}
+        <button class="icon-btn" title={t('search.save')} aria-label={t('search.save')} onclick={() => saveSearch()}><BookmarkPlus size={16} /></button>
+      {/if}
       {#if ai.ready}
         <button class="icon-btn ask" title={t('threadList.askInbox')} onclick={() => { ui.askAi = ''; ui.open('ask'); }}><Sparkles size={16} /></button>
       {/if}
@@ -244,7 +277,23 @@
     </div>
   </header>
 
-  <div class="search" class:focused={searchFocused}>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="search"
+    class:focused={searchFocused}
+    bind:this={searchArea}
+    onfocusin={() => (searchWithin = true)}
+    onfocusout={(e) => {
+      if (!searchArea?.contains(e.relatedTarget as Node)) searchWithin = false;
+    }}
+    onkeydown={(e) => {
+      if (e.key === 'Escape' && building) {
+        e.stopPropagation();
+        building = false;
+        searchInput?.focus();
+      }
+    }}
+  >
     <Search size={15} />
     <input
       bind:this={searchInput}
@@ -260,11 +309,22 @@
     {#if query && ai.ready && /\s/.test(query.trim()) && !/\w+:/.test(query)}
       <button class="ai-search" title={t('threadList.aiSearchTitle')} onclick={aiSearch} disabled={aiBusy}><Sparkles size={13} />{aiBusy ? '…' : t('threadList.aiSearchButton')}</button>
     {/if}
+    <button
+      class="opts"
+      class:on={building}
+      aria-label={t('search.options')}
+      aria-expanded={building}
+      title={t('search.options')}
+      onclick={() => {
+        building = !building;
+        if (!building) searchInput?.focus();
+      }}><Sliders size={13} /></button>
     {#if query}
       <button class="clear" aria-label={t('threadList.clearSearch')} onclick={clearSearch}><X size={13} /></button>
     {:else}
       <span class="kbd">/</span>
     {/if}
+    {#if searchWithin || building}<SearchPanel {query} {building} onpick={pick} />{/if}
   </div>
 
   <AccountAlerts />
@@ -492,6 +552,7 @@
     gap: 2px;
   }
   .search {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -536,6 +597,22 @@
     background: var(--accent-soft);
   }
   .ask {
+    color: var(--accent-text);
+  }
+  .opts {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    color: var(--text-3);
+  }
+  .opts:hover,
+  .opts.on {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+  .opts.on {
     color: var(--accent-text);
   }
   .clear {

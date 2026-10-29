@@ -1479,6 +1479,89 @@ await step('the search box shows the search the list is showing', async () => {
   }
 });
 
+await step('the search options write a query; results say where they are and the search is remembered', async () => {
+  const p = await fresh();
+  try {
+    const box = p.locator('.list .search input');
+    await p.locator('.list .search .opts').click();
+    const panel = p.locator('.list .search .panel');
+    await panel.locator('label', { hasText: 'From' }).locator('input').fill('priya');
+    await panel.locator('label', { hasText: 'Has attachment' }).locator('input').check();
+    await panel.locator('label', { hasText: 'Date' }).locator('select').selectOption({ label: 'Last 30 days' });
+    await panel.locator('button', { hasText: 'Search' }).click();
+    await eventually(p, async () => (await box.inputValue()) === 'from:priya has:attachment newer_than:1m', async () => `the box reads "${await box.inputValue()}"`);
+    const row = p.locator('.row', { hasText: 'Q4 roadmap — final review' });
+    await row.waitFor({ timeout: 5000 });
+    if ((await p.locator('.row').count()) !== 1) throw new Error(`${await p.locator('.row').count()} results`);
+    if ((await row.locator('.place').innerText()).trim() !== 'Inbox') throw new Error(`the result says "${await row.locator('.place').innerText()}"`);
+    if (await panel.count()) throw new Error('the options stayed open');
+    // Cleared and back in the box: the search is among the recent ones, and runs again from there.
+    await box.press('Escape');
+    await box.focus();
+    const recent = panel.locator('.item', { hasText: 'from:priya has:attachment newer_than:1m' });
+    await recent.waitFor({ timeout: 5000 });
+    await box.press('ArrowDown');
+    if (!(await recent.evaluate((el) => el === document.activeElement))) throw new Error('Down did not go into the recent searches');
+    await p.keyboard.press('Enter');
+    await eventually(p, async () => (await box.inputValue()) === 'from:priya has:attachment newer_than:1m', 'the recent search did not run');
+    await row.waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
+await step('from: in the search box suggests people, and picking one completes it', async () => {
+  const p = await fresh();
+  try {
+    const box = p.locator('.list .search input');
+    await box.fill('roadmap from:may');
+    const maya = p.locator('.list .search .panel .item', { hasText: 'Maya Chen' });
+    await maya.waitFor({ timeout: 5000 });
+    await maya.click();
+    if ((await box.inputValue()) !== 'roadmap from:maya@northwind.design ') throw new Error(`the box reads "${await box.inputValue()}"`);
+    if (!(await box.evaluate((el) => el === document.activeElement))) throw new Error('the box lost the focus');
+  } finally {
+    await p.close();
+  }
+});
+
+await step('a search is saved to the sidebar, run from there, renamed and deleted', async () => {
+  const p = await fresh();
+  try {
+    const box = p.locator('.list .search input');
+    const saved = (name) => p.locator('.sidebar .item', { hasText: name });
+    const prompt = p.locator('[role="dialog"] input');
+    await box.fill('is:unread has:attachment');
+    await box.press('Enter');
+    await p.locator('.list .tools button[aria-label="Save search"]').click();
+    await prompt.waitFor({ timeout: 5000 });
+    if ((await prompt.inputValue()) !== 'is:unread has:attachment') throw new Error(`the name offered is "${await prompt.inputValue()}"`);
+    await prompt.fill('Unread files');
+    await p.keyboard.press('Enter');
+    await toast(p, '“Unread files” is in the sidebar');
+    await p.locator('.sidebar .item', { hasText: 'Sent' }).first().click();
+    await p.locator('.list h1', { hasText: 'Sent' }).waitFor({ timeout: 5000 });
+    await saved('Unread files').click();
+    await eventually(p, async () => (await box.inputValue()) === 'is:unread has:attachment', async () => `the box reads "${await box.inputValue()}"`);
+    if (!(await saved('Unread files').evaluate((el) => el.classList.contains('active')))) throw new Error('the saved search is not shown as the one on screen');
+    // Its menu, from the keyboard as from the mouse.
+    await saved('Unread files').focus();
+    await p.keyboard.press('Shift+F10');
+    await p.locator('.menu-item', { hasText: 'Rename' }).click();
+    await prompt.fill('Files to read');
+    await p.keyboard.press('Enter');
+    await saved('Files to read').waitFor({ timeout: 5000 });
+    await saved('Files to read').click({ button: 'right' });
+    await p.locator('.menu-item', { hasText: 'Delete' }).click();
+    await toast(p, 'Deleted “Files to read”');
+    if (await saved('Files to read').count()) throw new Error('the saved search is still listed');
+    await p.locator('.toast', { hasText: 'Deleted “Files to read”' }).first().locator('.action').click();
+    await saved('Files to read').waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('another folder closes a conversation it does not list, and keeps one it does', async () => {
   const p = await fresh();
   try {

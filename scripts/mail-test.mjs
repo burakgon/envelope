@@ -164,6 +164,24 @@ check('mail links', target('mailto:maya@northwind.design?subject=Hi', 'Write to 
 check('links inside the message', linkTarget('#top', 'Top'), null);
 check('long addresses are shortened in the middle', shorten('https://example.com/' + 'a'.repeat(100), 40).length, 40);
 
+// ----- search queries -------------------------------------------------------------------
+
+const { buildQuery, addressAtEnd, completeAddress, noOptions } = await import(new URL('utils/searchquery.ts', src).href);
+
+const query = (o) => buildQuery({ ...noOptions, ...o });
+check('no options, no query', query({}), '');
+check('options in the engine\'s words', query({ from: 'maya', attachment: true, within: '1m', words: 'budget' }), 'from:maya has:attachment newer_than:1m budget');
+check('a value with spaces is quoted', query({ from: ' Maya Chen ', subject: 'Q3 "plan"' }), 'from:"Maya Chen" subject:"Q3 plan"');
+check('every option', query({ to: 'sam', unread: true, starred: true, folder: 'inbox' }), 'to:sam is:unread is:starred in:inbox');
+check('a folder path with spaces', query({ folder: '[Gmail]/Sent Mail' }), 'in:"[Gmail]/Sent Mail"');
+check('an address being typed', addressAtEnd('budget from:ma'), { key: 'from', text: 'ma' });
+check('a negated one, just begun', addressAtEnd('-to:'), { key: 'to', text: '' });
+check('in any case', addressAtEnd('CC:sam'), { key: 'cc', text: 'sam' });
+check('an address already typed is left alone', addressAtEnd('from:maya budget'), null);
+check('nor is a word that only ends like one', addressAtEnd('photo:x'), null);
+check('completing an address', completeAddress('budget from:ma', 'maya@northwind.design'), 'budget from:maya@northwind.design ');
+check('completing keeps the key as typed', completeAddress('TO:s', 'sam@envelope.test'), 'TO:sam@envelope.test ');
+
 if (failed) {
   console.log(`\n${failed} of ${checks} check(s) failed`);
   process.exit(1);

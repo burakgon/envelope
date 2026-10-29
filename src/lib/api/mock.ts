@@ -142,17 +142,47 @@ export function createMockApi(): Api {
     for (const a of accountIds.size ? accountIds : new Set([1])) emit({ type: 'mailChanged', accountId: a, folderIds: [], threadIds });
   }
 
+  /** Milliseconds ago for `7d`, `2w`, `1m` (30 days), `1y` (365 days) or `12h`, as the engine counts them. */
+  function ago(v: string): number | null {
+    const m = /^(\d+)([hdwmy])$/.exec(v);
+    if (!m) return null;
+    const day = 86_400_000;
+    return Number(m[1]) * { h: day / 24, d: day, w: 7 * day, m: 30 * day, y: 365 * day }[m[2] as 'd'];
+  }
+
+  /** Whether a conversation answers a query in the engine's words (crates/envelope-core/src/search.rs): one of its messages has to. */
   function matches(t: T.ThreadSummary, q: string): boolean {
-    const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
-    const ms = messages.filter((m) => m.threadId === t.id);
-    const hay = [t.subject, ...ms.map((m) => `${m.from?.name ?? ''} ${m.from?.email ?? ''} ${m.body?.text ?? ''} ${(m.body?.html ?? '').replace(/<[^>]+>/g, ' ')} ${m.attachments.map((a) => a.filename).join(' ')}`)].join(' ').toLowerCase();
-    return terms.every((term) => {
-      if (term === 'is:unread') return t.unreadCount > 0;
-      if (term === 'is:starred') return t.flagged;
-      if (term === 'has:attachment') return t.hasAttachments;
-      if (term.startsWith('from:')) return ms.some((m) => `${m.from?.name} ${m.from?.email}`.toLowerCase().includes(term.slice(5)));
-      return hay.includes(term.replace(/^-/, '')) !== term.startsWith('-');
-    });
+    const terms = [...q.toLowerCase().matchAll(/(-?)(?:(\w+):)?(?:"([^"]*)"|(\S+))/g)].map(([, not, key, quoted, bare]) => ({ not: !!not, key, value: quoted ?? bare }));
+    const who = (list: (T.Address | null)[]) => list.map((a) => `${a?.name ?? ''} ${a?.email ?? ''}`).join(' ').toLowerCase();
+    const inFolder = (v: string) =>
+      v === 'all' ||
+      v === 'anywhere' ||
+      t.folderIds.some((id) => {
+        const f = data.folders.find((x) => x.id === id);
+        return !!f && (f.role === v || f.name.toLowerCase() === v || f.path.toLowerCase() === v);
+      });
+    return messages
+      .filter((m) => m.threadId === t.id)
+      .some((m) => {
+        const text = `${t.subject} ${who([m.from])} ${m.body?.text ?? ''} ${(m.body?.html ?? '').replace(/<[^>]+>/g, ' ')} ${m.attachments.map((a) => a.filename).join(' ')}`.toLowerCase();
+        return terms.every(({ not, key, value }) => {
+          const since = ago(value);
+          const hit =
+            key === 'is' ? (value === 'unread' ? !m.flags.seen : value === 'read' ? m.flags.seen : value === 'starred' ? m.flags.flagged || t.flagged : true)
+            : key === 'has' ? !value.startsWith('attachment') || m.attachments.length > 0
+            : key === 'from' ? who([m.from]).includes(value)
+            : key === 'to' ? who(m.to).includes(value)
+            : key === 'cc' ? who(m.cc).includes(value)
+            : key === 'subject' ? m.subject.toLowerCase().includes(value)
+            : key === 'in' || key === 'label' ? inFolder(value)
+            : key === 'newer_than' ? since == null || m.date >= Date.now() - since
+            : key === 'older_than' ? since == null || m.date < Date.now() - since
+            : key === 'after' ? !(Date.parse(value) > m.date)
+            : key === 'before' ? !(Date.parse(value) <= m.date)
+            : text.includes(key ? `${key}:${value}` : value);
+          return hit !== not;
+        });
+      });
   }
 
   function list(q: T.ThreadQuery): T.ThreadPage {

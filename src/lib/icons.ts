@@ -147,3 +147,6 @@ export { default as PopOut } from '@lucide/svelte/icons/square-arrow-out-up-righ
 export { default as FolderDown } from '@lucide/svelte/icons/folder-down';
 export { default as FileArrow } from '@lucide/svelte/icons/file-symlink';
 export { default as Merge } from '@lucide/svelte/icons/merge';
+export { default as Bookmark } from '@lucide/svelte/icons/bookmark';
+export { default as BookmarkPlus } from '@lucide/svelte/icons/bookmark-plus';
+export { default as Sliders } from '@lucide/svelte/icons/sliders-horizontal';

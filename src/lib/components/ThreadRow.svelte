@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ThreadSummary } from '../api';
-  import { mail } from '../stores/mail.svelte';
+  import { mail, roleLabel } from '../stores/mail.svelte';
   import { ui } from '../stores/ui.svelte';
   import { listDate, participantSummary, displayName, previewText } from '../utils/format';
   import Avatar from './Avatar.svelte';
@@ -33,6 +33,13 @@
       .filter((f) => f && f.kind === 'label')
       .slice(0, 3),
   );
+  // Search results say where they are: the inbox first, then another folder, Gmail's All Mail last.
+  const place = $derived.by(() => {
+    if (!mail.search) return null;
+    const folders = thread.folderIds.map((id) => mail.folderById.get(id)).filter((f) => !!f && f.kind !== 'label');
+    const f = folders.find((x) => x!.role === 'inbox') ?? folders.find((x) => x!.role !== 'all') ?? folders[0];
+    return f ? (f.role ? roleLabel(f.role) : f.name) : null;
+  });
   const compact = $derived(ui.settings.density === 'compact');
   /** A draft only on this computer: it can be opened or discarded, nothing else. */
   const local = $derived(thread.localDraftId != null);
@@ -112,6 +119,7 @@
     {:else}
       <div class="line">
         <span class="subject truncate">{thread.subject || t('common.noSubject')}</span>
+        {#if place}<span class="place">{place}</span>{/if}
         {#each labels as l (l!.id)}
           <span class="label" style:--c={l!.color ?? 'var(--text-3)'}>{l!.name}</span>
         {/each}
@@ -337,6 +345,15 @@
   }
   .compact .line .snippet::before {
     content: '— ';
+  }
+  .place {
+    flex-shrink: 0;
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 999px;
+    color: var(--text-2);
+    background: var(--bg-active);
   }
   .label {
     flex-shrink: 0;

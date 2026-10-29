@@ -7,7 +7,11 @@
   import {
     AlertCircle, Archive, Calendar, ChevronDown, Clock, Compose, File, Folder as FolderIcon, Inbox, Mail,
     Mails, PanelLeft, Plus, Send, Settings, ShieldAlert, Spinner, Star, Tag, Trash, WifiOff, Flag, BookUser, UserPlus, Users, BellRing, ListChecks,
+    Bookmark, Pen,
   } from '../icons';
+  import Popover from './Popover.svelte';
+  import { deleteSearch, renameSearch, runSearch } from '../stores/searches.svelte';
+  import type { SavedSearch } from '../stores/ui.svelte';
   import Logo from './Logo.svelte';
   import OutboxMenu from './OutboxMenu.svelte';
   import FolderMenu from './FolderMenu.svelte';
@@ -40,6 +44,7 @@
   /** The account heading a folder is dragged over (to the top of the account). */
   let dragOverAccount = $state<number | null>(null);
   let folderMenu = $state<{ x: number; y: number; account: Account; folder: Folder | null } | null>(null);
+  let searchMenu = $state<{ x: number; y: number; search: SavedSearch } | null>(null);
   let resizing = $state(false);
 
   const unified = $derived.by(() => {
@@ -143,6 +148,22 @@
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const at = e instanceof MouseEvent && e.clientX ? { x: e.clientX, y: e.clientY } : { x: r.left + 24, y: r.bottom + 2 };
     folderMenu = { ...at, account, folder };
+  }
+
+  /** A saved search's menu: right-click, Shift+F10 or the Menu key. */
+  function openSearchMenu(e: MouseEvent | KeyboardEvent, search: SavedSearch) {
+    if (e instanceof KeyboardEvent && !(e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) return;
+    e.preventDefault();
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const at = e instanceof MouseEvent && e.clientX ? { x: e.clientX, y: e.clientY } : { x: r.left + 24, y: r.bottom + 2 };
+    searchMenu = { ...at, search };
+  }
+
+  /** Closes the saved search's menu, then acts on the search. */
+  function fromSearchMenu(act: (search: SavedSearch) => void) {
+    const search = searchMenu?.search;
+    searchMenu = null;
+    if (search) act(search);
   }
 
   function startResize(e: PointerEvent) {
@@ -430,6 +451,24 @@
       {/if}
     </div>
 
+    {#if ui.settings.savedSearches.length}
+      <div class="group" role="group" aria-labelledby="saved-searches">
+        <div class="saved-title" id="saved-searches">{t('search.savedTitle')}</div>
+        {#each ui.settings.savedSearches as saved (saved.id)}
+          <button
+            class="item"
+            class:active={mail.search === saved.query}
+            title={saved.query}
+            onclick={() => runSearch(saved.query)}
+            oncontextmenu={(e) => openSearchMenu(e, saved)}
+            onkeydown={(e) => openSearchMenu(e, saved)}
+          >
+            <Bookmark size={16} /><span class="name">{saved.name}</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
+
     {#each mail.accounts as account (account.id)}
       {@const open = !collapsedAccounts[account.id]}
       {@const list = accountFolders(account).filter((x) => !single || !x.folder.role)}
@@ -537,6 +576,12 @@
 
 {#if folderMenu}
   <FolderMenu x={folderMenu.x} y={folderMenu.y} account={folderMenu.account} folder={folderMenu.folder} onclose={() => (folderMenu = null)} />
+{/if}
+{#if searchMenu}
+  <Popover x={searchMenu.x} y={searchMenu.y} onclose={() => (searchMenu = null)} width={220}>
+    <button class="menu-item" onclick={() => fromSearchMenu(renameSearch)}><Pen size={15} />{t('search.renameItem')}</button>
+    <button class="menu-item danger" onclick={() => fromSearchMenu(deleteSearch)}><Trash size={15} />{t('search.deleteItem')}</button>
+  </Popover>
 {/if}
 
 <style>
@@ -860,6 +905,17 @@
     align-items: center;
     gap: 4px;
     padding-right: 6px;
+  }
+  .saved-title {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
   .account-title {
     flex: 1;
