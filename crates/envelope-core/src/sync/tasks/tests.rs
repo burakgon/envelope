@@ -1,10 +1,11 @@
 //! Tasks: the engine API on lists of this computer (views, ordering,
 //! subtasks, moves, links to mail) and two-way CalDAV sync with a mock
 //! server (pulls, conditional uploads, merges, repeating tasks, refused
-//! changes), all with a real (temporary) database. Google Tasks has a module
-//! of its own.
+//! changes), all with a real (temporary) database. Google Tasks and
+//! Microsoft To Do have modules of their own.
 
 mod google;
+mod graph;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -623,46 +624,7 @@ async fn lists_on_this_computer_and_moves_between_them() {
 async fn tasks_from_mail_link_back_to_the_conversation() {
     let fx = fixture();
     let account = fx.account("me@example.com");
-    let (message, thread) = fx
-        .engine
-        .db
-        .write(|tx| {
-            let folders = mail::sync_folders(
-                tx,
-                account.id,
-                &[mail::FolderUpsert {
-                    remote_id: "INBOX".into(),
-                    name: "Inbox".into(),
-                    path: "INBOX".into(),
-                    parent_remote_id: None,
-                    role: Some(FolderRole::Inbox),
-                    kind: "folder".into(),
-                    delimiter: None,
-                    selectable: true,
-                    sort_order: 0,
-                    color: None,
-                }],
-            )?;
-            let stored = mail::upsert_message(
-                tx,
-                account.id,
-                folders["INBOX"],
-                Some(1),
-                &mail::MessageMeta {
-                    message_id: Some("offer-1@northwind.example".into()),
-                    subject: "The offer".into(),
-                    from: Some(Address::new(
-                        Some("Maya Chen".into()),
-                        "maya@northwind.example",
-                    )),
-                    date: 1_000,
-                    ..Default::default()
-                },
-            )?;
-            mail::refresh_threads(tx, &[stored.thread_id].into())?;
-            Ok((stored.message_id, stored.thread_id))
-        })
-        .expect("message");
+    let (message, thread) = inbox_message(&fx, &account);
     let list = fx.local_list();
     let task = fx
         .create(TaskInput {
@@ -975,6 +937,50 @@ fn stored_list(kind: TaskListKind, remote_id: &str, is_default: bool) -> ListRow
         sort_order: 0,
         sync_state: ListSyncState::default(),
     }
+}
+
+/// A message in the inbox of `account`, to make tasks from: its id and its
+/// conversation's.
+fn inbox_message(fx: &Fixture, account: &AccountRow) -> (i64, i64) {
+    fx.engine
+        .db
+        .write(|tx| {
+            let folders = mail::sync_folders(
+                tx,
+                account.id,
+                &[mail::FolderUpsert {
+                    remote_id: "INBOX".into(),
+                    name: "Inbox".into(),
+                    path: "INBOX".into(),
+                    parent_remote_id: None,
+                    role: Some(FolderRole::Inbox),
+                    kind: "folder".into(),
+                    delimiter: None,
+                    selectable: true,
+                    sort_order: 0,
+                    color: None,
+                }],
+            )?;
+            let stored = mail::upsert_message(
+                tx,
+                account.id,
+                folders["INBOX"],
+                Some(1),
+                &mail::MessageMeta {
+                    message_id: Some("offer-1@northwind.example".into()),
+                    subject: "The offer".into(),
+                    from: Some(Address::new(
+                        Some("Maya Chen".into()),
+                        "maya@northwind.example",
+                    )),
+                    date: 1_000,
+                    ..Default::default()
+                },
+            )?;
+            mail::refresh_threads(tx, &[stored.thread_id].into())?;
+            Ok((stored.message_id, stored.thread_id))
+        })
+        .expect("message")
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -23,14 +23,15 @@
 //! tasks by id uses that id as the `uid`. Pushes come parents first, so a
 //! parent created here has its server id by the time its subtasks go up.
 //!
-//! [`caldav`] serves CalDAV and [`google`] Google Tasks. Google accounts get
-//! task lists only when their sign-in granted access to tasks; accounts
-//! signed in before Envelope asked for it are passed over quietly until they
-//! sign in again. Microsoft To Do and Exchange task folders get a module
-//! each next to them and an arm in [`service`].
+//! [`caldav`] serves CalDAV, [`google`] Google Tasks and [`graph`] Microsoft
+//! To Do. Google and Microsoft accounts get task lists only when their
+//! sign-in granted access to tasks; accounts signed in before Envelope asked
+//! for it are passed over quietly until they sign in again. Exchange task
+//! folders get a module next to them and an arm in [`service`].
 
 pub(crate) mod caldav;
 pub(crate) mod google;
+pub(crate) mod graph;
 
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -129,8 +130,12 @@ pub(crate) async fn service(
         AccountKind::Gmail if tasks_granted(engine, account).await => {
             Some(Box::new(google::Google::connect(engine, account)?))
         }
-        // Microsoft To Do and Exchange task folders.
-        AccountKind::Gmail | AccountKind::Microsoft | AccountKind::Exchange => None,
+        AccountKind::Microsoft if tasks_granted(engine, account).await => {
+            Some(Box::new(graph::Graph::connect(engine, account)?))
+        }
+        AccountKind::Gmail | AccountKind::Microsoft => None,
+        // Exchange task folders.
+        AccountKind::Exchange => None,
     })
 }
 
