@@ -691,3 +691,26 @@ async fn task_errors_are_classified() {
         Some("true")
     );
 }
+
+#[test]
+fn task_futures_are_send() {
+    fn assert_send<T: Send>(_: &T) {}
+    let client = GoogleClient::new(Arc::new(StaticToken::new("t"))).expect("client");
+    let task = NewTask::default();
+    let position = TaskPosition::default();
+    let patch = TaskPatch::new();
+    let cursor = TaskCursor::Done { since: Utc::now() };
+    assert_send(&client.list_task_lists());
+    assert_send(&client.default_task_list());
+    assert_send(&client.insert_task_list("x"));
+    assert_send(&client.rename_task_list("l", "x"));
+    assert_send(&client.delete_task_list("l"));
+    assert_send(&client.tasks_page("l", &TaskQuery::full(), None));
+    assert_send(&client.task_changes("l", Some(&cursor)));
+    assert_send(&client.get_task("l", "t"));
+    assert_send(&client.insert_task("l", &task, &position));
+    assert_send(&client.patch_task("l", "t", &patch));
+    assert_send(&client.delete_task("l", "t"));
+    assert_send(&client.move_task("l", "t", &position, Some("l2")));
+    assert_send(&client.clear_completed_tasks("l"));
+}
