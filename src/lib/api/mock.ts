@@ -357,7 +357,8 @@ export function createMockApi(): Api {
     attachmentUrl: () => '',
     inlineUrl: () => '',
 
-    settings: async () => loadSettings(),
+    // Quick add puts Alex's tasks in Reminders (iCloud), which keeps times and importance.
+    settings: async () => ({ defaultTaskListId: 4, ...loadSettings() }),
     setSetting: async (key, value) => {
       const s = loadSettings();
       s[key] = value;

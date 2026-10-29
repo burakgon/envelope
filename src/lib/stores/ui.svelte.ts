@@ -69,6 +69,8 @@ export interface Settings {
   defaultEventMinutes: number;
   defaultAlarm: number; // minutes before; -1 = none
   showDeclined: boolean;
+  /** Where quick add puts tasks outside a list (the last list chosen there). */
+  defaultTaskListId: number | null;
   templates: Template[];
   rules: MailRule[];
   /** Closing the window keeps Envelope running in the tray. */
@@ -102,6 +104,7 @@ export const defaultSettings: Settings = {
   defaultEventMinutes: 60,
   defaultAlarm: 10,
   showDeclined: true,
+  defaultTaskListId: null,
   templates: [],
   rules: [],
   closeToTray: false,
@@ -110,7 +113,7 @@ export const defaultSettings: Settings = {
   aiEnabled: true,
 };
 
-export type View = 'mail' | 'calendar' | 'contacts';
+export type View = 'mail' | 'calendar' | 'contacts' | 'tasks';
 export type Overlay = null | 'settings' | 'palette' | 'shortcuts' | 'onboarding' | 'addAccount' | 'ask';
 
 class Ui {

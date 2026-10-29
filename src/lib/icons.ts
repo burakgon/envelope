@@ -126,3 +126,8 @@ export { default as ShieldX } from '@lucide/svelte/icons/shield-x';
 export { default as ShieldQuestion } from '@lucide/svelte/icons/shield-question-mark';
 export { default as BadgeCheck } from '@lucide/svelte/icons/badge-check';
 export { default as Upload } from '@lucide/svelte/icons/upload';
+export { default as ListPlus } from '@lucide/svelte/icons/list-plus';
+export { default as CloudUpload } from '@lucide/svelte/icons/cloud-upload';
+export { default as CloudAlert } from '@lucide/svelte/icons/cloud-alert';
+export { default as CornerDownRight } from '@lucide/svelte/icons/corner-down-right';
+export { default as BrushCleaning } from '@lucide/svelte/icons/brush-cleaning';

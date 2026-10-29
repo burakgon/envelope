@@ -6,7 +6,7 @@
   import { toasts } from '../stores/toasts.svelte';
   import {
     AlertCircle, Archive, Calendar, ChevronDown, Clock, Compose, File, Folder as FolderIcon, Inbox, Mail,
-    Mails, PanelLeft, Plus, Send, Settings, ShieldAlert, Spinner, Star, Tag, Trash, WifiOff, Flag, BookUser, UserPlus, Users, BellRing,
+    Mails, PanelLeft, Plus, Send, Settings, ShieldAlert, Spinner, Star, Tag, Trash, WifiOff, Flag, BookUser, UserPlus, Users, BellRing, ListChecks,
   } from '../icons';
   import Logo from './Logo.svelte';
   import OutboxMenu from './OutboxMenu.svelte';
@@ -16,6 +16,8 @@
   import CalendarSidebar from './calendar/CalendarSidebar.svelte';
   import { cal } from '../stores/calendar.svelte';
   import { people } from '../stores/contacts.svelte';
+  import { tasks } from '../stores/tasks.svelte';
+  import TasksSidebar from './tasks/TasksSidebar.svelte';
   import { intlLocale, t } from '../i18n';
 
   const roleIcon: Record<FolderRole, typeof Inbox> = {
@@ -129,6 +131,25 @@
     }
   }
 
+  // Mail and Calendar keep their names while they fit beside the icon-only tabs; else every tab is an icon.
+  let modes: HTMLDivElement | undefined = $state();
+  let iconModes = $state(false);
+  $effect(() => {
+    const el = modes;
+    if (!el) return;
+    const fit = () => {
+      const s = getComputedStyle(el);
+      const room = el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+      const labels = [...el.querySelectorAll<HTMLElement>('.mode-label')].reduce((n, l) => n + l.scrollWidth, 0);
+      // Beside the labels: two icons with their gaps and a little air, two 32px tabs, three 2px gaps.
+      iconModes = labels + 2 * (15 + 6 + 4) + 2 * 32 + 3 * 2 > room;
+    };
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    el.querySelectorAll('.mode-label').forEach((l) => ro.observe(l));
+    return () => ro.disconnect();
+  });
+
   function accountAlert(a: Account) {
     if (a.sync.state === 'authError') {
       ui.open('settings', 'accounts');
@@ -147,7 +168,13 @@
   </header>
 
   <div class="top">
-    {#if ui.view === 'contacts'}
+    {#if ui.view === 'tasks'}
+      <button class="compose" title={t('tasks.sidebar.newTask')} onclick={() => tasks.newTask()}>
+        <Plus size={16} strokeWidth={2.4} />
+        <span>{t('tasks.sidebar.newTask')}</span>
+        <span class="kbd-hint">C</span>
+      </button>
+    {:else if ui.view === 'contacts'}
       <button class="compose" title={t('sidebar.newContact')} onclick={() => people.newContact()}>
         <UserPlus size={16} strokeWidth={2.2} />
         <span>{t('sidebar.newContact')}</span>
@@ -166,15 +193,18 @@
         <span class="kbd-hint">C</span>
       </button>
     {/if}
-    <div class="modes" role="tablist">
-      <button role="tab" aria-selected={ui.view === 'mail'} class:on={ui.view === 'mail'} title={t('sidebar.modeMail')} onclick={(e) => { ui.view = 'mail'; e.currentTarget.blur(); }}>
-        <Mail size={15} /><span class="mode-label">{t('sidebar.modeMail')}</span>
+    <div class="modes" class:icons={iconModes} role="tablist" bind:this={modes}>
+      <button role="tab" aria-selected={ui.view === 'mail'} class:on={ui.view === 'mail'} title={t('sidebar.modeMail')} aria-label={t('sidebar.modeMail')} onclick={(e) => { ui.view = 'mail'; e.currentTarget.blur(); }}>
+        <Mail size={15} /><span class="mode-label" aria-hidden="true">{t('sidebar.modeMail')}</span>
       </button>
-      <button role="tab" aria-selected={ui.view === 'calendar'} class:on={ui.view === 'calendar'} title={t('sidebar.modeCalendar')} onclick={(e) => { ui.view = 'calendar'; e.currentTarget.blur(); }}>
-        <Calendar size={15} /><span class="mode-label">{t('sidebar.modeCalendar')}</span>
+      <button role="tab" aria-selected={ui.view === 'calendar'} class:on={ui.view === 'calendar'} title={t('sidebar.modeCalendar')} aria-label={t('sidebar.modeCalendar')} onclick={(e) => { ui.view = 'calendar'; e.currentTarget.blur(); }}>
+        <Calendar size={15} /><span class="mode-label" aria-hidden="true">{t('sidebar.modeCalendar')}</span>
       </button>
       <button role="tab" aria-selected={ui.view === 'contacts'} class:on={ui.view === 'contacts'} title={t('sidebar.modeContacts')} aria-label={t('sidebar.modeContacts')} onclick={(e) => { ui.view = 'contacts'; e.currentTarget.blur(); }}>
         <BookUser size={15} />
+      </button>
+      <button role="tab" aria-selected={ui.view === 'tasks'} class:on={ui.view === 'tasks'} title={t('tasks.sidebar.mode')} aria-label={t('tasks.sidebar.mode')} onclick={(e) => { ui.view = 'tasks'; e.currentTarget.blur(); }}>
+        <ListChecks size={15} />
       </button>
     </div>
   </div>
@@ -182,6 +212,10 @@
   {#if ui.view === 'calendar'}
   <nav class="scroll">
     <CalendarSidebar />
+  </nav>
+  {:else if ui.view === 'tasks'}
+  <nav class="scroll" aria-label={t('tasks.sidebar.mode')}>
+    <TasksSidebar />
   </nav>
   {:else if ui.view === 'contacts'}
   <nav class="scroll">
@@ -414,13 +448,23 @@
     background: rgb(255 255 255 / 0.18);
   }
   .modes {
+    position: relative;
     display: grid;
     /* Equal halves when the labels fit; a longer label ("Calendrier", "カレンダー") takes what it needs. */
-    grid-template-columns: minmax(min-content, 1fr) minmax(min-content, 1fr) 36px;
+    grid-template-columns: minmax(min-content, 1fr) minmax(min-content, 1fr) 32px 32px;
     padding: 3px;
     gap: 2px;
     border-radius: 10px;
     background: var(--bg-active);
+  }
+  .modes.icons {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  /* Still measured while out of sight, to bring the names back when there is room. */
+  .modes.icons .mode-label {
+    position: absolute;
+    visibility: hidden;
+    pointer-events: none;
   }
   .modes button {
     display: flex;

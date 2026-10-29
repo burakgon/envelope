@@ -9,7 +9,8 @@
   import MoveMenu from './MoveMenu.svelte';
   import AiSummary from './AiSummary.svelte';
   import { pgp } from '../stores/pgp.svelte';
-  import { Archive, BellOff, Clock, Folder, Forward, Mail, MailOpen, Reply, ReplyAll, ShieldAlert, Star, Tag, Trash, Inbox } from '../icons';
+  import { tasks } from '../stores/tasks.svelte';
+  import { Archive, BellOff, Clock, Folder, Forward, ListChecks, ListPlus, Mail, MailOpen, Reply, ReplyAll, ShieldAlert, Star, Tag, Trash, Inbox } from '../icons';
   import { t } from '../i18n';
 
   let expanded = $state<Record<number, boolean>>({});
@@ -28,6 +29,8 @@
     (thread?.folderIds ?? []).map((id) => mail.folderById.get(id)).filter((f) => f && f.kind === 'label'),
   );
   const inInbox = $derived(!!thread && thread.folderIds.some((id) => mail.folderById.get(id)?.role === 'inbox'));
+  /** An open task made from this conversation. */
+  const linkedTask = $derived(thread ? tasks.linked.get(thread.id) : undefined);
 
   $effect(() => {
     // Expand unread messages and the latest one when a conversation opens.
@@ -68,6 +71,11 @@
         <button class="icon-btn" title={t('reader.toolbarSpam', { key: '!' })} onclick={() => mail.moveTo({ kind: 'junk' }, [thread.id])}><ShieldAlert size={17} /></button>
         <span class="sep"></span>
         <button class="icon-btn" title={t('reader.toolbarSnooze', { key: 'H' })} onclick={(e) => (snoozeAt = rect(e))}><Clock size={17} /></button>
+        {#if linkedTask}
+          <button class="icon-btn active" title={t('tasks.calendar.open')} aria-label={t('tasks.calendar.open')} onclick={() => tasks.reveal(linkedTask.id)}><ListChecks size={17} /></button>
+        {:else}
+          <button class="icon-btn" title={t('tasks.reader.addToTasks', { key: 'T' })} aria-label={t('tasks.reader.addToTasks', { key: 'T' })} onclick={() => tasks.addFromMail([thread.id])}><ListPlus size={17} /></button>
+        {/if}
         <button class="icon-btn" class:active={thread.muted} title={thread.muted ? t('reader.toolbarUnmute', { key: 'M' }) : t('reader.toolbarMute', { key: 'M' })} onclick={() => mail.toggleMute([thread.id])}><BellOff size={17} /></button>
         <button class="icon-btn" title={thread.unreadCount ? t('reader.toolbarMarkRead', { key: 'U' }) : t('reader.toolbarMarkUnread', { key: 'U' })} onclick={() => mail.toggleRead([thread.id])}>
           {#if thread.unreadCount}<MailOpen size={17} />{:else}<Mail size={17} />{/if}

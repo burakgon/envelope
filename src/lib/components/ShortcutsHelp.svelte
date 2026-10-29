@@ -21,6 +21,7 @@
         ['G then T', t('shortcuts.goToSent')],
         ['G then C', t('shortcuts.openCalendar')],
         ['G then P', t('shortcuts.openContacts')],
+        ['G then K', t('tasks.shortcuts.openTasks')],
         ['1 / 2 / 3', t('shortcuts.splitInboxTabs')],
       ],
     },
@@ -34,6 +35,7 @@
         ['U', t('shortcuts.markReadUnread')],
         ['H', t('shortcuts.snooze')],
         ['M', t('shortcuts.mute')],
+        ['T', t('tasks.shortcuts.addToTasks')],
         ['V', t('shortcuts.moveToFolder')],
         ['L', t('shortcuts.labelGmail')],
         ['!', t('shortcuts.reportSpam')],
@@ -79,10 +81,24 @@
         ['Ctrl S', t('shortcuts.saveContact')],
       ],
     },
+    {
+      id: 'tasks',
+      title: t('tasks.shortcuts.group'),
+      keys: [
+        ['C / N', t('tasks.shortcuts.newTask')],
+        ['J / K', t('tasks.shortcuts.nextPrevious')],
+        ['X / Space', t('tasks.shortcuts.complete')],
+        ['Enter / O', t('tasks.shortcuts.open')],
+        ['S', t('tasks.shortcuts.important')],
+        ['Alt ↑ / ↓', t('tasks.shortcuts.move')],
+        ['# / Delete', t('common.delete')],
+        ['Esc', t('tasks.shortcuts.close')],
+      ],
+    },
   ]);
 
   // Named keys are translated ("Strg", "Entrée"); letters and symbols stay as they are.
-  const keyNames: Record<string, MessageKey> = { Ctrl: 'keys.ctrl', Enter: 'keys.enter', Esc: 'keys.esc', Delete: 'keys.delete' };
+  const keyNames: Record<string, MessageKey> = { Ctrl: 'keys.ctrl', Enter: 'keys.enter', Esc: 'keys.esc', Delete: 'keys.delete', Space: 'tasks.keySpace' };
   function keyLabel(key: string): string {
     const name: MessageKey | undefined = keyNames[key];
     return name ? t(name) : key;

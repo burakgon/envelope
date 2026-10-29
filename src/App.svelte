@@ -28,7 +28,9 @@
   import CalendarView from './lib/components/calendar/CalendarView.svelte';
   import EventEditor from './lib/components/calendar/EventEditor.svelte';
   import ContactsView from './lib/components/contacts/ContactsView.svelte';
+  import TasksView from './lib/components/tasks/TasksView.svelte';
   import { people } from './lib/stores/contacts.svelte';
+  import { tasks } from './lib/stores/tasks.svelte';
   import ScopeDialog from './lib/components/calendar/ScopeDialog.svelte';
 
   let booted = $state(false);
@@ -63,6 +65,7 @@
       await ai.load();
       booted = true;
       cal.init();
+      tasks.init();
       // Whether any account is sending automatic replies; not urgent.
       setTimeout(() => autoReplies.refresh(mail.accounts), 4000);
       if (mail.accounts.length === 0) ui.open('onboarding');
@@ -100,6 +103,52 @@
     return m && m.length ? m[m.length - 1].id : null;
   }
 
+  function startG() {
+    gPending = true;
+    if (gTimer) clearTimeout(gTimer);
+    gTimer = setTimeout(() => (gPending = false), 1200);
+  }
+
+  function onTasksKey(e: KeyboardEvent): void {
+    const key = e.key;
+    // Enter and Space on a focused button press that button.
+    if ((key === 'Enter' || key === ' ') && (e.target as HTMLElement | null)?.closest?.('button, a, select')) return;
+    const task = tasks.selected();
+    const actions: Record<string, () => void> = {
+      g: startG,
+      c: () => tasks.newTask(),
+      n: () => tasks.newTask(),
+      j: () => tasks.step(1),
+      ArrowDown: () => tasks.step(1),
+      k: () => tasks.step(-1),
+      ArrowUp: () => tasks.step(-1),
+      x: () => task && tasks.complete(task),
+      ' ': () => task && tasks.complete(task),
+      Enter: () => openTask(),
+      o: () => openTask(),
+      s: () => task && tasks.toggleImportant(task),
+      '#': () => task && tasks.remove(task),
+      Delete: () => task && tasks.remove(task),
+      Escape: () => (tasks.openId != null ? tasks.closeDetail() : (tasks.selectedId = null)),
+      z: () => toasts.undoLast(),
+      '/': () => ui.open('palette'),
+      '?': () => ui.open('shortcuts'),
+    };
+    const fn = actions[key];
+    if (fn) {
+      e.preventDefault();
+      fn();
+    }
+  }
+
+  /** Opens the selected task; with it open already, its title is edited. */
+  function openTask() {
+    const id = tasks.selectedId ?? tasks.visible[0]?.id;
+    if (id == null) return;
+    if (tasks.openId === id) document.querySelector<HTMLElement>('.detail textarea.title')?.focus();
+    else tasks.openTask(id);
+  }
+
   function onKey(e: KeyboardEvent) {
     const target = e.target as HTMLElement | null;
     const typing = !!target?.closest?.('input, textarea, select, [contenteditable="true"]');
@@ -132,6 +181,11 @@
       mail.items.forEach((t) => mail.checked.add(t.id));
       return;
     }
+    if (e.altKey && !mod && ui.view === 'tasks' && (key === 'ArrowUp' || key === 'ArrowDown')) {
+      e.preventDefault();
+      tasks.nudge(key === 'ArrowUp' ? -1 : 1);
+      return;
+    }
     if (mod || e.altKey) return;
 
     if (gPending) {
@@ -145,17 +199,18 @@
         c: () => (ui.view = 'calendar'),
         m: () => (ui.view = 'mail'),
         p: () => (ui.view = 'contacts'),
+        k: () => (ui.view = 'tasks'),
       };
       go[key.toLowerCase()]?.();
       return;
     }
 
+    if (ui.view === 'tasks') return onTasksKey(e);
+
     if (ui.view === 'contacts') {
       if (people.editing) return;
       if (key === 'g') {
-        gPending = true;
-        if (gTimer) clearTimeout(gTimer);
-        gTimer = setTimeout(() => (gPending = false), 1200);
+        startG();
       } else if (key === 'c' || key === 'n') {
         e.preventDefault();
         people.newContact();
@@ -177,11 +232,7 @@
     if (ui.view === 'calendar') {
       if (cal.editor || cal.scopeAsk) return;
       const actions: Record<string, () => void> = {
-        g: () => {
-          gPending = true;
-          if (gTimer) clearTimeout(gTimer);
-          gTimer = setTimeout(() => (gPending = false), 1200);
-        },
+        g: startG,
         c: () => cal.newEvent(),
         t: () => cal.today(),
         d: () => cal.setView('day'),
@@ -244,6 +295,9 @@
       case 'm':
         if (ids.length) mail.toggleMute(ids);
         break;
+      case 't':
+        if (ids.length) tasks.addFromMail(ids);
+        break;
       case 'v':
         if (ids.length) kbMenu = { kind: 'move', ids };
         break;
@@ -281,9 +335,7 @@
         ui.open('shortcuts');
         break;
       case 'g':
-        gPending = true;
-        if (gTimer) clearTimeout(gTimer);
-        gTimer = setTimeout(() => (gPending = false), 1200);
+        startG();
         break;
       case '1':
       case '2':
@@ -311,6 +363,8 @@
       <Reader />
     {:else if ui.view === 'calendar'}
       <CalendarView />
+    {:else if ui.view === 'tasks'}
+      <TasksView />
     {:else}
       <ContactsView />
     {/if}

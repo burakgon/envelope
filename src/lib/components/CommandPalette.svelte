@@ -1,18 +1,21 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '../api';
-  import type { ContactSummary, Occurrence, ThreadSummary } from '../api';
+  import type { ContactSummary, Occurrence, Task, ThreadSummary } from '../api';
   import Avatar from './Avatar.svelte';
   import { compose } from '../stores/compose.svelte';
   import { mail, roleLabel } from '../stores/mail.svelte';
   import { ui } from '../stores/ui.svelte';
   import { cal } from '../stores/calendar.svelte';
   import { people } from '../stores/contacts.svelte';
+  import { listName, smartViews, tasks } from '../stores/tasks.svelte';
   import type { CalView } from '../stores/calendar.svelte';
   import { listDate, displayName, dateFormat, timeOf } from '../utils/format';
+  import { dueLabel } from '../utils/due';
   import { intlLocale, t, tParts, type MessageKey } from '../i18n';
   import {
     Archive, BellOff, BookUser, Calendar, CalendarPlus, Compose, UserPlus, Folder, Inbox, Keyboard, Mail, Moon, Refresh, Search, Settings, Sparkles, Star, Sun, Tag, Trash, Clock, Send, File, Mails,
+    ListChecks, ListPlus,
   } from '../icons';
 
   type Group = 'actions' | 'goTo' | 'help' | 'calendar' | 'conversation' | 'folders';
@@ -81,6 +84,17 @@
       run: () => { ui.view = 'calendar'; cal.setView(v); },
     })),
     { id: 'cal-settings', label: t('palette.calendarSettings'), group: 'goTo', icon: Settings, keywords: `${t('palette.kw.calendarSettings')} week start reminder default`, searchOnly: true, run: () => ui.open('settings', 'calendar') },
+    { id: 'tasks', label: t('tasks.palette.openTasks'), group: 'goTo', icon: ListChecks, hint: 'G K', keywords: `${t('tasks.palette.kwTasks')} todo to-do reminders checklist`, run: () => (ui.view = 'tasks') },
+    { id: 'new-task', label: t('tasks.palette.newTask'), group: 'actions', icon: ListPlus, searchOnly: true, keywords: `${t('tasks.palette.kwNewTask')} todo to-do add reminder`, run: () => tasks.newTask() },
+    ...smartViews.map((v): Command => ({
+      id: `tasks-${v}`,
+      label: t('tasks.palette.view', { view: t(`tasks.view.${v}`) }),
+      group: 'goTo',
+      icon: ListChecks,
+      searchOnly: true,
+      keywords: `${t('tasks.palette.kwTasks')} todo`,
+      run: () => tasks.setView(v),
+    })),
   ]);
 
   const selectionCommands = $derived<Command[]>(
@@ -91,6 +105,7 @@
           { id: 'star', label: t('palette.toggleStar'), group: 'conversation', icon: Star, hint: 'S', run: () => mail.toggleStar() },
           { id: 'unread', label: t('palette.toggleRead'), group: 'conversation', icon: Mail, hint: 'U', run: () => mail.toggleRead() },
           { id: 'mute', label: t('palette.toggleMute'), group: 'conversation', icon: BellOff, hint: 'M', run: () => mail.toggleMute() },
+          { id: 'add-task', label: t('tasks.palette.addToTasks'), group: 'conversation', icon: ListPlus, hint: 'T', run: () => tasks.addFromMail(mail.targets()) },
         ]
       : [],
   );
@@ -158,6 +173,13 @@
       .slice(0, 4);
   });
 
+  // Open tasks, by title.
+  const foundTasks = $derived.by(() => {
+    const text = fold(q.trim());
+    if (text.length < 2) return [];
+    return tasks.all.filter((x) => fold(x.title).includes(text)).slice(0, 4);
+  });
+
   // People from the address books.
   let found = $state<ContactSummary[]>([]);
   let contactTimer: ReturnType<typeof setTimeout> | null = null;
@@ -182,12 +204,14 @@
     | { kind: 'cmd'; cmd: Command }
     | { kind: 'person'; person: ContactSummary }
     | { kind: 'event'; event: Occurrence }
+    | { kind: 'task'; task: Task }
     | { kind: 'thread'; thread: ThreadSummary }
     | { kind: 'ask' };
   const rows = $derived<Row[]>([
     ...commands.map((cmd) => ({ kind: 'cmd' as const, cmd })),
     ...found.map((person) => ({ kind: 'person' as const, person })),
     ...events.map((event) => ({ kind: 'event' as const, event })),
+    ...foundTasks.map((task) => ({ kind: 'task' as const, task })),
     ...threads.map((thread) => ({ kind: 'thread' as const, thread })),
     ...(q.trim().length > 3 && ui.settings.aiEnabled ? [{ kind: 'ask' as const }] : []),
   ]);
@@ -231,6 +255,8 @@
       ui.view = 'calendar';
       cal.view = 'day';
       cal.goto(row.event.start);
+    } else if (row.kind === 'task') {
+      tasks.reveal(row.task.id);
     } else if (row.kind === 'thread') {
       mail.setSearch(q.trim());
       mail.select(row.thread.id);
@@ -273,13 +299,15 @@
       <span class="kbd">{t('keys.esc')}</span>
     </div>
     <div class="list" bind:this={listEl}>
-      {#each rows as row, i (row.kind === 'cmd' ? row.cmd.id : row.kind === 'thread' ? `t${row.thread.id}` : row.kind === 'event' ? `e${row.event.key}` : row.kind === 'person' ? `p${row.person.id}` : 'ask')}
+      {#each rows as row, i (row.kind === 'cmd' ? row.cmd.id : row.kind === 'thread' ? `t${row.thread.id}` : row.kind === 'event' ? `e${row.event.key}` : row.kind === 'person' ? `p${row.person.id}` : row.kind === 'task' ? `k${row.task.id}` : 'ask')}
         {#if row.kind === 'cmd' && (i === 0 || rows[i - 1].kind !== 'cmd' || (rows[i - 1] as { cmd: Command }).cmd.group !== row.cmd.group)}
           <div class="group">{t(groupLabels[row.cmd.group])}</div>
         {:else if row.kind === 'person' && rows[i - 1]?.kind !== 'person'}
           <div class="group">{t('palette.groupPeople')}</div>
         {:else if row.kind === 'event' && rows[i - 1]?.kind !== 'event'}
           <div class="group">{t('palette.groupEvents')}</div>
+        {:else if row.kind === 'task' && rows[i - 1]?.kind !== 'task'}
+          <div class="group">{t('tasks.palette.groupTasks')}</div>
         {:else if row.kind === 'thread' && rows[i - 1]?.kind !== 'thread'}
           <div class="group">{t('palette.groupMessages')}</div>
         {/if}
@@ -306,6 +334,11 @@
             <span class="ico"><span class="dot" style:background={row.event.color}></span></span>
             <span class="label truncate">{row.event.title}{#if row.event.location}<span class="sub">&nbsp;· {row.event.location}</span>{/if}</span>
             <span class="hint">{eventWhen(row.event)}</span>
+          {:else if row.kind === 'task'}
+            {@const list = tasks.listById.get(row.task.listId)}
+            <span class="ico"><span class="ring" style:--c={list?.color ?? 'var(--text-3)'}></span></span>
+            <span class="label truncate">{row.task.title}{#if list}<span class="sub">&nbsp;· {listName(list)}</span>{/if}</span>
+            {#if row.task.dueDate}<span class="hint">{dueLabel(row.task)}</span>{/if}
           {:else if row.kind === 'thread'}
             <span class="ico"><Mail size={16} /></span>
             <span class="label truncate"><b>{displayName(row.thread.participants[row.thread.participants.length - 1])}</b> — {row.thread.subject}</span>
@@ -328,6 +361,12 @@
     width: 10px;
     height: 10px;
     border-radius: 3px;
+  }
+  .ring {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1.5px var(--c);
   }
   .sub {
     color: var(--text-3);
