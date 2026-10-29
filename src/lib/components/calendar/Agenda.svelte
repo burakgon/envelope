@@ -5,6 +5,7 @@
   import { api } from '../../api';
   import { t } from '../../i18n';
   import { dateFormat, timeOf } from '../../utils/format';
+  import { dayDate, dueDay } from '../../utils/due';
   import TaskChip from './TaskChip.svelte';
 
   let { onopen }: { onopen: (o: Occurrence, rect: DOMRect) => void } = $props();
@@ -25,7 +26,8 @@
       at(day).events.push(o);
     }
     for (const task of cal.dueTasks) {
-      const day = task.dueDate ? new Date(`${task.dueDate}T00:00:00`).getTime() : NaN;
+      const key = dueDay(task);
+      const day = key ? dayDate(key).getTime() : NaN;
       if (day >= from && day < to) at(day).tasks.push(task);
     }
     return [...map.entries()].sort((a, b) => a[0] - b[0]);

@@ -4,6 +4,7 @@
   import { cal, DAY, addDays, sameDay, span, startOfDay } from '../../stores/calendar.svelte';
   import { t } from '../../i18n';
   import { dateFormat, timeOf } from '../../utils/format';
+  import { dayDate, dueDay } from '../../utils/due';
   import EventChip from './EventChip.svelte';
   import TaskChip from './TaskChip.svelte';
 
@@ -38,7 +39,8 @@
       })
       .sort((a, b) => a.first - b.first || b.last - b.first - (a.last - a.first));
     for (const task of cal.dueTasks) {
-      const day = task.dueDate ? dayStarts.indexOf(new Date(`${task.dueDate}T00:00:00`).getTime()) : -1;
+      const key = dueDay(task);
+      const day = key ? dayStarts.indexOf(dayDate(key).getTime()) : -1;
       if (day >= 0) items.push({ task, first: day, last: day });
     }
     const rows: number[][] = [];

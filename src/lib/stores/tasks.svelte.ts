@@ -2,7 +2,7 @@ import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 import { api } from '../api';
 import type { ApiError, Task, TaskInput, TaskList, TaskView } from '../api';
 import { t } from '../i18n';
-import { capitalize, dayDate, dayKey, daysFromToday, dueLabel, relativeDay } from '../utils/due';
+import { capitalize, dayDate, dayKey, daysFromToday, dueDay, dueLabel, relativeDay } from '../utils/due';
 import { dateFormat } from '../utils/format';
 import { mail } from './mail.svelte';
 import { errorMessage, toasts } from './toasts.svelte';
@@ -103,7 +103,8 @@ class Tasks {
     const today = dayKey(this.now);
     const out: TaskGroup[] = [];
     for (const task of this.open) {
-      const key = !task.dueDate ? 'none' : task.dueDate < today ? 'overdue' : task.dueDate;
+      const day = dueDay(task);
+      const key = !day ? 'none' : day < today ? 'overdue' : day;
       let g = out.find((x) => x.key === key);
       if (!g) out.push((g = { key, ...this.dayHeading(key), color: null, items: [] }));
       g.items.push(task);

@@ -5,7 +5,7 @@
   import { mail } from '../../stores/mail.svelte';
   import { ui } from '../../stores/ui.svelte';
   import { t } from '../../i18n';
-  import { addDays, atTime, capitalize, dayKey, relativeDay } from '../../utils/due';
+  import { addDays, atTime, capitalize, dayKey, dueDay, relativeDay } from '../../utils/due';
   import { messageDate } from '../../utils/format';
   import DatePicker from '../calendar/DatePicker.svelte';
   import TimePicker from '../calendar/TimePicker.svelte';
@@ -49,7 +49,7 @@
     }
     if (editing !== 'title') title = cur.title;
     if (editing !== 'notes') notes = cur.notes;
-    dueDate = cur.dueDate ?? today;
+    dueDate = dueDay(cur) ?? today;
     if (cur.dueAt != null) {
       const d = new Date(cur.dueAt);
       dueTime = `${pad(d.getHours())}:${pad(d.getMinutes())}`;

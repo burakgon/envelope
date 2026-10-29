@@ -3,6 +3,7 @@
   import { cal, DAY, addDays, sameDay, span, startOfWeek } from '../../stores/calendar.svelte';
   import { t } from '../../i18n';
   import { dateFormat, timeOf } from '../../utils/format';
+  import { dayDate, dueDay } from '../../utils/due';
   import TaskChip from './TaskChip.svelte';
 
   let { onopen }: { onopen: (o: Occurrence, rect: DOMRect) => void } = $props();
@@ -29,8 +30,9 @@
   const tasksByDay = $derived.by(() => {
     const map = new Map<number, Task[]>();
     for (const task of cal.dueTasks) {
-      if (!task.dueDate) continue;
-      const day = new Date(`${task.dueDate}T00:00:00`).getTime();
+      const key = dueDay(task);
+      if (!key) continue;
+      const day = dayDate(key).getTime();
       map.set(day, [...(map.get(day) ?? []), task]);
     }
     return map;

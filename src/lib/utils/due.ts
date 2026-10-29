@@ -51,12 +51,21 @@ export function dayLabel(key: string, now = Date.now()): string {
   return dateFormat({ weekday: 'short', month: 'short', day: 'numeric', year }).format(d);
 }
 
+/**
+ * The local day a task is due. A time decides it when there is one: the stored day is the one
+ * where the time was set, and another time zone may put that moment on the day before or after.
+ */
+export function dueDay(task: Pick<Task, 'dueDate' | 'dueAt'>): string | null {
+  return task.dueAt != null ? dayKey(task.dueAt) : task.dueDate;
+}
+
 /** When a task is due: "Tomorrow, 3:00 PM"; with `time` only the time when there is one ("3:00 PM"). */
 export function dueLabel(task: Pick<Task, 'dueDate' | 'dueAt'>, only: 'day' | 'time' | 'both' = 'both', now = Date.now()): string {
-  if (!task.dueDate) return '';
+  const key = dueDay(task);
+  if (!key) return '';
   const time = task.dueAt != null ? timeOf(task.dueAt) : null;
   if (only === 'time') return time ?? '';
-  const day = dayLabel(task.dueDate, now);
+  const day = dayLabel(key, now);
   if (only === 'day' || !time) return day;
   return t('time.dateAt', { date: day, time });
 }
@@ -69,9 +78,10 @@ export function dueMoment(task: Pick<Task, 'dueDate' | 'dueAt'>): number | null 
 
 /** How a due date stands: late, due today, or later. */
 export function dueState(task: Pick<Task, 'dueDate' | 'dueAt' | 'completedAt'>, now = Date.now()): 'overdue' | 'today' | 'later' | null {
-  if (!task.dueDate || task.completedAt != null) return null;
+  const day = dueDay(task);
+  if (!day || task.completedAt != null) return null;
   if ((dueMoment(task) ?? Infinity) < now) return 'overdue';
-  return task.dueDate === dayKey(now) ? 'today' : 'later';
+  return day === dayKey(now) ? 'today' : 'later';
 }
 
 /** A time of day on a day key, in ms (minutes after midnight, as the clock reads that day). */
