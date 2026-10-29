@@ -1,9 +1,10 @@
 //! Tasks: the engine API on lists of this computer (views, ordering,
 //! subtasks, moves, links to mail) and two-way CalDAV sync with a mock
 //! server (pulls, conditional uploads, merges, repeating tasks, refused
-//! changes), all with a real (temporary) database. Google Tasks and
-//! Microsoft To Do have modules of their own.
+//! changes), all with a real (temporary) database. Google Tasks, Microsoft
+//! To Do and Exchange have modules of their own.
 
+mod ews;
 mod google;
 mod graph;
 
