@@ -55,33 +55,55 @@ impl Provider {
         }
     }
 
-    /// Scopes requested for mail, calendar, contacts and mail settings
-    /// (automatic replies).
+    /// Scopes requested for mail, calendar, contacts, mail settings
+    /// (automatic replies) and tasks.
     pub fn scopes(&self) -> &'static str {
         match self {
             Provider::Google => {
                 "https://mail.google.com/ https://www.googleapis.com/auth/calendar \
                  https://www.googleapis.com/auth/contacts \
                  https://www.googleapis.com/auth/contacts.other.readonly \
-                 https://www.googleapis.com/auth/gmail.settings.basic openid email profile"
+                 https://www.googleapis.com/auth/gmail.settings.basic \
+                 https://www.googleapis.com/auth/tasks openid email profile"
             }
             Provider::Microsoft => {
                 "offline_access openid email profile User.Read Mail.ReadWrite Mail.Send \
-                 Calendars.ReadWrite Contacts.ReadWrite People.Read MailboxSettings.ReadWrite"
+                 Calendars.ReadWrite Contacts.ReadWrite People.Read MailboxSettings.ReadWrite \
+                 Tasks.ReadWrite"
             }
         }
     }
 
     /// Scopes to ask for when refreshing `tokens`. Microsoft refuses refreshes
-    /// that ask for more than was consented, so grants from before contacts
-    /// became writable keep asking for read access only (signing in again
-    /// upgrades them).
+    /// that ask for more than was consented, so a Microsoft refresh asks only
+    /// for what the grant reported: each permission Envelope requests in the
+    /// form the grant holds it (`Contacts.Read` for `Contacts.ReadWrite` in
+    /// grants from before contacts became writable), and none the grant lacks
+    /// (`Tasks.ReadWrite` in grants from before tasks). Signing in again
+    /// upgrades a grant. A grant that reported no scopes is taken to hold
+    /// what the first sign-ins asked for.
     fn refresh_scopes(tokens: &TokenSet) -> String {
-        let scopes = tokens.provider.scopes();
-        if tokens.provider == Provider::Microsoft && !contacts_writable(tokens) {
-            return scopes.replace("Contacts.ReadWrite", "Contacts.Read");
+        let requested = tokens.provider.scopes();
+        if tokens.provider != Provider::Microsoft {
+            return requested.to_owned();
         }
-        scopes.to_owned()
+        let mut granted: Vec<&str> = granted_scopes(tokens).collect();
+        if granted.is_empty() {
+            granted = MICROSOFT_FIRST_GRANT.split_whitespace().collect();
+        }
+        let holds = |scope: &str| granted.iter().any(|g| g.eq_ignore_ascii_case(scope));
+        requested
+            .split_whitespace()
+            .filter_map(|scope| {
+                if SIGN_IN_SCOPES.contains(&scope) || holds(scope) {
+                    return Some(scope.to_owned());
+                }
+                // Read access granted where Envelope asks for read and write.
+                let read = format!("{}Read", scope.strip_suffix("ReadWrite")?);
+                holds(&read).then_some(read)
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     pub fn name(&self) -> &'static str {
@@ -129,16 +151,60 @@ impl Provider {
     }
 }
 
+/// Sign-in scopes (OpenID Connect, and the refresh token itself): part of
+/// every refresh, whether the provider reports them or not.
+const SIGN_IN_SCOPES: [&str; 4] = ["offline_access", "openid", "email", "profile"];
+
+/// The Microsoft Graph permissions the first Envelope sign-ins asked for:
+/// what a grant that reported no scopes is assumed to hold.
+const MICROSOFT_FIRST_GRANT: &str = "User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite \
+                                     Contacts.Read People.Read MailboxSettings.ReadWrite";
+
+/// The scopes the provider reported granting. Microsoft may name a Graph
+/// permission with its resource (`https://graph.microsoft.com/Mail.Send`),
+/// which is left off.
+fn granted_scopes(tokens: &TokenSet) -> impl Iterator<Item = &str> {
+    let provider = tokens.provider;
+    tokens
+        .scope
+        .as_deref()
+        .unwrap_or("")
+        .split_whitespace()
+        .map(move |scope| match provider {
+            Provider::Google => scope,
+            Provider::Microsoft => scope.rsplit('/').next().unwrap_or(scope),
+        })
+}
+
+/// Whether the grant reported the given Google scope or Microsoft Graph
+/// permission.
+fn has_scope(tokens: &TokenSet, google: &str, microsoft: &str) -> bool {
+    granted_scopes(tokens).any(|scope| match tokens.provider {
+        Provider::Google => scope == google,
+        Provider::Microsoft => scope.eq_ignore_ascii_case(microsoft),
+    })
+}
+
 /// Whether a grant covers writing contacts, judged by the scopes the
 /// provider reported granting.
 fn contacts_writable(tokens: &TokenSet) -> bool {
-    let granted = tokens.scope.as_deref().unwrap_or("");
-    granted
-        .split_whitespace()
-        .any(|scope| match tokens.provider {
-            Provider::Google => scope == "https://www.googleapis.com/auth/contacts",
-            Provider::Microsoft => scope.to_ascii_lowercase().ends_with("contacts.readwrite"),
-        })
+    has_scope(
+        tokens,
+        "https://www.googleapis.com/auth/contacts",
+        "Contacts.ReadWrite",
+    )
+}
+
+/// Whether a grant covers tasks (Google Tasks, Microsoft To Do), judged by
+/// the scopes the provider reported granting. Grants from before Envelope
+/// asked for tasks do not: task sync skips those accounts until the user
+/// signs in again.
+pub fn tasks_granted(tokens: &TokenSet) -> bool {
+    has_scope(
+        tokens,
+        "https://www.googleapis.com/auth/tasks",
+        "Tasks.ReadWrite",
+    )
 }
 
 /// Stored tokens for an account.
@@ -439,6 +505,15 @@ impl TokenManager {
             .map(|tokens| contacts_writable(&tokens))
     }
 
+    /// Whether the account's grant covers tasks (`None`: not an OAuth
+    /// account, or no tokens are stored).
+    pub async fn tasks_granted(&self, account_id: i64) -> Option<bool> {
+        self.load(account_id)
+            .await
+            .ok()
+            .map(|tokens| tasks_granted(&tokens))
+    }
+
     async fn load(&self, account_id: i64) -> Result<TokenSet> {
         let raw = self
             .secrets
@@ -538,15 +613,73 @@ mod tests {
     }
 
     #[test]
-    fn older_microsoft_grants_refresh_with_what_was_consented() {
-        let old = Provider::refresh_scopes(&tokens(Provider::Microsoft, Some("Contacts.Read")));
-        assert!(old.contains(" Contacts.Read "));
-        assert!(!old.contains("Contacts.ReadWrite"));
-        let new = Provider::refresh_scopes(&tokens(
-            Provider::Microsoft,
-            Some("Contacts.ReadWrite Mail.ReadWrite"),
+    fn task_access_follows_the_grant() {
+        let google = |s| tasks_granted(&tokens(Provider::Google, s));
+        assert!(google(Some(
+            "openid https://www.googleapis.com/auth/tasks https://mail.google.com/"
+        )));
+        assert!(!google(Some(
+            "https://www.googleapis.com/auth/tasks.readonly"
+        )));
+        assert!(!google(Some(
+            "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/contacts"
+        )));
+        assert!(!google(None));
+        let microsoft = |s| tasks_granted(&tokens(Provider::Microsoft, s));
+        assert!(microsoft(Some(
+            "https://graph.microsoft.com/Tasks.ReadWrite https://graph.microsoft.com/User.Read"
+        )));
+        assert!(microsoft(Some("openid profile tasks.readwrite")));
+        assert!(!microsoft(Some("Tasks.Read User.Read")));
+        assert!(!microsoft(Some("Tasks.ReadWrite.Shared")));
+        assert!(!microsoft(None));
+    }
+
+    #[test]
+    fn microsoft_refreshes_ask_only_for_what_was_granted() {
+        // The first releases asked for read-only contacts and no tasks.
+        let first = "openid profile email https://graph.microsoft.com/User.Read \
+                     https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send \
+                     https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read \
+                     https://graph.microsoft.com/People.Read https://graph.microsoft.com/MailboxSettings.ReadWrite";
+        let refresh_first = "offline_access openid email profile User.Read Mail.ReadWrite Mail.Send \
+                             Calendars.ReadWrite Contacts.Read People.Read MailboxSettings.ReadWrite";
+        let refresh = |s| Provider::refresh_scopes(&tokens(Provider::Microsoft, s));
+        assert_eq!(refresh(Some(first)), refresh_first);
+        // A grant that reported nothing is taken to be one of those.
+        assert_eq!(refresh(None), refresh_first);
+        assert_eq!(refresh(Some(" ")), refresh_first);
+        // Writable contacts, still no tasks.
+        let contacts = refresh(Some(
+            "User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite Contacts.ReadWrite \
+             People.Read MailboxSettings.ReadWrite",
         ));
-        assert_eq!(new, Provider::Microsoft.scopes());
+        assert!(contacts.contains(" Contacts.ReadWrite "), "{contacts}");
+        assert!(!contacts.contains("Tasks"), "{contacts}");
+        // A current grant asks for everything, however Microsoft spells it.
+        assert_eq!(
+            refresh(Some(
+                "user.read mail.readwrite mail.send calendars.readwrite contacts.readwrite \
+                 people.read mailboxsettings.readwrite tasks.readwrite offline_access"
+            )),
+            Provider::Microsoft.scopes()
+        );
+        // Read access stands in for read and write; the rest is left out.
+        assert_eq!(
+            refresh(Some("User.Read Mail.Read Tasks.Read")),
+            "offline_access openid email profile User.Read Mail.Read Tasks.Read"
+        );
+        assert!(Provider::Microsoft.scopes().ends_with(" Tasks.ReadWrite"));
+        // Google refreshes name no scopes; the set is left as it is.
+        assert_eq!(
+            Provider::refresh_scopes(&tokens(Provider::Google, None)),
+            Provider::Google.scopes()
+        );
         assert!(Provider::Google.scopes().contains("auth/contacts "));
+        assert!(
+            Provider::Google
+                .scopes()
+                .contains(" https://www.googleapis.com/auth/tasks ")
+        );
     }
 }
