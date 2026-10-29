@@ -833,6 +833,109 @@ async fn google_deletions_wait_while_they_can_be_undone() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn google_lists_deleted_there_keep_what_was_not_uploaded() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = oauth_account(&fx, AccountKind::Gmail, TASKS_SCOPE);
+    let service = google_tasks(&fx, &server);
+    mount_lists(&server).await;
+    store_lists(&fx, &account, &service).await;
+    let l2 = list_named(&fx, &account, "Errands");
+    Mock::given(method("GET"))
+        .and(path("/tasks/v1/lists/L2/tasks"))
+        .respond_with(page(&[
+            task(
+                "E1",
+                "Renew the passport",
+                "00000000000000001000",
+                json!({}),
+            ),
+            task("E2", "Call the bank", "00000000000000002000", json!({})),
+            task(
+                "E3",
+                "Find the account number",
+                "00000000000000001000",
+                json!({ "parent": "E2" }),
+            ),
+        ]))
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    pull_list(&fx.engine, &service, &l2).await.expect("pull");
+    let passport = remote_row(&fx, l2.id, "E1");
+    let bank = remote_row(&fx, l2.id, "E2");
+    fx.engine
+        .update_task(bank.id, input(l2.id, "Call the bank on Monday"))
+        .await
+        .expect("edit");
+    let stamps = fx.create(input(l2.id, "Buy stamps")).await;
+    fx.create(TaskInput {
+        parent_id: Some(Some(stamps.id)),
+        ..input(l2.id, "Forever stamps")
+    })
+    .await;
+
+    // Deleted on another device: Google has only "My Tasks" now.
+    server.reset().await;
+    Mock::given(method("GET"))
+        .and(path(LISTS))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "kind": "tasks#taskLists",
+            "items": [{ "kind": "tasks#taskList", "id": "L1", "title": "My Tasks" }]
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{LISTS}/@default")))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(
+                json!({ "kind": "tasks#taskList", "id": "L1", "title": "My Tasks" }),
+            ),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(L1))
+        .respond_with(page(&[]))
+        .mount(&server)
+        .await;
+    let changes = sync_account(&fx.engine, &account, &service, true)
+        .await
+        .expect("sync");
+    assert!(changes.lists);
+    assert!(fx.engine.db.read(|c| tdb::get_list(c, l2.id)).is_err());
+    // What the server never heard about is on this computer now, with the
+    // subtasks; the rest went with the list.
+    let local = fx.local_list();
+    assert_eq!(
+        fx.titles(TaskView::List(local), false).await,
+        ["Call the bank on Monday", "Buy stamps"]
+    );
+    for (task, subtask) in [
+        (bank.id, "Find the account number"),
+        (stamps.id, "Forever stamps"),
+    ] {
+        let kids = fx.engine.task_subtasks(task).await.expect("subtasks");
+        assert_eq!(
+            kids.iter().map(|t| t.title.as_str()).collect::<Vec<_>>(),
+            [subtask]
+        );
+    }
+    assert!(
+        fx.rows(local)
+            .iter()
+            .all(|r| r.local_state == tdb::SYNCED && r.remote_id.is_none()),
+        "tasks of this computer now"
+    );
+    assert!(
+        fx.engine
+            .db
+            .read(|c| tdb::get_task(c, passport.id))
+            .is_err()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn google_accounts_without_tasks_access_are_passed_over() {
     let fx = fixture();
     // Signed in before Envelope asked for tasks.

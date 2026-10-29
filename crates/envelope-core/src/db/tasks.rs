@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::now_ms;
 use crate::error::{Error, Result};
-use crate::tasks::{TaskListKind, TaskSource, day_in};
+use crate::tasks::{LOCAL_LIST_NAME, TaskListKind, TaskSource, day_in};
 
 /// `local_state`: in sync with the server (or a list on this computer).
 pub const SYNCED: i64 = 0;
@@ -163,7 +163,8 @@ pub struct ListUpsert {
 }
 
 /// Creates/updates the lists of an account and removes the ones that
-/// vanished (with their tasks). Returns the ids of lists that were added,
+/// vanished, with their tasks; tasks the server never heard about stay, in
+/// the list on this computer. Returns the ids of lists that were added,
 /// changed or removed.
 pub fn sync_lists(
     tx: &Transaction<'_>,
@@ -221,11 +222,46 @@ pub fn sync_lists(
     let keep: HashSet<&str> = lists.iter().map(|l| l.remote_id.as_str()).collect();
     for (remote, (id, ..)) in &existing {
         if !keep.contains(remote.as_str()) {
+            keep_unsynced(tx, *id)?;
             tx.execute("DELETE FROM task_lists WHERE id = ?", [id])?;
             changed.push(*id);
         }
     }
     Ok(changed)
+}
+
+/// Moves the tasks of a list that are about to go with it (the server
+/// deleted it) but were created or changed here without the server hearing
+/// about it to the list on this computer, with their subtasks, so that
+/// nothing the user wrote is lost.
+fn keep_unsynced(tx: &Transaction<'_>, list_id: i64) -> Result<()> {
+    let unsynced: Vec<i64> = {
+        let mut st = tx.prepare(
+            "SELECT id FROM tasks WHERE list_id = ? AND local_state IN (?, ?)
+             ORDER BY parent_id IS NOT NULL, position, id",
+        )?;
+        st.query_map(params![list_id, CREATED, MODIFIED], |r| r.get(0))?
+            .collect::<rusqlite::Result<_>>()?
+    };
+    if unsynced.is_empty() {
+        return Ok(());
+    }
+    let local = match local_default_list(tx)? {
+        Some(id) => id,
+        None => create_local_list(tx, LOCAL_LIST_NAME, true)?,
+    };
+    for id in unsynced {
+        // A subtask may have moved with its task already.
+        let still_there: bool = tx.query_row(
+            "SELECT list_id = ? FROM tasks WHERE id = ?",
+            [list_id, id],
+            |r| r.get(0),
+        )?;
+        if still_there {
+            move_to_local(tx, id, local)?;
+        }
+    }
+    Ok(())
 }
 
 /// Adds one list of an account (one just created on the server). Returns
