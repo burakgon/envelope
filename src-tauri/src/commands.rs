@@ -120,6 +120,18 @@ pub async fn discover(email: String) -> R<Discovery> {
 }
 
 #[tauri::command]
+pub async fn contacts_export(
+    state: State<'_, AppState>,
+    book_id: Option<i64>,
+    path: String,
+) -> R<usize> {
+    Ok(state
+        .engine
+        .export_contacts(book_id, std::path::Path::new(&path))
+        .await?)
+}
+
+#[tauri::command]
 pub async fn accounts_elsewhere(
     state: State<'_, AppState>,
 ) -> R<Vec<envelope_core::import::FoundAccount>> {

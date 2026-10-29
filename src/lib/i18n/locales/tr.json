@@ -1115,6 +1115,11 @@
 
   "contacts.showSidebar": "Kenar çubuğunu göster",
   "contacts.title": "Kişiler",
+  "contacts.import": "Kişileri içe aktar…",
+  "contacts.export": "Kişileri dışa aktar…",
+  "contacts.importTitle": "Kişileri içe aktar",
+  "contacts.importFiles": "Kişiler (vCard, CSV)",
+  "contacts.exported": "{count, plural, one {# kişi dışa aktarıldı} other {# kişi dışa aktarıldı}}",
   "contacts.newContactShortcut": "Yeni kişi ({key})",
   "contacts.searchPlaceholder": "Kişilerde ara",
   "contacts.noMatches": "“{query}” ile eşleşen kişi yok.",

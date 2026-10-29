@@ -606,6 +606,8 @@ export function createMockApi(): Api {
     pickSavePath: async () => null,
     // The demo has no file system: a folder is "picked" and the files "saved" there.
     pickFolder: async () => delay('/home/alex/Downloads', 150),
+    // The demo's Downloads hold an address book exported from Gmail.
+    pickFile: async () => delay('/home/alex/Downloads/contacts.csv', 150),
     attachmentOpen: async () => {},
     attachmentSave: async () => {},
     attachmentsSaveAll: async (ids, dir) => {
@@ -659,11 +661,30 @@ export function createMockApi(): Api {
       },
     },
     files: {
-      open: async () => {
+      open: async (path) => {
+        if (path.endsWith('.csv')) {
+          const contacts = people.csvContacts.map((c, index) => ({
+            index,
+            name: c.name,
+            email: c.emails[0]?.value ?? null,
+            organization: c.organization,
+            exists: people.contacts.some((p) => p.emails.some((e) => c.emails.some((x) => x.value === e.value))),
+          }));
+          return delay({ kind: 'contacts', path, contacts } satisfies T.OpenedFile, 200);
+        }
         throw { message: 'Opening files needs the desktop app', kind: 'invalid' };
       },
       importEvents: async () => ({ added: 0, skipped: 0 }),
-      importContacts: async () => ({ added: 0, skipped: 0 }),
+      importContacts: async (path, bookId, indices) => {
+        let added = 0;
+        for (const [i, c] of people.csvContacts.entries()) {
+          if (indices && !indices.includes(i)) continue;
+          if (people.contacts.some((p) => p.emails.some((e) => c.emails.some((x) => x.value === e.value)))) continue;
+          await people.save({ ...structuredClone(c), bookId });
+          added++;
+        }
+        return delay({ added, skipped: (indices?.length ?? people.csvContacts.length) - added });
+      },
       openPart: async () => {},
       savePart: async () => {},
     },
@@ -680,6 +701,7 @@ export function createMockApi(): Api {
       },
       save: async (contact) => people.save(structuredClone(contact)),
       remove: async (id) => people.remove(id),
+      export: async (bookId) => delay(people.contacts.filter((c) => bookId == null || c.bookId === bookId).length),
     },
 
     tasks: {

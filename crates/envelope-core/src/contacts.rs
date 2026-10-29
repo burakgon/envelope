@@ -18,6 +18,8 @@ use crate::engine::Engine;
 use crate::error::{Error, Result};
 use crate::model::EngineEvent;
 
+pub mod csv;
+
 /// Name of the address book used when no account can store contacts.
 pub const LOCAL_BOOK_NAME: &str = "On this computer";
 
@@ -831,6 +833,36 @@ impl Engine {
             crate::sync::contacts::wake(self);
         }
         Ok(id)
+    }
+
+    /// Writes the people of an address book, or of every address book, to a
+    /// vCard file with their photos. Returns how many were written.
+    pub async fn export_contacts(
+        &self,
+        book_id: Option<i64>,
+        path: &std::path::Path,
+    ) -> Result<usize> {
+        let cards = self.db.read(|c| {
+            let mut st = c.prepare(
+                "SELECT id FROM contacts WHERE local_state != ?1 AND is_group = 0
+                       AND (?2 IS NULL OR book_id = ?2)
+                     ORDER BY sort_key, id",
+            )?;
+            let ids = st
+                .query_map(rusqlite::params![cdb::DELETED, book_id], |r| {
+                    r.get::<_, i64>(0)
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            ids.into_iter()
+                .map(|id| {
+                    let mut contact = cdb::get_contact(c, id)?.contact;
+                    contact.photo = cdb::contact_photo(c, id)?.map(|p| data_url(&p));
+                    Ok(envelope_ical::vcard::contact_to_vcard(&contact))
+                })
+                .collect::<Result<Vec<String>>>()
+        })?;
+        tokio::fs::write(path, cards.concat()).await?;
+        Ok(cards.len())
     }
 
     /// Deletes a contact here and, in the background, on the server.

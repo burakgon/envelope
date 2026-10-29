@@ -1115,6 +1115,11 @@
 
   "contacts.showSidebar": "Seitenleiste einblenden",
   "contacts.title": "Kontakte",
+  "contacts.import": "Kontakte importieren…",
+  "contacts.export": "Kontakte exportieren…",
+  "contacts.importTitle": "Kontakte importieren",
+  "contacts.importFiles": "Kontakte (vCard, CSV)",
+  "contacts.exported": "{count, plural, one {# Kontakt exportiert} other {# Kontakte exportiert}}",
   "contacts.newContactShortcut": "Neuer Kontakt ({key})",
   "contacts.searchPlaceholder": "Kontakte durchsuchen",
   "contacts.noMatches": "Keine Kontakte für „{query}“ gefunden.",

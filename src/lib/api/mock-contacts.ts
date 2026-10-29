@@ -66,6 +66,13 @@ export function list(query: string, bookId: number | null, offset: number, limit
   return { total: hits.length, items: hits.slice(offset, offset + limit).map(summary) };
 }
 
+/** The people of the demo's contacts.csv, exported from Gmail; Maya Chen is in an address book already. */
+export const csvContacts: Omit<T.ContactInput, 'bookId'>[] = [
+  { id: null, name: 'Maya Chen', givenName: 'Maya', familyName: 'Chen', emails: [{ value: 'maya@northwind.design', label: 'work' }], phones: [], addresses: [], urls: [], organization: 'Northwind Design', title: null, birthday: null, notes: null, photo: null },
+  { id: null, name: 'Jonas Lindqvist', givenName: 'Jonas', familyName: 'Lindqvist', emails: [{ value: 'jonas@fjord.example', label: 'work' }], phones: [{ value: '+46 70 123 45 67', label: 'mobile' }], addresses: [], urls: [], organization: 'Fjord Studio', title: 'Creative Director', birthday: null, notes: null, photo: null },
+  { id: null, name: 'Amara Nwosu', givenName: 'Amara', familyName: 'Nwosu', emails: [{ value: 'amara@lagoslabs.example', label: 'work' }], phones: [], addresses: [], urls: ['https://lagoslabs.example'], organization: 'Lagos Labs', title: 'Founder', birthday: null, notes: null, photo: null },
+];
+
 export function save(input: T.ContactInput): number {
   if (input.id != null) {
     const i = contacts.findIndex((c) => c.id === input.id);

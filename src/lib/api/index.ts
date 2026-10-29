@@ -100,6 +100,8 @@ export interface Api {
   pickSavePath(filename: string): Promise<string | null>;
   /** Asks for a folder; null when cancelled. */
   pickFolder(title: string): Promise<string | null>;
+  /** Asks for one file to open, of the given kinds (by extension); null when cancelled. */
+  pickFile(title: string, filters: { name: string; extensions: string[] }[]): Promise<string | null>;
   attachmentOpen(id: number): Promise<void>;
   attachmentSave(id: number, target: string): Promise<void>;
   /** Saves attachments into a folder (names taken are numbered); returns the files written. */
@@ -205,6 +207,8 @@ export interface Api {
     /** Creates (id null) or updates a contact; returns its id. */
     save(contact: T.ContactInput): Promise<number>;
     remove(id: number): Promise<void>;
+    /** Writes the people of an address book (or of all of them) to a vCard file; returns how many. */
+    export(bookId: number | null, path: string): Promise<number>;
   };
 
   tasks: {

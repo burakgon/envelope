@@ -110,6 +110,10 @@ export function createTauriApi(): Api {
       const r = await openDialog({ directory: true, multiple: false, title });
       return typeof r === 'string' ? r : null;
     },
+    pickFile: async (title, filters) => {
+      const r = await openDialog({ directory: false, multiple: false, title, filters });
+      return typeof r === 'string' ? r : null;
+    },
     attachmentOpen: (id) => invoke('attachment_open', { id }),
     attachmentSave: (id, target) => invoke('attachment_save', { id, target }),
     attachmentsSaveAll: (ids, dir) => invoke('attachments_save_all', { ids, dir }),
@@ -169,6 +173,7 @@ export function createTauriApi(): Api {
       get: (id) => invoke('contact_get', { id }),
       save: (contact) => invoke('contact_save', { contact }),
       remove: (id) => invoke('contact_delete', { id }),
+      export: (bookId, path) => invoke('contacts_export', { bookId, path }),
     },
     tasks: {
       lists: () => invoke('task_lists'),

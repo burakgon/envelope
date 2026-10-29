@@ -1115,6 +1115,11 @@
 
   "contacts.showSidebar": "サイドバーを表示",
   "contacts.title": "連絡先",
+  "contacts.import": "連絡先をインポート…",
+  "contacts.export": "連絡先をエクスポート…",
+  "contacts.importTitle": "連絡先をインポート",
+  "contacts.importFiles": "連絡先 (vCard、CSV)",
+  "contacts.exported": "{count, plural, other {# 件の連絡先をエクスポートしました}}",
   "contacts.newContactShortcut": "新しい連絡先（{key}）",
   "contacts.searchPlaceholder": "連絡先を検索",
   "contacts.noMatches": "「{query}」に一致する連絡先はありません。",

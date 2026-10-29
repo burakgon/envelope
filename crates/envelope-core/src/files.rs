@@ -126,7 +126,8 @@ fn kind_of(path: &Path, data: &[u8]) -> Option<Kind> {
     match ext.as_str() {
         "eml" | "mht" | "mhtml" => return Some(Kind::Message),
         "ics" | "ical" | "icalendar" | "ifb" | "vcs" => return Some(Kind::Calendar),
-        "vcf" | "vcard" => return Some(Kind::Contacts),
+        // Address book exports (Gmail, Outlook, Thunderbird).
+        "vcf" | "vcard" | "csv" => return Some(Kind::Contacts),
         _ => {}
     }
     let head = String::from_utf8_lossy(&data[..data.len().min(4096)]);
@@ -391,7 +392,7 @@ impl Engine {
                 }))
             }
             None => Err(Error::Invalid(
-                "Envelope opens saved messages (.eml), calendar files (.ics) and contact cards (.vcf).".into(),
+                "Envelope opens saved messages (.eml), calendar files (.ics), contact cards (.vcf) and contact lists (.csv).".into(),
             )),
         }
     }
@@ -504,11 +505,17 @@ impl Engine {
     }
 }
 
-/// The people of a vCard file (contact groups left out).
+/// The people of a vCard file (contact groups left out) or of a CSV export.
 fn file_contacts(data: &[u8]) -> Result<Vec<envelope_ical::Contact>> {
     // Unfolded, with older cards' legacy character sets decoded.
     let text = envelope_ical::decode_bytes(data);
     let mut people = Vec::new();
+    if !text.to_ascii_uppercase().contains("BEGIN:VCARD") {
+        let text = crate::contacts::csv::decode(data);
+        if crate::contacts::csv::looks_like_contacts(&text) {
+            people = crate::contacts::csv::parse(&text);
+        }
+    }
     for card in split_vcards(&text) {
         if let Ok((contact, kind)) = envelope_ical::vcard::parse_vcard_with_kind(card)
             && !kind.is_some_and(|k| k.eq_ignore_ascii_case("group"))

@@ -1646,3 +1646,70 @@ async fn exchange_contacts_bring_notes_addresses_and_web_sites() {
         Some("Met at the Royal Society.")
     );
 }
+
+#[tokio::test]
+async fn csv_exports_are_imported_and_address_books_exported_as_vcards() {
+    let fx = fixture();
+    let book = fx.engine.contact_books().expect("books")[0].id;
+    let (_, photo) = png();
+    fx.engine
+        .save_contact(ContactInput {
+            book_id: book,
+            name: "Ada Lovelace".into(),
+            emails: vec![lv("ada@example.com", "work")],
+            photo: Some(photo),
+            ..ContactInput::default()
+        })
+        .await
+        .expect("save");
+
+    // A Gmail export: Ada is there already, Charles is new.
+    let csv = fx.dir.join("contacts.csv");
+    std::fs::create_dir_all(&fx.dir).expect("dir");
+    std::fs::write(
+        &csv,
+        "First Name,Last Name,E-mail 1 - Label,E-mail 1 - Value,Phone 1 - Label,Phone 1 - Value\n\
+         Ada,Lovelace,* Work,ada@example.com,,\n\
+         Charles,Babbage,Home,charles@example.com,Mobile,+44 20 7946 0001\n",
+    )
+    .expect("csv");
+    let opened = fx.engine.open_file(&csv).await.expect("open");
+    let crate::files::OpenedFile::Contacts(file) = opened else {
+        panic!("not contacts: {opened:?}");
+    };
+    let listed: Vec<(&str, bool)> = file
+        .contacts
+        .iter()
+        .map(|c| (c.name.as_str(), c.exists))
+        .collect();
+    assert_eq!(listed, [("Ada Lovelace", true), ("Charles Babbage", false)]);
+    let result = fx
+        .engine
+        .import_contacts_file(&csv, book, None)
+        .await
+        .expect("import");
+    assert_eq!((result.added, result.skipped), (1, 1));
+    let charles = fx.id_of("Charles Babbage").await;
+    let row = fx.row(charles);
+    assert_eq!(row.contact.phones[0].value, "+44 20 7946 0001");
+    assert_eq!(row.contact.phones[0].kind.as_deref(), Some("cell"));
+
+    // Exported: both, Ada with her photo.
+    let out = fx.dir.join("export.vcf");
+    let written = fx
+        .engine
+        .export_contacts(Some(book), &out)
+        .await
+        .expect("export");
+    assert_eq!(written, 2);
+    let cards = envelope_ical::vcard::parse_vcards(&std::fs::read_to_string(&out).expect("vcf"));
+    let names: Vec<&str> = cards.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(names, ["Ada Lovelace", "Charles Babbage"]);
+    assert!(
+        cards[0]
+            .photo
+            .as_deref()
+            .is_some_and(|p| p.starts_with("data:image/"))
+    );
+    assert_eq!(cards[1].emails[0].value, "charles@example.com");
+}

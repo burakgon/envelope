@@ -1115,6 +1115,11 @@
 
   "contacts.showSidebar": "显示侧边栏",
   "contacts.title": "联系人",
+  "contacts.import": "导入联系人…",
+  "contacts.export": "导出联系人…",
+  "contacts.importTitle": "导入联系人",
+  "contacts.importFiles": "联系人 (vCard、CSV)",
+  "contacts.exported": "{count, plural, other {已导出 # 位联系人}}",
   "contacts.newContactShortcut": "新建联系人（{key}）",
   "contacts.searchPlaceholder": "搜索联系人",
   "contacts.noMatches": "没有与“{query}”匹配的联系人。",

@@ -1115,6 +1115,11 @@
 
   "contacts.showSidebar": "Show sidebar",
   "contacts.title": "Contacts",
+  "contacts.import": "Import contacts…",
+  "contacts.export": "Export contacts…",
+  "contacts.importTitle": "Import contacts",
+  "contacts.importFiles": "Contacts (vCard, CSV)",
+  "contacts.exported": "{count, plural, one {Exported # contact} other {Exported # contacts}}",
   "contacts.newContactShortcut": "New contact ({key})",
   "contacts.searchPlaceholder": "Search contacts",
   "contacts.noMatches": "No contacts match “{query}”.",

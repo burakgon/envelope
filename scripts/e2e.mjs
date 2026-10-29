@@ -971,6 +971,28 @@ await step('accounts set up in another mail program are offered and fill in the 
   }
 });
 
+await step('contacts are imported from a CSV export, leaving out people already there', async () => {
+  const p = await open();
+  try {
+    await p.goto(url);
+    await p.locator('.row').first().waitFor({ state: 'visible', timeout: 5000 });
+    await p.locator('.modes button[aria-label="Contacts"]').click();
+    await p.locator('.contacts .row').first().waitFor({ timeout: 5000 });
+    await p.locator('.contacts header .icon-btn[aria-label="More"]').click();
+    await p.locator('.menu-item', { hasText: 'Import contacts' }).click();
+    const preview = p.locator('.backdrop .calendar');
+    await preview.waitFor({ timeout: 5000 });
+    // Maya Chen is in the address book already: listed, but not added again.
+    const maya = preview.locator('li', { hasText: 'Maya Chen' });
+    if (!(await maya.locator('input').isDisabled())) throw new Error('someone already there can be added again');
+    await preview.locator('button.primary', { hasText: 'Add 2 contacts' }).click();
+    await p.locator('.toast', { hasText: 'Added 2 contacts' }).first().waitFor({ timeout: 5000 });
+    await p.locator('.contacts .row', { hasText: 'Jonas Lindqvist' }).waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

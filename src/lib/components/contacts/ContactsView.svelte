@@ -1,15 +1,46 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { api } from '../../api';
   import { people } from '../../stores/contacts.svelte';
+  import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import { ui } from '../../stores/ui.svelte';
   import Avatar from '../Avatar.svelte';
+  import FileViewer from '../FileViewer.svelte';
+  import Popover from '../Popover.svelte';
   import WindowControls from '../WindowControls.svelte';
   import ContactDetail from './ContactDetail.svelte';
   import ContactEditor from './ContactEditor.svelte';
   import { intlLocale, t } from '../../i18n';
-  import { PanelLeft, Plus, Search, Users } from '../../icons';
+  import { Download, More, PanelLeft, Plus, Search, Upload, Users } from '../../icons';
 
   let searchEl: HTMLInputElement | undefined = $state();
+  let menu = $state<{ x: number; y: number } | null>(null);
+  /** A file of contacts being looked at, to choose whom to add. */
+  let importing = $state<string | null>(null);
+
+  /** Opens a vCard file or a CSV export (Gmail, Outlook, Thunderbird) to choose whom to add. */
+  async function importContacts() {
+    menu = null;
+    const path = await api.pickFile(t('contacts.importTitle'), [{ name: t('contacts.importFiles'), extensions: ['vcf', 'vcard', 'csv'] }]);
+    if (path) importing = path;
+  }
+
+  /** Writes the address book shown, or every one, to a vCard file. */
+  async function exportContacts() {
+    menu = null;
+    const book = people.books.find((b) => b.id === people.bookId);
+    const path = await api.pickSavePath(`${book?.name ?? t('contacts.title')}.vcf`);
+    if (!path) return;
+    try {
+      const count = await api.contacts.export(people.bookId, path);
+      toasts.show(t('contacts.exported', { count }), {
+        kind: 'success',
+        action: { label: t('message.showInFolder'), run: () => api.revealPath(path).catch((e) => toasts.error(errorMessage(e))) },
+      });
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+  }
 
   onMount(() => {
     people.init();
@@ -58,6 +89,15 @@
       <h1 data-tauri-drag-region>{t('contacts.title')}</h1>
       <span class="count" data-tauri-drag-region>{people.total}</span>
       <span class="grow" data-tauri-drag-region></span>
+      <button
+        class="icon-btn"
+        title={t('common.more')}
+        aria-label={t('common.more')}
+        aria-haspopup="menu"
+        onclick={(e) => {
+          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          menu = { x: r.right, y: r.bottom + 4 };
+        }}><More size={18} /></button>
       <button class="icon-btn" title={t('contacts.newContactShortcut', { key: 'C' })} onclick={() => people.newContact()}><Plus size={18} /></button>
     </header>
     <div class="search">
@@ -121,6 +161,14 @@
     {/if}
   </div>
 </section>
+
+{#if menu}
+  <Popover x={menu.x} y={menu.y} align="end" onclose={() => (menu = null)} width={240}>
+    <button class="menu-item" onclick={importContacts}><Upload size={15} />{t('contacts.import')}</button>
+    <button class="menu-item" onclick={exportContacts}><Download size={15} />{t('contacts.export')}</button>
+  </Popover>
+{/if}
+{#if importing}<FileViewer path={importing} onclose={() => (importing = null)} />{/if}
 
 <style>
   .contacts {
