@@ -30,7 +30,7 @@ instant offline search, a keyboard-first workflow and optional AI that runs on t
 Desktop mail on Linux has long meant choosing between powerful-but-dated and pretty-but-slow. Envelope is an attempt at both: a native Rust engine that keeps your mail in a local SQLite database, and a carefully designed interface on top of it.
 
 - **Instant.** Lists are read from a local database with precomputed thread aggregates, so opening a folder, switching tabs and searching take milliseconds — online or offline. Every action is optimistic and queued, so the UI never waits for the server.
-- **Keyboard-first.** Gmail-style shortcuts (`j`/`k`, `e`, `#`, `r`, `c`, `g i` …) and a command palette (`Ctrl K`) that can do everything the mouse can.
+- **Keyboard-first.** Gmail-style shortcuts (`j`/`k`, `e`, `#`, `r`, `c`, `g i` …), menus and dialogs that work from the keyboard, Space to read on, and a command palette (`Ctrl K`) that can do everything the mouse can.
 - **A real calendar.** Day, work week, week, month and agenda views, drag to create, move and resize, recurring events with "this / following / all" edits, invitations with RSVP and conflict detection, a scheduling assistant, subscriptions and reminders — synced both ways with CalDAV, Google Calendar, Microsoft 365 and Exchange.
 - **Tasks where your mail is.** Turn a message into a task with one key, type "call Maya tomorrow 3pm !" and get a due time and a star, and see what's due in your calendar — synced with Google Tasks, Microsoft To Do, Exchange and CalDAV.
 - **Private by design.** No telemetry, no proxy servers, no account with us. Your mail goes straight from your provider to your disk. Remote images and trackers are blocked until you allow them, messages render in a locked-down sandbox, and OpenPGP encryption sets itself up with Autocrypt.
@@ -115,6 +115,8 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 
 ### Design
 - Light and dark themes that follow the system, an accent color picker and compact/comfortable density.
+- **Fits any window:** in half a screen the sidebar becomes a rail of icons, and below that the list and the conversation take turns.
+- **Accessible:** dialogs keep the focus, every control has a name for screen readers, and text meets WCAG AA contrast.
 - Custom title bar (or native, if you prefer), subtle animations and virtualized lists that stay fluid in very large mailboxes.
 - **In your language:** English, Deutsch, Español, Français, Italiano, Polski, Português (Brasil), Türkçe, 日本語 and 简体中文, with dates and times to match — more are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
