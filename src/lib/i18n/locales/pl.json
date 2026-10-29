@@ -1187,6 +1187,8 @@
   "contacts.noDetails": "Brak szczegółów.",
   "contacts.recentConversations": "Ostatnie wątki",
   "contacts.inBook": "Książka adresowa: {book}",
+  "contacts.localBook": "Na tym komputerze",
+  "contacts.onlyHere": "Zapisano na tym komputerze",
   "contacts.changePhoto": "Zmień zdjęcie",
   "contacts.firstName": "Imię",
   "contacts.lastName": "Nazwisko",

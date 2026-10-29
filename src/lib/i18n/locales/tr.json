@@ -1187,6 +1187,8 @@
   "contacts.noDetails": "Henüz ayrıntı yok.",
   "contacts.recentConversations": "Son konuşmalar",
   "contacts.inBook": "Adres defteri: {book}",
+  "contacts.localBook": "Bu bilgisayarda",
+  "contacts.onlyHere": "Bu bilgisayarda kayıtlı",
   "contacts.changePhoto": "Fotoğrafı değiştir",
   "contacts.firstName": "Ad",
   "contacts.lastName": "Soyadı",

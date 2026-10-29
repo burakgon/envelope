@@ -17,7 +17,7 @@
   import { api } from '../api';
   import CalendarSidebar from './calendar/CalendarSidebar.svelte';
   import { cal } from '../stores/calendar.svelte';
-  import { people } from '../stores/contacts.svelte';
+  import { people, bookName } from '../stores/contacts.svelte';
   import { tasks } from '../stores/tasks.svelte';
   import TasksSidebar from './tasks/TasksSidebar.svelte';
   import { intlLocale, t } from '../i18n';
@@ -266,7 +266,7 @@
       </button>
       {#each people.books as b (b.id)}
         <button class="item" class:active={people.bookId === b.id} onclick={() => people.setBook(b.id)}>
-          <BookUser size={16} /><span class="name truncate">{b.name}</span>
+          <BookUser size={16} /><span class="name truncate">{bookName(b)}</span>
         </button>
       {/each}
     </div>

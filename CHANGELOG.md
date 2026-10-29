@@ -45,6 +45,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - A short plain-text reply was hidden together with the quote below it.
 - Messages Envelope saved into an Exchange folder from MIME could show as drafts.
 - Old mail with 8-bit text and no declared character set showed replacement characters; it is read as Windows-1252, as in other mail programs.
+- The address book on this computer was called "On this computer" in English in every interface language, and a contact in it said "In On this computer".
 - An event's popover could run off the bottom of the window once its guests had loaded.
 - An address still being typed when Send was pressed was left out.
 - Account setup no longer keeps the password and servers of a provider you went back from: they are cleared, servers are detected again when the address moves to another domain, and Google or Microsoft sign-in is no longer offered an address of another provider.

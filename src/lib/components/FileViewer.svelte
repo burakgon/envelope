@@ -5,7 +5,7 @@
   import { t } from '../i18n';
   import { Calendar, Download, File, Lock, Mail, Reply, Spinner, Users, X } from '../icons';
   import { cal } from '../stores/calendar.svelte';
-  import { people } from '../stores/contacts.svelte';
+  import { people, bookName } from '../stores/contacts.svelte';
   import { compose } from '../stores/compose.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
   import { dateFormat, displayName, fileSize, longDate, timeOf } from '../utils/format';
@@ -272,7 +272,7 @@
             {#if people.writable.length > 1}
               <select class="input sel" bind:value={bookId} aria-label={t('contacts.addressBook')}>
                 {#each people.writable as b (b.id)}
-                  <option value={b.id}>{b.name}</option>
+                  <option value={b.id}>{bookName(b)}</option>
                 {/each}
               </select>
             {/if}

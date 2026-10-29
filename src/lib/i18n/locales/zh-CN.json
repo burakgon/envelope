@@ -1187,6 +1187,8 @@
   "contacts.noDetails": "暂无详细信息。",
   "contacts.recentConversations": "最近的会话",
   "contacts.inBook": "所在通讯录：{book}",
+  "contacts.localBook": "本机",
+  "contacts.onlyHere": "保存在本机",
   "contacts.changePhoto": "更换照片",
   "contacts.firstName": "名字",
   "contacts.lastName": "姓氏",

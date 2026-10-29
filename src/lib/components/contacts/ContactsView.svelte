@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '../../api';
-  import { people } from '../../stores/contacts.svelte';
+  import { people, bookName } from '../../stores/contacts.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import { ui } from '../../stores/ui.svelte';
   import Avatar from '../Avatar.svelte';
@@ -31,7 +31,7 @@
   async function exportContacts() {
     menu = null;
     const book = people.books.find((b) => b.id === people.bookId);
-    const path = await api.pickSavePath(`${book?.name ?? t('contacts.title')}.vcf`);
+    const path = await api.pickSavePath(`${book ? bookName(book) : t('contacts.title')}.vcf`);
     if (!path) return;
     try {
       const count = await api.contacts.export(people.bookId, path);

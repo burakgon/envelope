@@ -1187,6 +1187,8 @@
   "contacts.noDetails": "詳細情報はまだありません。",
   "contacts.recentConversations": "最近のスレッド",
   "contacts.inBook": "アドレス帳：{book}",
+  "contacts.localBook": "このコンピュータ",
+  "contacts.onlyHere": "このコンピュータに保存",
   "contacts.changePhoto": "写真を変更",
   "contacts.firstName": "名",
   "contacts.lastName": "姓",

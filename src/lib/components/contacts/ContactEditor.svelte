@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fieldLabel, people } from '../../stores/contacts.svelte';
+  import { fieldLabel, people, bookName } from '../../stores/contacts.svelte';
   import type { LabeledValue } from '../../api';
   import { t } from '../../i18n';
   import Avatar from '../Avatar.svelte';
@@ -147,7 +147,7 @@
     <div class="group">
       <label class="label" for="ct-book">{t('contacts.addressBook')}</label>
       <select id="ct-book" class="input" bind:value={c.bookId}>
-        {#each people.writable as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
+        {#each people.writable as b (b.id)}<option value={b.id}>{bookName(b)}</option>{/each}
       </select>
     </div>
   {/if}

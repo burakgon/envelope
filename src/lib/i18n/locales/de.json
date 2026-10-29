@@ -1187,6 +1187,8 @@
   "contacts.noDetails": "Noch keine Angaben.",
   "contacts.recentConversations": "Letzte Konversationen",
   "contacts.inBook": "Adressbuch: {book}",
+  "contacts.localBook": "Auf diesem Computer",
+  "contacts.onlyHere": "Auf diesem Computer gespeichert",
   "contacts.changePhoto": "Foto ändern",
   "contacts.firstName": "Vorname",
   "contacts.lastName": "Nachname",

@@ -16,6 +16,11 @@ const fieldLabels = new Map<string, MessageKey>([
   ['assistant', 'contacts.labelAssistant'],
 ]);
 
+/** An address book's name; the one on this computer is named in the interface language. */
+export function bookName(b: ContactBook): string {
+  return b.kind === 'local' ? t('contacts.localBook') : b.name;
+}
+
 /** The interface name of an e-mail, phone or address label ("home" → "Home"); custom labels keep their wording, capitalized. */
 export function fieldLabel(label: string | null): string {
   if (!label) return '';

@@ -136,7 +136,7 @@
       </div>
     {/if}
 
-    {#if book}<div class="book">{t('contacts.inBook', { book: book.name })}</div>{/if}
+    {#if book}<div class="book">{book.kind === 'local' ? t('contacts.onlyHere') : t('contacts.inBook', { book: book.name })}</div>{/if}
   </div>
 </div>
 
