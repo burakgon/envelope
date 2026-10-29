@@ -164,6 +164,24 @@ async fn list_senders_are_counted_by_conversation() {
         "List-Id: <twir.rustweekly.test>\r\n",
         true,
     );
+    // Notifications named after whoever acted: the list's name is theirs.
+    let list = "List-Id: lumen/envelope <envelope.lumen.gitforge.test>\r\n";
+    f.store(
+        f.inbox,
+        8,
+        "Daniel Okafor <notifications@gitforge.test>",
+        "[lumen/envelope] PR #1",
+        list,
+        true,
+    );
+    f.store(
+        f.inbox,
+        9,
+        "Sofia Martinez <notifications@gitforge.test>",
+        "[lumen/envelope] PR #2",
+        list,
+        true,
+    );
     // A person, and the user writing to a list: neither is a subscription.
     f.store(
         f.inbox,
@@ -197,12 +215,22 @@ async fn list_senders_are_counted_by_conversation() {
                 one_click: true,
             },
             Subscription {
+                email: "notifications@gitforge.test".into(),
+                name: Some("lumen/envelope".into()),
+                conversations: 2,
+                unread: 0,
+                in_inbox: 2,
+                last_date: subs[1].last_date,
+                unsubscribe_message_id: None,
+                one_click: false,
+            },
+            Subscription {
                 email: "editor@rustweekly.test".into(),
                 name: Some("This Week in Rust".into()),
                 conversations: 1,
                 unread: 0,
                 in_inbox: 0,
-                last_date: subs[1].last_date,
+                last_date: subs[2].last_date,
                 unsubscribe_message_id: None,
                 one_click: false,
             },
