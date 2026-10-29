@@ -41,6 +41,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Repeating events with a rule of their own read in words in the event editor ("Weekly on Monday, Wednesday, Friday") instead of the raw rule, and say how often or until when they repeat.
 - The agenda lists tasks due at a time of day among the events, in time order.
 - Text that was too faint to read comfortably is darker: dates, previews and other secondary text, calendar events, labels, amber and red warnings, and the white text on buttons in the dark theme, which are a deeper shade of the accent color now. Each meets the WCAG AA contrast ratio for its size.
+- A custom snooze, follow-up reminder or send-later time is picked with Envelope's own date and time pickers, written the way the interface language writes dates and times, instead of the browser's bare date field.
 - Mark all as read acts on the list as shown (the inbox tab, filter or search), says how many conversations it marked, and can be undone.
 
 ### Fixed

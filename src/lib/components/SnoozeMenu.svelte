@@ -1,5 +1,6 @@
 <script lang="ts">
   import Popover from './Popover.svelte';
+  import LaterPicker from './LaterPicker.svelte';
   import { Clock, Moon, Sun, Calendar, CalendarDays } from '../icons';
   import { t } from '../i18n';
   import { dateFormat } from '../utils/format';
@@ -35,16 +36,9 @@
   });
 
   const fmt = $derived(dateFormat({ weekday: 'short', hour: 'numeric', minute: '2-digit' }));
-  let custom = $state('');
-
-  function pickCustom() {
-    if (!custom) return;
-    const ts = new Date(custom).getTime();
-    if (ts > Date.now()) onpick(ts);
-  }
 </script>
 
-<Popover {x} {y} {align} {onclose} width={260}>
+<Popover {x} {y} {align} {onclose} width={290}>
   <div class="menu-label">{title ?? t('snooze.until')}</div>
   {#each options as o (o.id)}
     <button class="menu-item" onclick={() => onpick(o.when.getTime())}>
@@ -54,24 +48,5 @@
     </button>
   {/each}
   <div class="divider"></div>
-  <div class="custom">
-    <input class="input" type="datetime-local" bind:value={custom} />
-    <button class="btn sm primary" disabled={!custom} onclick={pickCustom}>{t('snooze.set')}</button>
-  </div>
+  <LaterPicker label={t('snooze.set')} {onpick} />
 </Popover>
-
-<style>
-  .custom {
-    display: flex;
-    gap: 6px;
-    padding: 4px;
-  }
-  .custom .input {
-    min-width: 0;
-    height: 28px;
-    font-size: var(--text-sm);
-  }
-  .custom .btn {
-    flex-shrink: 0;
-  }
-</style>

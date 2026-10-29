@@ -1518,6 +1518,33 @@ await step('select all offers every conversation of the folder, and archiving ta
   }
 });
 
+await step('a custom snooze or send time is picked with the app\'s date and time pickers', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    await p.locator('body').press('h');
+    const menu = p.locator('.popover').first();
+    await menu.waitFor({ timeout: 5000 });
+    if (await p.locator('.popover input[type="datetime-local"]').count()) throw new Error('the browser\'s date field is still there');
+    // The 15th of next month, at half past nine in the morning.
+    await menu.locator('.later button.field').click();
+    await p.locator('.popover .mini button[aria-label="Next month"]').click();
+    await p.locator('.popover .mini .d:not(.other)', { hasText: /^15$/ }).click();
+    const time = menu.locator('.later input.field');
+    await time.fill('9:30');
+    await p.keyboard.press('Enter');
+    await menu.locator('.later .btn', { hasText: 'Set' }).click();
+    await toast(p, '9:30');
+    // Sending later offers the same pickers.
+    await p.locator('body').press('c');
+    await p.locator('.dock .composer .send-more').click();
+    await p.locator('.popover .later .btn', { hasText: 'Schedule' }).waitFor({ timeout: 5000 });
+    if (await p.locator('.popover input[type="datetime-local"]').count()) throw new Error('sending later still uses the browser\'s date field');
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

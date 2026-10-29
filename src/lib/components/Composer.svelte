@@ -13,6 +13,7 @@
   import Popover from './Popover.svelte';
   import AiComposeMenu from './AiComposeMenu.svelte';
   import TemplateMenu from './TemplateMenu.svelte';
+  import LaterPicker from './LaterPicker.svelte';
   import ComposerCrypto from './ComposerCrypto.svelte';
   import { focusAboveSignature, replaceSignature } from './editor-signature';
   import { sanitizeFragment } from '../utils/html';
@@ -53,7 +54,6 @@
     }
     changed();
   }
-  let customAt = $state('');
 
   const identities = $derived(mail.identities);
   /** An address of a draft written elsewhere that has no identity here. */
@@ -360,10 +360,7 @@
       </button>
     {/each}
     <div class="divider"></div>
-    <div class="custom">
-      <input class="input" type="datetime-local" bind:value={customAt} />
-      <button class="btn sm primary" disabled={!customAt} onclick={() => send(new Date(customAt).getTime())}>{t('composer.schedule')}</button>
-    </div>
+    <LaterPicker label={t('composer.schedule')} onpick={(at) => send(at)} />
     <div class="divider"></div>
     <div class="menu-label">{t('composer.remindIfNoReply')}</div>
     <div class="followup">
@@ -635,15 +632,6 @@
   }
   .grow {
     flex: 1;
-  }
-  .custom {
-    display: flex;
-    gap: 6px;
-    padding: 4px;
-  }
-  .custom .input {
-    height: 28px;
-    font-size: var(--text-sm);
   }
   .drop {
     position: absolute;
