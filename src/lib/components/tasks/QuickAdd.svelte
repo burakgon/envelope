@@ -32,6 +32,10 @@
       weekStart: ui.settings.weekStart,
       fillers: words('tasks.quickAdd.fillers'),
       hours: words('tasks.quickAdd.hours'),
+      timeWords: words('tasks.quickAdd.timeWords'),
+      weekdays: words('tasks.quickAdd.weekdays'),
+      thisWeekday: words('tasks.quickAdd.thisWeekday'),
+      nextWeekday: words('tasks.quickAdd.nextWeekday'),
     }),
   );
   // New tasks are due today in Today, tomorrow in Upcoming, and important in Important.
