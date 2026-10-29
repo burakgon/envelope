@@ -8,8 +8,8 @@
   // One question; the dialog is made anew for the next one.
   const ask = dialogs.current!;
   const uid = $props.id();
-  const danger = ask.kind === 'confirm' && !!ask.danger;
-  const Icon = ask.kind === 'confirm' ? (danger ? Warning : HelpCircle) : ask.type === 'password' ? KeyRound : ask.type === 'url' ? Link : Pen;
+  const danger = ask.kind !== 'prompt' && !!ask.danger;
+  const Icon = ask.kind !== 'prompt' ? (danger ? Warning : HelpCircle) : ask.type === 'password' ? KeyRound : ask.type === 'url' ? Link : Pen;
 
   let value = $state(ask.kind === 'prompt' ? (ask.value ?? '') : '');
   let box: HTMLDivElement | undefined = $state();
@@ -40,7 +40,7 @@
     if (composing(e)) return;
     if (e.key === 'Escape') {
       e.preventDefault();
-      dialogs.answer(false);
+      dialogs.dismiss();
     } else if (e.key === 'Enter' && !(e.target as HTMLElement).closest('button')) {
       e.preventDefault();
       dialogs.answer(true, value);
@@ -54,11 +54,11 @@
   }
 </script>
 
-<div class="backdrop" role="presentation" onpointerdown={(e) => e.target === e.currentTarget && dialogs.answer(false)}>
+<div class="backdrop" role="presentation" onpointerdown={(e) => e.target === e.currentTarget && dialogs.dismiss()}>
   <div
     bind:this={box}
     class="dialog"
-    role={ask.kind === 'confirm' ? 'alertdialog' : 'dialog'}
+    role={ask.kind !== 'prompt' ? 'alertdialog' : 'dialog'}
     aria-modal="true"
     aria-labelledby="{uid}-title"
     aria-describedby={ask.message ? `${uid}-message` : undefined}
@@ -70,7 +70,7 @@
       <h3 id="{uid}-title">{ask.title}</h3>
     </div>
     {#if ask.message}<p class="message" id="{uid}-message">{ask.message}</p>{/if}
-    {#if ask.kind === 'confirm' && ask.detail}<code class="detail selectable">{ask.detail}</code>{/if}
+    {#if ask.kind !== 'prompt' && ask.detail}<code class="detail selectable">{ask.detail}</code>{/if}
     {#if ask.kind === 'prompt'}
       <input
         bind:this={field}
@@ -85,7 +85,7 @@
       />
     {/if}
     <footer>
-      <button bind:this={no} class="btn" onclick={() => dialogs.answer(false)}>{t('common.cancel')}</button>
+      <button bind:this={no} class="btn" onclick={() => dialogs.answer(false)}>{(ask.kind !== 'prompt' && ask.cancelLabel) || t('common.cancel')}</button>
       <button bind:this={yes} class="btn {danger ? 'danger' : 'primary'}" onclick={() => dialogs.answer(true, value)}>{ask.confirmLabel ?? t('common.ok')}</button>
     </footer>
   </div>

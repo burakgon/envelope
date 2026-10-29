@@ -78,6 +78,11 @@
     return false;
   }
 
+  /** Takes in an address still being typed (Send was pressed before it became a chip). */
+  export function flush() {
+    if (text.trim()) commitText();
+  }
+
   function onInput() {
     selectedChip = null;
     if (/[,;]$/.test(text) && commitText()) return;

@@ -120,12 +120,17 @@
 
   let cryptoBar: ReturnType<typeof ComposerCrypto> | undefined = $state();
 
+  let recipientFields: (RecipientInput | undefined)[] = $state([]);
+
   async function send(at: number | null = null) {
+    // An address still being typed goes along.
+    for (const field of recipientFields) field?.flush();
     c.data.html = body + quoted;
     sendMenu = null;
-    // Encryption: every recipient needs a key, a locked key its passphrase.
-    if (cryptoBar && !(await cryptoBar.prepareSend())) return;
-    compose.send(c.key, at);
+    // Asked first: addresses, subject, a mentioned attachment. Then encryption: every
+    // recipient needs a key, a locked key its passphrase.
+    const outcome = await compose.send(c.key, at, async () => !cryptoBar || (await cryptoBar.prepareSend()));
+    if (outcome === 'attach') attach();
   }
 
   /** Sends from another address: its signature takes the old one's place, the text stays. */
@@ -251,14 +256,14 @@
           </select>
         </div>
       {/if}
-      <RecipientInput label={t('composer.to')} bind:value={c.data.to} onchange={changed} autofocus={c.data.to.length === 0 && c.data.mode !== 'reply'}>
+      <RecipientInput bind:this={recipientFields[0]} label={t('composer.to')} bind:value={c.data.to} onchange={changed} autofocus={c.data.to.length === 0 && c.data.mode !== 'reply'}>
         <span class="ccbcc">
           {#if !c.showCc}<button onclick={() => (c.showCc = true)}>{t('composer.cc')}</button>{/if}
           {#if !c.showBcc}<button onclick={() => (c.showBcc = true)}>{t('composer.bcc')}</button>{/if}
         </span>
       </RecipientInput>
-      {#if c.showCc}<RecipientInput label={t('composer.cc')} bind:value={c.data.cc} onchange={changed} />{/if}
-      {#if c.showBcc}<RecipientInput label={t('composer.bcc')} bind:value={c.data.bcc} onchange={changed} />{/if}
+      {#if c.showCc}<RecipientInput bind:this={recipientFields[1]} label={t('composer.cc')} bind:value={c.data.cc} onchange={changed} />{/if}
+      {#if c.showBcc}<RecipientInput bind:this={recipientFields[2]} label={t('composer.bcc')} bind:value={c.data.bcc} onchange={changed} />{/if}
       {#if !c.inline || c.data.mode === 'forward'}
         <div class="subject">
           <input placeholder={t('composer.subject')} bind:value={c.data.subject} oninput={changed} spellcheck="true" />

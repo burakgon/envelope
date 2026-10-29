@@ -97,6 +97,54 @@ check('a block that is only the introduction', attributionOnly(blockLines('On Mo
 check('a reply that ends with the introduction', attributionOnly(blockLines('Thanks!<br>On Mon, Alex wrote:')), false);
 check('Gmail\'s wrapped introduction', attributionOnly(blockLines('On Mon, Oct 26, 2026 at 9:00 AM Alex Morgan &lt;alex@lumen.dev&gt;<br>wrote:')), true);
 
+// ----- attachment reminder --------------------------------------------------------------------
+
+const { mentionedAttachment, ownText, wordList, sendable, EMAIL } = await import(new URL('utils/compose.ts', src).href);
+
+const catalogs = new Map();
+function words(lang) {
+  if (!catalogs.has(lang)) catalogs.set(lang, JSON.parse(readFileSync(new URL(`i18n/locales/${lang}.json`, src), 'utf8')));
+  return wordList(catalogs.get(lang)['compose.attachmentWords'], catalogs.get('en')?.['compose.attachmentWords'] ?? '');
+}
+words('en');
+for (const [lang, html, want] of [
+  ['en', '<p>Please find the report attached.</p>', 'attached'],
+  ['en', '<p>The attachment is the signed copy.</p>', 'attachment'],
+  ['en', '<p>Unattached parts are fine.</p>', null],
+  ['en', '<p>Thanks!</p><div class="envelope-quote"><div>On Mon, Alex wrote:</div><blockquote>I attached the file</blockquote></div>', null],
+  ['en', '<p>Thanks!</p><blockquote><p>see attached</p></blockquote>', null],
+  ['en', '<p>Hi</p><div class="envelope-signature"><p>Attachments are scanned for viruses</p></div>', null],
+  ['de', '<p>Anbei die Rechnung.</p>', 'anbei'],
+  ['de', '<p>Im Anhang findest du den Plan.</p>', 'anhang'],
+  ['es', '<p>Te envío el contrato adjunto.</p>', 'adjunto'],
+  ['fr', '<p>Voici la facture en pièce jointe.</p>', 'pièce jointe'],
+  ['fr', '<p>Voir le document ci-joint.</p>', 'ci-joint'],
+  ['it', '<p>In allegato trovi il preventivo.</p>', 'in allegato'],
+  ['pl', '<p>W załączniku przesyłam umowę.</p>', 'załączniku'],
+  ['pt-BR', '<p>Segue o arquivo em anexo.</p>', 'em anexo'],
+  ['tr', '<p>Fatura ekte.</p>', 'ekte'],
+  ['tr', '<p>Ekmek aldım.</p>', null],
+  ['ja', '<p>資料を添付しました。</p>', '添付'],
+  ['zh-CN', '<p>请查收附件。</p>', '附件'],
+  // English is always understood, whatever the interface language.
+  ['de', '<p>See the attached plan.</p>', 'attached'],
+]) {
+  check(`[${lang}] ${ownText(html).trim()}`, mentionedAttachment(html, words(lang)), want);
+}
+check('quoted lines of a plain-text reply are not the writer\'s', ownText('<p>ok</p><p>&gt; attached</p>').includes('attached'), false);
+
+// ----- addresses ------------------------------------------------------------------------------
+
+for (const [email, valid, canSend] of [
+  ['maya@northwind.design', true, true],
+  ['bob@example', false, true],
+  ['bob', false, false],
+  ['bob @example.com', false, false],
+]) {
+  check(`${email} looks complete`, EMAIL.test(email), valid);
+  check(`${email} can be sent to`, sendable(email), canSend);
+}
+
 // ----- links ------------------------------------------------------------------------------------
 
 const { linkTarget, namedHost, shorten } = await import(new URL('utils/links.ts', src).href);

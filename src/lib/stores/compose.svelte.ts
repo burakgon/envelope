@@ -5,7 +5,9 @@ import { dialogs } from './dialogs.svelte';
 import { errorMessage, toasts } from './toasts.svelte';
 import { ui } from './ui.svelte';
 import { rawMessages, t } from '../i18n';
-import { dateFormat } from '../utils/format';
+import en from '../i18n/locales/en.json';
+import { dateFormat, displayName } from '../utils/format';
+import { EMAIL, mentionedAttachment, sendable, wordList } from '../utils/compose';
 import { isEncrypted, pgp } from './pgp.svelte';
 
 export interface ComposerState {
@@ -26,6 +28,9 @@ export interface ComposerState {
   /** Bumped to ask the editor to focus. */
   focus: number;
 }
+
+/** What became of pressing Send. */
+export type SendOutcome = 'sent' | 'attach' | 'edit' | null;
 
 let keySeq = 1;
 
@@ -76,10 +81,15 @@ export function quoteText(date: number | null | undefined): QuoteText {
   };
 }
 
+/** Words that say a file is attached: the interface language's and English. */
+function attachmentWords(): string[] {
+  return wordList(t('compose.attachmentWords'), en['compose.attachmentWords']);
+}
+
 class Compose {
   list = $state<ComposerState[]>([]);
   private timers = new Map<number, ReturnType<typeof setTimeout>>();
-  /** Composers asking whether to send without a subject. */
+  /** Composers asking something before sending, however often Send is pressed meanwhile. */
   private asking = new Set<number>();
 
   floating = $derived(this.list.filter((c) => !c.inline));
@@ -315,21 +325,62 @@ class Compose {
     });
   }
 
-  async send(key: number, sendAt: number | null = null) {
+  /**
+   * The questions asked before sending: addresses that look wrong, a missing subject, a
+   * mentioned attachment that isn't there. `prepare` runs last (encryption may ask for a
+   * passphrase). The answer says what to do instead of sending, if anything.
+   */
+  async send(key: number, sendAt: number | null = null, prepare?: () => Promise<boolean>): Promise<SendOutcome> {
     const c = this.get(key);
-    if (!c) return;
+    if (!c) return null;
     const data = $state.snapshot(c.data) as DraftInput;
-    if (data.to.length + data.cc.length + data.bcc.length === 0) {
+    const recipients = [...data.to, ...data.cc, ...data.bcc];
+    if (recipients.length === 0) {
       toasts.error(t('compose.noRecipients'));
-      return;
+      return 'edit';
     }
-    if (!data.subject.trim()) {
-      // Asked once, however often Send is pressed meanwhile.
-      if (this.asking.has(key)) return;
-      this.asking.add(key);
-      const ok = await dialogs.confirm({ title: t('compose.confirmNoSubject'), confirmLabel: t('common.send') }).finally(() => this.asking.delete(key));
-      if (!ok || !this.get(key)) return;
+    if (this.asking.has(key)) return null;
+    this.asking.add(key);
+    try {
+      const wrong = recipients.filter((a) => !EMAIL.test(a.email.trim()));
+      if (wrong.length) {
+        const list = wrong.map((a) => (a.name ? `${displayName(a)} <${a.email}>` : a.email)).join(', ');
+        if (wrong.some((a) => !sendable(a.email))) {
+          // Not an address at all: there is nothing to send it to.
+          toasts.error(t('compose.invalidAddresses', { count: wrong.length, addresses: list }));
+          return 'edit';
+        }
+        const ok = await dialogs.confirm({
+          title: t('compose.checkAddressesTitle', { count: wrong.length }),
+          message: t('compose.checkAddressesMessage', { count: wrong.length, addresses: list }),
+          confirmLabel: t('compose.sendAnyway'),
+          cancelLabel: t('compose.editAddresses'),
+        });
+        if (!ok || !this.get(key)) return 'edit';
+      }
+      if (!data.subject.trim()) {
+        const ok = await dialogs.confirm({ title: t('compose.confirmNoSubject'), confirmLabel: t('common.send') });
+        if (!ok || !this.get(key)) return null;
+      }
+      if (data.attachments.length === 0) {
+        const word = mentionedAttachment(data.html, attachmentWords());
+        if (word) {
+          const answer = await dialogs.choose({
+            title: t('compose.attachTitle'),
+            message: t('compose.attachMessage', { word }),
+            confirmLabel: t('compose.sendAnyway'),
+            cancelLabel: t('compose.attach'),
+          });
+          if (!this.get(key)) return null;
+          if (answer === false) return 'attach';
+          if (answer !== true) return null;
+        }
+      }
+      if (prepare && !(await prepare())) return null;
+    } finally {
+      this.asking.delete(key);
     }
+    if (!this.get(key)) return null;
     const replyThread = c.threadId;
     this.remove(key);
     try {
@@ -350,9 +401,11 @@ class Compose {
       if (ui.settings.sendAndArchive && replyThread != null && data.mode !== 'forward') {
         setTimeout(() => mail.archive([replyThread]), 300);
       }
+      return 'sent';
     } catch (e) {
       toasts.error(errorMessage(e));
       this.open(data, { draftId: c.draftId, inline: c.inline, threadId: c.threadId });
+      return null;
     }
   }
 }

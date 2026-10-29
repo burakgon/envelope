@@ -435,6 +435,36 @@ await step('a new message: writing goes above the signature, and From swaps the 
   if (!(await editor().innerText()).startsWith('Hello there.')) throw new Error('the text changed with the signature');
 });
 
+await step('Send asks about an address that looks wrong and a missing attachment', async () => {
+  await w.locator('.dock .composer .chips input').first().fill('bob@example');
+  await w.keyboard.press('Enter');
+  await w.locator('.dock .composer .subject input').fill('The report');
+  await editor().locator('p').first().click();
+  await w.keyboard.press('End');
+  await w.keyboard.type(' The report is attached.');
+  const ask = w.locator('[role="alertdialog"]');
+  await w.locator('.dock .composer .send-main').click();
+  await ask.locator('h3', { hasText: 'Check this address' }).waitFor({ timeout: 5000 });
+  await ask.locator('button', { hasText: 'Edit' }).click();
+  await ask.waitFor({ state: 'detached', timeout: 5000 });
+  if (!(await w.locator('.dock .composer').count())) throw new Error('Edit sent the message');
+  await w.locator('.dock .composer .send-main').click();
+  await ask.locator('button', { hasText: 'Send anyway' }).click();
+  await ask.locator('h3', { hasText: 'Did you mean to attach a file?' }).waitFor({ timeout: 5000 });
+  if (!(await ask.innerText()).includes('“attached”')) throw new Error(`the reminder reads "${await ask.innerText()}"`);
+  await ask.locator('button', { hasText: 'Attach' }).click();
+  await ask.waitFor({ state: 'detached', timeout: 5000 });
+  if (!(await w.locator('.dock .composer').count())) throw new Error('Attach sent the message');
+  // Answered both ways, it goes; and comes back with Undo.
+  await w.locator('.dock .composer .send-main').click();
+  await ask.locator('button', { hasText: 'Send anyway' }).click();
+  await ask.locator('h3', { hasText: 'Did you mean to attach a file?' }).waitFor({ timeout: 5000 });
+  await ask.locator('button', { hasText: 'Send anyway' }).click();
+  await w.locator('.toast', { hasText: 'Sending' }).locator('.action').click();
+  await w.locator('.dock .composer .subject input').waitFor({ timeout: 5000 });
+  await closeComposer();
+});
+
 await step('deleting forever in Trash asks first, with the count', async () => {
   await openConversation('Tokyo office visit');
   await w.locator('body').press('#');
