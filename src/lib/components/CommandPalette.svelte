@@ -18,11 +18,12 @@
     ListChecks, ListPlus,
     Check, AlarmClock,
     ShieldAlert, ShieldCheck,
-    Ban, Crown, Newspaper,
+    Ban, Crown, Newspaper, Bookmark, BookmarkPlus,
     ChevronDown, ChevronUp, ChevronsUpDown,
     PanelBottom, PanelOff, PanelRight, SortNewest, SortOldest, SortSender, PopOut,
   } from '../icons';
   import { vips } from '../stores/vips.svelte';
+  import { runSearch, saveSearch } from '../stores/searches.svelte';
   import { blockSender, senderOf } from '../stores/rules.svelte';
   import { modal } from '../actions/modal';
   import type Reader from './Reader.svelte';
@@ -80,6 +81,10 @@
     { id: 'starred', label: t('mailbox.starred'), group: 'goTo', icon: Star, hint: 'G S', run: () => mail.setMailbox({ kind: 'starred' }) },
     { id: 'snoozed', label: t('mailbox.snoozed'), group: 'goTo', icon: Clock, run: () => mail.setMailbox({ kind: 'snoozed' }) },
     ...(vips.list.length ? [{ id: 'vips', label: t('mailbox.vip'), group: 'goTo', icon: Crown, run: () => mail.setMailbox({ kind: 'vip' }) } satisfies Command] : []),
+    ...ui.settings.savedSearches.map((s): Command => ({ id: `saved-${s.id}`, label: s.name, group: 'goTo', icon: Bookmark, keywords: `${t('search.savedTitle')} ${s.query}`, run: () => runSearch(s.query) })),
+    ...(mail.search && !ui.settings.savedSearches.some((s) => s.query === mail.search.trim())
+      ? [{ id: 'save-search', label: t('search.save'), group: 'actions', icon: BookmarkPlus, run: () => saveSearch() } satisfies Command]
+      : []),
     { id: 'drafts', label: t('mailbox.drafts'), group: 'goTo', icon: File, hint: 'G D', run: () => mail.setMailbox({ kind: 'unified', role: 'drafts' }) },
     { id: 'sent', label: t('mailbox.sent'), group: 'goTo', icon: Send, hint: 'G T', run: () => mail.setMailbox({ kind: 'unified', role: 'sent' }) },
     { id: 'all', label: t('mailbox.all'), group: 'goTo', icon: Mails, hint: 'G A', run: () => mail.setMailbox({ kind: 'everything' }) },

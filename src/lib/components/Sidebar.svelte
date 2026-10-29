@@ -10,6 +10,7 @@
     Bookmark, Pen, Crown, UsersRound,
   } from '../icons';
   import { vips } from '../stores/vips.svelte';
+  import { updates } from '../stores/updates.svelte';
   import Popover from './Popover.svelte';
   import { deleteSearch, renameSearch, runSearch } from '../stores/searches.svelte';
   import type { SavedSearch } from '../stores/ui.svelte';
@@ -266,8 +267,16 @@
 {#if rail}
   <nav class="rail">
     <div class="rail-head" data-tauri-drag-region>
-      <button class="icon-btn expand" title={t('threadList.showSidebar')} aria-label={t('threadList.showSidebar')} aria-expanded={ui.railOpen} onclick={() => (ui.railOpen = true)}>
+      <button
+        class="icon-btn expand"
+        title={updates.notice ? `${t('threadList.showSidebar')} — ${t('updates.available', { version: updates.notice.version })}` : t('threadList.showSidebar')}
+        aria-label={updates.notice ? `${t('threadList.showSidebar')} — ${t('updates.available', { version: updates.notice.version })}` : t('threadList.showSidebar')}
+        aria-expanded={ui.railOpen}
+        onclick={() => (ui.railOpen = true)}
+      >
         <PanelLeft size={17} />
+        <!-- A newer version is out: its notice is in the full sidebar. -->
+        {#if updates.notice}<span class="dot"></span>{/if}
       </button>
     </div>
     <button class="rail-compose" title={primary.label} aria-label={primary.label} onclick={primary.run}><primary.icon size={17} strokeWidth={2.3} /></button>
@@ -288,6 +297,25 @@
           </button>
         {/each}
       </div>
+      {#if ui.settings.savedSearches.length}
+        <div class="rail-group" role="group" aria-label={t('search.savedTitle')}>
+          {#each ui.settings.savedSearches as saved (saved.id)}
+            {@const on = mail.search === saved.query}
+            <button
+              class="rail-item"
+              class:on
+              title={`${saved.name} — ${saved.query}`}
+              aria-label={saved.name}
+              aria-current={on ? 'page' : undefined}
+              onclick={() => runSearch(saved.query)}
+              oncontextmenu={(e) => openSearchMenu(e, saved)}
+              onkeydown={(e) => openSearchMenu(e, saved)}
+            >
+              <Bookmark size={17} />
+            </button>
+          {/each}
+        </div>
+      {/if}
     {/if}
     <span class="rail-grow" data-tauri-drag-region></span>
     <button class="rail-item" title={t('sidebar.settings')} aria-label={t('sidebar.settings')} onclick={() => ui.open('settings')}><Settings size={17} /></button>
@@ -672,6 +700,19 @@
   .rail-item.on {
     background: var(--bg-selected);
     color: var(--accent-text);
+  }
+  .expand {
+    position: relative;
+  }
+  .expand .dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px var(--bg-sidebar, var(--bg));
   }
   .rail-item .badge {
     position: absolute;

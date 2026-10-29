@@ -1877,6 +1877,32 @@ await step('a search is saved to the sidebar, run from there, renamed and delete
   }
 });
 
+await step('saved searches are in the narrow rail and the command palette too', async () => {
+  const p = await fresh();
+  try {
+    const box = p.locator('.list .search input');
+    await box.fill('has:attachment');
+    await box.press('Enter');
+    await p.locator('.list .tools button[aria-label="Save search"]').click();
+    await p.locator('[role="dialog"] input').fill('Files');
+    await p.keyboard.press('Enter');
+    await toast(p, '“Files” is in the sidebar');
+    await box.press('Escape');
+    await p.setViewportSize({ width: 960, height: 800 });
+    const inRail = p.locator('.rail .rail-item[aria-label="Files"]');
+    await inRail.click();
+    await eventually(p, async () => (await box.inputValue()) === 'has:attachment', async () => `the box reads "${await box.inputValue()}"`);
+    await box.fill('');
+    await box.press('Escape');
+    await p.keyboard.press('Control+k');
+    await p.keyboard.type('Files');
+    await p.locator('.palette .row', { hasText: 'Files' }).first().click();
+    await eventually(p, async () => (await box.inputValue()) === 'has:attachment', 'the palette did not run the saved search');
+  } finally {
+    await p.close();
+  }
+});
+
 await step('another folder closes a conversation it does not list, and keeps one it does', async () => {
   const p = await fresh();
   try {
