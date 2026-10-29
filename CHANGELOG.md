@@ -4,11 +4,17 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-29
+
 ### Added
 - Tasks: a Tasks view (`g k`) with Today, Upcoming, Important, All and the lists of each account; due dates and times, notes, subtasks and importance; quick add that understands dates, times and `!` in the interface language; tasks made from conversations (`t`, the reader toolbar or the command palette) that link back to them; tasks with a due date in the calendar (Settings → Calendar); a notification with Mark as Done when a task with a time comes due (Settings → Notifications). Synced both ways with CalDAV servers that keep tasks (Nextcloud, Radicale, …), Google Tasks, Microsoft To Do and Exchange, plus a list on this computer. Google and Microsoft accounts added before need to sign in again (Settings → Accounts) to show their tasks.
 
 ### Changed
 - The calendar's all-day row shows "+N more" when a day has more items than fit.
+- Questions — removing an account, sending without a subject, a link's address, a new password — are asked in Envelope's own dialogs instead of the system's bare ones, and passwords are no longer shown as they are typed.
+
+### Fixed
+- Ctrl+Enter in the message body could send a message twice.
 
 ## [0.2.0] — 2026-10-29
 
@@ -68,7 +74,8 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Tray icon with the unread count, running in the background and starting at login (through the Background portal in Flatpak).
 - Packages: .deb, .rpm, AppImage, a Flatpak manifest and a PKGBUILD.
 
-[Unreleased]: https://github.com/burakgon/envelope/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/burakgon/envelope/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/burakgon/envelope/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/burakgon/envelope/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/burakgon/envelope/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/burakgon/envelope/releases/tag/v0.1.0

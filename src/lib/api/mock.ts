@@ -125,7 +125,7 @@ export function createMockApi(): Api {
   const api: Api = {
     isDemo: true,
     ready: async () => {},
-    info: async () => ({ version: '0.2.0', dataDir: '(demo)', googleConfigured: true, microsoftConfigured: true, trayAvailable: true }),
+    info: async () => ({ version: '0.3.0', dataDir: '(demo)', googleConfigured: true, microsoftConfigured: true, trayAvailable: true }),
     autostart: {
       get: async () => autostart,
       set: async (enabled) => {

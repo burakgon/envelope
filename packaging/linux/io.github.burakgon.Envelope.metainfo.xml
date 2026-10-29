@@ -94,6 +94,19 @@
     <color type="primary" scheme_preference="dark">#2a1f8f</color>
   </branding>
   <releases>
+    <release version="0.3.0" date="2026-10-29">
+      <description>
+        <p>Tasks, next to your mail and in your calendar.</p>
+        <ul>
+          <li>A Tasks view with Today, Upcoming, Important and each account's lists, with due dates and times, notes, subtasks and importance</li>
+          <li>Quick add that understands dates and times in the interface language</li>
+          <li>Turn a conversation into a task that links back to it</li>
+          <li>Tasks with a due date in the calendar, and notifications when they are due</li>
+          <li>Two-way sync with Google Tasks, Microsoft To Do, Exchange and CalDAV servers, plus a list on this computer</li>
+          <li>Questions such as confirming a deletion are asked in the app's own dialogs</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-10-29">
       <description>
         <p>End-to-end encryption, the interface in ten languages, and a scheduling assistant for meetings.</p>

@@ -1,7 +1,7 @@
 {
   "name": "envelope",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A fast, beautiful mail and calendar client for Linux",
   "license": "GPL-3.0-or-later",
   "type": "module",
