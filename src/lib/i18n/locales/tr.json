@@ -258,6 +258,10 @@
 
   "mailFrame.showQuotedText": "Alıntılanan metni göster",
   "mailFrame.picture": "Görsel {number}",
+  "mailFrame.linkElsewhere": "Bağlantı metninde {claimed} yazıyor ama {host} adresini açıyor",
+  "mailFrame.linkWriteTo": "{address} adresine yaz",
+  "mailFrame.linkCall": "{number} numarasını ara",
+  "mailFrame.linkCalendar": "{url} takvimine abone ol",
 
   "attachment.saveAs": "Farklı kaydet…",
   "attachment.saved": "Kaydedildi: {file}",

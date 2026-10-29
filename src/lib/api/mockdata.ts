@@ -204,6 +204,13 @@ const seeds: ThreadSeed[] = [
   T(2, ['inbox'], 'The Daily Byte: The quiet comeback of desktop apps', [
     { from: P.byte, to: [P.meHome], at: now - 7 * HOUR, seen: false, unsubscribe: true, html: card(`<p style="color:#b45309;font-weight:600;margin:0 0 6px;font-size:13px;letter-spacing:.06em">THE DAILY BYTE</p><h1 style="font-size:26px;line-height:1.25;margin:0 0 12px">The quiet comeback of desktop apps</h1><p>Native is back. We look at the tools making fast, beautiful desktop software fun to build again — and why Linux users are suddenly spoiled for choice.</p><p><a href="https://dailybyte.test/read" style="color:#b45309;font-weight:600">Read the full issue →</a></p>`, '#f59e0b') },
   ], 'newsletters'),
+  // A link whose text names another site than the one it opens (the reader warns).
+  T(2, ['inbox'], 'Action needed: confirm your account details', [
+    {
+      from: { name: 'Northstar Bank', email: 'service@northstar-verify.test' }, to: [P.meHome], at: now - 3 * DAY - 7 * HOUR, seen: true,
+      html: card(`<h2 style="margin:0 0 8px">Please confirm your details</h2><p>We could not verify your account. Confirm your details within 24 hours to keep online banking.</p><p style="margin:22px 0 0"><a href="https://northstar-verify.test/login?id=8821" style="color:#0f766e;font-weight:600">https://northstar.test/secure</a></p>`, '#0f766e'),
+    },
+  ], 'notifications'),
   T(2, ['inbox'], 'Your October statement is ready', [
     { from: P.bank, to: [P.meHome], at: now - 3 * DAY - 4 * HOUR, seen: true, text: 'Your October statement for account ending 0918 is now available in online banking.' },
   ], 'notifications'),

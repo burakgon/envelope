@@ -32,7 +32,9 @@
   import { compose } from '../stores/compose.svelte';
   import { cal } from '../stores/calendar.svelte';
   import { ui } from '../stores/ui.svelte';
+  import { linkStatus } from '../stores/linkStatus.svelte';
   import { prepareHtml, textToHtml } from '../utils/html';
+  import { linkTarget } from '../utils/links';
   import { t } from '../i18n';
 
   let {
@@ -50,6 +52,8 @@
 
   let frame: HTMLIFrameElement | undefined = $state();
   let observer: ResizeObserver | null = null;
+  /** This frame, as the owner of the link pill it puts up. */
+  const me = {};
 
   const prepared = $derived.by(() => {
     const body = message.body;
@@ -137,6 +141,7 @@
       }
       const href = a.getAttribute('href') ?? '';
       e.preventDefault();
+      linkStatus.hide(me);
       if (href.startsWith('#')) {
         doc.getElementById(href.slice(1))?.scrollIntoView();
         return;
@@ -145,6 +150,17 @@
       else if (/^webcals?:/i.test(href)) cal.subscribing = href;
       else if (/^(https?:|tel:)/i.test(href)) api.openUrl(href);
     });
+
+    // Where a link goes, while it is pointed at or has the focus (the web view has no status bar).
+    const point = (e: Event) => {
+      const a = (e.target as Element | null)?.closest?.('a[href]');
+      if (a) linkStatus.show(me, linkTarget(a.getAttribute('href') ?? '', a.textContent ?? ''));
+      else linkStatus.hide(me);
+    };
+    doc.addEventListener('mouseover', point);
+    doc.addEventListener('focusin', point);
+    doc.addEventListener('focusout', () => linkStatus.hide(me));
+    doc.documentElement.addEventListener('mouseleave', () => linkStatus.hide(me));
 
     // Keep keyboard shortcuts working while the message has focus.
     doc.addEventListener('keydown', (e) => {
@@ -162,7 +178,10 @@
     });
   }
 
-  onDestroy(() => observer?.disconnect());
+  onDestroy(() => {
+    observer?.disconnect();
+    linkStatus.hide(me);
+  });
 </script>
 
 <!--

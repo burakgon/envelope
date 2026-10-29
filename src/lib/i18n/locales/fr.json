@@ -258,6 +258,10 @@
 
   "mailFrame.showQuotedText": "Afficher le texte cité",
   "mailFrame.picture": "Image {number}",
+  "mailFrame.linkElsewhere": "Ouvre {host}, et non {claimed} comme l’indique le texte du lien",
+  "mailFrame.linkWriteTo": "Écrire à {address}",
+  "mailFrame.linkCall": "Appeler le {number}",
+  "mailFrame.linkCalendar": "S’abonner au calendrier {url}",
 
   "attachment.saveAs": "Enregistrer sous…",
   "attachment.saved": "{file} enregistré",

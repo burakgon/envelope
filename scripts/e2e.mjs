@@ -350,6 +350,17 @@ await step('the message frame fits its text, growing and shrinking with the quot
   await wUntil(async () => Math.abs((await height()) - short) <= 2, async () => `the frame stayed ${await height()}px tall, not ${short}px`);
 });
 
+await step('links say where they go, and warn when their text names another site', async () => {
+  await openConversation('confirm your account');
+  await w.frameLocator('.reader iframe').first().locator('a').first().hover();
+  const pill = w.locator('.reader .pill.warn');
+  await pill.waitFor({ timeout: 5000 });
+  const said = await pill.innerText();
+  if (!said.includes('northstar-verify.test') || !said.includes('northstar.test as the link text says')) throw new Error(`the warning says "${said}"`);
+  await w.locator('.reader > header').hover();
+  await pill.waitFor({ state: 'detached', timeout: 5000 });
+});
+
 await w.close();
 
 await step('no page errors', async () => {

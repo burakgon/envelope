@@ -258,6 +258,10 @@
 
   "mailFrame.showQuotedText": "显示引用内容",
   "mailFrame.picture": "图片 {number}",
+  "mailFrame.linkElsewhere": "链接文字显示为 {claimed}，实际打开 {host}",
+  "mailFrame.linkWriteTo": "给 {address} 写邮件",
+  "mailFrame.linkCall": "拨打 {number}",
+  "mailFrame.linkCalendar": "订阅日历 {url}",
 
   "attachment.saveAs": "另存为…",
   "attachment.saved": "已保存 {file}",

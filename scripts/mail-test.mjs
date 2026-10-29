@@ -97,6 +97,25 @@ check('a block that is only the introduction', attributionOnly(blockLines('On Mo
 check('a reply that ends with the introduction', attributionOnly(blockLines('Thanks!<br>On Mon, Alex wrote:')), false);
 check('Gmail\'s wrapped introduction', attributionOnly(blockLines('On Mon, Oct 26, 2026 at 9:00 AM Alex Morgan &lt;alex@lumen.dev&gt;<br>wrote:')), true);
 
+// ----- links ------------------------------------------------------------------------------------
+
+const { linkTarget, namedHost, shorten } = await import(new URL('utils/links.ts', src).href);
+
+const target = (href, text) => {
+  const l = linkTarget(href, text);
+  return l && { kind: l.kind, host: l.host, claimed: l.claimed };
+};
+check('an ordinary link', target('https://dailybyte.test/read', 'Read the full issue →'), { kind: 'web', host: 'dailybyte.test', claimed: null });
+check('text naming another site', target('https://paypal.com.secure-login.test/x', 'https://www.paypal.com/signin'), { kind: 'web', host: 'paypal.com.secure-login.test', claimed: 'paypal.com' });
+check('a bare domain as text', target('http://evil.example/', 'paypal.com'), { kind: 'web', host: 'evil.example', claimed: 'paypal.com' });
+check('the same site, other host', target('https://click.mail.example.com/t?u=1', 'example.com'), { kind: 'web', host: 'click.mail.example.com', claimed: null });
+check('www does not matter', target('https://example.com/', 'www.example.com'), { kind: 'web', host: 'example.com', claimed: null });
+check('a file name is not a site', namedHost('report.pdf'), null);
+check('a sentence is not a site', namedHost('Download report.pdf now'), null);
+check('mail links', target('mailto:maya@northwind.design?subject=Hi', 'Write to Maya'), { kind: 'mail', host: null, claimed: null });
+check('links inside the message', linkTarget('#top', 'Top'), null);
+check('long addresses are shortened in the middle', shorten('https://example.com/' + 'a'.repeat(100), 40).length, 40);
+
 if (failed) {
   console.log(`\n${failed} of ${checks} check(s) failed`);
   process.exit(1);

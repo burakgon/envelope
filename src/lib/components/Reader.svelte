@@ -8,6 +8,7 @@
   import SnoozeMenu from './SnoozeMenu.svelte';
   import MoveMenu from './MoveMenu.svelte';
   import AiSummary from './AiSummary.svelte';
+  import LinkStatus from './LinkStatus.svelte';
   import { pgp } from '../stores/pgp.svelte';
   import { tasks } from '../stores/tasks.svelte';
   import { Archive, BellOff, Clock, Folder, Forward, ListChecks, ListPlus, Mail, MailOpen, Reply, ReplyAll, ShieldAlert, Star, Tag, Trash, Inbox } from '../icons';
@@ -139,6 +140,7 @@
         {/if}
       </div>
     </div>
+    <LinkStatus />
   {:else if mail.detailLoading}
     <div class="scroll"><div class="inner"><div class="skeleton" style="width:60%;height:24px;margin:20px 0"></div><div class="skeleton" style="height:180px;border-radius:14px"></div></div></div>
   {:else}
@@ -168,6 +170,7 @@
 
 <style>
   .reader {
+    position: relative;
     flex: 1;
     min-width: 0;
     display: flex;

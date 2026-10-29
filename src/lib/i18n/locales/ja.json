@@ -258,6 +258,10 @@
 
   "mailFrame.showQuotedText": "引用テキストを表示",
   "mailFrame.picture": "画像 {number}",
+  "mailFrame.linkElsewhere": "リンクの文字は {claimed} ですが、{host} を開きます",
+  "mailFrame.linkWriteTo": "{address} 宛てにメールを作成",
+  "mailFrame.linkCall": "{number} に電話",
+  "mailFrame.linkCalendar": "カレンダー {url} を購読",
 
   "attachment.saveAs": "名前を付けて保存…",
   "attachment.saved": "「{file}」を保存しました",
