@@ -346,6 +346,51 @@ pub(crate) fn local_instances(
     (out, exhausted)
 }
 
+/// Instances of `rule` after `start`, its first instance (the `DTSTART`), in
+/// the same form as `start`, until the rule ends (`COUNT` counts `start`).
+pub(crate) fn instances_after<'a>(
+    rule: &RecurRule,
+    start: &'a EventTime,
+    ctx: &TzContext,
+    tz: Tz,
+) -> impl Iterator<Item = EventTime> + 'a {
+    let dtstart = wall_clock(start);
+    let zone = ctx.zone_of(start, tz);
+    let until = UntilBound::new(rule, start);
+    let remaining = rule
+        .count
+        .map_or(usize::MAX, |c| (c as usize).saturating_sub(1));
+    RuleIter::new(rule, dtstart, PERIOD_BUDGET)
+        .filter(move |instance| *instance > dtstart)
+        .take_while(move |instance| !until.excludes(*instance, zone.to_utc(*instance)))
+        .take(remaining)
+        .map(move |instance| with_wall_clock(instance, start))
+}
+
+/// The instance of a recurrence that follows `start`, its first one (the
+/// `DTSTART`), in the same form; `None` when the rule ends there (`COUNT`,
+/// `UNTIL`) or cannot be read. Repeating tasks move on to it when they are
+/// completed.
+///
+/// ```
+/// use chrono::NaiveDate;
+/// use envelope_ical::{EventTime, TzContext, next_instance};
+///
+/// let friday = EventTime::Date { date: NaiveDate::from_ymd_opt(2024, 3, 1).unwrap() };
+/// let next = next_instance("FREQ=WEEKLY;BYDAY=MO,FR", &friday, &TzContext::new(), chrono_tz::UTC);
+/// assert_eq!(next, Some(EventTime::Date { date: NaiveDate::from_ymd_opt(2024, 3, 4).unwrap() }));
+/// assert_eq!(next_instance("FREQ=DAILY;COUNT=1", &friday, &TzContext::new(), chrono_tz::UTC), None);
+/// ```
+pub fn next_instance(
+    rrule: &str,
+    start: &EventTime,
+    ctx: &TzContext,
+    default_tz: Tz,
+) -> Option<EventTime> {
+    let rule = RecurRule::parse(rrule)?;
+    instances_after(&rule, start, ctx, default_tz).next()
+}
+
 /// Expands a series master and its overrides within `[window_start,
 /// window_end)`.
 ///

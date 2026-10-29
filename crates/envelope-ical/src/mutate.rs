@@ -355,7 +355,7 @@ pub(crate) fn build_calendar(
 
 /// Inserts `property` after the last property named in `anchors` (or at
 /// the end).
-fn insert_after(component: &mut Component, property: Property, anchors: &[&str]) {
+pub(crate) fn insert_after(component: &mut Component, property: Property, anchors: &[&str]) {
     let position = component
         .properties
         .iter()
@@ -448,7 +448,7 @@ fn rid_label(rid: Option<&EventTime>) -> Option<String> {
 }
 
 /// Sets `DTSTAMP` and `LAST-MODIFIED` to `now` and optionally increments `SEQUENCE`.
-fn touch(vevent: &mut Component, now: DateTime<Utc>, bump_sequence: bool) {
+pub(crate) fn touch(vevent: &mut Component, now: DateTime<Utc>, bump_sequence: bool) {
     if bump_sequence {
         let sequence = vevent
             .value("SEQUENCE")
@@ -605,7 +605,7 @@ fn replace_from(vevent: &mut Component, fresh: &Component, name: &str) {
 
 /// Sets a TEXT property, keeping its parameters except `ALTREP` (which
 /// would point at the old text); removes it for empty values.
-fn set_text(vevent: &mut Component, name: &str, value: Option<&str>) {
+pub(crate) fn set_text(vevent: &mut Component, name: &str, value: Option<&str>) {
     match value.filter(|v| !v.is_empty()) {
         None => {
             vevent.remove_all(name);

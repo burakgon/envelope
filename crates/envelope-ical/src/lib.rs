@@ -17,6 +17,8 @@
 //! * [`mutate`]: creating calendars and editing existing calendar text
 //!   (upsert, delete an occurrence, "this and following").
 //! * [`itip`]: RFC 5546 invitations, replies and cancellations.
+//! * [`todo`]: tasks (`VTODO`): reading, writing, editing stored ones in
+//!   place and moving repeating ones to their next occurrence.
 //! * [`vcard`]: vCard 2.1/3.0/4.0 parsing and vCard 3.0 writing.
 //!
 //! # Example
@@ -81,6 +83,7 @@ pub mod mutate;
 pub mod parser;
 pub mod recur;
 pub mod text;
+pub mod todo;
 pub mod tz;
 pub mod value;
 pub mod vcard;
@@ -105,7 +108,11 @@ pub use mutate::{
 pub use parser::{decode_bytes, parse_components, parse_components_bytes};
 pub use recur::{
     EventOccurrence, EventsExpansion, ExpandOptions, Expansion, Frequency, Occurrence, RecurRule,
-    expand, expand_events,
+    expand, expand_events, next_instance,
+};
+pub use todo::{
+    Todo, TodoStatus, create_todo, create_todo_at, parse_todos, todo_from_vtodo, upsert_todo,
+    upsert_todo_at,
 };
 pub use tz::{TzContext, Zone, generate_vtimezone, resolve_tzid, to_utc};
 pub use vcard::{contact_to_vcard, parse_vcard, parse_vcards, upsert_contact};

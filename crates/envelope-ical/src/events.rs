@@ -247,13 +247,17 @@ pub fn event_from_vevent(
     Some(event)
 }
 
-fn non_empty(text: Option<String>) -> Option<String> {
+pub(crate) fn non_empty(text: Option<String>) -> Option<String> {
     text.map(|t| t.trim().to_owned()).filter(|t| !t.is_empty())
 }
 
 /// A timestamp property (`CREATED`, `LAST-MODIFIED`) as an instant; values
 /// that are (incorrectly) not in UTC are interpreted like any other time.
-fn instant_of(property: Option<&Property>, ctx: &TzContext, tz: Tz) -> Option<DateTime<Utc>> {
+pub(crate) fn instant_of(
+    property: Option<&Property>,
+    ctx: &TzContext,
+    tz: Tz,
+) -> Option<DateTime<Utc>> {
     property
         .and_then(property_time)
         .map(|time| ctx.to_utc(&time, tz))
@@ -568,17 +572,28 @@ pub(crate) fn parse_alarm(
 
 /// A stable UID for events that lack one, derived from their content.
 fn synthesized_uid(vevent: &Component) -> String {
+    content_uid(
+        vevent,
+        &[
+            "DTSTART",
+            "DTEND",
+            "SUMMARY",
+            "LOCATION",
+            "RRULE",
+            "RECURRENCE-ID",
+        ],
+    )
+}
+
+/// A stable UID derived from the values of the properties `names`.
+pub(crate) fn content_uid(component: &Component, names: &[&str]) -> String {
     // FNV-1a: stable across Rust versions, unlike `DefaultHasher`.
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for name in [
-        "DTSTART",
-        "DTEND",
-        "SUMMARY",
-        "LOCATION",
-        "RRULE",
-        "RECURRENCE-ID",
-    ] {
-        for byte in name.bytes().chain(vevent.value(name).unwrap_or("").bytes()) {
+    for name in names {
+        for byte in name
+            .bytes()
+            .chain(component.value(name).unwrap_or("").bytes())
+        {
             hash ^= u64::from(byte);
             hash = hash.wrapping_mul(0x0100_0000_01b3);
         }
