@@ -245,6 +245,8 @@ export function createMockApi(): Api {
     isDemo: true,
     ready: async () => {},
     info: async () => ({ version: '0.4.0', dataDir: '(demo)', googleConfigured: true, microsoftConfigured: true, trayAvailable: true }),
+    // Up to date, unless a test asks for a newer release.
+    newerRelease: async () => (sessionStorage.getItem('envelope.demo.release') ? { version: '0.9.0', url: 'https://github.com/burakgon/envelope/releases' } : null),
     autostart: {
       get: async () => autostart,
       set: async (enabled) => {

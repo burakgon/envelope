@@ -32,6 +32,7 @@ pub mod smtp;
 pub mod subscriptions;
 pub mod sync;
 pub mod tasks;
+pub mod updates;
 pub mod vip;
 
 pub use engine::{AccountPatch, Engine, EventSink, Paths};

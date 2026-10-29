@@ -15,11 +15,12 @@
   import { health } from '../../stores/accountHealth.svelte';
   import { blockedSenders, unblock } from '../../stores/rules.svelte';
   import { vips } from '../../stores/vips.svelte';
+  import { updates } from '../../stores/updates.svelte';
   import Toggle from './Toggle.svelte';
   import Logo from '../Logo.svelte';
   import { modal } from '../../actions/modal';
   import {
-    Away, Bell, Calendar, FileText, Filter, Info, Keyboard, Mail, Palette, Pen, Settings as Gear, ShieldCheck, Sparkles, Users, X, Plus, Trash, Moon, Sun, Lock, ExternalLink, Code,
+    Away, Bell, Calendar, FileText, Filter, Info, Keyboard, Mail, Palette, Pen, Settings as Gear, ShieldCheck, Sparkles, Users, X, Plus, Trash, Moon, Sun, Lock, ExternalLink, Code, Download,
   } from '../../icons';
   import { cal } from '../../stores/calendar.svelte';
   import TimeZonePicker from '../calendar/TimeZonePicker.svelte';
@@ -573,9 +574,20 @@
           <h2>Envelope</h2>
           <p class="desc">{t('settings.about.version', { version: info?.version ?? '0.1.0' })}</p>
           <p class="desc">{t('settings.about.desc')}</p>
+          {#if updates.available}
+            {@const release = updates.available}
+            <p class="desc newer">{t('updates.available', { version: release.version })} <button class="btn sm primary" onclick={() => api.openUrl(release.url)}><Download size={14} />{t('updates.download')}</button></p>
+          {/if}
           <div class="btns center">
             <button class="btn" onclick={() => api.openUrl('https://github.com/burakgon/envelope')}><ExternalLink size={14} />GitHub</button>
             <button class="btn" onclick={() => api.openUrl('https://github.com/burakgon/envelope/issues/new')}><Mail size={14} />{t('settings.about.reportProblem')}</button>
+          </div>
+        </div>
+        <div class="group">
+          <div class="row">
+            <div class="txt"><b>{t('updates.check')}</b><span>{t('updates.checkDesc')}</span></div>
+            <button class="btn sm" disabled={updates.checking} onclick={() => updates.check(true)}>{t('updates.checkNow')}</button>
+            <Toggle label={t('updates.check')} checked={ui.settings.checkUpdates} onchange={(v) => ui.set('checkUpdates', v)} />
           </div>
         </div>
       {/if}
@@ -892,6 +904,16 @@
     align-items: center;
     text-align: center;
     padding-top: 40px;
+  }
+  .about .newer {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .about + .group {
+    margin-top: 28px;
   }
   .about h2 {
     margin: 14px 0 4px;

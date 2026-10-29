@@ -225,6 +225,16 @@
   "birthdays.turns": "满 {age} 岁",
   "birthdays.openContact": "打开联系人",
 
+  "updates.available": "Envelope {version} 已发布",
+  "updates.whatsNew": "查看新功能",
+  "updates.dismiss": "暂不",
+  "updates.download": "下载",
+  "updates.upToDate": "Envelope 已是最新版本",
+  "updates.failed": "无法检查新版本：{error}",
+  "updates.check": "检查新版本",
+  "updates.checkDesc": "Envelope 每天会询问 GitHub 一次是否有更新的版本，不会发送任何关于你或你的邮件的信息。",
+  "updates.checkNow": "立即检查",
+
   "outbox.toRecipients": "发送至 {recipients}",
   "outbox.toNobody": "无收件人",
   "outbox.notSent": "未发送：{error}",

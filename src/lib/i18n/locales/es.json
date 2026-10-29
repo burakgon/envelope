@@ -225,6 +225,16 @@
   "birthdays.turns": "{age, plural, one {Cumple # año} other {Cumple # años}}",
   "birthdays.openContact": "Abrir contacto",
 
+  "updates.available": "Envelope {version} está disponible",
+  "updates.whatsNew": "Ver las novedades",
+  "updates.dismiss": "Ahora no",
+  "updates.download": "Descargar",
+  "updates.upToDate": "Envelope está actualizado",
+  "updates.failed": "No se pudo buscar una versión nueva: {error}",
+  "updates.check": "Buscar versiones nuevas",
+  "updates.checkDesc": "Una vez al día, Envelope pregunta a GitHub si hay una versión más reciente. No se envía nada sobre ti ni sobre tu correo.",
+  "updates.checkNow": "Buscar ahora",
+
   "outbox.toRecipients": "Para: {recipients}",
   "outbox.toNobody": "Sin destinatarios",
   "outbox.notSent": "No enviado: {error}",

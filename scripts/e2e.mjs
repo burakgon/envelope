@@ -995,6 +995,24 @@ await step('Subscriptions: unsubscribe, archive what a list left in the inbox, d
   }
 });
 
+await step('a newer version is announced in the sidebar, and the notice can be put away', async () => {
+  const p = await fresh({ 'envelope.demo.release': '1' });
+  try {
+    await p.keyboard.press('Control+,');
+    await p.locator('.window .tab', { hasText: 'About' }).click();
+    await p.locator('.window button', { hasText: 'Check now' }).click();
+    await toast(p, 'Envelope 0.9.0 is available');
+    await p.locator('.window .newer', { hasText: 'Envelope 0.9.0 is available' }).waitFor({ timeout: 5000 });
+    await p.keyboard.press('Escape');
+    const banner = p.locator('.sidebar .banner', { hasText: 'Envelope 0.9.0 is available' });
+    await banner.waitFor({ timeout: 5000 });
+    await banner.locator('button[aria-label="Not now"]').click();
+    await banner.waitFor({ state: 'detached', timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('blocking a sender moves their mail to Spam; Privacy unblocks', async () => {
   const p = await fresh();
   try {

@@ -225,6 +225,16 @@
   "birthdays.turns": "Wird {age}",
   "birthdays.openContact": "Kontakt öffnen",
 
+  "updates.available": "Envelope {version} ist verfügbar",
+  "updates.whatsNew": "Neuerungen ansehen",
+  "updates.dismiss": "Später",
+  "updates.download": "Herunterladen",
+  "updates.upToDate": "Envelope ist auf dem neuesten Stand",
+  "updates.failed": "Nach einer neuen Version konnte nicht gesucht werden: {error}",
+  "updates.check": "Nach neuen Versionen suchen",
+  "updates.checkDesc": "Envelope fragt einmal am Tag bei GitHub, ob es eine neuere Version gibt. Dabei wird nichts über Sie oder Ihre E-Mails übertragen.",
+  "updates.checkNow": "Jetzt suchen",
+
   "outbox.toRecipients": "an {recipients}",
   "outbox.toNobody": "an niemanden",
   "outbox.notSent": "Nicht gesendet: {error}",

@@ -5,6 +5,7 @@
   import { compose } from './lib/stores/compose.svelte';
   import { mail } from './lib/stores/mail.svelte';
   import { vips } from './lib/stores/vips.svelte';
+  import { updates } from './lib/stores/updates.svelte';
   import { toasts } from './lib/stores/toasts.svelte';
   import { ui } from './lib/stores/ui.svelte';
   import { ai } from './lib/stores/ai.svelte';
@@ -71,6 +72,7 @@
       await ui.load();
       await mail.init();
       vips.load();
+      updates.start();
       await ai.load();
       booted = true;
       cal.init();

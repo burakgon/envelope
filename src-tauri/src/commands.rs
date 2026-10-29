@@ -111,6 +111,16 @@ pub fn app_info(state: State<'_, AppState>) -> serde_json::Value {
     })
 }
 
+/// The latest release when it is newer than this build. None in a Flatpak,
+/// whose updates come from where it was installed.
+#[tauri::command]
+pub async fn newer_release() -> R<Option<envelope_core::updates::Release>> {
+    if std::env::var_os("FLATPAK_ID").is_some() {
+        return Ok(None);
+    }
+    Ok(envelope_core::updates::newer_release(env!("CARGO_PKG_VERSION")).await?)
+}
+
 // ----- accounts ---------------------------------------------------------------
 
 #[tauri::command]

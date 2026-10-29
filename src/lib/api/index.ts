@@ -8,6 +8,8 @@ export interface Api {
   readonly isDemo: boolean;
   ready(): Promise<void>;
   info(): Promise<T.AppInfo>;
+  /** The latest release when it is newer than this one (asks GitHub). */
+  newerRelease(): Promise<T.Release | null>;
   /** Start Envelope (in the tray) when the user logs in. */
   autostart: {
     get(): Promise<boolean>;

@@ -193,6 +193,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::app_ready,
             commands::app_info,
+            commands::newer_release,
             commands::accounts,
             commands::discover,
             commands::accounts_elsewhere,

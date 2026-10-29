@@ -582,6 +582,13 @@ export interface OAuthClient {
   tenant?: string | null;
 }
 
+/** A version of Envelope newer than the one running. */
+export interface Release {
+  version: string;
+  /** Its page, with the notes and the downloads. */
+  url: string;
+}
+
 export interface AppInfo {
   version: string;
   dataDir: string;

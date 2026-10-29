@@ -15,6 +15,7 @@
   import type { SavedSearch } from '../stores/ui.svelte';
   import Logo from './Logo.svelte';
   import OutboxMenu from './OutboxMenu.svelte';
+  import UpdateBanner from './UpdateBanner.svelte';
   import FolderMenu from './FolderMenu.svelte';
   import { canNest, isCategory, isFixed, moveTargetOf, nestFolder, newFolder } from '../stores/folders.svelte';
   import DemoBanner from './DemoBanner.svelte';
@@ -565,6 +566,7 @@
   {/if}
 
   <AutoReplyBanner />
+  <UpdateBanner />
   {#if api.isDemo}<DemoBanner />{/if}
   <footer>
     <button class="item" onclick={() => ui.open('settings')}>

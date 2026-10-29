@@ -91,6 +91,10 @@ export interface Settings {
   rules: MailRule[];
   /** New-mail notifications play the desktop's new-mail sound. */
   notificationSound: boolean;
+  /** Envelope asks GitHub once a day whether a newer version is out. */
+  checkUpdates: boolean;
+  /** The newer version whose notice was put away. */
+  dismissedUpdate: string;
   /** The calendar shows the birthdays from the address books. */
   calendarBirthdays: boolean;
   /** The calendar shows week numbers (ISO 8601). */
@@ -140,6 +144,8 @@ export const defaultSettings: Settings = {
   templates: [],
   notificationSound: true,
   unsubscribed: {},
+  checkUpdates: true,
+  dismissedUpdate: '',
   calendarBirthdays: true,
   calendarWeekNumbers: false,
   savedSearches: [],

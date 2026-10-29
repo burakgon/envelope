@@ -225,6 +225,16 @@
   "birthdays.turns": "{age} yaşına giriyor",
   "birthdays.openContact": "Kişiyi aç",
 
+  "updates.available": "Envelope {version} yayımlandı",
+  "updates.whatsNew": "Yeniliklere bakın",
+  "updates.dismiss": "Şimdi değil",
+  "updates.download": "İndir",
+  "updates.upToDate": "Envelope güncel",
+  "updates.failed": "Yeni sürüm denetlenemedi: {error}",
+  "updates.check": "Yeni sürümleri denetle",
+  "updates.checkDesc": "Envelope günde bir kez GitHub’a daha yeni bir sürüm olup olmadığını sorar. Sizinle ya da postalarınızla ilgili hiçbir bilgi gönderilmez.",
+  "updates.checkNow": "Şimdi denetle",
+
   "outbox.toRecipients": "alıcı: {recipients}",
   "outbox.toNobody": "alıcı yok",
   "outbox.notSent": "Gönderilemedi: {error}",
