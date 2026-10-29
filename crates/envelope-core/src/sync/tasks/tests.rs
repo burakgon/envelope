@@ -1796,12 +1796,27 @@ async fn refused_changes_are_retried_then_given_up() {
     assert!(!kept.pending);
     assert_eq!(kept.error, None);
 
-    // A change the server forbids is undone, and the list is read-only.
+    // A change the server forbids is undone, and the list is read-only. The
+    // title written here is not lost: a copy goes to this computer's list.
     server.reset().await;
     let href = format!("{}/dav/home/tasks/t1.ics", server.uri());
     let id = stored(&fx, &list, &href, "e1", &parent_task()).await;
+    stored(
+        &fx,
+        &list,
+        &format!("{}/dav/home/tasks/t2.ics", server.uri()),
+        "e1",
+        &child_task(),
+    )
+    .await;
     fx.engine
-        .update_task(id, input(list.id, "Mine"))
+        .update_task(
+            id,
+            TaskInput {
+                notes: Some("Somewhere warm".into()),
+                ..input(list.id, "Mine")
+            },
+        )
         .await
         .expect("edit");
     Mock::given(method("PUT"))
@@ -1820,7 +1835,22 @@ async fn refused_changes_are_retried_then_given_up() {
         ListSyncState::default(),
         "synced again from scratch"
     );
-    assert!(fx.engine.db.read(|c| tdb::get_task(c, id)).is_err());
+    let back = fx.engine.task(id).await.expect("the server's copy");
+    assert_eq!(
+        (back.title.as_str(), back.notes.as_str(), back.pending),
+        ("Plan the trip", "", false)
+    );
+    assert_eq!(back.subtask_count, 1, "its subtask stays with it");
+    let local = fx.local_list();
+    let copy = fx
+        .engine
+        .tasks_query(TaskView::List(local), false)
+        .await
+        .expect("query")
+        .into_iter()
+        .find(|t| t.title == "Mine")
+        .expect("a copy of what was written here");
+    assert_eq!(copy.notes, "Somewhere warm");
     assert!(matches!(
         fx.engine.create_task(input(list.id, "x")).await,
         Err(Error::Invalid(_))

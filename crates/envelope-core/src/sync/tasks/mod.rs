@@ -77,6 +77,10 @@ pub(crate) trait TaskService: Send + Sync {
     /// copy the change started from (`None` for new tasks).
     async fn push(&self, list: &ListRow, task: &TaskRow) -> std::result::Result<Done, Failure>;
 
+    /// The server copy the local change of `task` started from, as stored
+    /// in `task.data`.
+    fn server_copy(&self, task: &TaskRow) -> Option<RemoteTask>;
+
     /// Creates a list; returns it as [`lists`](Self::lists) would.
     async fn create_list(&self, name: &str) -> Result<ListUpsert>;
 
@@ -406,16 +410,22 @@ pub(crate) async fn push_list(
         } else {
             service.push(list, &row).await
         };
-        changed |= settle(engine, list, &row, outcome)?;
+        changed |= settle(engine, service, list, &row, outcome)?;
     }
     Ok(changed)
 }
 
 /// Gives up on a local change: a task the server would not create is kept
 /// in the list on this computer, anything else returns to the server's
-/// copy. A task deleted while its change was being uploaded is left to its
-/// deletion.
-fn give_up(engine: &Engine, list: &ListRow, row: &TaskRow) -> Result<()> {
+/// copy, keeping a copy of a refused title or notes in the list on this
+/// computer so that the text is not lost. A task deleted while its change
+/// was being uploaded is left to its deletion.
+fn give_up(
+    engine: &Engine,
+    service: &dyn TaskService,
+    list: &ListRow,
+    row: &TaskRow,
+) -> Result<()> {
     let local = engine.ensure_local_task_list()?;
     engine.db.write(|tx| {
         let Ok(current) = tdb::get_task(tx, row.id) else {
@@ -425,9 +435,18 @@ fn give_up(engine: &Engine, list: &ListRow, row: &TaskRow) -> Result<()> {
             return Ok(());
         }
         if current.local_state == tdb::CREATED {
-            tdb::keep_locally(tx, current.id, local)
-        } else {
-            tdb::discard_local_change(tx, current.id, list.id)
+            return tdb::keep_locally(tx, current.id, local);
+        }
+        let base = service.server_copy(&current);
+        let text_changed = base
+            .as_ref()
+            .is_none_or(|b| b.title != current.title || b.notes != current.notes);
+        if current.local_state == tdb::MODIFIED && text_changed {
+            tdb::copy_to_local(tx, &current, local)?;
+        }
+        match base {
+            Some(base) => tdb::revert(tx, current.id, list.id, &base),
+            None => tdb::discard_local_change(tx, current.id, list.id),
         }
     })
 }
@@ -437,6 +456,7 @@ fn give_up(engine: &Engine, list: &ListRow, row: &TaskRow) -> Result<()> {
 /// more sense than going on.
 fn settle(
     engine: &Engine,
+    service: &dyn TaskService,
     list: &ListRow,
     row: &TaskRow,
     outcome: std::result::Result<Done, Failure>,
@@ -472,7 +492,7 @@ fn settle(
                 )?;
                 Ok(())
             })?;
-            give_up(engine, list, row)?;
+            give_up(engine, service, list, row)?;
             Ok(true)
         }
         Err(Failure::Rejected(message)) if row.push_attempts + 1 >= MAX_ATTEMPTS => {
@@ -480,7 +500,7 @@ fn settle(
                 task = row.id,
                 "giving up on a change the server refuses: {message}"
             );
-            give_up(engine, list, row)?;
+            give_up(engine, service, list, row)?;
             Ok(true)
         }
         Err(Failure::Rejected(message)) => {

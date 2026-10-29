@@ -258,6 +258,11 @@ impl TaskService for Google {
         })
     }
 
+    fn server_copy(&self, task: &TaskRow) -> Option<RemoteTask> {
+        let copy = serde_json::from_str::<GoogleTask>(task.data.as_deref()?).ok()?;
+        Some(remote_task(&copy))
+    }
+
     async fn create_list(&self, name: &str) -> Result<ListUpsert> {
         let created = self.client.insert_task_list(name).await.map_err(err)?;
         Ok(ListUpsert {

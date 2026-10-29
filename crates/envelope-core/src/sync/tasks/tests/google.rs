@@ -987,6 +987,97 @@ async fn google_takes_titles_and_notes_up_to_its_limits() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn google_refused_edits_keep_their_text() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = oauth_account(&fx, AccountKind::Gmail, TASKS_SCOPE);
+    let service = google_tasks(&fx, &server);
+    mount_lists(&server).await;
+    store_lists(&fx, &account, &service).await;
+    let l1 = list_named(&fx, &account, "My Tasks");
+    let first = [
+        task(
+            "T1",
+            "Plan the trip",
+            "00000000000000001000",
+            json!({ "notes": "Somewhere warm" }),
+        ),
+        task(
+            "T2",
+            "Book flights",
+            "00000000000000001000",
+            json!({ "parent": "T1" }),
+        ),
+        task("T3", "Pay rent", "00000000000000002000", json!({})),
+    ];
+    Mock::given(method("GET"))
+        .and(path(L1))
+        .respond_with(page(&first))
+        .mount(&server)
+        .await;
+    pull_list(&fx.engine, &service, &l1).await.expect("pull");
+    let [trip, flights, rent] = ["T1", "T2", "T3"].map(|id| remote_row(&fx, l1.id, id).id);
+    // Google refuses every write.
+    Mock::given(method("PATCH"))
+        .respond_with(google_error(400, "invalid", "Invalid value."))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .respond_with(google_error(400, "invalid", "Invalid value."))
+        .mount(&server)
+        .await;
+    fx.engine
+        .update_task(
+            trip,
+            TaskInput {
+                notes: Some("Somewhere warm, in May".into()),
+                ..input(l1.id, "Plan the summer trip")
+            },
+        )
+        .await
+        .expect("edit");
+    fx.engine
+        .reorder_task(rent, Some(trip))
+        .await
+        .expect("to the top");
+    for _ in 0..MAX_ATTEMPTS {
+        retry_now(&fx, l1.id);
+        push_list(&fx.engine, &service, &l1).await.expect("push");
+    }
+
+    // Given up: both are Google's copies again, the trip still with its
+    // subtask…
+    let back = fx.engine.task(trip).await.expect("trip");
+    assert_eq!(
+        (back.title.as_str(), back.notes.as_str(), back.pending),
+        ("Plan the trip", "Somewhere warm", false)
+    );
+    assert_eq!(
+        fx.engine.task_subtasks(trip).await.expect("subtasks")[0].id,
+        flights
+    );
+    assert_eq!(
+        order(&fx, l1.id, None),
+        ["Plan the trip", "Pay rent"],
+        "Google's order"
+    );
+    // …and the text written here is kept on this computer; the order is
+    // not, as it is no text.
+    let local = fx.local_list();
+    let kept = fx
+        .engine
+        .tasks_query(TaskView::List(local), false)
+        .await
+        .expect("query");
+    assert_eq!(
+        kept.iter()
+            .map(|t| (t.title.as_str(), t.notes.as_str()))
+            .collect::<Vec<_>>(),
+        [("Plan the summer trip", "Somewhere warm, in May")]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn google_accounts_without_tasks_access_are_passed_over() {
     let fx = fixture();
     // Signed in before Envelope asked for tasks.

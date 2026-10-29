@@ -333,6 +333,14 @@ impl TaskService for Caldav {
         )))
     }
 
+    fn server_copy(&self, task: &TaskRow) -> Option<RemoteTask> {
+        remote_task(
+            task.remote_id.as_deref()?,
+            task.etag.clone(),
+            task.data.as_deref()?,
+        )
+    }
+
     async fn create_list(&self, name: &str) -> Result<ListUpsert> {
         let home = self.home().await?;
         let href = self

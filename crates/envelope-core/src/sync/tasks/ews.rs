@@ -236,6 +236,11 @@ impl TaskService for Ews {
         }
     }
 
+    fn server_copy(&self, task: &TaskRow) -> Option<RemoteTask> {
+        let copy = serde_json::from_str::<Task>(task.data.as_deref()?).ok()?;
+        Some(remote_task(&copy))
+    }
+
     async fn create_list(&self, name: &str) -> Result<ListUpsert> {
         let id = self
             .client

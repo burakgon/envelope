@@ -391,6 +391,15 @@ impl TaskService for Graph {
         }
     }
 
+    fn server_copy(&self, task: &TaskRow) -> Option<RemoteTask> {
+        let data = task.data.as_deref()?;
+        if let Ok(step) = serde_json::from_str::<Step>(data) {
+            return Some(remote_step(&step.task_id, step.checklist_item, None));
+        }
+        let copy = serde_json::from_str::<TodoTask>(data).ok()?;
+        Some(remote_task(&copy))
+    }
+
     async fn create_list(&self, name: &str) -> Result<ListUpsert> {
         let created = self.client.create_todo_list(name).await.map_err(err)?;
         Ok(ListUpsert {

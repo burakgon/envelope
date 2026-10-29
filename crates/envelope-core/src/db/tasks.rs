@@ -1153,8 +1153,70 @@ pub fn push_failed(tx: &Transaction<'_>, id: i64, error: &str, retry_at: i64) ->
     Ok(())
 }
 
-/// Gives up on a local change the server keeps refusing: the row goes and
-/// the list is synced from scratch, which brings back the server's copy.
+/// Gives up on a local change the server keeps refusing: the task is the
+/// server copy the change started from again (`base`), and the list is
+/// synced from scratch, which brings the server's latest. Its subtasks stay
+/// with it.
+pub fn revert(tx: &Transaction<'_>, id: i64, list_id: i64, base: &RemoteTask) -> Result<()> {
+    tx.execute(
+        "UPDATE tasks SET title = ?1, notes = ?2,
+           notified = CASE WHEN due_at IS ?4 THEN notified ELSE 0 END,
+           due_date = ?3, due_at = ?4, completed_at = ?5, important = ?6, parent_uid = ?7,
+           position = coalesce(?8, position), repeats = ?9, data = ?10, etag = NULL, local_state = 0,
+           push_attempts = 0, push_after = 0, push_error = NULL, deleted_state = NULL,
+           deleted_with = NULL
+         WHERE id = ?11",
+        params![
+            base.title,
+            base.notes,
+            base.due_date,
+            base.due_at,
+            base.completed_at,
+            base.important as i64,
+            base.parent_uid,
+            base.position,
+            base.repeats as i64,
+            base.data,
+            id
+        ],
+    )?;
+    resolve_parents(tx, list_id)?;
+    tx.execute(
+        "UPDATE task_lists SET sync_state = '{}' WHERE id = ?",
+        [list_id],
+    )?;
+    Ok(())
+}
+
+/// Puts a copy of a task as it is here (a change the server refused, which
+/// would be lost otherwise) at the end of the list on this computer.
+/// Returns its id.
+pub fn copy_to_local(tx: &Transaction<'_>, row: &TaskRow, local_list: i64) -> Result<i64> {
+    let fields = TaskFields {
+        parent_id: None,
+        parent_uid: None,
+        position: max_position(tx, local_list, None)?.saturating_add(POSITION_STEP),
+        ..row.fields()
+    };
+    insert_local(
+        tx,
+        &NewTask {
+            list_id: local_list,
+            uid: &uuid::Uuid::new_v4().to_string(),
+            remote_id: None,
+            fields: &fields,
+            source: row.source.as_ref(),
+            data: None,
+            repeats: false,
+            created_at: row.created_at,
+            state: SYNCED,
+        },
+    )
+}
+
+/// Gives up on a local change the server keeps refusing when there is no
+/// server copy to go back to: the row goes and the list is synced from
+/// scratch, which brings back the server's copy.
 pub fn discard_local_change(tx: &Transaction<'_>, id: i64, list_id: i64) -> Result<()> {
     tx.execute("DELETE FROM tasks WHERE id = ?", [id])?;
     tx.execute(
