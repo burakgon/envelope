@@ -1276,6 +1276,89 @@ await step('the composer names its From and Subject fields', async () => {
   }
 });
 
+await step('menus take the keyboard: arrows, Home, End, Tab and Escape stay in them', async () => {
+  const p = await fresh();
+  try {
+    const list = p.getByRole('listbox', { name: 'Conversations' });
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    const subject = () => p.locator('.reader .subject-block h2').innerText();
+    const before = await subject();
+    const menu = p.locator('.popover');
+    const items = menu.locator('.menu-item');
+    const focused = () => p.evaluate(() => document.activeElement?.textContent?.trim() ?? '');
+    const on = async (i) => (await focused()) === (await items.nth(i).textContent()).trim();
+    // The snooze menu (h) takes the focus; the arrows move in it and Enter chooses.
+    await p.locator('body').press('h');
+    await menu.waitFor({ timeout: 5000 });
+    await eventually(p, () => on(0), 'the snooze menu did not take the focus');
+    await p.keyboard.press('ArrowDown');
+    if (!(await on(1))) throw new Error(`ArrowDown is on "${await focused()}"`);
+    await p.keyboard.press('Escape');
+    await menu.waitFor({ state: 'detached', timeout: 5000 });
+    await eventually(p, () => holdsFocus(list), 'Escape did not give the list the focus back');
+    // The context menu (Shift+F10): Home, End and Tab stay in it, and nothing reaches the list.
+    await p.keyboard.press('Shift+F10');
+    await menu.waitFor({ timeout: 5000 });
+    await eventually(p, () => on(0), 'the context menu did not take the focus');
+    await p.keyboard.press('End');
+    if (!(await on((await items.count()) - 1))) throw new Error(`End is on "${await focused()}"`);
+    await p.keyboard.press('Home');
+    if (!(await on(0))) throw new Error(`Home is on "${await focused()}"`);
+    await p.keyboard.press('ArrowUp');
+    if (!(await on((await items.count()) - 1))) throw new Error(`ArrowUp from the top is on "${await focused()}"`);
+    for (let i = 0; i < 20; i++) await p.keyboard.press(i % 3 ? 'Tab' : 'Shift+Tab');
+    if (!(await menu.evaluate((m) => m.contains(document.activeElement)))) throw new Error('Tab left the menu');
+    await p.keyboard.press('j');
+    if ((await subject()) !== before) throw new Error('keys in the menu moved the list behind it');
+    await p.keyboard.press('Escape');
+    await menu.waitFor({ state: 'detached', timeout: 5000 });
+    // Enter chooses.
+    await p.locator('body').press('h');
+    await menu.waitFor({ timeout: 5000 });
+    await p.keyboard.press('ArrowDown');
+    await p.keyboard.press('Enter');
+    await toast(p, 'Snoozed until');
+    await menu.waitFor({ state: 'detached', timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
+await step('Shift+F10 and the Menu key open the context menu of the selected conversation', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    await p.keyboard.press('Shift+F10');
+    const reply = p.locator('.popover .menu-item', { hasText: 'Reply all' });
+    await reply.waitFor({ timeout: 5000 });
+    await p.keyboard.press('ArrowDown');
+    if (!(await reply.evaluate((b) => b === document.activeElement))) throw new Error('the arrow did not move to Reply all');
+    await p.keyboard.press('Escape');
+    await reply.waitFor({ state: 'detached', timeout: 5000 });
+    await p.keyboard.press('ContextMenu');
+    await reply.waitFor({ timeout: 5000 });
+    await p.keyboard.press('Escape');
+  } finally {
+    await p.close();
+  }
+});
+
+await step('e in Contacts edits without typing an e', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('body').press('g');
+    await p.locator('body').press('p');
+    await p.locator('.contacts .row', { hasText: 'Maya Chen' }).click();
+    await p.locator('body').press('e');
+    const first = p.locator('.contacts .editor input[placeholder="First name"]');
+    await first.waitFor({ timeout: 5000 });
+    await p.waitForTimeout(200);
+    if ((await first.inputValue()) !== 'Maya') throw new Error(`the first name reads "${await first.inputValue()}"`);
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

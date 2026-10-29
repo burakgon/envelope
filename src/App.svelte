@@ -39,6 +39,7 @@
   /** Message and calendar files handed to the app, shown one after another. */
   let openedFiles = $state<string[]>([]);
   let kbMenu = $state<{ kind: 'snooze' | 'move' | 'label'; ids: number[] } | null>(null);
+  let list: ReturnType<typeof ThreadList> | undefined = $state();
   let gPending = false;
   let gTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -241,6 +242,8 @@
         e.preventDefault();
         people.step(-1);
       } else if (key === 'e' && people.detail) {
+        // The editor focuses the first name: the key must not be typed into it.
+        e.preventDefault();
         people.edit();
       } else if (key === '?') ui.open('shortcuts');
       return;
@@ -367,6 +370,13 @@
       case '4':
         if (mail.splitActive) mail.setCategory([ 'people', 'newsletters', 'notifications', null ][Number(key) - 1]);
         break;
+      case 'F10':
+      case 'ContextMenu':
+        // The context menu of the selected conversation, as a right click opens it.
+        if (key === 'F10' && !e.shiftKey) break;
+        e.preventDefault();
+        list?.openRowMenu();
+        break;
       case 'Escape':
         if (mail.checked.size) mail.checked.clear();
         else if (mail.selectedId != null) mail.select(null);
@@ -383,7 +393,7 @@
   {/if}
   <main>
     {#if ui.view === 'mail'}
-      <ThreadList />
+      <ThreadList bind:this={list} />
       <Reader />
     {:else if ui.view === 'calendar'}
       <CalendarView />
@@ -416,7 +426,7 @@
 {#if kbMenu}
   {@const ids = kbMenu.ids}
   {#if kbMenu.kind === 'snooze'}
-    <SnoozeMenu x={innerWidth / 2} y={innerHeight * 0.22} align="start" onclose={() => (kbMenu = null)} onpick={(ts) => { kbMenu = null; mail.snooze(ts, ids); }} />
+    <SnoozeMenu x={innerWidth / 2} y={innerHeight * 0.22} align="start" onclose={() => (kbMenu = null)} onpick={(ts) => { mail.snooze(ts, ids); kbMenu = null; }} />
   {:else}
     <MoveMenu x={innerWidth / 2 - 130} y={innerHeight * 0.22} {ids} labels={kbMenu.kind === 'label'} onclose={() => (kbMenu = null)} />
   {/if}

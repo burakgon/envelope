@@ -152,6 +152,15 @@
     menu = { x: e.clientX, y: e.clientY, thread: th };
   }
 
+  /** The context menu of the selected conversation, opened from the keyboard (Shift+F10 or the Menu key). */
+  export function openRowMenu() {
+    const th = mail.items.find((x) => x.id === mail.selectedId);
+    const row = viewport?.querySelector<HTMLElement>('.row.selected');
+    if (!th || !row) return;
+    const r = row.getBoundingClientRect();
+    menu = { x: r.left + 48, y: r.top + r.height / 2, thread: th };
+  }
+
   function menuIds(): number[] {
     if (!menu) return [];
     return mail.checked.has(menu.thread.id) ? [...mail.checked] : [menu.thread.id];
@@ -278,6 +287,12 @@
     onscroll={() => (scrollTop = viewport?.scrollTop ?? 0)}
     role="listbox"
     aria-label={t('threadList.conversations')}
+    oncontextmenu={(e) => {
+      // The Menu key with the focus on the list (not a right click on a row).
+      if (e.target !== e.currentTarget) return;
+      e.preventDefault();
+      openRowMenu();
+    }}
     aria-activedescendant={visible.some((th) => th.id === mail.selectedId) ? `thread-${mail.selectedId}` : undefined}
     tabindex="0"
   >
@@ -320,8 +335,8 @@
 {#if menu && menu.thread.localDraftId != null}
   {@const row = menu.thread}
   <Popover x={menu.x} y={menu.y} onclose={() => (menu = null)} width={232}>
-    <button class="menu-item" onclick={() => { menu = null; compose.openRow(row); }}><Pen size={15} />{t('message.editDraft')}</button>
-    <button class="menu-item" onclick={() => { menu = null; mail.trash([row.id]); }}><Trash size={15} />{t('composer.discardDraft')}<span class="hint">#</span></button>
+    <button class="menu-item" onclick={() => { compose.openRow(row); menu = null; }}><Pen size={15} />{t('message.editDraft')}</button>
+    <button class="menu-item" onclick={() => { mail.trash([row.id]); menu = null; }}><Trash size={15} />{t('composer.discardDraft')}<span class="hint">#</span></button>
   </Popover>
 {:else if menu}
   {@const ids = menuIds()}
@@ -367,12 +382,12 @@
 
 {#if remindAt}
   {@const ids = remindAt.ids}
-  <SnoozeMenu x={remindAt.x} y={remindAt.y} title={t('reader.followUpRemindTitle')} onclose={() => (remindAt = null)} onpick={(ts) => { remindAt = null; mail.followUpLater(ts, ids); }} />
+  <SnoozeMenu x={remindAt.x} y={remindAt.y} title={t('reader.followUpRemindTitle')} onclose={() => (remindAt = null)} onpick={(ts) => { mail.followUpLater(ts, ids); remindAt = null; }} />
 {/if}
 
 {#if snoozeAt}
   {@const ids = snoozeAt.ids}
-  <SnoozeMenu x={snoozeAt.x} y={snoozeAt.y} align="end" onclose={() => (snoozeAt = null)} onpick={(ts) => { snoozeAt = null; mail.snooze(ts, ids); }} />
+  <SnoozeMenu x={snoozeAt.x} y={snoozeAt.y} align="end" onclose={() => (snoozeAt = null)} onpick={(ts) => { mail.snooze(ts, ids); snoozeAt = null; }} />
 {/if}
 
 {#if moveAt}

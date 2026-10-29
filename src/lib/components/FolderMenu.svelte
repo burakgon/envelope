@@ -19,31 +19,16 @@
     !!folder && !isCategory(folder) && (gmail ? folder.kind === 'label' && !folder.role : !folder.role || folder.role === 'inbox' || folder.role === 'archive'),
   );
   const empties = $derived(folder?.role === 'trash' || folder?.role === 'junk');
-  let menu: HTMLDivElement | undefined = $state();
-
-  $effect(() => {
-    // Opened from the keyboard: arrows and Enter work from the first item.
-    menu?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
-  });
 
   /** Starts the action, then closes the menu (whose folder is gone once it is closed). */
   function run(fn: () => unknown) {
     fn();
     onclose();
   }
-
-  function key(e: KeyboardEvent) {
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-    e.preventDefault();
-    e.stopPropagation();
-    const items = [...(menu?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])];
-    const i = items.indexOf(document.activeElement as HTMLButtonElement);
-    items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
-  }
 </script>
 
 <Popover {x} {y} {onclose} width={236}>
-  <div bind:this={menu} class="folder-menu" role="presentation" onkeydown={key}>
+  <div class="folder-menu">
     <button class="menu-item" onclick={() => run(() => newFolder(account))}><Plus size={15} />{t(gmail ? 'folders.newLabel' : 'folders.newFolder')}</button>
     {#if folder && canHoldFolders}
       <button class="menu-item" onclick={() => run(() => newFolder(account, folder))}><FolderPlus size={15} />{t(gmail ? 'folders.newSublabel' : 'folders.newSubfolder')}</button>

@@ -23,6 +23,11 @@ export function trapTab(e: KeyboardEvent, root: HTMLElement) {
   stops[e.shiftKey ? (i <= 0 ? stops.length - 1 : i - 1) : (i + 1) % stops.length].focus();
 }
 
+/** A field that takes typing (and the arrow keys) has the focus. */
+export function isTyping(el: Element | null): boolean {
+  return !!el?.closest?.('input:not([type="checkbox"]):not([type="radio"]), textarea, select, [contenteditable="true"]');
+}
+
 /**
  * Puts the focus back where it was once something that took it is gone, unless what closed it
  * put the focus somewhere on purpose (another dialog, a field).
