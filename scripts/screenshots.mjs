@@ -50,6 +50,15 @@ const jobs = {
   'calendar-editor': () => shot('calendar-editor', { theme: 'dark', actions: async (p) => { await p.locator('.modes button', { hasText: 'Calendar' }).click(); await p.waitForTimeout(600); await p.keyboard.press('c'); await p.waitForTimeout(200); await p.keyboard.type('Design review'); await p.waitForTimeout(200); await p.locator('.editor input.field').nth(1).click(); await p.waitForTimeout(400); } }),
   contacts: () => shot('contacts', { actions: async (p) => { await p.locator('.modes button[aria-label="Contacts"]').click(); await p.waitForTimeout(500); await p.locator('.contacts .row', { hasText: 'Maya Chen' }).click(); await p.waitForTimeout(800); } }),
   tasks: () => shot('tasks', { actions: async (p) => { await p.locator('.modes button[aria-label="Tasks"]').click(); await p.waitForTimeout(500); await p.locator('.tasks .task', { hasText: 'Send onboarding notes' }).click(); await p.waitForTimeout(800); } }),
+  'tasks-upcoming': () => shot('tasks-upcoming', { theme: 'dark', actions: async (p) => {
+    await p.locator('.modes button[aria-label="Tasks"]').click();
+    await p.waitForTimeout(500);
+    await p.locator('.sidebar .item', { hasText: 'Upcoming' }).first().click();
+    await p.waitForTimeout(500);
+    await p.locator('.quick input').click();
+    await p.keyboard.type('Book the flights for Cappadocia friday 10am !');
+    await p.waitForTimeout(600);
+  } }),
   invite: () => shot('invite', { actions: async (p) => { await p.locator('.row', { hasText: 'Product sync' }).first().click(); await p.waitForTimeout(900); } }),
   settings: () => shot('settings', { actions: async (p) => { await p.keyboard.press('Control+,'); await p.waitForTimeout(200); await p.locator('.tab', { hasText: 'Appearance' }).click(); } }),
   scheduling: () => shot('scheduling', { actions: async (p) => {

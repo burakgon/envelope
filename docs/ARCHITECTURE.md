@@ -22,7 +22,7 @@ Everything the interface shows comes from one SQLite database (`envelope.db` in 
 
 - **Mail:** `accounts`, `folders`, `messages`, `message_folders` (a message can sit in several folders, as with Gmail labels), `threads` and `thread_folders`. Thread rows keep precomputed aggregates (unread count, participants, last date, category), so a message list is one indexed query, even with hundreds of thousands of messages.
 - **Bodies** are compressed with zstd and indexed for full-text search with FTS5.
-- **Calendars and contacts** have their own tables (`calendars`, `events`, `address_books`, `contacts`); OpenPGP keys and per-message encryption state live in `crypto.sql`.
+- **Calendars, contacts and tasks** have their own tables (`calendars`, `events`, `address_books`, `contacts`, `task_lists`, `tasks`); OpenPGP keys and per-message encryption state live in `crypto.sql`.
 - **Schema changes** go in `db/mod.rs`: a list of migrations by version, and a list of columns added to existing tables (checked before they are added).
 
 Attachments and inline pictures are fetched on demand, cached on disk, and served to the interface through the `att://` protocol (`src-tauri/src/protocol.rs`).
@@ -37,13 +37,13 @@ Each account runs its own worker (`sync::run_account`), chosen by kind:
 | Microsoft 365 / Outlook.com | `sync/graph.rs` over `envelope-graph` | Delta queries per folder |
 | Exchange (on-premises) | `sync/ews.rs` over `envelope-ews` | `SyncFolderItems`, with streaming notifications for push |
 
-Calendars (`sync/calendar.rs`: CalDAV, Google, Graph, EWS), contacts (`sync/contacts.rs`: CardDAV, Google People, Graph, EWS) and subscribed calendars (`sync/subscriptions.rs`) sync alongside. The outbox (`sync/outbox.rs`) sends queued mail when its undo delay or scheduled time has passed. A housekeeping loop brings snoozed conversations back and raises follow-up reminders.
+Calendars (`sync/calendar.rs`: CalDAV, Google, Graph, EWS), contacts (`sync/contacts.rs`: CardDAV, Google People, Graph, EWS), tasks (`sync/tasks/`: one `TaskService` per kind of server — CalDAV, Google Tasks, Microsoft To Do, EWS) and subscribed calendars (`sync/subscriptions.rs`) sync alongside. The outbox (`sync/outbox.rs`) sends queued mail when its undo delay or scheduled time has passed. A housekeeping loop brings snoozed conversations back and raises follow-up reminders.
 
 New mail runs through the user's rules (`rules.rs`) before anything is notified; replies in muted conversations skip the inbox there too.
 
 ## Local first
 
-Every action — archive, move, flag, delete, snooze — changes the database at once and records a **pending operation** for the account's worker to carry out on the server. The interface never waits for the network, and works offline.
+Every action — archive, move, flag, delete, snooze — changes the database at once and records a **pending operation** for the account's worker to carry out on the server. Contacts and tasks work the same way with a per-row `local_state` (created, changed, deleted), keeping the server's copy so that fields Envelope does not edit survive the round trip. The interface never waits for the network, and works offline.
 
 Actions return an **undo token** with the previous state. Undoing within a few seconds simply cancels the operation before it reaches the server; later, it is reverted with a new operation.
 

@@ -6,7 +6,7 @@
 
 **A fast, beautiful mail and calendar client for Linux.**
 
-Gmail, Microsoft 365, Outlook.com, Exchange, iCloud, Yahoo, Fastmail and any IMAP server — with a real calendar,<br>
+Gmail, Microsoft 365, Outlook.com, Exchange, iCloud, Yahoo, Fastmail and any IMAP server — with a real calendar, tasks,<br>
 instant offline search, a keyboard-first workflow and optional AI that runs on the provider *you* choose.
 
 [![CI](https://github.com/burakgon/envelope/actions/workflows/ci.yml/badge.svg)](https://github.com/burakgon/envelope/actions/workflows/ci.yml)
@@ -32,6 +32,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - **Instant.** Lists are read from a local database with precomputed thread aggregates, so opening a folder, switching tabs and searching take milliseconds — online or offline. Every action is optimistic and queued, so the UI never waits for the server.
 - **Keyboard-first.** Gmail-style shortcuts (`j`/`k`, `e`, `#`, `r`, `c`, `g i` …) and a command palette (`Ctrl K`) that can do everything the mouse can.
 - **A real calendar.** Day, week, month and agenda views, drag to create, move and resize, recurring events with "this / following / all" edits, invitations with RSVP and conflict detection, a scheduling assistant, subscriptions and reminders — synced both ways with CalDAV, Google Calendar, Microsoft 365 and Exchange.
+- **Tasks where your mail is.** Turn a message into a task with one key, type "call Maya tomorrow 3pm !" and get a due time and a star, and see what's due in your calendar — synced with Google Tasks, Microsoft To Do, Exchange and CalDAV.
 - **Private by design.** No telemetry, no proxy servers, no account with us. Your mail goes straight from your provider to your disk. Remote images and trackers are blocked until you allow them, messages render in a locked-down sandbox, and OpenPGP encryption sets itself up with Autocrypt.
 - **AI you control.** Summaries, smart replies, writing help, translation and "ask your inbox" — using OpenRouter, OpenAI, Anthropic, Google Gemini, Groq, Mistral, a local Ollama or LM Studio model, or any OpenAI-compatible endpoint. Off until you turn it on, and your API keys live in the system keyring.
 
@@ -45,6 +46,10 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 <tr>
 <td width="50%"><img src="docs/screenshots/calendar-week.png" alt="Week view of the calendar"></td>
 <td width="50%"><img src="docs/screenshots/calendar-month.png" alt="Month view of the calendar in dark mode"></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/tasks.png" alt="Tasks due today, with one open beside them: its subtasks and the e-mail it was made from"></td>
+<td width="50%"><img src="docs/screenshots/tasks-upcoming.png" alt="Upcoming tasks in dark mode, with quick add turning &quot;friday 10am !&quot; into a due time and a star"></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/screenshots/scheduling.png" alt="The event editor showing when the guests are busy, with a button for the next time everyone is free"></td>
@@ -89,6 +94,13 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - Invitations in mail (iTIP) become cards with **Yes / Maybe / No**, a conflict check against your calendar and replies sent to the organizer.
 - Two-way sync: **CalDAV** (iCloud, Fastmail, Nextcloud, Radicale, …), **Google Calendar**, **Microsoft 365 / Outlook.com** and **on-premises Exchange**.
 - **Subscribe to published calendars** by URL (`webcal:` links included): holidays, sports, school or team calendars, refreshed by themselves.
+
+### Tasks
+- A **Tasks** view with *Today*, *Upcoming*, *Important* and *All*, and the lists of each account: due dates (with a time where the service keeps one), notes, subtasks and importance; repeating tasks from CalDAV servers move on to their next date when you complete them.
+- **Quick add** that understands dates and times in your language — "call Maya tomorrow 3pm !" — and shows what it understood before you press Enter.
+- **From mail:** press `t` on a conversation to make it a task that links back to it.
+- Tasks with a due date appear **in the calendar**, and a notification tells you when one with a time is due.
+- Two-way sync with **Google Tasks**, **Microsoft To Do**, **Exchange** and **CalDAV** servers that keep tasks (Nextcloud, Radicale, …), plus a list on your computer. Keyboard shortcuts throughout (`g k` to get there).
 
 ### Contacts
 - Address books synced both ways with **CardDAV**, **Google Contacts**, **Microsoft 365** and **Exchange**, plus a local address book.
