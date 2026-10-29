@@ -1,7 +1,10 @@
 //! Tasks: the engine API on lists of this computer (views, ordering,
 //! subtasks, moves, links to mail) and two-way CalDAV sync with a mock
 //! server (pulls, conditional uploads, merges, repeating tasks, refused
-//! changes), all with a real (temporary) database.
+//! changes), all with a real (temporary) database. Google Tasks has a module
+//! of its own.
+
+mod google;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -16,7 +19,8 @@ use super::caldav::Caldav;
 use super::*;
 use crate::calendar::local_tz;
 use crate::engine::{EventSink, Paths};
-use crate::model::{AccountConfig, Address, FolderRole};
+use crate::model::{AccountConfig, Address, AuthMethod, FolderRole};
+use crate::oauth::{Provider, TokenSet};
 use crate::tasks::{LOCAL_LIST_NAME, Task, TaskInput, TaskView};
 
 #[derive(Clone, Default)]
@@ -877,6 +881,100 @@ fn requests_to<'a>(requests: &'a [Request], verb: &str, suffix: &str) -> Vec<&'a
 
 fn body(request: &Request) -> String {
     String::from_utf8_lossy(&request.body).replace("\r\n ", "")
+}
+
+/// An account of `kind` (Gmail or Microsoft) signed in with OAuth, granted
+/// `scope`. It is disabled, which keeps the mail and calendar schedulers
+/// (they would go to the real servers) away; the tests drive its task sync
+/// and read its tasks from the database, as a disabled account's tasks are
+/// out of sight.
+fn oauth_account(fx: &Fixture, kind: AccountKind, scope: &str) -> AccountRow {
+    let (provider, auth, provider_id) = match kind {
+        AccountKind::Gmail => (Provider::Google, AuthMethod::OAuthGoogle, "gmail"),
+        _ => (Provider::Microsoft, AuthMethod::OAuthMicrosoft, "outlook"),
+    };
+    let config = AccountConfig {
+        auth,
+        ..AccountConfig::default()
+    };
+    let id = fx
+        .engine
+        .db
+        .write(|tx| {
+            let id = mail::insert_account(
+                tx,
+                kind,
+                provider_id,
+                "alex@example.com",
+                "Alex",
+                "#0ea5e9",
+                &config,
+            )?;
+            tx.execute("UPDATE accounts SET enabled = 0 WHERE id = ?", [id])?;
+            Ok(id)
+        })
+        .expect("account");
+    let tokens = TokenSet {
+        provider,
+        access_token: "token".into(),
+        refresh_token: Some("refresh".into()),
+        expires_at: i64::from(i32::MAX),
+        scope: Some(scope.into()),
+        client: Default::default(),
+    };
+    fx.engine.secrets.preload(
+        &crate::secrets::oauth_key(id),
+        &serde_json::to_string(&tokens).expect("tokens"),
+    );
+    fx.engine.account_row(id).expect("account row")
+}
+
+/// Stores the lists `service` reports as the account's lists.
+async fn store_lists(fx: &Fixture, account: &AccountRow, service: &dyn TaskService) {
+    let lists = service.lists().await.expect("lists");
+    fx.engine
+        .db
+        .write(|tx| tdb::sync_lists(tx, account.id, service.kind(), &lists))
+        .expect("sync lists");
+}
+
+/// The stored task of `list` with `remote_id`.
+fn remote_row(fx: &Fixture, list: i64, remote_id: &str) -> TaskRow {
+    fx.rows(list)
+        .into_iter()
+        .find(|r| r.remote_id.as_deref() == Some(remote_id))
+        .unwrap_or_else(|| panic!("no task {remote_id}"))
+}
+
+/// The titles of the tasks of `list` under `parent` (top-level ones with
+/// `None`), in order, completed ones included.
+fn order(fx: &Fixture, list: i64, parent: Option<i64>) -> Vec<String> {
+    fx.engine
+        .db
+        .read(|c| {
+            tdb::siblings(c, list, parent)?
+                .into_iter()
+                .map(|(id, _)| tdb::get_task(c, id).map(|t| t.title))
+                .collect()
+        })
+        .expect("order")
+}
+
+/// A list of an account as stored, for calls that only need its server
+/// id.
+fn stored_list(kind: TaskListKind, remote_id: &str, is_default: bool) -> ListRow {
+    ListRow {
+        id: 0,
+        account_id: Some(1),
+        kind,
+        remote_id: remote_id.to_owned(),
+        name: "List".into(),
+        color: String::new(),
+        read_only: false,
+        is_default,
+        sort_order: 0,
+        sync_state: ListSyncState::default(),
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

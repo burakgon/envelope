@@ -23,10 +23,14 @@
 //! tasks by id uses that id as the `uid`. Pushes come parents first, so a
 //! parent created here has its server id by the time its subtasks go up.
 //!
-//! [`caldav`] serves CalDAV. Google Tasks, Microsoft To Do and Exchange task
-//! folders get a module each next to it and an arm in [`service`].
+//! [`caldav`] serves CalDAV and [`google`] Google Tasks. Google accounts get
+//! task lists only when their sign-in granted access to tasks; accounts
+//! signed in before Envelope asked for it are passed over quietly until they
+//! sign in again. Microsoft To Do and Exchange task folders get a module
+//! each next to them and an arm in [`service`].
 
 pub(crate) mod caldav;
+pub(crate) mod google;
 
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -122,9 +126,26 @@ pub(crate) async fn service(
             )),
             None => None,
         },
-        // Google Tasks, Microsoft To Do and Exchange task folders.
+        AccountKind::Gmail if tasks_granted(engine, account).await => {
+            Some(Box::new(google::Google::connect(engine, account)?))
+        }
+        // Microsoft To Do and Exchange task folders.
         AccountKind::Gmail | AccountKind::Microsoft | AccountKind::Exchange => None,
     })
+}
+
+/// Whether the OAuth grant of an account covers tasks. Grants from before
+/// Envelope asked for that (and accounts signed in with a password) have no
+/// task lists; signing in again asks for access.
+async fn tasks_granted(engine: &Engine, account: &AccountRow) -> bool {
+    let granted = engine.tokens.tasks_granted(account.id).await == Some(true);
+    if !granted {
+        tracing::debug!(
+            account = account.id,
+            "no task sync: the account's sign-in does not cover tasks"
+        );
+    }
+    granted
 }
 
 /// Wakes the task sync after local changes or account changes.
@@ -222,6 +243,11 @@ async fn run_cycle(engine: &Engine, pull: bool) {
             }
             Err(e) if e.is_transient() => {
                 tracing::debug!(account = account.id, "task sync postponed: {e}")
+            }
+            // Tasks the server does not offer this account (no access to
+            // them, or the service turned off): nothing to report.
+            Err(e @ Error::Invalid(_)) => {
+                tracing::debug!(account = account.id, "no task sync: {e}")
             }
             Err(e) => tracing::warn!(account = account.id, "task sync failed: {e}"),
         }
