@@ -1696,7 +1696,8 @@ async fn caldav_conflicts_merge_with_the_server_copy() {
         .expect(1)
         .mount(&server)
         .await;
-    assert!(push_list(&fx.engine, &service, &list).await.expect("push"));
+    let changes = push_list(&fx.engine, &service, &list).await.expect("push");
+    assert_eq!((changes.tasks, changes.lists), (vec![list.id], false));
     let row = fx.row(id);
     assert_eq!(row.local_state, tdb::SYNCED);
     assert_eq!(row.title, "Plan the trip to Rome", "their rename is kept");
@@ -1790,11 +1791,16 @@ async fn refused_changes_are_retried_then_given_up() {
             Ok(())
         })
         .expect("attempts");
-    push_list(&fx.engine, &service, &list).await.expect("push");
+    let changes = push_list(&fx.engine, &service, &list).await.expect("push");
     let kept = fx.engine.task(created.id).await.expect("task");
     assert_eq!(kept.list_id, fx.local_list());
     assert!(!kept.pending);
     assert_eq!(kept.error, None);
+    assert_eq!(
+        (changes.tasks, changes.lists),
+        (vec![list.id, fx.local_list()], false),
+        "both lists are told about"
+    );
 
     // A change the server forbids is undone, and the list is read-only. The
     // title written here is not lost: a copy goes to this computer's list.
@@ -1823,7 +1829,9 @@ async fn refused_changes_are_retried_then_given_up() {
         .respond_with(ResponseTemplate::new(403))
         .mount(&server)
         .await;
-    push_list(&fx.engine, &service, &list).await.expect("push");
+    let changes = push_list(&fx.engine, &service, &list).await.expect("push");
+    assert!(changes.lists, "the list changed: it is read-only now");
+    assert!(changes.tasks.contains(&fx.local_list()));
     let list = fx
         .engine
         .db

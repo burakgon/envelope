@@ -248,6 +248,13 @@ pub(crate) struct Changes {
     pub lists: bool,
 }
 
+impl Changes {
+    fn add(&mut self, other: Changes) {
+        self.tasks.extend(other.tasks);
+        self.lists |= other.lists;
+    }
+}
+
 async fn run_cycle(engine: &Engine, pull: bool) {
     let accounts = engine.db.read(mail::list_accounts).unwrap_or_default();
     let mut changes = Changes::default();
@@ -306,9 +313,7 @@ pub(crate) async fn sync_account(
     let mut changes = Changes::default();
     let account_id = account.id;
     for list in engine.db.read(|c| tdb::account_lists(c, account_id))? {
-        if push_list(engine, service, &list).await? {
-            changes.tasks.push(list.id);
-        }
+        changes.add(push_list(engine, service, &list).await?);
     }
     if !pull {
         return Ok(changes);
@@ -317,7 +322,7 @@ pub(crate) async fn sync_account(
     let changed = engine
         .db
         .write(|tx| tdb::sync_lists(tx, account_id, service.kind(), &lists))?;
-    changes.lists = !changed.is_empty();
+    changes.lists |= !changed.is_empty();
     // Pushing may have reset a list's sync state (a refused change is undone
     // by syncing it from scratch), so the lists are read again.
     for list in engine.db.read(|c| tdb::account_lists(c, account_id))? {
@@ -374,7 +379,10 @@ pub(crate) async fn store_pulled(engine: &Engine, list_id: i64, pulled: Pulled) 
         .await
 }
 
-/// Uploads the pending changes of a list. Returns whether any task changed.
+/// Uploads the pending changes of a list. Returns what changed here: the
+/// tasks of the list, those of the list on this computer when tasks the
+/// server refuses go there, and the list itself when it turns out to be
+/// read-only.
 ///
 /// A create whose answer got lost may have made the task on the server
 /// anyway (Google, Microsoft and Exchange name new tasks themselves, so a
@@ -385,17 +393,19 @@ pub(crate) async fn push_list(
     engine: &Engine,
     service: &dyn TaskService,
     list: &ListRow,
-) -> Result<bool> {
+) -> Result<Changes> {
     let list_id = list.id;
     let mut list = list.clone();
-    let mut changed = false;
+    let mut changes = Changes::default();
     // Whether a pull came after every create of the list that got no answer.
     let unanswered = engine.db.read(|c| tdb::unanswered_since(c, list_id))?;
     let mut pulled = unanswered.is_none_or(|at| list.sync_state.last_sync.is_some_and(|l| l > at));
     if !pulled {
         match pull_list(engine, service, &list).await {
             Ok(any) => {
-                changed |= any;
+                if any {
+                    changes.tasks.push(list_id);
+                }
                 pulled = true;
             }
             Err(e) if e.is_transient() || e.is_auth() => return Err(e),
@@ -438,67 +448,76 @@ pub(crate) async fn push_list(
         } else {
             service.push(list, &row).await
         };
-        changed |= settle(engine, service, list, &row, outcome)?;
+        changes.add(settle(engine, service, list, &row, outcome)?);
     }
-    Ok(changed)
+    Ok(changes)
 }
 
 /// Gives up on a local change: a task the server would not create is kept
 /// in the list on this computer, anything else returns to the server's
 /// copy, keeping a copy of a refused title or notes in the list on this
 /// computer so that the text is not lost. A task deleted while its change
-/// was being uploaded is left to its deletion.
+/// was being uploaded is left to its deletion. Returns the lists whose
+/// tasks changed.
 fn give_up(
     engine: &Engine,
     service: &dyn TaskService,
     list: &ListRow,
     row: &TaskRow,
-) -> Result<()> {
+) -> Result<Vec<i64>> {
     let local = engine.ensure_local_task_list()?;
     engine.db.write(|tx| {
         let Ok(current) = tdb::get_task(tx, row.id) else {
-            return Ok(());
+            return Ok(Vec::new());
         };
         if current.local_state == tdb::DELETED && row.local_state != tdb::DELETED {
-            return Ok(());
+            return Ok(Vec::new());
         }
         if current.local_state == tdb::CREATED {
-            return tdb::keep_locally(tx, current.id, local);
+            tdb::keep_locally(tx, current.id, local)?;
+            return Ok(vec![list.id, local]);
         }
+        let mut lists = vec![list.id];
         let base = service.server_copy(&current);
         let text_changed = base
             .as_ref()
             .is_none_or(|b| b.title != current.title || b.notes != current.notes);
         if current.local_state == tdb::MODIFIED && text_changed {
             tdb::copy_to_local(tx, &current, local)?;
+            lists.push(local);
         }
         match base {
-            Some(base) => tdb::revert(tx, current.id, list.id, &base),
-            None => tdb::discard_local_change(tx, current.id, list.id),
+            Some(base) => tdb::revert(tx, current.id, list.id, &base)?,
+            None => tdb::discard_local_change(tx, current.id, list.id)?,
         }
+        Ok(lists)
     })
 }
 
-/// Records the outcome of one upload. Returns whether the task changed
-/// locally; fails (stopping the account's round) when retrying later makes
-/// more sense than going on.
+/// Records the outcome of one upload. Returns what changed here; fails
+/// (stopping the account's round) when retrying later makes more sense than
+/// going on.
 fn settle(
     engine: &Engine,
     service: &dyn TaskService,
     list: &ListRow,
     row: &TaskRow,
     outcome: std::result::Result<Done, Failure>,
-) -> Result<bool> {
+) -> Result<Changes> {
+    let of_list = || Changes {
+        tasks: vec![list.id],
+        lists: false,
+    };
     match outcome {
         Ok(Done::Saved(task)) => {
             engine
                 .db
                 .write(|tx| tdb::finish_push(tx, row.id, row.version, &task))?;
-            Ok(true)
+            Ok(of_list())
         }
         Ok(Done::Deleted) => {
             engine.db.write(|tx| tdb::delete_row(tx, row.id))?;
-            Ok(true)
+            Ok(of_list())
         }
         Err(Failure::Transient(message)) => {
             let retry = now_ms() + backoff(row.push_attempts, true);
@@ -532,16 +551,21 @@ fn settle(
                 )?;
                 Ok(())
             })?;
-            give_up(engine, service, list, row)?;
-            Ok(true)
+            Ok(Changes {
+                tasks: give_up(engine, service, list, row)?,
+                // The list says it is read-only now.
+                lists: !list.read_only,
+            })
         }
         Err(Failure::Rejected(message)) if row.push_attempts + 1 >= MAX_ATTEMPTS => {
             tracing::warn!(
                 task = row.id,
                 "giving up on a change the server refuses: {message}"
             );
-            give_up(engine, service, list, row)?;
-            Ok(true)
+            Ok(Changes {
+                tasks: give_up(engine, service, list, row)?,
+                lists: false,
+            })
         }
         Err(Failure::Rejected(message)) => {
             tracing::warn!(task = row.id, "the server refused a change: {message}");
@@ -550,7 +574,7 @@ fn settle(
                 .db
                 .write(|tx| tdb::push_failed(tx, row.id, &message, retry))?;
             // The task now shows why it is not saved.
-            Ok(true)
+            Ok(of_list())
         }
     }
 }
