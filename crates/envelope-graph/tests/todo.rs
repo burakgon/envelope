@@ -244,7 +244,7 @@ async fn tasks_are_created_updated_and_deleted() {
     let mut created = todo_task("AAkALgTask1=", "Reply to Maya");
     created["importance"] = json!("high");
     created["body"] = json!({"content": "About the venue", "contentType": "text"});
-    created["dueDateTime"] = json!({"dateTime": "2026-10-30T00:00:00.0000000", "timeZone": "UTC"});
+    created["dueDateTime"] = json!({"dateTime": "2026-10-30T04:00:00.0000000", "timeZone": "UTC"});
     created["linkedResources"] = json!([{
         "id": "f9cddce2-dce2-f9cd-e2dc-cdf9e2dccdf9",
         "applicationName": "Envelope",
@@ -258,7 +258,7 @@ async fn tasks_are_created_updated_and_deleted() {
             "title": "Reply to Maya",
             "body": {"content": "About the venue", "contentType": "text"},
             "importance": "high",
-            "dueDateTime": {"dateTime": "2026-10-30T00:00:00", "timeZone": "UTC"},
+            "dueDateTime": {"dateTime": "2026-10-30T04:00:00", "timeZone": "UTC"},
             "status": "notStarted",
             "linkedResources": [{
                 "applicationName": "Envelope",
@@ -327,7 +327,7 @@ async fn tasks_are_created_updated_and_deleted() {
         )],
     };
     let task = client
-        .create_todo_task("AAMkList1=", &new)
+        .create_todo_task("AAMkList1=", &new, Tz::America__New_York)
         .await
         .expect("create");
     assert_eq!(task.id, "AAkALgTask1=");
@@ -348,7 +348,9 @@ async fn tasks_are_created_updated_and_deleted() {
         .update_todo_task(
             "AAMkList1=",
             "AAkALgTask1=",
-            &TodoTaskPatch::new().due_date(None).completed(None),
+            &TodoTaskPatch::new()
+                .due_date(None, Tz::America__New_York)
+                .completed(None),
         )
         .await
         .expect("clear the due date and reopen");
@@ -701,7 +703,7 @@ fn todo_futures_are_send() {
     assert_send(&client.delete_todo_list("l"));
     assert_send(&client.todo_tasks_delta("l", None, None));
     assert_send(&client.get_todo_task("l", "t"));
-    assert_send(&client.create_todo_task("l", &NewTodoTask::default()));
+    assert_send(&client.create_todo_task("l", &NewTodoTask::default(), Tz::UTC));
     assert_send(&client.update_todo_task("l", "t", &TodoTaskPatch::new()));
     assert_send(&client.delete_todo_task("l", "t"));
     assert_send(&client.todo_checklist_items("l", "t"));

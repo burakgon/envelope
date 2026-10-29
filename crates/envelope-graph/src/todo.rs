@@ -2,14 +2,15 @@
 //! (`checklistItems`) and linked resources.
 //!
 //! To Do keeps only the day of a due date, and Graph reports it as the
-//! instant that day began where it was set: midnight UTC for days written
-//! through Graph in UTC, but local midnight for days set in the To Do and
-//! Outlook apps (`2023-04-14T22:00:00` UTC for 15 April set in UTC+2). So
-//! [`TodoTask::due_date`] needs the user's time zone to name the day.
-//! Envelope writes due dates as midnight UTC of the day, which the apps
-//! show as that day in every time zone. Completion times keep only their
-//! day too (midnight UTC); [`TodoTask::completed_at`] recovers the time
-//! from the last change where it can.
+//! instant that day began where it was set: local midnight for days set in
+//! the To Do and Outlook apps (`2023-04-14T22:00:00` UTC for 15 April set
+//! in UTC+2), midnight UTC for days some other clients write. So
+//! [`TodoTask::due_date`] needs the user's time zone to name the day, and
+//! so do writes: the apps show the local day of the instant, so a day is
+//! written as midnight in the user's zone, as they write it (midnight UTC
+//! would show as the day before west of UTC). Completion times keep only
+//! their day too (midnight UTC); [`TodoTask::completed_at`] recovers the
+//! time from the last change where it can.
 //!
 //! Delta pages do not carry a task's steps or linked resources: fetch them
 //! with [`GraphClient::todo_checklists`] (batched) and
@@ -325,7 +326,8 @@ pub struct NewTodoTask {
     pub notes: Option<String>,
     /// Importance (`high` marks the task important).
     pub importance: Importance,
-    /// The day the task is due.
+    /// The day the task is due (written as midnight in the zone given to
+    /// [`GraphClient::create_todo_task`]).
     pub due_date: Option<NaiveDate>,
     /// Create the task already completed, at this instant.
     pub completed: Option<DateTime<Utc>>,
@@ -334,7 +336,8 @@ pub struct NewTodoTask {
 }
 
 impl NewTodoTask {
-    fn to_json(&self) -> Result<Value, GraphError> {
+    /// The JSON body, with the due day as midnight in `zone`.
+    fn to_json(&self, zone: Tz) -> Result<Value, GraphError> {
         let mut body = Map::new();
         body.insert("title".into(), Value::String(self.title.clone()));
         if let Some(notes) = self.notes.as_deref().filter(|n| !n.is_empty()) {
@@ -342,7 +345,7 @@ impl NewTodoTask {
         }
         body.insert("importance".into(), json!(self.importance));
         if let Some(due) = self.due_date {
-            body.insert("dueDateTime".into(), due_value(due));
+            body.insert("dueDateTime".into(), due_value(due, zone));
         }
         match self.completed {
             Some(at) => {
@@ -390,9 +393,11 @@ impl TodoTaskPatch {
         self.set("importance", json!(importance))
     }
 
-    /// Sets the day the task is due; `None` removes the due date.
-    pub fn due_date(self, due: Option<NaiveDate>) -> Self {
-        self.set("dueDateTime", due.map_or(Value::Null, due_value))
+    /// Sets the day the task is due, written as midnight of that day in
+    /// `zone`, the user's time zone; `None` removes the due date.
+    pub fn due_date(self, due: Option<NaiveDate>, zone: Tz) -> Self {
+        let value = due.map_or(Value::Null, |day| due_value(day, zone));
+        self.set("dueDateTime", value)
     }
 
     /// Sets the progress.
@@ -440,9 +445,18 @@ fn text_body(text: &str) -> Value {
     json!({ "content": text, "contentType": BodyType::Text })
 }
 
-/// A due date as Envelope writes it: midnight UTC of the day.
-fn due_value(day: NaiveDate) -> Value {
-    json!(DateTimeTimeZone::new(day.and_time(NaiveTime::MIN), "UTC"))
+/// A due date as the To Do apps write it: the instant the day begins in
+/// `zone` (midnight, or the first hour it has when a clock change skips
+/// midnight), in UTC.
+fn due_value(day: NaiveDate, zone: Tz) -> Value {
+    let midnight = day.and_time(NaiveTime::MIN);
+    let start = (0..=2)
+        .find_map(|hour| {
+            zone.from_local_datetime(&(midnight + Duration::hours(hour)))
+                .earliest()
+        })
+        .map_or(midnight, |at| at.with_timezone(&Utc).naive_utc());
+    json!(DateTimeTimeZone::new(start, "UTC"))
 }
 
 /// The zone a `dateTimeTimeZone` is expressed in (UTC when unnamed or
@@ -599,16 +613,18 @@ impl GraphClient {
     }
 
     /// Creates a task, with its linked resources, and returns it as stored.
+    /// The due day is written as midnight in `zone`, the user's time zone.
     pub async fn create_todo_task(
         &self,
         list_id: &str,
         task: &NewTodoTask,
+        zone: Tz,
     ) -> Result<TodoTask, GraphError> {
         let mut path = list_path(list_id);
         path.push("tasks".into());
         let request = GraphRequest::post(path)
             .prefer(PREFER_TEXT_BODY)
-            .json(&task.to_json()?)?;
+            .json(&task.to_json(zone)?)?;
         self.send_json(&request).await
     }
 
@@ -874,6 +890,45 @@ mod tests {
     }
 
     #[test]
+    fn due_days_are_written_as_local_midnight() {
+        let day = date(2026, 10, 30);
+        let written = |zone: Tz| {
+            let new = NewTodoTask {
+                title: "Call Maya".into(),
+                due_date: Some(day),
+                ..NewTodoTask::default()
+            };
+            let body = new.to_json(zone).unwrap_or_default();
+            assert_eq!(
+                TodoTaskPatch::new().due_date(Some(day), zone).to_json()["dueDateTime"],
+                body["dueDateTime"],
+                "{zone}: creating and changing write the same"
+            );
+            body["dueDateTime"].clone()
+        };
+        let cases = [
+            (Tz::America__New_York, "2026-10-30T04:00:00"),
+            (Tz::Europe__Istanbul, "2026-10-29T21:00:00"),
+            (Tz::Pacific__Auckland, "2026-10-29T11:00:00"),
+            (Tz::UTC, "2026-10-30T00:00:00"),
+        ];
+        for (zone, utc) in cases {
+            let value = written(zone);
+            assert_eq!(value, json!({"dateTime": utc, "timeZone": "UTC"}), "{zone}");
+            let back = task(json!({"id": "t", "dueDateTime": value}));
+            assert_eq!(back.due_date(zone), Some(day), "{zone}: read back");
+        }
+        // Where midnight is skipped (Santiago moves its clocks at midnight),
+        // the day begins an hour later.
+        assert_eq!(
+            TodoTaskPatch::new()
+                .due_date(Some(date(2026, 9, 6)), Tz::America__Santiago)
+                .to_json()["dueDateTime"],
+            json!({"dateTime": "2026-09-06T04:00:00", "timeZone": "UTC"})
+        );
+    }
+
+    #[test]
     fn writes_carry_dates_in_utc_and_clear_with_null() {
         let new = NewTodoTask {
             title: "Call Maya".into(),
@@ -888,7 +943,7 @@ mod tests {
             )],
         };
         assert_eq!(
-            new.to_json().unwrap_or_default(),
+            new.to_json(Tz::UTC).unwrap_or_default(),
             json!({
                 "title": "Call Maya",
                 "body": {"content": "About the venue", "contentType": "text"},
@@ -902,7 +957,9 @@ mod tests {
                 }]
             })
         );
-        let reopen = TodoTaskPatch::new().due_date(None).completed(None);
+        let reopen = TodoTaskPatch::new()
+            .due_date(None, Tz::Europe__Istanbul)
+            .completed(None);
         assert_eq!(
             reopen.to_json(),
             json!({"dueDateTime": null, "status": "notStarted", "completedDateTime": null})

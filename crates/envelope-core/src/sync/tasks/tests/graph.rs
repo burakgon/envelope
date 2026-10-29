@@ -340,6 +340,15 @@ fn ms(rfc3339: &str) -> i64 {
         .timestamp_millis()
 }
 
+/// Midnight of `day` in the user's zone, in UTC, as To Do wants due days.
+fn local_midnight(day: &str) -> String {
+    let day = NaiveDate::parse_from_str(day, "%Y-%m-%d").expect("day");
+    chrono::DateTime::from_timestamp_millis(local_at(day, 0))
+        .expect("instant")
+        .format("%Y-%m-%dT%H:%M:%S")
+        .to_string()
+}
+
 /// The JSON bodies of the requests made with `verb` to paths ending in
 /// `suffix`.
 fn bodies(requests: &[Request], verb: &str, suffix: &str) -> Vec<Value> {
@@ -537,9 +546,9 @@ async fn todo_pull_push_and_pull_again() {
             "title": "Renew both passports",
             "body": { "content": "Photos first", "contentType": "text" },
             "importance": "high",
-            "dueDateTime": { "dateTime": "2030-01-15T00:00:00", "timeZone": "UTC" }
+            "dueDateTime": { "dateTime": local_midnight("2030-01-15"), "timeZone": "UTC" }
         })],
-        "only what changed"
+        "only what changed, the day as midnight where the user is"
     );
     assert_eq!(requests_to(&requests, "DELETE", "/tasks/T4").len(), 1);
     assert_eq!(

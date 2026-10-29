@@ -187,7 +187,10 @@ impl Graph {
             completed: row.completed_at.map(instant),
             linked_resources,
         };
-        let created = self.client.create_todo_task(&list.remote_id, &task).await?;
+        let created = self
+            .client
+            .create_todo_task(&list.remote_id, &task, local_tz())
+            .await?;
         self.retire_old(list, row, &created.id, "").await;
         Ok(saved_task(created))
     }
@@ -551,7 +554,7 @@ fn patch_for(row: &TaskRow, base: Option<&RemoteTask>) -> TodoTaskPatch {
         patch = patch.importance(importance(row.important));
     }
     if changed(&|b| b.due_date == row.due_date) {
-        patch = patch.due_date(parse_day(row.due_date.as_deref()));
+        patch = patch.due_date(parse_day(row.due_date.as_deref()), local_tz());
     }
     if changed(&|b| b.completed_at.is_some() == row.completed_at.is_some()) {
         patch = patch.completed(row.completed_at.map(instant));
