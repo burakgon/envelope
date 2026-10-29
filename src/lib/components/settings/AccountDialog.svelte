@@ -5,6 +5,7 @@
   import { t } from '../../i18n';
   import { Check, Settings, Spinner } from '../../icons';
   import { confirmDiscard } from '../../stores/dialogs.svelte';
+  import { vips } from '../../stores/vips.svelte';
   import { mail } from '../../stores/mail.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import { modal } from '../../actions/modal';
@@ -148,7 +149,7 @@
         <option value="vips">{t('accountSettings.notifyVips')}</option>
         <option value="none">{t('accountSettings.notifyNone')}</option>
       </select>
-      <span class="hint">{t('accountSettings.notifyDesc')}</span>
+      <span class="hint">{config.notify === 'vips' && !vips.list.length ? t('accountSettings.notifyVipsNone') : t('accountSettings.notifyDesc')}</span>
 
       <label class="label" for="acct-keep">{t('accountSettings.download')}</label>
       <select id="acct-keep" class="input" bind:value={config.bodySyncDays}>

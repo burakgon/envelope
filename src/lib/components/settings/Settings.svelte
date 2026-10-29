@@ -499,7 +499,12 @@
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.notifications.sound')}</b><span>{t('settings.notifications.soundDesc')}</span></div>
-            <Toggle label={t('settings.notifications.sound')} checked={ui.settings.notificationSound} onchange={(v) => ui.set('notificationSound', v)} />
+            <Toggle
+              label={t('settings.notifications.sound')}
+              checked={ui.settings.notificationSound}
+              disabled={!ui.settings.notifications && !ui.settings.calendarNotifications && !ui.settings.taskNotifications}
+              onchange={(v) => ui.set('notificationSound', v)}
+            />
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.calendar.eventReminders')}</b><span>{t('settings.calendar.eventRemindersDesc')}</span></div>
@@ -605,13 +610,17 @@
             <button class="btn" onclick={() => api.openUrl('https://github.com/burakgon/envelope/issues/new')}><Mail size={14} />{t('settings.about.reportProblem')}</button>
           </div>
         </div>
-        <div class="group">
-          <div class="row">
-            <div class="txt"><b>{t('updates.check')}</b><span>{t('updates.checkDesc')}</span></div>
-            <button class="btn sm" disabled={updates.checking} onclick={() => updates.check(true)}>{t('updates.checkNow')}</button>
-            <Toggle label={t('updates.check')} checked={ui.settings.checkUpdates} onchange={(v) => ui.set('checkUpdates', v)} />
+        {#if info?.flatpak}
+          <p class="desc center">{t('updates.flatpak')}</p>
+        {:else}
+          <div class="group">
+            <div class="row">
+              <div class="txt"><b>{t('updates.check')}</b><span>{t('updates.checkDesc')}</span></div>
+              <button class="btn sm" disabled={updates.checking} onclick={() => updates.check(true)}>{t('updates.checkNow')}</button>
+              <Toggle label={t('updates.check')} checked={ui.settings.checkUpdates} onchange={(v) => ui.set('checkUpdates', v)} />
+            </div>
           </div>
-        </div>
+        {/if}
       {/if}
     </section>
   </div>
@@ -888,6 +897,10 @@
   .btns {
     display: flex;
     gap: 8px;
+  }
+  .desc.center {
+    text-align: center;
+    margin-top: 24px;
   }
   .btns.center {
     justify-content: center;

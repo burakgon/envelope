@@ -40,12 +40,15 @@ class Vips {
     }
   }
 
-  /** A contact's addresses, all VIPs or none. */
+  /** A contact's addresses, all VIPs or none, with Undo. */
   async setAll(name: string, emails: string[], vip: boolean) {
-    try {
-      for (const email of emails) await api.setVip(email, name, vip);
+    const each = async (on: boolean) => {
+      for (const email of emails) await api.setVip(email, name, on);
       await this.changed();
-      toasts.show(t(vip ? 'vip.added' : 'vip.removed', { name }), { kind: 'success' });
+    };
+    try {
+      await each(vip);
+      toasts.undoable(t(vip ? 'vip.added' : 'vip.removed', { name }), () => each(!vip));
     } catch (e) {
       toasts.error(errorMessage(e));
     }

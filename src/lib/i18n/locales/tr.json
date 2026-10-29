@@ -202,7 +202,7 @@
   "vip.settingsDesc": "VIP’lerden gelen postalar kenar çubuğunda VIP’ler altında toplanır ve her hesap yalnızca onların postaları için bildirim gösterebilir (Hesaplar’daki dişli simgesi). Birini bir iletinin ⋯ menüsünden, bir konuşmaya sağ tıklayarak ya da kişi sayfasından ekleyebilirsiniz.",
   "vip.none": "Henüz VIP’iniz yok.",
   "vip.emptyTitle": "VIP’lerden posta yok",
-  "vip.emptyBody": "VIP’lerinizden posta içeren konuşmalar burada görünür.",
+  "vip.emptyBody": "VIP’lerinizden posta içeren konuşmalar burada görünür. Birini bir iletinin ⋯ menüsünden, bir konuşmaya sağ tıklayarak ya da kişi sayfasından ekleyebilirsiniz.",
 
   "subscriptions.title": "Abonelikler",
   "subscriptions.sub": "Size yazan bültenler ve diğer e-posta listeleri, en çok yazandan başlayarak.",
@@ -238,6 +238,7 @@
   "updates.check": "Yeni sürümleri denetle",
   "updates.checkDesc": "Envelope günde bir kez GitHub’a daha yeni bir sürüm olup olmadığını sorar. Sizinle ya da postalarınızla ilgili hiçbir bilgi gönderilmez.",
   "updates.checkNow": "Şimdi denetle",
+  "updates.flatpak": "Güncellemeler Envelope’un yüklendiği yerden (Flathub) gelir.",
 
   "importance.high": "Yüksek önem derecesi",
   "importance.low": "Düşük önem derecesi",
@@ -1733,6 +1734,7 @@
   "accountSettings.notifyAll": "Gelen kutusundaki tüm yeni postalar",
   "accountSettings.notifyPeople": "Yalnızca kişilerden gelen postalar",
   "accountSettings.notifyVips": "Yalnızca VIP’lerden gelen postalar",
+  "accountSettings.notifyVipsNone": "Henüz VIP’iniz yok, bu yüzden hiçbir şey için bildirim gösterilmez. Birini bir iletinin ⋯ menüsünden ekleyebilirsiniz.",
   "accountSettings.notifyNone": "Hiçbiri",
   "accountSettings.notifyDesc": "Kişilerden gelen postalar, bültenleri ve otomatik bildirimleri kapsamaz.",
   "accountSettings.download": "Bu bilgisayarda tutulacak iletiler",

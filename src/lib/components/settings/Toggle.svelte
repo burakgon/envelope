@@ -3,19 +3,26 @@
     checked,
     onchange,
     label,
+    disabled = false,
   }: {
     checked: boolean;
     onchange: (v: boolean) => void;
     /** The switch's name for screen readers; without it, the switch is inside a <label> that names it. */
     label?: string;
+    /** Nothing it changes is in use. */
+    disabled?: boolean;
   } = $props();
 </script>
 
-<button class="toggle" class:on={checked} role="switch" aria-checked={checked} aria-label={label || undefined} onclick={() => onchange(!checked)}>
+<button class="toggle" class:on={checked} role="switch" aria-checked={checked} aria-label={label || undefined} {disabled} onclick={() => onchange(!checked)}>
   <span class="knob"></span>
 </button>
 
 <style>
+  .toggle:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
   .toggle {
     position: relative;
     width: 38px;

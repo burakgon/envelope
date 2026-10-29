@@ -202,7 +202,7 @@
   "vip.settingsDesc": "El correo de los VIP se reúne en VIP, en la barra lateral, y cada cuenta puede avisar solo de su correo (el engranaje en Cuentas). Añade a alguien desde el menú ⋯ de un mensaje, con clic derecho en una conversación o en su página de contacto.",
   "vip.none": "Aún no tienes VIP.",
   "vip.emptyTitle": "No hay correo de VIP",
-  "vip.emptyBody": "Aquí aparecen las conversaciones con correo de tus VIP.",
+  "vip.emptyBody": "Aquí aparecen las conversaciones con correo de tus VIP. Añade a alguien desde el menú ⋯ de un mensaje, con clic derecho en una conversación o en su página de contacto.",
 
   "subscriptions.title": "Suscripciones",
   "subscriptions.sub": "Boletines y otras listas de correo que te escriben, empezando por las que más.",
@@ -238,6 +238,7 @@
   "updates.check": "Buscar versiones nuevas",
   "updates.checkDesc": "Una vez al día, Envelope pregunta a GitHub si hay una versión más reciente. No se envía nada sobre ti ni sobre tu correo.",
   "updates.checkNow": "Buscar ahora",
+  "updates.flatpak": "Las actualizaciones llegan desde donde se instaló Envelope (Flathub).",
 
   "importance.high": "Importancia alta",
   "importance.low": "Importancia baja",
@@ -1733,6 +1734,7 @@
   "accountSettings.notifyAll": "De todo el correo nuevo en Recibidos",
   "accountSettings.notifyPeople": "Solo del correo de personas",
   "accountSettings.notifyVips": "Solo del correo de VIP",
+  "accountSettings.notifyVipsNone": "Aún no tienes VIP, así que no se avisará de nada. Añade a alguien desde el menú ⋯ de un mensaje.",
   "accountSettings.notifyNone": "Ninguna",
   "accountSettings.notifyDesc": "El correo de personas deja fuera los boletines y las notificaciones automáticas.",
   "accountSettings.download": "Guardar mensajes en este equipo",

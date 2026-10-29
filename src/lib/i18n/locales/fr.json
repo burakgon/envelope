@@ -202,7 +202,7 @@
   "vip.settingsDesc": "Les messages des VIP sont rassemblés sous VIP dans la barre latérale, et un compte peut ne notifier que pour leurs messages (la roue dentée dans Comptes). Ajoutez quelqu’un depuis le menu ⋯ d’un message, d’un clic droit sur une conversation ou sur sa fiche de contact.",
   "vip.none": "Vous n’avez pas encore de VIP.",
   "vip.emptyTitle": "Aucun message de VIP",
-  "vip.emptyBody": "Les conversations contenant des messages de vos VIP apparaissent ici.",
+  "vip.emptyBody": "Les conversations contenant des messages de vos VIP apparaissent ici. Ajoutez quelqu’un depuis le menu ⋯ d’un message, d’un clic droit sur une conversation ou sur sa fiche de contact.",
 
   "subscriptions.title": "Abonnements",
   "subscriptions.sub": "Les newsletters et autres listes de diffusion qui vous écrivent, les plus actives d’abord.",
@@ -238,6 +238,7 @@
   "updates.check": "Rechercher les nouvelles versions",
   "updates.checkDesc": "Une fois par jour, Envelope demande à GitHub si une version plus récente est sortie. Rien sur vous ni sur vos messages n’est envoyé.",
   "updates.checkNow": "Rechercher maintenant",
+  "updates.flatpak": "Les mises à jour viennent de là où Envelope a été installé (Flathub).",
 
   "importance.high": "Importance haute",
   "importance.low": "Importance faible",
@@ -1733,6 +1734,7 @@
   "accountSettings.notifyAll": "Pour tout nouveau message dans la boîte de réception",
   "accountSettings.notifyPeople": "Seulement pour les messages de personnes",
   "accountSettings.notifyVips": "Seulement pour les messages de VIP",
+  "accountSettings.notifyVipsNone": "Vous n’avez pas encore de VIP, donc rien ne sera notifié. Ajoutez quelqu’un depuis le menu ⋯ d’un message.",
   "accountSettings.notifyNone": "Aucune",
   "accountSettings.notifyDesc": "Les messages de personnes excluent les newsletters et les notifications automatiques.",
   "accountSettings.download": "Conserver les messages sur cet ordinateur",

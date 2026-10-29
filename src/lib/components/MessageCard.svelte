@@ -162,6 +162,7 @@
   <button class="collapsed" onclick={isDraft ? () => compose.editMessage(message) : ontoggle}>
     <Avatar person={sender} size={28} />
     <span class="c-name" class:unread={!message.flags.seen}>{fromMe ? t('message.senderMe') : displayName(sender)}</span>
+    {#if !fromMe && vips.has(sender?.email)}<span class="vip" role="img" title={t('vip.badge')} aria-label={t('vip.badge')}><Crown size={12} /></span>{/if}
     {#if isDraft}<span class="draft-chip">{t('threadRow.draft')}</span>{/if}
     <span class="c-snippet truncate">{previewText(message.snippet)}</span>
     <time class="c-date">{messageDate(message.date)}</time>

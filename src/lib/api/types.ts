@@ -670,6 +670,8 @@ export interface AppInfo {
   microsoftConfigured: boolean;
   /** A tray icon can be shown (Linux needs an AppIndicator library). */
   trayAvailable?: boolean;
+  /** Running as a Flatpak, which gets its updates from where it was installed. */
+  flatpak?: boolean;
 }
 
 export type EngineEvent =

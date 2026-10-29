@@ -202,7 +202,7 @@
   "vip.settingsDesc": "Mail from VIPs is gathered under VIPs in the sidebar, and an account can notify for their mail only (the gear in Accounts). Add someone from a message’s ⋯ menu, by right-clicking a conversation, or on their contact page.",
   "vip.none": "You have no VIPs yet.",
   "vip.emptyTitle": "No mail from VIPs",
-  "vip.emptyBody": "Conversations with mail from your VIPs show up here.",
+  "vip.emptyBody": "Conversations with mail from your VIPs show up here. Add someone from a message’s ⋯ menu, by right-clicking a conversation, or on their contact page.",
 
   "subscriptions.title": "Subscriptions",
   "subscriptions.sub": "Newsletters and other mailing lists that write to you, the busiest first.",
@@ -238,6 +238,7 @@
   "updates.check": "Check for new versions",
   "updates.checkDesc": "Once a day, Envelope asks GitHub whether a newer version is out. Nothing about you or your mail is sent.",
   "updates.checkNow": "Check now",
+  "updates.flatpak": "Updates come from where Envelope was installed (Flathub).",
 
   "importance.high": "High importance",
   "importance.low": "Low importance",
@@ -1733,6 +1734,7 @@
   "accountSettings.notifyAll": "All new mail in the inbox",
   "accountSettings.notifyPeople": "Mail from people only",
   "accountSettings.notifyVips": "Mail from VIPs only",
+  "accountSettings.notifyVipsNone": "You have no VIPs yet, so nothing will notify. Add someone from a message’s ⋯ menu.",
   "accountSettings.notifyNone": "None",
   "accountSettings.notifyDesc": "Mail from people leaves out newsletters and automatic notifications.",
   "accountSettings.download": "Keep messages on this computer",

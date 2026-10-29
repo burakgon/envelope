@@ -72,7 +72,7 @@
         {#if primary}<button class="btn primary sm" onclick={() => write(primary)}><Mail size={15} />{t('contacts.sendEmail')}</button>{/if}
         {#if c.phones[0]}<button class="btn sm" onclick={() => api.openUrl(`tel:${c.phones[0].value.replace(/\s/g, '')}`)}><Phone size={15} />{t('contacts.call')}</button>{/if}
         {#if c.emails.length}
-          <button class="btn sm vip" class:on={vip} aria-pressed={vip} title={t(vip ? 'vip.remove' : 'vip.add')} onclick={() => vips.setAll(c.name, c.emails.map((e) => e.value), !vip)}><Crown size={14} />{t('vip.badge')}</button>
+          <button class="btn sm vip" class:on={vip} aria-pressed={vip} title={t(vip ? 'vip.remove' : 'vip.add')} onclick={() => vips.setAll(c.name, c.emails.map((e) => e.value), !vip)}><Crown size={14} />{vip ? t('vip.badge') : t('vip.add')}</button>
         {/if}
         {#if !book?.readOnly}
           <button class="btn sm" onclick={() => people.edit()}><Pen size={14} />{t('common.edit')}</button>

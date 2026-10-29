@@ -202,7 +202,7 @@
   "vip.settingsDesc": "VIP からのメールはサイドバーの「VIP」にまとめて表示され、アカウントごとに VIP からのメールだけを通知できます (「アカウント」の歯車)。メッセージの ⋯ メニュー、スレッドの右クリックメニュー、または連絡先のページから追加できます。",
   "vip.none": "VIP はまだいません。",
   "vip.emptyTitle": "VIP からのメールはありません",
-  "vip.emptyBody": "VIP からのメールを含むスレッドがここに表示されます。",
+  "vip.emptyBody": "VIP からのメールを含むスレッドがここに表示されます。メッセージの ⋯ メニュー、スレッドの右クリックメニュー、または連絡先のページから追加できます。",
 
   "subscriptions.title": "配信の管理",
   "subscriptions.sub": "あなたに届くニュースレターやメーリングリストを、件数の多い順に表示します。",
@@ -238,6 +238,7 @@
   "updates.check": "新しいバージョンを確認",
   "updates.checkDesc": "1 日に 1 回、新しいバージョンが出ているかを GitHub に問い合わせます。あなたやメールに関する情報は送信されません。",
   "updates.checkNow": "今すぐ確認",
+  "updates.flatpak": "更新は Envelope をインストールした場所 (Flathub) から届きます。",
 
   "importance.high": "重要度 - 高",
   "importance.low": "重要度 - 低",
@@ -1733,6 +1734,7 @@
   "accountSettings.notifyAll": "受信トレイのすべての新着メール",
   "accountSettings.notifyPeople": "人からのメールのみ",
   "accountSettings.notifyVips": "VIP からのメールのみ",
+  "accountSettings.notifyVipsNone": "VIP がまだいないため、何も通知されません。メッセージの ⋯ メニューから追加できます。",
   "accountSettings.notifyNone": "通知しない",
   "accountSettings.notifyDesc": "人からのメールには、ニュースレターや自動通知は含まれません。",
   "accountSettings.download": "このコンピューターに保存するメッセージ",

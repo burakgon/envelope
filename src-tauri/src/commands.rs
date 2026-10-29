@@ -111,6 +111,8 @@ pub fn app_info(state: State<'_, AppState>) -> serde_json::Value {
     serde_json::json!({
         "version": env!("CARGO_PKG_VERSION"),
         "trayAvailable": crate::tray::available(),
+        // Installed from Flathub (or another Flatpak remote), which brings its updates.
+        "flatpak": std::env::var_os("FLATPAK_ID").is_some(),
         "dataDir": state.engine.paths.data,
         "googleConfigured": !state.engine.oauth_client(Provider::Google).map(|c| c.client_id).unwrap_or_default().is_empty(),
         "microsoftConfigured": !state.engine.oauth_client(Provider::Microsoft).map(|c| c.client_id).unwrap_or_default().is_empty(),

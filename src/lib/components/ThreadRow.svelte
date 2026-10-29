@@ -371,6 +371,7 @@
   }
   .label {
     flex-shrink: 0;
+    margin: 0;
     font-size: 10.5px;
     font-weight: 600;
     padding: 1px 7px;

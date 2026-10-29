@@ -202,7 +202,7 @@
   "vip.settingsDesc": "Poczta od VIP-ów jest zebrana w sekcji VIP na pasku bocznym, a każde konto może powiadamiać tylko o niej (koło zębate w sekcji Konta). Dodasz kogoś z menu ⋯ wiadomości, prawym przyciskiem na wątku albo na jego stronie kontaktu.",
   "vip.none": "Nie masz jeszcze VIP-ów.",
   "vip.emptyTitle": "Brak poczty od VIP-ów",
-  "vip.emptyBody": "Tu pojawiają się wątki z wiadomościami od twoich VIP-ów.",
+  "vip.emptyBody": "Tu pojawiają się wątki z wiadomościami od twoich VIP-ów. Dodasz kogoś z menu ⋯ wiadomości, prawym przyciskiem na wątku albo na jego stronie kontaktu.",
 
   "subscriptions.title": "Subskrypcje",
   "subscriptions.sub": "Newslettery i inne listy mailingowe, które do ciebie piszą – najaktywniejsze najpierw.",
@@ -238,6 +238,7 @@
   "updates.check": "Sprawdzaj nowe wersje",
   "updates.checkDesc": "Raz dziennie Envelope pyta GitHub, czy jest nowsza wersja. Nic o tobie ani o twojej poczcie nie jest wysyłane.",
   "updates.checkNow": "Sprawdź teraz",
+  "updates.flatpak": "Aktualizacje przychodzą stamtąd, skąd zainstalowano Envelope (Flathub).",
 
   "importance.high": "Wysoka ważność",
   "importance.low": "Niska ważność",
@@ -1733,6 +1734,7 @@
   "accountSettings.notifyAll": "O każdej nowej wiadomości w Odebranych",
   "accountSettings.notifyPeople": "Tylko o wiadomościach od ludzi",
   "accountSettings.notifyVips": "Tylko o wiadomościach od VIP-ów",
+  "accountSettings.notifyVipsNone": "Nie masz jeszcze VIP-ów, więc nic nie będzie powiadamiać. Dodasz kogoś z menu ⋯ wiadomości.",
   "accountSettings.notifyNone": "Brak",
   "accountSettings.notifyDesc": "Wiadomości od ludzi nie obejmują newsletterów ani automatycznych powiadomień.",
   "accountSettings.download": "Przechowuj wiadomości na tym komputerze",
