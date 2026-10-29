@@ -20,6 +20,7 @@
     ShieldAlert, ShieldCheck,
     Ban, Crown, Newspaper,
     ChevronDown, ChevronUp, ChevronsUpDown,
+    PanelBottom, PanelOff, PanelRight, SortNewest, SortOldest, SortSender,
   } from '../icons';
   import { vips } from '../stores/vips.svelte';
   import { blockSender, senderOf } from '../stores/rules.svelte';
@@ -99,6 +100,7 @@
     })),
     { id: 'cal-settings', label: t('palette.calendarSettings'), group: 'goTo', icon: Settings, keywords: `${t('palette.kw.calendarSettings')} week start reminder default`, searchOnly: true, run: () => ui.open('settings', 'calendar') },
     { id: 'tasks', label: t('tasks.palette.openTasks'), group: 'goTo', icon: ListChecks, hint: 'G K', keywords: `${t('tasks.palette.kwTasks')} todo to-do reminders checklist`, run: () => (ui.view = 'tasks') },
+    ...viewCommands(),
     { id: 'new-task', label: t('tasks.palette.newTask'), group: 'actions', icon: ListPlus, searchOnly: true, keywords: `${t('tasks.palette.kwNewTask')} todo to-do add reminder`, run: () => tasks.newTask() },
     ...smartViews.map((v): Command => ({
       id: `tasks-${v}`,
@@ -134,6 +136,28 @@
         ]
       : [],
   );
+
+  /** The View menu's choices: the reading pane, conversations or messages one by one, the order (found by searching). */
+  function viewCommands(): Command[] {
+    const keywords = `${t('palette.kw.view')} view layout reading pane preview split sort order conversation thread message`;
+    const pane = (id: 'right' | 'bottom' | 'off', label: MessageKey, icon: typeof Inbox): Command => ({
+      id: `pane-${id}`, label: t(label), group: 'actions', icon, searchOnly: true, keywords, run: () => ui.set('readingPane', id),
+    });
+    const sort = (id: 'newest' | 'oldest' | 'sender', label: MessageKey, icon: typeof Inbox): Command => ({
+      id: `sort-${id}`, label: t(label), group: 'actions', icon, searchOnly: true, keywords, run: () => mail.setSort(id),
+    });
+    return [
+      ...[pane('right', 'palette.paneRight', PanelRight), pane('bottom', 'palette.paneBottom', PanelBottom), pane('off', 'palette.paneOff', PanelOff)].filter(
+        (c) => c.id !== `pane-${ui.settings.readingPane}`,
+      ),
+      mail.byMessage
+        ? { id: 'group', label: t('view.groupConversations'), group: 'actions', icon: Mails, searchOnly: true, keywords, run: () => mail.setGrouped(true) }
+        : { id: 'ungroup', label: t('palette.oneByOne'), group: 'actions', icon: Mail, searchOnly: true, keywords, run: () => mail.setGrouped(false) },
+      ...[sort('newest', 'palette.sortNewest', SortNewest), sort('oldest', 'palette.sortOldest', SortOldest), sort('sender', 'palette.sortSender', SortSender)].filter(
+        (c) => c.id !== `sort-${mail.sort}`,
+      ),
+    ];
+  }
 
   /** Moving through the messages of the open conversation (n, p, ;). */
   function readingCommands(): Command[] {
@@ -282,7 +306,8 @@
       return;
     }
     timer = setTimeout(async () => {
-      const page = await api.threads({ mailbox: { kind: 'everything' }, search: text, offset: 0, limit: 6 });
+      // As the list shows them: conversations, or messages one by one.
+      const page = await api.threads({ mailbox: { kind: 'everything' }, search: text, messages: mail.byMessage, offset: 0, limit: 6 });
       if (q.trim() === text) threads = page.items;
     }, 90);
   });

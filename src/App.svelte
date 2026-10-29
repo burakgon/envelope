@@ -96,7 +96,7 @@
       ui.view = 'mail';
       if (id != null) {
         mail.setMailbox({ kind: 'unified', role: 'inbox' });
-        mail.select(id);
+        mail.showConversation(id);
       }
     });
     const offTask = api.onOpenTask((id) => tasks.reveal(id));
@@ -441,7 +441,7 @@
   {:else if !ui.sidebarCollapsed}
     <Sidebar />
   {/if}
-  <main>
+  <main class:below={ui.view === 'mail' && ui.paneBelow}>
     {#if ui.view === 'mail'}
       <!-- One pane at a time in a narrow window: the list, or the conversation open from it. -->
       {#if !ui.single || !reading}<ThreadList bind:this={list} />{/if}
@@ -502,6 +502,10 @@
     min-width: 0;
     display: flex;
     height: 100%;
+  }
+  /* The reading pane below the list. */
+  main.below {
+    flex-direction: column;
   }
   .dock {
     position: fixed;

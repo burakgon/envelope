@@ -1,9 +1,12 @@
 import { MediaQuery } from 'svelte/reactivity';
 import { api } from '../api';
+import type { SortOrder } from '../api';
 import { setLanguage, type LanguageSetting } from '../i18n';
 
 export type Theme = 'system' | 'light' | 'dark';
 export type Density = 'comfortable' | 'compact';
+/** Where an open conversation goes: beside the list, below it, or in its place. */
+export type ReadingPane = 'right' | 'bottom' | 'off';
 
 /** A reusable message body (with an optional subject). */
 export interface Template {
@@ -59,7 +62,11 @@ export interface Settings {
   accentHue: number;
   density: Density;
   splitInbox: boolean;
+  /** Replies are listed with what they answer; off, the list shows messages one by one. */
   conversationView: boolean;
+  readingPane: ReadingPane;
+  /** The order of each list not newest first, by `listKey`. */
+  sortOrders: Record<string, SortOrder>;
   markReadDelayMs: number; // -1 = never automatically
   undoSendSeconds: number;
   loadRemoteImages: 'ask' | 'always' | 'never';
@@ -109,6 +116,8 @@ export interface Settings {
   closeToTray: boolean;
   sidebarWidth: number;
   listWidth: number;
+  /** The list's height with the reading pane below it. */
+  listHeight: number;
   aiEnabled: boolean;
 }
 
@@ -119,6 +128,8 @@ export const defaultSettings: Settings = {
   density: 'comfortable',
   splitInbox: true,
   conversationView: true,
+  readingPane: 'right',
+  sortOrders: {},
   markReadDelayMs: 600,
   undoSendSeconds: 5,
   loadRemoteImages: 'ask',
@@ -154,6 +165,7 @@ export const defaultSettings: Settings = {
   closeToTray: false,
   sidebarWidth: 236,
   listWidth: 392,
+  listHeight: 320,
   aiEnabled: true,
 };
 
@@ -185,8 +197,14 @@ class Ui {
     return !this.wide.current;
   }
 
+  /** One pane at a time: the list, or the conversation opened from it (with no reading pane, or a narrow window). */
   get single(): boolean {
-    return !this.roomy.current;
+    return !this.roomy.current || this.settings.readingPane === 'off';
+  }
+
+  /** The open conversation is below the list. */
+  get paneBelow(): boolean {
+    return !this.single && this.settings.readingPane === 'bottom';
   }
 
   /** Hidden by the person, so the views offer to show it again (the rail always shows). */

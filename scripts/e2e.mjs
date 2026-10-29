@@ -1957,6 +1957,113 @@ await step('S/MIME: certificates in Settings, a .p12 password asked in the app, 
   }
 });
 
+/** Picks an entry of the list's View menu. */
+async function view(p, name) {
+  await p.locator('.list header button[aria-label="View"]').click();
+  await p.getByRole('menuitemradio', { name, exact: true }).or(p.getByRole('menuitemcheckbox', { name, exact: true })).click();
+}
+
+await step('the reading pane goes below the list, or away, from the View menu, the palette and Settings', async () => {
+  const p = await fresh();
+  try {
+    const list = p.getByRole('listbox', { name: 'Conversations' });
+    // Below: the list on top across the window, the conversation under it, with a divider between.
+    await view(p, 'Bottom');
+    await p.locator('main.below').waitFor({ timeout: 5000 });
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    await p.locator('.reader .subject-block h2').waitFor({ timeout: 5000 });
+    const [top, under] = await Promise.all([p.locator('.list').boundingBox(), p.locator('.reader').boundingBox()]);
+    if (!(top.y + top.height <= under.y + 1) || top.width < 1000) throw new Error(`the list is at ${JSON.stringify(top)} and the conversation at ${JSON.stringify(under)}`);
+    const divider = p.locator('.resizer.across');
+    const d = await divider.boundingBox();
+    await p.mouse.move(d.x + d.width / 2, d.y + d.height / 2);
+    await p.mouse.down();
+    await p.mouse.move(d.x + d.width / 2, d.y + 120, { steps: 4 });
+    await p.mouse.up();
+    const taller = await p.locator('.list').boundingBox();
+    if (taller.height < top.height + 100) throw new Error(`dragging the divider left the list ${taller.height} px tall (was ${top.height})`);
+    // Off: the open conversation takes the list's place, with Back; the list fills the window.
+    await p.keyboard.press('Control+k');
+    await p.keyboard.type('reading pane off');
+    await p.locator('.palette .row .label', { hasText: /^Reading pane off$/ }).click();
+    await p.locator('.reader .back').waitFor({ timeout: 5000 });
+    if (await list.count()) throw new Error('the list stays beside the open conversation');
+    await p.keyboard.press('Escape');
+    await list.waitFor({ timeout: 5000 });
+    if (await p.locator('.reader').count()) throw new Error('the conversation stays beside the list');
+    if ((await p.locator('.list').boundingBox()).width < 1100) throw new Error('the list does not fill the window');
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    await p.locator('.reader .back').click();
+    await list.waitFor({ timeout: 5000 });
+    // Settings says so, and puts it back on the right.
+    await p.keyboard.press('Control+,');
+    await p.locator('.window .tab', { hasText: 'Appearance' }).click();
+    const pane = p.getByRole('radiogroup', { name: 'Reading pane' });
+    if ((await pane.getByRole('radio', { checked: true }).innerText()).trim() !== 'Off') throw new Error('Settings does not say the pane is off');
+    await pane.getByRole('radio', { name: 'Right' }).click();
+    await p.keyboard.press('Escape');
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    await p.locator('.reader .subject-block h2').waitFor({ timeout: 5000 });
+    if (!(await list.count())) throw new Error('the list did not come back beside the conversation');
+  } finally {
+    await p.close();
+  }
+});
+
+await step('without conversations, the list has a row per message and actions take single messages', async () => {
+  const p = await fresh();
+  try {
+    await view(p, 'Group into conversations');
+    const rows = p.getByRole('listbox', { name: 'Messages' }).locator('.row', { hasText: 'Q4 roadmap' });
+    // The conversation's messages in the inbox: Priya's two and Daniel's (the user's own reply is in Sent).
+    await p.locator('.list .search input').fill('Q4 roadmap in:inbox');
+    await eventually(p, async () => (await rows.count()) === 3, async () => `${await rows.count()} rows for the conversation's messages`);
+    await rows.first().click();
+    await p.locator('.reader .of-conversation', { hasText: 'One of 4 messages in this conversation' }).waitFor({ timeout: 5000 });
+    if ((await p.locator('.reader .msg').count()) !== 1) throw new Error('the reader shows more than the message');
+    await p.locator('body').press('e');
+    await toast(p, 'Archived');
+    await eventually(p, async () => (await rows.count()) === 2, async () => `${await rows.count()} rows after archiving one message`);
+    // Grouped again, the conversation is still in the inbox (its other messages are).
+    await view(p, 'Group into conversations');
+    await p.locator('.list .search .clear').click();
+    await p.getByRole('listbox', { name: 'Conversations' }).locator('.row', { hasText: 'Q4 roadmap' }).first().waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
+await step('a list sorts oldest first or by sender, and each folder keeps its order', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('.tabs button', { hasText: 'All' }).click();
+    const senders = () => p.locator('.list .row .from').allInnerTexts();
+    const first = () => p.locator('.list .row').first().innerText();
+    const newest = await first();
+    await view(p, 'Oldest first');
+    await eventually(p, async () => (await first()) !== newest, 'the order did not change');
+    // Another folder has an order of its own; the inbox keeps oldest first.
+    await p.locator('.sidebar .item', { hasText: 'Sent' }).first().click();
+    await p.locator('.list h1', { hasText: 'Sent' }).waitFor({ timeout: 5000 });
+    await p.locator('.list header button[aria-label="View"]').click();
+    if (!(await p.getByRole('menuitemradio', { name: 'Newest first', checked: true }).count())) throw new Error('Sent took the inbox’s order');
+    await p.keyboard.press('Escape');
+    await p.locator('body').press('g');
+    await p.locator('body').press('i');
+    await p.locator('.tabs button', { hasText: 'All' }).click();
+    await eventually(p, async () => (await first()) !== newest, 'the inbox lost its order');
+    // By sender (messages one by one, a sender to a row): alphabetically, whatever the case or accents.
+    await view(p, 'Group into conversations');
+    await view(p, 'By sender');
+    await eventually(p, async () => {
+      const names = (await senders()).map((n) => n.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''));
+      return names.length > 3 && names.every((n, i) => i === 0 || names[i - 1] <= n);
+    }, async () => `senders in the order ${(await senders()).join(', ')}`);
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

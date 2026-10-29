@@ -34,18 +34,20 @@
 
   const d = $derived(mail.detail);
   const thread = $derived(d?.thread);
+  /** The conversation shown, or the one of the message shown (a list of messages one by one). */
+  const conversation = $derived(thread ? mail.conversationOf(thread) : null);
   /** A draft being edited under the conversation is shown in its composer only. */
-  const editing = $derived(new Set(compose.list.filter((c) => c.inline && c.threadId === d?.thread.id).map((c) => c.sourceMessageId)));
+  const editing = $derived(new Set(compose.list.filter((c) => c.inline && c.threadId === conversation).map((c) => c.sourceMessageId)));
   const messages = $derived((d?.messages ?? []).filter((m) => !editing.has(m.id)));
   const account = $derived(thread ? mail.accountById.get(thread.accountId) : undefined);
-  const inlineComposer = $derived(thread ? compose.list.find((c) => c.inline && c.threadId === thread.id) : undefined);
+  const inlineComposer = $derived(thread ? compose.list.find((c) => c.inline && c.threadId === conversation) : undefined);
   const labels = $derived(
     (thread?.folderIds ?? []).map((id) => mail.folderById.get(id)).filter((f) => f && f.kind === 'label'),
   );
   const inInbox = $derived(!!thread && thread.folderIds.some((id) => mail.folderById.get(id)?.role === 'inbox'));
   const inSpam = $derived(!!thread && mail.isSpam([thread.id]));
   /** An open task made from this conversation. */
-  const linkedTask = $derived(thread ? tasks.linked.get(thread.id) : undefined);
+  const linkedTask = $derived(conversation != null ? tasks.linked.get(conversation) : undefined);
 
   /** The toolbar's buttons, in order; those the window has no room for go into its More menu. */
   const actions = $derived.by((): BarAction[] => {
@@ -177,7 +179,7 @@
   }
 </script>
 
-<section class="reader">
+<section class="reader" class:below={ui.paneBelow}>
   <header data-tauri-drag-region>
     {#if ui.single}
       <button class="icon-btn back" title={t('reader.backToList')} aria-label={t('reader.backToList')} onclick={() => mail.closeThread()}><ArrowLeft size={17} /></button>
@@ -197,7 +199,8 @@
     {:else}
       <span class="grow" data-tauri-drag-region></span>
     {/if}
-    <WindowControls />
+    <!-- Below the list, the window's buttons are in the list's header. -->
+    {#if !ui.paneBelow}<WindowControls />{/if}
   </header>
 
   {#if thread}
@@ -225,10 +228,14 @@
             {/each}
             {#if messages.length > 1}<span class="chip">{t('reader.messageCount', { count: messages.length })}</span>{/if}
           </div>
+          {#if d?.conversation && d.conversation.messageCount > 1}
+            <!-- One message of a conversation (a list of messages one by one). -->
+            <p class="of-conversation">{t('reader.oneOfConversation', { count: d.conversation.messageCount })}</p>
+          {/if}
         </div>
 
-        {#if ui.settings.aiEnabled && messages.length > 0}
-          <AiSummary threadId={thread.id} {messages} />
+        {#if ui.settings.aiEnabled && messages.length > 0 && conversation != null}
+          <AiSummary threadId={conversation} {messages} />
         {/if}
 
         <div class="messages">
@@ -294,12 +301,17 @@
     position: relative;
     flex: 1;
     min-width: 0;
+    min-height: 0;
     /* Messages lay themselves out by the width they get (MessageCard). */
     container-type: inline-size;
     display: flex;
     flex-direction: column;
     height: 100%;
     background: var(--bg);
+  }
+  /* Below the list: the rest of the window's height. */
+  .reader.below {
+    height: auto;
   }
   header {
     display: flex;
@@ -308,6 +320,11 @@
     height: var(--header-h);
     padding: 0 12px;
     flex-shrink: 0;
+  }
+  .of-conversation {
+    margin: 10px 0 0;
+    color: var(--text-3);
+    font-size: var(--text-sm);
   }
   .back {
     margin-right: 4px;

@@ -142,6 +142,8 @@ export interface ThreadSummary {
   /** Later replies skip the inbox and do not notify. */
   muted: boolean;
   snoozedUntil: number | null;
+  /** In a list of messages one by one: the row is the message `id`, and this its conversation. */
+  threadId?: number | null;
   /** Interface only: the row is a draft that is only on this computer. */
   localDraftId?: number;
 }
@@ -170,10 +172,16 @@ export interface ListFilter {
   category?: string | null;
 }
 
+/** The order of a list: by sender is by whom a conversation is with, newest first for each. */
+export type SortOrder = 'newest' | 'oldest' | 'sender';
+
 export interface ThreadQuery {
   mailbox: Mailbox;
   search?: string | null;
   filter?: ListFilter;
+  sort?: SortOrder;
+  /** Messages one by one instead of conversations. */
+  messages?: boolean;
   offset: number;
   limit: number;
 }
@@ -229,6 +237,8 @@ export interface MessageView {
 export interface ThreadDetail {
   thread: ThreadSummary;
   messages: MessageView[];
+  /** One message opened from a list of messages one by one (`thread` is its row): its conversation. */
+  conversation?: ThreadSummary | null;
 }
 
 export type MoveTarget =
@@ -258,7 +268,7 @@ export interface ThreadRef {
 }
 
 export interface MarkedRead {
-  /** Conversations marked read. */
+  /** Conversations marked read (messages, in a list of messages one by one). */
   threads: number;
   /** Messages that were unread: marking them unread again undoes it. */
   messageIds: number[];

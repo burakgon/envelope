@@ -34,23 +34,30 @@ export interface Api {
   syncNow(accountId?: number | null): Promise<void>;
 
   folders(): Promise<T.Folder[]>;
+  /** A page of conversations, or (`query.messages`) of messages one by one. */
   threads(query: T.ThreadQuery): Promise<T.ThreadPage>;
   thread(id: number): Promise<T.ThreadDetail>;
+  /** One message from a list of messages one by one: its row, the message and its conversation. */
+  message(id: number): Promise<T.ThreadDetail>;
   loadBodies(ids: number[]): Promise<T.MessageView[]>;
   setFlags(threadIds: number[], messageIds: number[], change: T.FlagChange): Promise<void>;
-  /** Marks every unread conversation of a list (mailbox, filter, inbox tab, search) as read. */
-  markRead(mailbox: T.Mailbox, filter: T.ListFilter, search: string | null): Promise<T.MarkedRead>;
-  /** Every conversation of a list (mailbox, filter, inbox tab, search), beyond the pages loaded. */
-  threadRefs(mailbox: T.Mailbox, filter: T.ListFilter, search: string | null): Promise<T.ThreadRef[]>;
+  /** Marks every unread conversation of a list (mailbox, filter, inbox tab, search) as read; with `messages`, every unread message of a list of them. */
+  markRead(mailbox: T.Mailbox, filter: T.ListFilter, search: string | null, messages?: boolean): Promise<T.MarkedRead>;
+  /** Every conversation of a list (mailbox, filter, inbox tab, search), beyond the pages loaded; with `messages`, every message of a list of them. */
+  threadRefs(mailbox: T.Mailbox, filter: T.ListFilter, search: string | null, messages?: boolean): Promise<T.ThreadRef[]>;
   /** Done with, reminds again later, or brings back the follow-up reminders of conversations. */
   setFollowUp(threadIds: number[], change: T.FollowUpChange): Promise<void>;
   moveThreads(threadIds: number[], source: number | null, target: T.MoveTarget): Promise<T.UndoToken>;
+  /** Moves single messages, and nothing else of their conversations (a list of messages one by one). */
+  moveMessages(messageIds: number[], source: number | null, target: T.MoveTarget): Promise<T.UndoToken>;
   undo(token: T.UndoToken): Promise<void>;
   deleteForever(threadIds: number[]): Promise<void>;
+  deleteMessagesForever(messageIds: number[]): Promise<void>;
   snooze(threadIds: number[], until: number | null): Promise<void>;
   /** Mutes conversations (archiving them from the inbox) or unmutes them; muting returns the archive's undo tokens. */
   muteThreads(threadIds: number[], muted: boolean): Promise<T.UndoToken[]>;
   setLabel(threadIds: number[], folderId: number, add: boolean): Promise<void>;
+  labelMessages(messageIds: number[], folderId: number, add: boolean): Promise<void>;
 
   /**
    * Folders and labels. Changes to the folder tree reach the server at once (and fail

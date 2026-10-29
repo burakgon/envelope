@@ -19,8 +19,12 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - S/MIME, as Outlook and most companies use it: signed and encrypted messages (also opaque signed ones, AES-GCM and old 3DES mail) are opened, and their signatures checked. A signature shows as verified only when the message is unchanged and the certificate valid, meant for e-mail, vouched for by an authority this computer trusts and made out to the sender's address; otherwise it says which check failed, with the certificate on request. Mail encrypted to a certificate that isn't here says so and offers to import it.
 - S/MIME certificates in Settings → Encryption: import yours from a `.p12` or `.pfx` file (its password is asked in the app), save and delete certificates, and import other people's. The certificates of people whose signed mail verifies are kept, so you can encrypt to them.
 - The composer signs and encrypts with S/MIME: per message, OpenPGP or S/MIME, with S/MIME the default when you reply to S/MIME mail or have a certificate and no OpenPGP key. Encrypted mail is encrypted to your own certificate too, so Sent stays readable, and encrypted drafts are stored encrypted to it.
+- A View menu in the list's header (also in the command palette and Settings → Appearance) for the reading pane: on the right, below the list (with a divider to drag), or off, where the list fills the window and a conversation opens in its place with Back. Below 1000 pixels the list and the conversation still take turns.
+- Group into conversations can be turned off (View menu, command palette, Settings → Appearance): the list then has a row for each message, newest first, and archive, delete, move, label, read, star and select all take the messages chosen, leaving the rest of their conversations where they are. Snooze, mute and follow-up reminders still apply to the whole conversation. An open message says how many messages its conversation has.
+- Lists sort newest first, oldest first or by sender (whom a conversation is with, without case or accents), from the View menu or the command palette. Each folder keeps its own order; paging stays fast in every order.
 
 ### Fixed
+- Dragging the edge of the conversation list over an open message no longer stops resizing it halfway.
 - A few German texts (blocked senders, account alerts) addressed the reader as "du" instead of "Sie" like the rest.
 - Messages signed with S/MIME showed an `smime.p7s` attachment, and S/MIME encrypted or opaque signed ones looked empty with an `smime.p7m` attachment.
 

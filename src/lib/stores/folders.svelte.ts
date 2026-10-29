@@ -272,7 +272,7 @@ export async function createAndLabel(account: Account, name: string, ids: number
   const folder = await create(account, null, name.trim(), true);
   if (!folder) return;
   try {
-    await api.setLabel(ids, folder.id, true);
+    await (mail.byMessage ? api.labelMessages(ids, folder.id, true) : api.setLabel(ids, folder.id, true));
     toasts.show(t('mail.labelAdded', { name: folder.name }));
   } catch (e) {
     toasts.error(errorMessage(e));

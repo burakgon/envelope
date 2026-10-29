@@ -16,6 +16,7 @@ export interface ComposerState {
   data: DraftInput;
   /** Reply composer shown inside the conversation instead of floating. */
   inline: boolean;
+  /** The conversation it is written in (also when the reader shows one message of it). */
   threadId: number | null;
   /** The draft message (in Drafts or a conversation) this composer edits, while it is listed. */
   sourceMessageId: number | null;
@@ -166,7 +167,7 @@ class Compose {
       const original = mail.detail?.messages.find((m) => m.id === messageId);
       if (original && isContained(original)) await pgp.open(messageId);
       const data = await api.composeReply(messageId, mode, quoteText(original?.date ?? date));
-      const threadId = mail.detail?.thread.id ?? null;
+      const threadId = mail.detail ? mail.conversationOf(mail.detail.thread) : null;
       this.open(data, { inline, threadId, showCc: data.cc.length > 0 });
     } catch (e) {
       toasts.error(errorMessage(e));
@@ -200,7 +201,7 @@ class Compose {
     try {
       const d = typeof draft === 'number' ? await api.draft(draft) : draft;
       const reply = d.data.mode === 'reply' || d.data.mode === 'replyAll';
-      const thread = mail.detail?.thread.id ?? null;
+      const thread = mail.detail ? mail.conversationOf(mail.detail.thread) : null;
       const inThread = thread != null && (opts.threadId ?? null) === thread;
       const replyHere = reply && d.data.replyToMessageId != null && !!mail.detail?.messages.some((m) => m.id === d.data.replyToMessageId);
       // Inline under the open conversation, unless another reply is being written there.
@@ -254,10 +255,10 @@ class Compose {
     if (mail.selectedId === th.id) await this.editThread(th.id);
   }
 
-  /** Opens the newest draft of a conversation, if it has one; true when it did. */
-  async editThread(threadId: number): Promise<boolean> {
+  /** Opens the newest draft of a row (a conversation, or a draft message one by one), if it has one; true when it did. */
+  async editThread(id: number): Promise<boolean> {
     try {
-      const d = mail.detail?.thread.id === threadId ? mail.detail : await api.thread(threadId);
+      const d = mail.detail?.thread.id === id ? mail.detail : await mail.load(id);
       const draft = [...d.messages].reverse().find((m) => m.flags.draft);
       if (!draft) return false;
       await this.editMessage(draft);
@@ -337,7 +338,7 @@ class Compose {
       try {
         const draftId = await api.saveDraft(null, data, false);
         // Back where it was: under its conversation if that is still open.
-        const here = inline && threadId != null && mail.detail?.thread.id === threadId;
+        const here = inline && threadId != null && !!mail.detail && mail.conversationOf(mail.detail.thread) === threadId;
         this.open(data, { draftId, inline: here, threadId: here ? threadId : null, focus: 1, savedAt: Date.now() });
         mail.draftsChanged();
       } catch (e) {
@@ -419,8 +420,10 @@ class Compose {
         },
         sendAt ? 8000 : Math.max(3000, delay),
       );
-      if (ui.settings.sendAndArchive && replyThread != null && data.mode !== 'forward') {
-        setTimeout(() => mail.archive([replyThread]), 300);
+      // The conversation replied in goes; with messages one by one, the message answered.
+      const archived = mail.byMessage ? data.replyToMessageId : replyThread;
+      if (ui.settings.sendAndArchive && replyThread != null && archived != null && data.mode !== 'forward') {
+        setTimeout(() => mail.archive([archived]), 300);
       }
       return 'sent';
     } catch (e) {

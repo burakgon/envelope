@@ -57,7 +57,7 @@
   function open(s: AiSource) {
     ui.close();
     ui.view = 'mail';
-    mail.select(s.threadId);
+    mail.showConversation(s.threadId);
   }
 </script>
 

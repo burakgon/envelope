@@ -377,6 +377,18 @@
             </div>
           </div>
           <div class="row">
+            <div class="txt"><b>{t('view.readingPane')}</b><span>{t('settings.appearance.readingPaneDesc')}</span></div>
+            <div class="seg" role="radiogroup" aria-label={t('view.readingPane')}>
+              <button role="radio" aria-checked={ui.settings.readingPane === 'right'} class:on={ui.settings.readingPane === 'right'} onclick={() => ui.set('readingPane', 'right')}>{t('view.paneRight')}</button>
+              <button role="radio" aria-checked={ui.settings.readingPane === 'bottom'} class:on={ui.settings.readingPane === 'bottom'} onclick={() => ui.set('readingPane', 'bottom')}>{t('view.paneBottom')}</button>
+              <button role="radio" aria-checked={ui.settings.readingPane === 'off'} class:on={ui.settings.readingPane === 'off'} onclick={() => ui.set('readingPane', 'off')}>{t('view.paneOff')}</button>
+            </div>
+          </div>
+          <div class="row">
+            <div class="txt"><b>{t('view.groupConversations')}</b><span>{t('settings.appearance.groupConversationsDesc')}</span></div>
+            <Toggle label={t('view.groupConversations')} checked={ui.settings.conversationView} onchange={(v) => mail.setGrouped(v)} />
+          </div>
+          <div class="row">
             <div class="txt"><b>{t('settings.appearance.showAvatars')}</b></div>
             <Toggle label={t('settings.appearance.showAvatars')} checked={ui.settings.showAvatars} onchange={(v) => ui.set('showAvatars', v)} />
           </div>
