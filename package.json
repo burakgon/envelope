@@ -17,7 +17,8 @@
     "screenshots": "node scripts/screenshots.mjs",
     "e2e": "node scripts/e2e.mjs",
     "test:quickadd": "node scripts/quickadd-test.mjs",
-    "test:mail": "node scripts/mail-test.mjs"
+    "test:mail": "node scripts/mail-test.mjs",
+    "test:rrule": "node scripts/rrule-test.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

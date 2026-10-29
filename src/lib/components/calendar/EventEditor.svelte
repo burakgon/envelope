@@ -1,18 +1,21 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import type { EditScope } from '../../api';
   import { cal, ymd } from '../../stores/calendar.svelte';
   import { t } from '../../i18n';
   import { dateFormat } from '../../utils/format';
-  import { describeRule } from '../../utils/rrule';
+  import { DAY_CODES, dayOf, describeRule, firstDay, followStart, monthlyChoices, ruleNote, ruleProblem, untilFor } from '../../utils/rrule';
+  import { fromWallClock, isZone, localZone, sameZone, wallClock } from '../../utils/timezone';
   import RecipientInput from '../RecipientInput.svelte';
   import Toggle from '../settings/Toggle.svelte';
   import DatePicker from './DatePicker.svelte';
   import TimePicker from './TimePicker.svelte';
+  import TimeZonePicker from './TimeZonePicker.svelte';
+  import RepeatEditor from './RepeatEditor.svelte';
   import AvailabilityStrip from './AvailabilityStrip.svelte';
   import { mail } from '../../stores/mail.svelte';
   import { confirmDiscard } from '../../stores/dialogs.svelte';
-  import { AlignLeft, Bell, Calendar, Clock, MapPin, Repeat, Users, Video, X } from '../../icons';
+  import { AlignLeft, Bell, Calendar, Clock, Info, MapPin, Repeat, Users, Video, Warning, X } from '../../icons';
 
   const st = cal.editor!;
   const input = st.input;
@@ -20,34 +23,75 @@
   let title: HTMLInputElement | undefined = $state();
   onMount(() => title?.focus());
 
-  // Local date/time fields.
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const dateOf = (ms: number) => ymd(new Date(ms));
-  const timeOf = (ms: number) => `${pad(new Date(ms).getHours())}:${pad(new Date(ms).getMinutes())}`;
-  let startDate = $state(input.allDay ? (input.startDate ?? dateOf(input.start)) : dateOf(input.start));
+  // Dates and times as typed: on the clocks of the event's zone (all-day dates are just dates).
+  const here = localZone();
+  let zone = $state(isZone(input.timezone) ? input.timezone : here);
+  const toMs = (date: string, time: string) => fromWallClock(date, time, zone);
+  const dateOf = (ms: number) => wallClock(ms, zone).date;
+  const timeOf = (ms: number) => wallClock(ms, zone).time;
+  const firstDate = input.allDay ? (input.startDate ?? ymd(new Date(input.start))) : dateOf(input.start);
+  let startDate = $state(firstDate);
   let startTime = $state(timeOf(input.start));
   let endDate = $state(
     input.allDay
-      ? ymd(new Date(new Date(`${input.endDate ?? dateOf(input.end)}T00:00:00`).getTime() - 86_400_000))
+      ? ymd(new Date(new Date(`${input.endDate ?? ymd(new Date(input.end))}T00:00:00`).getTime() - 86_400_000))
       : dateOf(input.end),
   );
   let endTime = $state(timeOf(input.end));
   let prevStart = input.start;
-  let prevStartDate = input.allDay ? (input.startDate ?? dateOf(input.start)) : dateOf(input.start);
+  let prevStartDate = firstDate;
 
-  const weekday = $derived(dateFormat({ weekday: 'long' }).format(new Date(`${startDate}T00:00:00`)));
-  const dayCode = $derived(['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date(`${startDate}T00:00:00`).getDay()]);
+  const weekday = $derived(dateFormat({ weekday: 'long' }).format(dayOf(startDate)));
+  const dayCode = $derived(DAY_CODES[dayOf(startDate).getDay()]);
+  const CUSTOM = 'custom';
   const repeatOptions = $derived([
     { value: '', label: t('calendar.recurrence.none') },
     { value: 'FREQ=DAILY', label: t('calendar.recurrence.everyDay') },
     { value: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', label: t('calendar.recurrence.everyWeekday') },
     { value: `FREQ=WEEKLY;BYDAY=${dayCode}`, label: t('calendar.recurrence.weeklyOn', { count: 1, days: weekday }) },
     { value: `FREQ=WEEKLY;INTERVAL=2;BYDAY=${dayCode}`, label: t('calendar.recurrence.weeklyOn', { count: 2, days: weekday }) },
-    { value: 'FREQ=MONTHLY', label: t('calendar.recurrence.monthlyOnDay', { day: new Date(`${startDate}T00:00:00`).getDate() }) },
-    { value: 'FREQ=YEARLY', label: t('calendar.recurrence.everyYear') },
+    ...monthlyChoices(startDate).map((o) => ({ value: o.value === 'day' ? 'FREQ=MONTHLY' : `FREQ=MONTHLY;BYDAY=${o.value}`, label: o.label })),
+    { value: 'FREQ=YEARLY', label: t('calendar.recurrence.yearlyOn', { count: 1, date: dateFormat({ month: 'long', day: 'numeric' }).format(dayOf(startDate)) }) },
   ]);
   let repeat = $state(input.rrule ?? '');
   const customRepeat = $derived(!!repeat && !repeatOptions.some((o) => o.value === repeat));
+  let customizing = $state(false);
+  let repeatMenu: HTMLSelectElement | undefined = $state();
+  const calendarKind = $derived(cal.calendarById.get(input.calendarId)?.kind ?? '');
+  // A calendar that cannot store a new rule says so here, rather than changing it (one it holds already, it can).
+  const openedWith = { rule: input.rrule ?? '', calendarId: input.calendarId };
+  const repeatProblem = $derived(
+    repeat === openedWith.rule && input.calendarId === openedWith.calendarId ? null : ruleProblem(repeat, calendarKind),
+  );
+  const repeatNote = $derived(ruleNote(repeat, startDate, calendarKind));
+
+  function pickRepeat(select: HTMLSelectElement) {
+    if (select.value === CUSTOM) {
+      select.value = repeat;
+      customizing = true;
+    } else setRepeat(select.value);
+  }
+
+  /** A weekly series begins on its first day; the event moves there, as Exchange would move it. */
+  function setRepeat(rule: string) {
+    repeat = rule;
+    const day = firstDay(rule, startDate);
+    if (day === startDate) return;
+    const shift = Math.round((dayOf(day).getTime() - dayOf(startDate).getTime()) / 86_400_000);
+    const end = dayOf(endDate);
+    end.setDate(end.getDate() + shift);
+    startDate = day;
+    endDate = ymd(end);
+    prevStart = toMs(startDate, startTime);
+    prevStartDate = startDate;
+  }
+
+  /** Another zone keeps the times as typed, now on its clocks; an end date stays the same day. */
+  function onZoneChange(tz: string, before: string) {
+    repeat = untilFor(repeat, true, before);
+    zone = tz;
+    prevStart = toMs(startDate, startTime);
+  }
 
   const alarmChoices = [0, 5, 10, 15, 30, 60, 120, 1440];
   const alarmLabel = (m: number) =>
@@ -59,13 +103,13 @@
           ? t('calendar.reminder.hoursBefore', { count: m / 60 })
           : t('calendar.reminder.daysBefore', { count: m / 1440 });
 
-  // Moving the start keeps the event's length.
+  // Moving the start keeps the event's length, and a repeat rule naming its day follows it.
   function onStartChange() {
-    const s = new Date(`${startDate}T${startTime}`).getTime();
-    const e = new Date(`${endDate}T${endTime}`).getTime();
+    const s = toMs(startDate, startTime);
+    const e = toMs(endDate, endTime);
     if (input.allDay) {
-      const shift = Math.round((new Date(`${startDate}T00:00:00`).getTime() - new Date(`${prevStartDate}T00:00:00`).getTime()) / 86_400_000);
-      const end = new Date(`${endDate}T00:00:00`);
+      const shift = Math.round((dayOf(startDate).getTime() - dayOf(prevStartDate).getTime()) / 86_400_000);
+      const end = dayOf(endDate);
       end.setDate(end.getDate() + shift);
       endDate = ymd(end) < startDate ? startDate : ymd(end);
     } else {
@@ -73,6 +117,7 @@
       endDate = dateOf(next);
       endTime = timeOf(next);
     }
+    repeat = followStart(repeat, prevStartDate, startDate);
     prevStart = s;
     prevStartDate = startDate;
   }
@@ -82,23 +127,25 @@
   }
 
   function collect() {
-    input.rrule = repeat || null;
+    input.rrule = repeat ? untilFor(repeat, input.allDay, zone) : null;
     if (input.allDay) {
       input.startDate = startDate;
-      const end = new Date(`${endDate < startDate ? startDate : endDate}T00:00:00`);
+      const end = dayOf(endDate < startDate ? startDate : endDate);
       end.setDate(end.getDate() + 1);
       input.endDate = ymd(end);
-      input.start = new Date(`${startDate}T00:00:00`).getTime();
+      input.start = dayOf(startDate).getTime();
       input.end = end.getTime();
     } else {
-      input.start = new Date(`${startDate}T${startTime}`).getTime();
-      input.end = new Date(`${endDate}T${endTime}`).getTime();
+      input.start = toMs(startDate, startTime);
+      input.end = toMs(endDate, endTime);
       input.startDate = null;
       input.endDate = null;
+      input.timezone = zone;
     }
   }
 
   async function save() {
+    if (repeatProblem) return;
     collect();
     if (!input.allDay && input.end <= input.start) {
       input.end = input.start + 30 * 60_000;
@@ -113,7 +160,7 @@
   }
 
   // What the editor opened with: closing it asks first once something was changed.
-  const entered = () => JSON.stringify({ input, startDate, startTime, endDate, endTime, repeat });
+  const entered = () => JSON.stringify({ input, startDate, startTime, endDate, endTime, repeat, zone });
   const opened = entered();
   let asking = false;
   async function close() {
@@ -139,8 +186,8 @@
 
   const calendarColor = $derived(cal.calendarById.get(input.calendarId)?.color ?? 'var(--accent)');
   // The meeting as currently entered, for the guests' availability.
-  const slotStart = $derived(new Date(`${startDate}T${startTime}`).getTime());
-  const slotEnd = $derived(new Date(`${endDate}T${endTime}`).getTime());
+  const slotStart = $derived(toMs(startDate, startTime));
+  const slotEnd = $derived(toMs(endDate, endTime));
   const organizer = $derived.by(() => {
     const accountId = cal.calendarById.get(input.calendarId)?.accountId;
     return mail.accounts.find((a) => a.id === accountId)?.email ?? mail.accounts[0]?.email ?? null;
@@ -176,16 +223,34 @@
             {#if !input.allDay}<TimePicker bind:value={endTime} after={endDate === startDate ? startTime : null} />{/if}
             <DatePicker bind:value={endDate} onchange={onEndChange} />
           </div>
-          <label class="inline"><Toggle checked={input.allDay} onchange={(v) => (input.allDay = v)} /> {t('calendar.editor.allDay')}</label>
+          <div class="options">
+            <label class="inline"><Toggle checked={input.allDay} onchange={(v) => (input.allDay = v)} /> {t('calendar.editor.allDay')}</label>
+            {#if !input.allDay}
+              <TimeZonePicker
+                variant="link"
+                value={zone}
+                label={sameZone(zone, here) ? t('calendar.editor.timeZone') : null}
+                onchange={(tz) => onZoneChange(tz, zone)}
+              />
+            {/if}
+          </div>
         </div>
       </div>
 
       <div class="row">
         <Repeat size={17} />
-        <select class="input" bind:value={repeat}>
-          {#each repeatOptions as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-          {#if customRepeat}<option value={repeat}>{describeRule(repeat)}</option>{/if}
-        </select>
+        <div class="grow repeat">
+          <select bind:this={repeatMenu} class="input" value={repeat} onchange={(e) => pickRepeat(e.currentTarget)}>
+            {#each repeatOptions as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+            {#if customRepeat}<option value={repeat}>{describeRule(repeat, startDate, zone)}</option>{/if}
+            <option value={CUSTOM}>{t('calendar.recurrence.custom')}</option>
+          </select>
+          {#if repeatProblem}
+            <div class="hint problem" role="alert"><Warning size={14} /><span>{repeatProblem}</span></div>
+          {:else if repeatNote}
+            <div class="hint"><Info size={14} /><span>{repeatNote}</span></div>
+          {/if}
+        </div>
       </div>
 
       <div class="row">
@@ -250,10 +315,24 @@
       <label class="inline busy"><Toggle checked={!input.transparent} onchange={(v) => (input.transparent = !v)} /> {t('calendar.editor.showAsBusy')}</label>
       <span class="grow"></span>
       <button class="btn" onclick={close}>{t('common.cancel')}</button>
-      <button class="btn primary" onclick={save}>{st.eventId == null ? t('calendar.editor.create') : t('common.save')}</button>
+      <button class="btn primary" disabled={!!repeatProblem} onclick={save}>{st.eventId == null ? t('calendar.editor.create') : t('common.save')}</button>
     </footer>
   </div>
 </div>
+
+{#if customizing}
+  <RepeatEditor
+    rule={repeat || null}
+    start={startDate}
+    {zone}
+    kind={calendarKind}
+    onclose={(rule) => {
+      customizing = false;
+      tick().then(() => repeatMenu?.focus());
+      if (rule != null) setRepeat(rule);
+    }}
+  />
+{/if}
 
 <style>
   .backdrop {
@@ -337,6 +416,32 @@
     color: var(--text-2);
     font-weight: 500;
     min-height: 34px;
+  }
+  .options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 24px;
+  }
+  .repeat {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .hint {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    color: var(--text-3);
+  }
+  .hint :global(svg) {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .hint.problem {
+    color: var(--red);
   }
   .people :global(.field) {
     border-bottom: none;

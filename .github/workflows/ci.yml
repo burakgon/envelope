@@ -32,6 +32,8 @@ jobs:
       - run: npm run test:quickadd
       # Plain-text mail, the attachment reminder's words and where links go.
       - run: npm run test:mail
+      # Repeat rules in words, the custom repeat editor and times in other zones.
+      - run: npm run test:rrule
       # Walks through the main screens of the demo build.
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e

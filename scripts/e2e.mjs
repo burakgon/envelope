@@ -25,9 +25,9 @@ const url = `http://127.0.0.1:${server.address().port}/`;
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
 const problems = [];
-/** A window of the demo, its problems reported; `clock` sets the time it starts at. */
-async function open(clock) {
-  const p = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+/** A window of the demo, its problems reported; `clock` sets the time it starts at, `timezoneId` the computer's zone. */
+async function open(clock, { timezoneId } = {}) {
+  const p = await browser.newPage({ viewport: { width: 1440, height: 900 }, timezoneId });
   p.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
   p.on('console', (m) => m.type() === 'error' && problems.push(`console error: ${m.text()}`));
   // The app asks in dialogs of its own; the browser's are bare windows in WebKitGTK.
@@ -1069,6 +1069,88 @@ await step('messages from an mbox file are imported into a folder', async () => 
     await p.close();
   }
 });
+
+// Repeats and time zones, in a window on Istanbul time on Tuesday 10 November 2026 at 08:00,
+// the month's second Tuesday.
+const z = await open(Date.UTC(2026, 10, 10, 5, 0), { timezoneId: 'Europe/Istanbul' });
+await z.goto(url);
+await z.locator('.row').first().waitFor({ state: 'visible', timeout: 5000 });
+await z.locator('.modes button', { hasText: 'Calendar' }).click();
+await z.locator('.grid-wrap').waitFor({ timeout: 5000 });
+const zEditor = z.locator('.editor[role="dialog"]');
+/** The event editor's repeat menu, and what it says. */
+const repeatMenu = zEditor.locator('select:has(option[value="custom"])');
+const repeatText = () => repeatMenu.evaluate((s) => s.options[s.selectedIndex].text);
+
+await step('a custom repeat: the second Tuesday of every month, five times', async () => {
+  await z.locator('body').press('c');
+  await zEditor.waitFor({ timeout: 5000 });
+  await z.keyboard.type('Board meeting');
+  await repeatMenu.selectOption('custom');
+  const dialog = z.locator('[role="dialog"][aria-label="Custom repeat"]');
+  await dialog.waitFor({ timeout: 5000 });
+  await dialog.locator('select.unit').selectOption('MONTHLY');
+  // What a monthly repeat can follow, from the start date.
+  const monthly = dialog.locator('select.monthly');
+  const offered = (await monthly.locator('option').allInnerTexts()).join(' | ');
+  if (offered !== 'Monthly on day 10 | Monthly on the second Tuesday') throw new Error(`it offers ${offered}`);
+  await monthly.selectOption('2TU');
+  await dialog.locator('input[type="radio"][value="count"]').check();
+  await dialog.locator('.ends input.num').fill('5');
+  const summary = (await dialog.locator('.summary').innerText()).trim();
+  if (summary !== 'Monthly on the second Tuesday, 5 times') throw new Error(`the dialog reads "${summary}"`);
+  await dialog.locator('button', { hasText: 'OK' }).click();
+  await dialog.waitFor({ state: 'detached', timeout: 5000 });
+  if ((await repeatText()) !== 'Monthly on the second Tuesday, 5 times') throw new Error(`the editor says "${await repeatText()}"`);
+  await zEditor.locator('footer .btn.primary').click();
+  await zEditor.waitFor({ state: 'detached', timeout: 5000 });
+  // Read back in the popover…
+  await z.locator('.ev', { hasText: 'Board meeting' }).first().click();
+  const line = z.locator('.pop .line', { hasText: /Monthly/ }).first();
+  await eventually(z, async () => (await line.count()) > 0 && (await line.innerText()).trim() === 'Monthly on the second Tuesday, 5 times', async () => `the popover says "${(await line.count()) ? await line.innerText() : 'nothing'}"`);
+  await z.keyboard.press('Escape');
+  // …and on the calendar: the second Tuesdays from November to March.
+  await z.locator('body').press('m');
+  const days = () => z.locator('.cell:not(.other)').evaluateAll((cells) => cells.filter((c) => c.innerText.includes('Board meeting')).map((c) => c.querySelector('.num').textContent.trim()).join(','));
+  for (const expected of ['10', '8', '12', '9', '9', '']) {
+    await eventually(z, async () => (await days()) === expected, async () => `${await z.locator('.calendar h1').innerText()} has it on "${await days()}", not "${expected}"`);
+    await z.locator('body').press('j');
+  }
+  await z.locator('body').press('t');
+  await z.locator('body').press('w');
+});
+
+await step('an event planned in another zone shows at its time here, and says so', async () => {
+  await z.locator('body').press('c');
+  await zEditor.waitFor({ timeout: 5000 });
+  await z.keyboard.type('Call with New York');
+  await zEditor.locator('button.tz').click();
+  await z.locator('.picker input').fill('new york');
+  await z.keyboard.press('Enter');
+  const zone = (await zEditor.locator('button.tz').innerText()).trim();
+  if (!zone.startsWith('New York')) throw new Error(`the zone reads "${zone}"`);
+  // 10:00 in New York is 18:00 in Istanbul.
+  const start = zEditor.locator('.dt input').first();
+  await start.fill('10:00');
+  await start.press('Enter');
+  await zEditor.locator('footer .btn.primary').click();
+  await zEditor.waitFor({ state: 'detached', timeout: 5000 });
+  await z.locator('.ev', { hasText: 'Call with New York' }).first().click();
+  await z.locator('.pop .line.zone').waitFor({ timeout: 5000 });
+  const when = await z.locator('.pop .line').first().innerText();
+  if (!/6:00\sPM\s–\s7:00\sPM/.test(when)) throw new Error(`it is at "${when}" here`);
+  const there = await z.locator('.pop .line.zone').innerText();
+  if (!/^Eastern Time: 10:00\sAM\s–\s11:00\sAM$/.test(there.trim())) throw new Error(`the popover says "${there}"`);
+  // The editor opens in that zone.
+  await z.locator('.pop button[title="Edit"]').click();
+  await zEditor.waitFor({ timeout: 5000 });
+  if (!(await zEditor.locator('button.tz').innerText()).startsWith('New York')) throw new Error('the editor lost the zone');
+  const typed = await zEditor.locator('.dt input').first().inputValue();
+  if (!/^10:00\sAM$/.test(typed)) throw new Error(`the editor starts it at ${typed}`);
+  await z.keyboard.press('Escape');
+  await zEditor.waitFor({ state: 'detached', timeout: 5000 });
+});
+await z.close();
 
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));

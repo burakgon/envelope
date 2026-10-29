@@ -717,6 +717,8 @@ export interface EventDetail {
   calendar: CalendarInfo;
   organizerIsMe: boolean;
   myEmail: string | null;
+  /** The IANA zone the event is planned in; null for all-day and floating events and bare UTC times. */
+  timezone: string | null;
 }
 
 export interface EventInput {

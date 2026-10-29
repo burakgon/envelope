@@ -7,9 +7,10 @@
   import { t } from '../../i18n';
   import { dateFormat, timeOf } from '../../utils/format';
   import { describeRule } from '../../utils/rrule';
+  import { localZone, sameZone, wallClock, zoneName } from '../../utils/timezone';
   import Popover from '../Popover.svelte';
   import Avatar from '../Avatar.svelte';
-  import { AlignLeft, Calendar, Check, Clock, HelpCircle, MapPin, Pen, Repeat, Trash, Users, Video, X, XCircle } from '../../icons';
+  import { AlignLeft, Calendar, Check, Clock, Globe, HelpCircle, MapPin, Pen, Repeat, Trash, Users, Video, X, XCircle } from '../../icons';
 
   let { occurrence: o, rect, onclose }: { occurrence: Occurrence; rect: DOMRect; onclose: () => void } = $props();
 
@@ -41,6 +42,27 @@
       return t('calendar.popover.dateRange', { start: day, end: last });
     }
     return t('calendar.popover.dateTimeRange', { date: day, start: timeOf(o.start), end: timeOf(o.end) });
+  });
+
+  // The zone the event is planned in, when it is not this computer's.
+  const zone = $derived(detail?.timezone ?? null);
+  const elsewhere = $derived(!!zone && !o.allDay && !sameZone(zone, localZone()));
+  const zoneTimes = $derived.by(() => {
+    if (!zone || !elsewhere) return null;
+    // With the date when it is another day there.
+    const otherDay = wallClock(o.start, zone).date !== wallClock(o.start, localZone()).date;
+    const start = dateFormat({ ...(otherDay ? { weekday: 'short', month: 'short', day: 'numeric' } : {}), hour: 'numeric', minute: '2-digit', timeZone: zone });
+    const end = dateFormat({ hour: 'numeric', minute: '2-digit', timeZone: zone });
+    return t('calendar.popover.zoneTimes', { zone: zoneName(zone), start: start.format(o.start), end: end.format(o.end) });
+  });
+
+  /** The date the series starts on, where it is planned (rules without a day of their own take it from there). */
+  const seriesStart = $derived.by(() => {
+    const s = detail?.event.start;
+    if (!s) return null;
+    if (s.kind === 'date') return s.date;
+    if (s.kind === 'utc') return wallClock(Date.parse(s.at), zone ?? localZone()).date;
+    return s.local.slice(0, 10);
   });
 
   async function respond(status: PartStat) {
@@ -87,8 +109,11 @@
       <button class="icon-btn sm" title={t('common.close')} onclick={onclose}><X size={15} /></button>
     </div>
     <div class="line"><Clock size={15} /><span>{when}</span></div>
+    {#if zoneTimes}
+      <div class="line zone" title={zone}><Globe size={15} /><span>{zoneTimes}</span></div>
+    {/if}
     {#if detail?.event.rrule}
-      <div class="line"><Repeat size={15} /><span>{describeRule(detail.event.rrule)}</span></div>
+      <div class="line"><Repeat size={15} /><span>{describeRule(detail.event.rrule, seriesStart, zone ?? localZone())}</span></div>
     {/if}
     {#if o.location && o.location.trim() !== o.conferenceUrl}
       <div class="line"><MapPin size={15} />

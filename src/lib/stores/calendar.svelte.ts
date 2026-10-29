@@ -315,6 +315,7 @@ class Cal {
           end: o.allDay ? sp.end : o.end,
           startDate: o.startDate,
           endDate: o.endDate,
+          timezone: d.timezone,
           rrule: d.event.rrule,
           attendees: d.event.attendees.map((a) => ({ email: a.email, name: a.name })),
           alarms: d.event.alarms.map((a) => a.minutesBefore),
