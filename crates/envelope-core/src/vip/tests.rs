@@ -132,6 +132,8 @@ impl Fixture {
                 mailbox,
                 search: search.map(str::to_string),
                 filter: ListFilter::default(),
+                sort: SortOrder::Newest,
+                messages: false,
                 offset: 0,
                 limit: 50,
             })

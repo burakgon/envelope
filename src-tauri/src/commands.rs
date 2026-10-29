@@ -298,6 +298,11 @@ pub fn thread(state: State<'_, AppState>, id: i64) -> R<ThreadDetail> {
 }
 
 #[tauri::command]
+pub fn message(state: State<'_, AppState>, id: i64) -> R<ThreadDetail> {
+    Ok(state.engine.message(id)?)
+}
+
+#[tauri::command]
 pub async fn load_bodies(state: State<'_, AppState>, ids: Vec<i64>) -> R<Vec<MessageView>> {
     Ok(state.engine.load_bodies(ids).await?)
 }
@@ -312,16 +317,21 @@ pub fn set_flags(
     Ok(state.engine.set_flags(&thread_ids, &message_ids, &change)?)
 }
 
+/// `messages`: the list shows messages one by one, and its rows are them.
 #[tauri::command]
 pub fn thread_refs(
     state: State<'_, AppState>,
     mailbox: Mailbox,
     filter: ListFilter,
     search: Option<String>,
+    messages: Option<bool>,
 ) -> R<Vec<ThreadRef>> {
-    Ok(state
-        .engine
-        .thread_refs(&mailbox, &filter, search.as_deref())?)
+    Ok(state.engine.thread_refs(
+        &mailbox,
+        &filter,
+        search.as_deref(),
+        messages.unwrap_or(false),
+    )?)
 }
 
 #[tauri::command]
@@ -330,10 +340,14 @@ pub fn mark_read(
     mailbox: Mailbox,
     filter: ListFilter,
     search: Option<String>,
+    messages: Option<bool>,
 ) -> R<MarkedRead> {
-    Ok(state
-        .engine
-        .mark_read(&mailbox, &filter, search.as_deref())?)
+    Ok(state.engine.mark_read(
+        &mailbox,
+        &filter,
+        search.as_deref(),
+        messages.unwrap_or(false),
+    )?)
 }
 
 #[tauri::command]
@@ -420,6 +434,16 @@ pub fn move_threads(
 }
 
 #[tauri::command]
+pub fn move_messages(
+    state: State<'_, AppState>,
+    message_ids: Vec<i64>,
+    source: Option<i64>,
+    target: MoveTarget,
+) -> R<UndoToken> {
+    Ok(state.engine.move_messages(&message_ids, source, &target)?)
+}
+
+#[tauri::command]
 pub fn undo(state: State<'_, AppState>, token: UndoToken) -> R<()> {
     Ok(state.engine.undo(&token)?)
 }
@@ -427,6 +451,11 @@ pub fn undo(state: State<'_, AppState>, token: UndoToken) -> R<()> {
 #[tauri::command]
 pub fn delete_forever(state: State<'_, AppState>, thread_ids: Vec<i64>) -> R<()> {
     Ok(state.engine.delete_forever(&thread_ids)?)
+}
+
+#[tauri::command]
+pub fn delete_messages_forever(state: State<'_, AppState>, message_ids: Vec<i64>) -> R<()> {
+    Ok(state.engine.delete_messages_forever(&message_ids)?)
 }
 
 #[tauri::command]
@@ -451,6 +480,16 @@ pub fn set_label(
     add: bool,
 ) -> R<()> {
     Ok(state.engine.set_label(&thread_ids, folder_id, add)?)
+}
+
+#[tauri::command]
+pub fn label_messages(
+    state: State<'_, AppState>,
+    message_ids: Vec<i64>,
+    folder_id: i64,
+    add: bool,
+) -> R<()> {
+    Ok(state.engine.label_messages(&message_ids, folder_id, add)?)
 }
 
 #[tauri::command]

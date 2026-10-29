@@ -106,6 +106,8 @@ async fn encrypted_signed_mail_to_self() {
         },
         search: None,
         filter: ListFilter::default(),
+        sort: SortOrder::Newest,
+        messages: false,
         offset: 0,
         limit: 30,
     };

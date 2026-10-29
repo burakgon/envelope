@@ -13,19 +13,21 @@ use std::path::Path;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
+use rusqlite::functions::FunctionFlags;
 use rusqlite::{Connection, OpenFlags, Transaction};
 
 use crate::error::{Error, Result};
 
 const SCHEMA: &str = concat!(
     include_str!("schema.sql"),
+    include_str!("sort.sql"),
     include_str!("contacts.sql"),
     include_str!("crypto.sql"),
     include_str!("tasks.sql"),
     include_str!("vips.sql"),
     include_str!("smime.sql")
 );
-const SCHEMA_VERSION: i64 = 12;
+const SCHEMA_VERSION: i64 = 13;
 
 /// Steps from one schema version to the next, applied in order to older databases.
 const MIGRATIONS: &[(i64, &str)] = &[
@@ -77,6 +79,11 @@ const NEW_COLUMNS: &[(i64, &str, &str, &str)] = &[
     // Drafts know their server copy by Message-ID, and which version it holds.
     (9, "drafts", "message_id", "TEXT"),
     (9, "drafts", "synced_at", "INTEGER"),
+    // Lists by sender, and of messages one by one (filled in by `mail::fill_sort_keys`).
+    (13, "threads", "sender", "TEXT"),
+    (13, "thread_folders", "sender", "TEXT"),
+    (13, "message_folders", "date", "INTEGER"),
+    (13, "message_folders", "sender", "TEXT"),
 ];
 const MAX_READERS: usize = 6;
 
@@ -101,6 +108,19 @@ fn configure(conn: &Connection) -> Result<()> {
          PRAGMA mmap_size = 268435456;
          PRAGMA cache_size = -32768;
          PRAGMA busy_timeout = 5000;",
+    )?;
+    // How a sender sorts, for the queries and triggers of sort.sql.
+    conn.create_scalar_function(
+        "sort_key",
+        2,
+        FunctionFlags::SQLITE_UTF8
+            | FunctionFlags::SQLITE_DETERMINISTIC
+            | FunctionFlags::SQLITE_INNOCUOUS,
+        |ctx| {
+            let name = ctx.get::<Option<String>>(0)?;
+            let email = ctx.get::<Option<String>>(1)?;
+            Ok(mail::sort_key(name.as_deref(), email.as_deref()))
+        },
     )?;
     Ok(())
 }
@@ -218,6 +238,13 @@ fn migrate(conn: &Connection) -> Result<()> {
                     "ALTER TABLE {table} ADD COLUMN {column} {declaration};"
                 ))?;
             }
+        }
+        // The sort keys of the mail already here, then their indexes and triggers.
+        if version < 13 {
+            let tx = conn.unchecked_transaction()?;
+            mail::fill_sort_keys(&tx)?;
+            tx.execute_batch(include_str!("sort.sql"))?;
+            tx.commit()?;
         }
     }
     conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))?;
@@ -446,6 +473,111 @@ mod tests {
     }
 
     #[test]
+    fn adds_sort_keys_to_version_12_databases() {
+        use crate::db::mail;
+        use crate::model::{AccountConfig, AccountKind, Address, FolderRole};
+
+        let path = std::env::temp_dir().join(format!("envelope-v12-{}.db", uuid::Uuid::new_v4()));
+        let folder = |remote: &str, role| mail::FolderUpsert {
+            remote_id: remote.into(),
+            name: remote.into(),
+            path: remote.into(),
+            parent_remote_id: None,
+            role,
+            kind: "folder".into(),
+            delimiter: None,
+            selectable: true,
+            sort_order: 0,
+            color: None,
+        };
+        let (message, work) = {
+            // A version 12 database with a message, before lists could be sorted.
+            let db = Db::open(&path).unwrap();
+            db.write(|tx| {
+                let account = mail::insert_account(
+                    tx,
+                    AccountKind::Imap,
+                    "generic",
+                    "me@example.com",
+                    "Me",
+                    "#000",
+                    &AccountConfig::default(),
+                )?;
+                let folders = mail::sync_folders(
+                    tx,
+                    account,
+                    &[
+                        folder("INBOX", Some(FolderRole::Inbox)),
+                        folder("Work", None),
+                    ],
+                )?;
+                let meta = mail::MessageMeta {
+                    message_id: Some("z@x".into()),
+                    subject: "Hello".into(),
+                    from: Some(Address::new(Some("Zoë Adams".into()), "zoe@example.com")),
+                    date: 1_000,
+                    ..Default::default()
+                };
+                let stored = mail::upsert_message(tx, account, folders["INBOX"], Some(1), &meta)?;
+                mail::refresh_threads(tx, &[stored.thread_id].into())?;
+                tx.execute_batch(
+                    "DROP TRIGGER messages_sort;
+                     DROP INDEX thread_folders_sender; DROP INDEX message_folders_date; DROP INDEX message_folders_sender;
+                     ALTER TABLE threads DROP COLUMN sender; ALTER TABLE thread_folders DROP COLUMN sender;
+                     ALTER TABLE message_folders DROP COLUMN date; ALTER TABLE message_folders DROP COLUMN sender;
+                     PRAGMA user_version = 12;",
+                )?;
+                Ok((stored.message_id, folders["Work"]))
+            })
+            .unwrap()
+        };
+        let db = Db::open(&path).unwrap();
+        let keys = |db: &Db| {
+            db.read(|c| {
+                let mut st = c.prepare(
+                    "SELECT mf.date, mf.sender, tf.sender, t.sender FROM message_folders mf
+                     JOIN messages m ON m.id = mf.message_id JOIN threads t ON t.id = m.thread_id
+                     JOIN thread_folders tf ON tf.thread_id = t.id AND tf.folder_id = mf.folder_id
+                     ORDER BY mf.folder_id",
+                )?;
+                let rows = st
+                    .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+                    .collect::<rusqlite::Result<Vec<(i64, String, String, String)>>>()?;
+                Ok(rows)
+            })
+            .unwrap()
+        };
+        let zoe = |date: i64| {
+            (
+                date,
+                "zoe adams".to_string(),
+                "zoe adams".to_string(),
+                "zoe adams".to_string(),
+            )
+        };
+        assert_eq!(keys(&db), [zoe(1_000)]);
+        // A message put in another folder takes its date and sender along, and
+        // with the trigger back they follow a change.
+        db.write(|tx| {
+            assert!(mail::add_location(tx, work, message)?);
+            tx.execute("UPDATE messages SET date = 2000 WHERE id = ?", [message])?;
+            let thread: i64 = tx.query_row(
+                "SELECT thread_id FROM messages WHERE id = ?",
+                [message],
+                |r| r.get(0),
+            )?;
+            mail::refresh_threads(tx, &[thread].into())?;
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(keys(&db), [zoe(2_000), zoe(2_000)]);
+        drop(db);
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+    }
+
+    #[test]
     fn muted_conversations_stay_muted_as_replies_arrive() {
         use crate::db::mail;
         use crate::model::{AccountConfig, AccountKind, Address, FolderRole};
@@ -640,6 +772,8 @@ mod tests {
                     &crate::model::Mailbox::FollowUp,
                     &Default::default(),
                     None,
+                    crate::model::SortOrder::Newest,
+                    false,
                 )?;
                 mail::query_threads(c, &sql, 0, 10)
             })

@@ -21,6 +21,8 @@ fn inbox(offset: i64, limit: i64, search: Option<&str>) -> ThreadQuery {
         },
         search: search.map(str::to_owned),
         filter: ListFilter::default(),
+        sort: SortOrder::Newest,
+        messages: false,
         offset,
         limit,
     }
@@ -146,6 +148,65 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     time("inbox, unread only", 50, || {
         engine.threads(&unread).unwrap()
     });
+    for (label, sort) in [
+        ("oldest first", SortOrder::Oldest),
+        ("by sender", SortOrder::Sender),
+    ] {
+        let sorted = ThreadQuery {
+            sort,
+            ..inbox(0, 100, None)
+        };
+        time(&format!("inbox, first 100 threads {label}"), 50, || {
+            engine.threads(&sorted).unwrap()
+        });
+        let deep = ThreadQuery {
+            sort,
+            ..inbox(10_000, 100, None)
+        };
+        time("  … at offset 10 000", 50, || {
+            engine.threads(&deep).unwrap()
+        });
+    }
+    let messages = |offset: i64, sort: SortOrder| ThreadQuery {
+        messages: true,
+        sort,
+        ..inbox(offset, 100, None)
+    };
+    println!(
+        "messages one by one ({} in the inbox)",
+        engine.threads(&messages(0, SortOrder::Newest))?.total
+    );
+    for (label, sort) in [
+        ("newest first", SortOrder::Newest),
+        ("oldest first", SortOrder::Oldest),
+        ("by sender", SortOrder::Sender),
+    ] {
+        time(&format!("inbox, first 100 messages {label}"), 50, || {
+            engine.threads(&messages(0, sort)).unwrap()
+        });
+        time("  … at offset 10 000", 50, || {
+            engine.threads(&messages(10_000, sort)).unwrap()
+        });
+    }
+    let unread_messages = ThreadQuery {
+        filter: ListFilter {
+            unread: true,
+            ..Default::default()
+        },
+        ..messages(0, SortOrder::Newest)
+    };
+    time("inbox, unread messages only", 50, || {
+        engine.threads(&unread_messages).unwrap()
+    });
+    let found = time("search \"invoice\", messages", 20, || {
+        engine
+            .threads(&ThreadQuery {
+                search: Some("invoice".into()),
+                ..messages(0, SortOrder::Newest)
+            })
+            .unwrap()
+    });
+    println!("    ({} matching messages)", found.total);
     let hits = time("search \"invoice\"", 20, || {
         engine.threads(&inbox(0, 100, Some("invoice"))).unwrap()
     });

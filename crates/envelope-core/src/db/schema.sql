@@ -71,7 +71,8 @@ CREATE TABLE IF NOT EXISTS threads (
     category         TEXT,                       -- people | newsletters | notifications
     is_invite        INTEGER NOT NULL DEFAULT 0,
     muted            INTEGER NOT NULL DEFAULT 0,  -- later replies skip the inbox
-    snoozed_until    INTEGER
+    snoozed_until    INTEGER,
+    sender           TEXT                        -- sort key of whom it is with (db::mail::sort_key)
 );
 CREATE INDEX IF NOT EXISTS threads_remote ON threads(account_id, remote_thread_id);
 CREATE INDEX IF NOT EXISTS threads_snoozed ON threads(snoozed_until) WHERE snoozed_until IS NOT NULL;
@@ -82,6 +83,7 @@ CREATE TABLE IF NOT EXISTS thread_folders (
     thread_id  INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
     last_date  INTEGER NOT NULL,
     unread     INTEGER NOT NULL DEFAULT 0,
+    sender     TEXT,                        -- the thread's, for lists by sender
     PRIMARY KEY (folder_id, thread_id)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS thread_folders_date ON thread_folders(folder_id, last_date DESC);
@@ -125,10 +127,14 @@ CREATE INDEX IF NOT EXISTS messages_from ON messages(from_email);
 CREATE INDEX IF NOT EXISTS messages_reply ON messages(account_id, in_reply_to) WHERE in_reply_to IS NOT NULL;
 
 -- Server locations of a message: one row per IMAP folder copy or Gmail label.
+-- Date and sender are the message's (given whenever a message is put in a
+-- folder: see db::mail::add_location), for lists of messages one by one.
 CREATE TABLE IF NOT EXISTS message_folders (
     folder_id   INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
     message_id  INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
     uid         INTEGER,
+    date        INTEGER,
+    sender      TEXT,
     PRIMARY KEY (folder_id, message_id)
 ) WITHOUT ROWID;
 CREATE UNIQUE INDEX IF NOT EXISTS message_folders_uid ON message_folders(folder_id, uid) WHERE uid IS NOT NULL;

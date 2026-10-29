@@ -1,7 +1,7 @@
 //! Mail operations exposed to the UI. Changes are applied locally first
 //! (instant UI) and queued for the server.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
 
 use rusqlite::params;
@@ -32,7 +32,7 @@ pub struct UndoToken {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MarkedRead {
-    /// Conversations marked read.
+    /// Conversations marked read (messages, in a list of messages one by one).
     pub threads: i64,
     /// Messages that were unread: marking them unread again undoes it.
     pub message_ids: Vec<i64>,
@@ -58,6 +58,60 @@ pub enum FollowUpChange {
     Due,
 }
 
+/// What an action takes: whole conversations, or single messages (from a list
+/// that shows them one by one).
+#[derive(Debug, Clone, Copy)]
+enum Picked<'a> {
+    Threads(&'a [i64]),
+    Messages(&'a [i64]),
+}
+
+impl Picked<'_> {
+    /// The messages taken, by account, and their conversations. Ids that are
+    /// gone are left out.
+    fn by_account(
+        &self,
+        c: &rusqlite::Connection,
+    ) -> Result<(BTreeMap<i64, Vec<i64>>, BTreeSet<i64>)> {
+        let mut by_account: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+        let mut threads = BTreeSet::new();
+        match self {
+            Picked::Threads(ids) => {
+                let mut of_account: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+                let mut st = c.prepare_cached("SELECT account_id FROM threads WHERE id = ?")?;
+                for t in *ids {
+                    let account: Option<i64> =
+                        rusqlite::OptionalExtension::optional(st.query_row([t], |r| r.get(0)))?;
+                    if let Some(account) = account {
+                        of_account.entry(account).or_default().push(*t);
+                        threads.insert(*t);
+                    }
+                }
+                for (account, tids) in of_account {
+                    by_account.insert(account, mail::thread_message_ids(c, &tids, None)?);
+                }
+            }
+            Picked::Messages(ids) => {
+                let mut st =
+                    c.prepare_cached("SELECT account_id, thread_id FROM messages WHERE id = ?")?;
+                for m in *ids {
+                    let row: Option<(i64, i64)> = rusqlite::OptionalExtension::optional(
+                        st.query_row([m], |r| Ok((r.get(0)?, r.get(1)?))),
+                    )?;
+                    if let Some((account, thread)) = row {
+                        let list = by_account.entry(account).or_default();
+                        if !list.contains(m) {
+                            list.push(*m);
+                        }
+                        threads.insert(thread);
+                    }
+                }
+            }
+        }
+        Ok((by_account, threads))
+    }
+}
+
 impl Engine {
     // ----- listing -------------------------------------------------------------
 
@@ -65,16 +119,24 @@ impl Engine {
         self.db.read(mail::list_folders)
     }
 
+    /// A page of a list: conversations, or messages one by one (`q.messages`,
+    /// as rows whose `id` is the message's and `thread_id` its conversation's).
     pub fn threads(&self, q: &ThreadQuery) -> Result<ThreadPage> {
         let search = q.search.as_deref().and_then(crate::search::compile);
         self.db.read(|c| {
-            let sql = mail::list_sql(c, &q.mailbox, &q.filter, search)?;
+            let sql = mail::list_sql(c, &q.mailbox, &q.filter, search, q.sort, q.messages)?;
             mail::query_threads(c, &sql, q.offset.max(0), q.limit.clamp(1, 500))
         })
     }
 
     pub fn thread(&self, id: i64) -> Result<ThreadDetail> {
         self.db.read(|c| mail::get_thread(c, id))
+    }
+
+    /// One message as a list of messages one by one opens it: its row as
+    /// `thread`, the message, and the `conversation` it is in.
+    pub fn message(&self, id: i64) -> Result<ThreadDetail> {
+        self.db.read(|c| mail::get_message_detail(c, id))
     }
 
     /// Downloads missing bodies (if any) and returns the messages.
@@ -261,20 +323,23 @@ impl Engine {
 
     /// Every conversation of a list (the mailbox with its filter, inbox tab and
     /// search, as the list shows it), not only the pages loaded: "Select all"
-    /// of a whole folder acts on these.
+    /// of a whole folder acts on these. With `messages`, every message of a
+    /// list that shows them one by one.
     pub fn thread_refs(
         &self,
         mailbox: &Mailbox,
         filter: &ListFilter,
         search: Option<&str>,
+        messages: bool,
     ) -> Result<Vec<ThreadRef>> {
         let search = search
             .filter(|s| !s.trim().is_empty())
             .and_then(crate::search::compile);
         self.db.read(|c| {
-            let sql = mail::list_sql(c, mailbox, filter, search)?;
+            let sql = mail::list_sql(c, mailbox, filter, search, SortOrder::Newest, messages)?;
             let mut st = c.prepare(&format!(
-                "SELECT DISTINCT t.id, t.account_id FROM {}",
+                "SELECT DISTINCT {} FROM {}",
+                sql.id_and_account(),
                 sql.from_where
             ))?;
             let refs = st
@@ -290,13 +355,15 @@ impl Engine {
     }
 
     /// Marks every unread conversation of a list as read: the mailbox with its
-    /// filter, inbox tab and search, as the list shows it. Returns the
+    /// filter, inbox tab and search, as the list shows it — with `messages`,
+    /// the unread messages of a list that shows them one by one. Returns the
     /// messages that were unread, to undo it.
     pub fn mark_read(
         &self,
         mailbox: &Mailbox,
         filter: &ListFilter,
         search: Option<&str>,
+        messages: bool,
     ) -> Result<MarkedRead> {
         let search = search
             .filter(|s| !s.trim().is_empty())
@@ -305,27 +372,39 @@ impl Engine {
             unread: true,
             ..filter.clone()
         };
-        let (threads, message_ids) = self.db.read(|c| {
-            let sql = mail::list_sql(c, mailbox, &filter, search)?;
-            let mut st = c.prepare(&format!("SELECT DISTINCT t.id FROM {}", sql.from_where))?;
-            let threads: Vec<i64> = st
+        let (rows, message_ids) = self.db.read(|c| {
+            let sql = mail::list_sql(c, mailbox, &filter, search, SortOrder::Newest, messages)?;
+            let mut st = c.prepare(&format!(
+                "SELECT DISTINCT {} FROM {}",
+                sql.id_and_account(),
+                sql.from_where
+            ))?;
+            let rows: Vec<i64> = st
                 .query_map(rusqlite::params_from_iter(sql.values.iter()), |r| r.get(0))?
                 .collect::<rusqlite::Result<_>>()?;
+            if messages {
+                return Ok((rows.clone(), rows));
+            }
             let mut unread = c.prepare_cached(
                 "SELECT id FROM messages WHERE thread_id = ? AND (flags & 1) = 0 AND (flags & 8) = 0",
             )?;
             let mut message_ids = Vec::new();
-            for t in &threads {
+            for t in &rows {
                 for m in unread.query_map([t], |r| r.get::<_, i64>(0))? {
                     message_ids.push(m?);
                 }
             }
-            Ok((threads, message_ids))
+            Ok((rows, message_ids))
         })?;
-        if !threads.is_empty() {
+        if !rows.is_empty() {
+            let (threads, message_ids) = if messages {
+                (&[][..], &message_ids[..])
+            } else {
+                (&rows[..], &[][..])
+            };
             self.set_flags(
-                &threads,
-                &[],
+                threads,
+                message_ids,
                 &FlagChange {
                     seen: Some(true),
                     flagged: None,
@@ -333,7 +412,7 @@ impl Engine {
             )?;
         }
         Ok(MarkedRead {
-            threads: threads.len() as i64,
+            threads: rows.len() as i64,
             message_ids,
         })
     }
@@ -409,6 +488,27 @@ impl Engine {
         source: Option<i64>,
         target: &MoveTarget,
     ) -> Result<UndoToken> {
+        self.move_picked(Picked::Threads(thread_ids), source, target)
+    }
+
+    /// Archives, trashes, marks as spam or moves single messages (a list that
+    /// shows them one by one), and nothing else of their conversations: from
+    /// `source`, or with `None` from every folder but Sent and Drafts.
+    pub fn move_messages(
+        &self,
+        message_ids: &[i64],
+        source: Option<i64>,
+        target: &MoveTarget,
+    ) -> Result<UndoToken> {
+        self.move_picked(Picked::Messages(message_ids), source, target)
+    }
+
+    fn move_picked(
+        &self,
+        picked: Picked<'_>,
+        source: Option<i64>,
+        target: &MoveTarget,
+    ) -> Result<UndoToken> {
         let mut token = UndoToken {
             account_ops: Vec::new(),
             locations: Vec::new(),
@@ -416,23 +516,13 @@ impl Engine {
             snoozed: Vec::new(),
         };
         let mut accounts = BTreeSet::new();
-        let threads: BTreeSet<i64> = thread_ids.iter().copied().collect();
-        self.db.write(|tx| {
-            // Group threads by account.
-            let mut by_account: HashMap<i64, Vec<i64>> = HashMap::new();
-            for t in thread_ids {
-                let a: i64 =
-                    tx.query_row("SELECT account_id FROM threads WHERE id = ?", [t], |r| {
-                        r.get(0)
-                    })?;
-                by_account.entry(a).or_default().push(*t);
-            }
-            for (account_id, tids) in by_account {
+        let threads = self.db.write(|tx| {
+            let (by_account, threads) = picked.by_account(tx)?;
+            for (account_id, message_ids) in by_account {
                 accounts.insert(account_id);
                 let account = mail::get_account(tx, account_id)?;
                 let folders = mail::list_folder_rows(tx, account_id)?;
                 let gmail = account.kind == AccountKind::Gmail;
-                let message_ids = mail::thread_message_ids(tx, &tids, None)?;
                 let locations = mail::locations(tx, &message_ids)?;
                 // Snapshot for undo.
                 let mut snap: HashMap<i64, Vec<(i64, Option<u32>)>> = HashMap::new();
@@ -442,14 +532,6 @@ impl Engine {
                         .push((l.folder_id, l.uid));
                 }
                 token.locations.extend(snap);
-                for t in &tids {
-                    let s: Option<i64> =
-                        tx.query_row("SELECT snoozed_until FROM threads WHERE id = ?", [t], |r| {
-                            r.get(0)
-                        })?;
-                    token.snoozed.push((*t, s));
-                    tx.execute("UPDATE threads SET snoozed_until = NULL WHERE id = ?", [t])?;
-                }
                 let op_ids = if gmail {
                     gmail_move(tx, account_id, &folders, &locations, source, target)?
                 } else {
@@ -459,9 +541,23 @@ impl Engine {
                     .account_ops
                     .extend(op_ids.into_iter().map(|id| (account_id, id)));
             }
+            // A conversation acted on as a whole is no longer snoozed.
+            if let Picked::Threads(ids) = picked {
+                for t in ids {
+                    let s: Option<Option<i64>> = rusqlite::OptionalExtension::optional(
+                        tx.query_row("SELECT snoozed_until FROM threads WHERE id = ?", [t], |r| {
+                            r.get(0)
+                        }),
+                    )?;
+                    if let Some(s) = s {
+                        token.snoozed.push((*t, s));
+                        tx.execute("UPDATE threads SET snoozed_until = NULL WHERE id = ?", [t])?;
+                    }
+                }
+            }
             let folders = mail::refresh_threads(tx, &threads)?;
             mail::refresh_folder_counts(tx, &folders)?;
-            Ok(())
+            Ok(threads)
         })?;
         self.after_local_change(&accounts.iter().copied().collect::<Vec<_>>(), &threads)?;
         Ok(token)
@@ -534,11 +630,12 @@ impl Engine {
                 threads.insert(thread);
                 if all_cancelled {
                     tx.execute("DELETE FROM message_folders WHERE message_id = ?", [message_id])?;
+                    let mut back = tx.prepare_cached(
+                        "INSERT OR REPLACE INTO message_folders (folder_id, message_id, uid, date, sender)
+                         SELECT ?1, id, ?3, date, sort_key(from_name, from_email) FROM messages WHERE id = ?2",
+                    )?;
                     for (folder, uid) in locs {
-                        tx.execute(
-                            "INSERT OR REPLACE INTO message_folders (folder_id, message_id, uid) VALUES (?, ?, ?)",
-                            params![folder, message_id, uid],
-                        )?;
+                        back.execute(params![folder, message_id, uid])?;
                     }
                 }
             }
@@ -550,18 +647,16 @@ impl Engine {
             Ok(())
         })?;
         if !all_cancelled {
-            // The server already applied the change: move the messages back.
+            // The server already applied the change: move the messages back,
+            // each to where it was (not their whole conversations).
+            let mut back: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
             for (message_id, locs) in &token.locations {
                 if let Some((folder, _)) = locs.first() {
-                    let thread: i64 = self.db.read(|c| {
-                        Ok(c.query_row(
-                            "SELECT thread_id FROM messages WHERE id = ?",
-                            [message_id],
-                            |r| r.get(0),
-                        )?)
-                    })?;
-                    let _ = self.move_threads(&[thread], None, &MoveTarget::Folder { id: *folder });
+                    back.entry(*folder).or_default().push(*message_id);
                 }
+            }
+            for (folder, ids) in back {
+                let _ = self.move_messages(&ids, None, &MoveTarget::Folder { id: folder });
             }
         }
         self.after_local_change(&accounts.iter().copied().collect::<Vec<_>>(), &threads)
@@ -569,10 +664,20 @@ impl Engine {
 
     /// Permanently deletes threads (from Trash/Junk).
     pub fn delete_forever(&self, thread_ids: &[i64]) -> Result<()> {
+        self.delete_picked(Picked::Threads(thread_ids))
+    }
+
+    /// Permanently deletes single messages (from Trash/Junk, in a list that
+    /// shows messages one by one).
+    pub fn delete_messages_forever(&self, message_ids: &[i64]) -> Result<()> {
+        self.delete_picked(Picked::Messages(message_ids))
+    }
+
+    fn delete_picked(&self, picked: Picked<'_>) -> Result<()> {
         let mut accounts = BTreeSet::new();
-        let threads: BTreeSet<i64> = thread_ids.iter().copied().collect();
-        self.db.write(|tx| {
-            let message_ids = mail::thread_message_ids(tx, thread_ids, None)?;
+        let threads = self.db.write(|tx| {
+            let (picked, threads) = picked.by_account(tx)?;
+            let message_ids: Vec<i64> = picked.into_values().flatten().collect();
             let locations = mail::locations(tx, &message_ids)?;
             let mut by_account: HashMap<i64, Vec<OpItem>> = HashMap::new();
             let mut kinds: HashMap<i64, AccountKind> = HashMap::new();
@@ -613,7 +718,7 @@ impl Engine {
             }
             let folders = mail::refresh_threads(tx, &threads)?;
             mail::refresh_folder_counts(tx, &folders)?;
-            Ok(())
+            Ok(threads)
         })?;
         self.after_local_change(&accounts.iter().copied().collect::<Vec<_>>(), &threads)
     }
@@ -641,6 +746,16 @@ impl Engine {
     /// Adds or removes a Gmail label or Outlook category (or copies to an IMAP
     /// folder when adding).
     pub fn set_label(&self, thread_ids: &[i64], folder_id: i64, add: bool) -> Result<()> {
+        self.label_picked(Picked::Threads(thread_ids), folder_id, add)
+    }
+
+    /// Adds or removes a label on single messages (a list that shows them one
+    /// by one), as [`Engine::set_label`] does on conversations.
+    pub fn label_messages(&self, message_ids: &[i64], folder_id: i64, add: bool) -> Result<()> {
+        self.label_picked(Picked::Messages(message_ids), folder_id, add)
+    }
+
+    fn label_picked(&self, picked: Picked<'_>, folder_id: i64, add: bool) -> Result<()> {
         let folder = self.db.read(|c| mail::get_folder(c, folder_id))?;
         let account = self.account_row(folder.account_id)?;
         let category = match account.kind {
@@ -651,23 +766,20 @@ impl Engine {
         };
         if account.kind != AccountKind::Gmail && category.is_none() {
             if add {
-                self.move_threads(thread_ids, None, &MoveTarget::Folder { id: folder_id })?;
+                self.move_picked(picked, None, &MoveTarget::Folder { id: folder_id })?;
             }
             return Ok(());
         }
-        let threads: BTreeSet<i64> = thread_ids.iter().copied().collect();
         let label = match category {
             Some(name) => name.to_string(),
             None => gmail_label_name(&folder),
         };
-        self.db.write(|tx| {
-            let message_ids = mail::thread_message_ids(tx, thread_ids, None)?;
+        let threads = self.db.write(|tx| {
+            let (picked, threads) = picked.by_account(tx)?;
+            let message_ids: Vec<i64> = picked.into_values().flatten().collect();
             for m in &message_ids {
                 if add {
-                    tx.execute(
-                        "INSERT OR IGNORE INTO message_folders (folder_id, message_id, uid) VALUES (?, ?, NULL)",
-                        params![folder_id, m],
-                    )?;
+                    mail::add_location(tx, folder_id, *m)?;
                 } else {
                     tx.execute(
                         "DELETE FROM message_folders WHERE folder_id = ? AND message_id = ? AND uid IS NULL",
@@ -683,7 +795,7 @@ impl Engine {
             misc::queue_op(tx, account.id, &op, 0)?;
             let folders = mail::refresh_threads(tx, &threads)?;
             mail::refresh_folder_counts(tx, &folders)?;
-            Ok(())
+            Ok(threads)
         })?;
         self.after_local_change(&[account.id], &threads)
     }
@@ -1522,10 +1634,7 @@ fn imap_move(
             "DELETE FROM message_folders WHERE folder_id = ? AND message_id = ?",
             params![l.folder_id, l.message_id],
         )?;
-        tx.execute(
-            "INSERT OR IGNORE INTO message_folders (folder_id, message_id, uid) VALUES (?, ?, NULL)",
-            params![dest.id, l.message_id],
-        )?;
+        mail::add_location(tx, dest.id, l.message_id)?;
     }
     if items.is_empty() {
         return Ok(Vec::new());
@@ -1624,10 +1733,7 @@ fn gmail_move(
                 .collect();
             for m in &message_ids {
                 tx.execute("DELETE FROM message_folders WHERE message_id = ?", [m])?;
-                tx.execute(
-                    "INSERT OR IGNORE INTO message_folders (folder_id, message_id, uid) VALUES (?, ?, NULL)",
-                    params![dest.id, m],
-                )?;
+                mail::add_location(tx, dest.id, *m)?;
             }
             if !items.is_empty() {
                 ops.push(misc::queue_op(
@@ -1675,10 +1781,7 @@ fn gmail_move(
             }
             let label = gmail_label_name(dest);
             for m in &message_ids {
-                tx.execute(
-                    "INSERT OR IGNORE INTO message_folders (folder_id, message_id, uid) VALUES (?, ?, NULL)",
-                    params![dest.id, m],
-                )?;
+                mail::add_location(tx, dest.id, *m)?;
             }
             // "Move to label" also removes it from the folder being viewed.
             let mut remove = Vec::new();
@@ -1773,3 +1876,6 @@ mod tests;
 
 #[cfg(test)]
 pub(crate) mod mailbox_tests;
+
+#[cfg(test)]
+mod list_tests;

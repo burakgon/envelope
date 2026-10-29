@@ -389,6 +389,10 @@ pub struct ThreadSummary {
     /// Later replies skip the inbox and do not notify.
     pub muted: bool,
     pub snoozed_until: Option<i64>,
+    /// Set when the list shows messages one by one: the row is the message
+    /// `id`, and this is its conversation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thread_id: Option<i64>,
 }
 
 /// A page of the message list.
@@ -431,6 +435,18 @@ pub struct ListFilter {
     pub category: Option<String>,
 }
 
+/// The order of a list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SortOrder {
+    #[default]
+    Newest,
+    Oldest,
+    /// Alphabetically by whom a conversation is with (the sender of a
+    /// message), newest first for each.
+    Sender,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThreadQuery {
@@ -439,6 +455,11 @@ pub struct ThreadQuery {
     pub search: Option<String>,
     #[serde(default)]
     pub filter: ListFilter,
+    #[serde(default)]
+    pub sort: SortOrder,
+    /// Messages one by one instead of conversations.
+    #[serde(default)]
+    pub messages: bool,
     pub offset: i64,
     pub limit: i64,
 }
@@ -509,6 +530,10 @@ pub struct MessageView {
 pub struct ThreadDetail {
     pub thread: ThreadSummary,
     pub messages: Vec<MessageView>,
+    /// One message opened from a list of messages one by one: `thread` is its
+    /// row there, and this is the conversation it is in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation: Option<ThreadSummary>,
 }
 
 /// Where to move threads.
