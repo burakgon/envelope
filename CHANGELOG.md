@@ -12,6 +12,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - VIPs: Add to VIPs in a message's menu, a conversation's right-click menu, the command palette or on a contact's page. Their conversations are gathered under VIPs in the sidebar, a crown marks their messages, `is:vip` (and From a VIP in the search options) finds them, and Settings → Notifications lists them with Remove.
 - Notifications for mail from VIPs only, per account; with "Mail from people only", a VIP's mail notifies even when it was sorted as a newsletter.
 - New-mail notifications play the desktop's new-mail sound (Settings → Notifications → Sound).
+- Contact groups: each address book's groups are listed under it in Contacts with how many people are in them, and choosing one lists its people; a contact's page shows the groups they are in. Write to group starts a message to everyone in it, and typing a group's name in To, Cc or Bcc offers it next to people ("Design team · 5 people"), adding each member's address once. Groups on this computer and on CardDAV servers are made (New group…, or the + beside an address book), renamed and deleted, and people added (Add people…) or taken out, offline too; new groups are written the way the address book's groups already are (Apple's way on iCloud). Google's labels and Exchange's personal distribution lists are listed and can be written to, and are changed in Google Contacts and Outlook.
 
 ### Fixed
 - A few German texts (blocked senders, account alerts) addressed the reader as "du" instead of "Sie" like the rest.

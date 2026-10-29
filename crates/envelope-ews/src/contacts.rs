@@ -186,6 +186,10 @@ pub struct Contact {
     pub source: Option<String>,
     /// Last modification.
     pub last_modified: Option<DateTime<Utc>>,
+    /// The members of a contact group: people of the user's contacts, of
+    /// the directory, or addresses alone. Only `GetItem` sends them.
+    #[serde(default)]
+    pub members: Vec<Mailbox>,
 }
 
 impl Contact {
@@ -257,7 +261,46 @@ impl Contact {
             categories: string_list(element.child("Categories")),
             source: element.child_text("ContactSource"),
             last_modified: child_datetime(element, "LastModifiedTime"),
+            members: element
+                .child("Members")
+                .map(|list| {
+                    list.children_named("Member")
+                        .filter_map(Mailbox::from_single)
+                        .collect()
+                })
+                .unwrap_or_default(),
         })
+    }
+
+    /// The SMTP addresses of a group's members with their names, in order
+    /// and without repeats. Members without one (a group inside the group,
+    /// an Exchange-only address) are left out.
+    pub fn member_addresses(&self) -> Vec<Mailbox> {
+        let mut out: Vec<Mailbox> = Vec::new();
+        for member in &self.members {
+            let Some(address) = member.smtp_address().map(str::trim) else {
+                continue;
+            };
+            let known = out.iter().any(|m| {
+                m.email
+                    .as_deref()
+                    .is_some_and(|e| e.eq_ignore_ascii_case(address))
+            });
+            if address.is_empty() || known {
+                continue;
+            }
+            let name = member
+                .name
+                .as_deref()
+                .map(str::trim)
+                .filter(|n| !n.is_empty() && *n != address);
+            out.push(Mailbox {
+                name: name.map(str::to_owned),
+                email: Some(address.to_owned()),
+                ..Mailbox::default()
+            });
+        }
+        out
     }
 
     /// The first e-mail address.
@@ -813,6 +856,43 @@ Flat 2</t:Street><t:City>London</t:City><t:PostalCode>SW1Y 4JH</t:PostalCode></t
         // An HTML body is not taken for notes.
         assert_eq!(contacts[1].notes, None);
         assert!(contacts[2].is_group);
+        assert!(contacts[2].members.is_empty(), "FindItem sends no members");
+    }
+
+    #[test]
+    fn parses_the_members_of_a_contact_group() {
+        let root = xml::parse(
+            r#"<t:Items xmlns:t="t">
+                 <t:DistributionList>
+                   <t:ItemId Id="g1" ChangeKey="k1"/>
+                   <t:DisplayName>Design team</t:DisplayName>
+                   <t:FileAs>Design team</t:FileAs>
+                   <t:Members>
+                     <t:Member Key="m1"><t:Mailbox><t:Name>Sofia Martínez</t:Name><t:EmailAddress>sofia@lumen.dev</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType><t:MailboxType>Contact</t:MailboxType><t:ItemId Id="c7"/></t:Mailbox><t:Status>Normal</t:Status></t:Member>
+                     <t:Member Key="m2"><t:Mailbox><t:Name>maya@northwind.design</t:Name><t:EmailAddress>maya@northwind.design</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType><t:MailboxType>OneOff</t:MailboxType></t:Mailbox><t:Status>Normal</t:Status></t:Member>
+                     <t:Member Key="m3"><t:Mailbox><t:Name>Old list</t:Name><t:RoutingType>MAPIPDL</t:RoutingType><t:MailboxType>PrivateDL</t:MailboxType><t:ItemId Id="g0"/></t:Mailbox></t:Member>
+                     <t:Member Key="m4"><t:Mailbox><t:Name>Sofia</t:Name><t:EmailAddress>SOFIA@lumen.dev</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType><t:MailboxType>Mailbox</t:MailboxType></t:Mailbox></t:Member>
+                     <t:Member Key="m5"><t:Mailbox><t:Name>Kenji</t:Name><t:EmailAddress>/o=Contoso/ou=Exchange/cn=Recipients/cn=kenji</t:EmailAddress><t:RoutingType>EX</t:RoutingType><t:MailboxType>Mailbox</t:MailboxType></t:Mailbox></t:Member>
+                   </t:Members>
+                 </t:DistributionList>
+               </t:Items>"#,
+        )
+        .unwrap();
+        let group = root
+            .elements()
+            .find_map(Contact::from_element)
+            .expect("group");
+        assert!(group.is_group);
+        assert_eq!(group.display_name.as_deref(), Some("Design team"));
+        assert_eq!(group.members.len(), 5);
+        assert_eq!(
+            group.member_addresses(),
+            [
+                Mailbox::with_name("Sofia Martínez", "sofia@lumen.dev"),
+                Mailbox::new("maya@northwind.design"),
+            ],
+            "one address once, without lists or Exchange-only addresses, and no name that is the address"
+        );
     }
 
     #[test]

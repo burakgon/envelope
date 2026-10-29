@@ -3,7 +3,7 @@
 //! endpoints used for address autocomplete, and contact writes (create,
 //! update, delete and photos).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::Ordering;
 
 use base64::Engine as _;
@@ -372,6 +372,132 @@ impl GoogleClient {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Contact groups ("labels")
+
+/// `groupFields` asked for contact groups.
+const GROUP_FIELDS: &str = "name,groupType,memberCount,metadata";
+/// Most groups asked for in one `contactGroups:batchGet`.
+const GROUP_BATCH: usize = 200;
+
+/// A contact group the user made (a "label" in Google Contacts) with the
+/// people in it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GoogleContactGroup {
+    /// `contactGroups/abc`.
+    pub resource_name: String,
+    /// The label's name.
+    pub name: String,
+    /// The group's etag.
+    pub etag: Option<String>,
+    /// The resource names of the people in it (`people/c123`).
+    pub members: Vec<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ContactGroupList {
+    #[serde(default, deserialize_with = "null_default")]
+    contact_groups: Vec<WireContactGroup>,
+    next_page_token: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ContactGroupBatch {
+    #[serde(default, deserialize_with = "null_default")]
+    responses: Vec<ContactGroupResponse>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ContactGroupResponse {
+    contact_group: Option<WireContactGroup>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WireContactGroup {
+    #[serde(default)]
+    resource_name: String,
+    etag: Option<String>,
+    name: Option<String>,
+    formatted_name: Option<String>,
+    group_type: Option<String>,
+    #[serde(default)]
+    member_count: u32,
+    #[serde(default, deserialize_with = "null_default")]
+    member_resource_names: Vec<String>,
+    metadata: Option<ContactGroupMetadata>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct ContactGroupMetadata {
+    #[serde(default)]
+    deleted: bool,
+}
+
+impl WireContactGroup {
+    /// A group the user made (not "My Contacts", "Starred" and Google's
+    /// other system groups), not deleted.
+    fn is_users(&self) -> bool {
+        self.group_type.as_deref() == Some("USER_CONTACT_GROUP")
+            && !self.metadata.as_ref().is_some_and(|m| m.deleted)
+            && !self.resource_name.is_empty()
+    }
+}
+
+impl GoogleClient {
+    /// The contact groups ("labels") the user made, with the people in
+    /// them; Google's own groups (My Contacts, Starred, …) are left out.
+    pub async fn contact_groups(&self) -> Result<Vec<GoogleContactGroup>> {
+        let mut groups = Vec::new();
+        let mut page_token: Option<String> = None;
+        loop {
+            let request = ApiRequest::get(Service::People, &["contactGroups"])
+                .query("pageSize", PAGE_SIZE)
+                .query("groupFields", GROUP_FIELDS)
+                .query_opt("pageToken", page_token.as_deref());
+            let page: ContactGroupList = self.send_json(&request, "contactGroups.list").await?;
+            let next = non_empty(page.next_page_token);
+            ensure_page_progress(page_token.as_deref(), next.as_deref(), "contactGroups.list")?;
+            groups.extend(page.contact_groups.into_iter().filter(|g| g.is_users()));
+            match next {
+                Some(next) => page_token = Some(next),
+                None => break,
+            }
+        }
+        // The list leaves the members out; they are read in batches.
+        let mut members: HashMap<String, Vec<String>> = HashMap::new();
+        let filled: Vec<&WireContactGroup> = groups.iter().filter(|g| g.member_count > 0).collect();
+        for batch in filled.chunks(GROUP_BATCH) {
+            let most = batch.iter().map(|g| g.member_count).max().unwrap_or(0);
+            let mut request = ApiRequest::get(Service::People, &["contactGroups:batchGet"])
+                .query("maxMembers", most.to_string())
+                .query("groupFields", GROUP_FIELDS);
+            for group in batch {
+                request = request.query("resourceNames", group.resource_name.clone());
+            }
+            let answer: ContactGroupBatch =
+                self.send_json(&request, "contactGroups.batchGet").await?;
+            for group in answer.responses.into_iter().filter_map(|r| r.contact_group) {
+                members.insert(group.resource_name, group.member_resource_names);
+            }
+        }
+        Ok(groups
+            .into_iter()
+            .map(|g| GoogleContactGroup {
+                members: members.remove(&g.resource_name).unwrap_or_default(),
+                name: non_empty(g.formatted_name)
+                    .or_else(|| non_empty(g.name))
+                    .unwrap_or_default(),
+                etag: non_empty(g.etag),
+                resource_name: g.resource_name,
+            })
+            .collect())
+    }
+}
+
 enum Mapped {
     Contact(Box<Contact>),
     Deleted(String),
@@ -457,6 +583,7 @@ fn map_person(person: Person) -> Option<Mapped> {
         photo,
         addresses,
         urls,
+        members: Vec::new(),
     })))
 }
 

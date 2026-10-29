@@ -121,6 +121,7 @@ export { default as Cake } from '@lucide/svelte/icons/cake';
 export { default as StickyNote } from '@lucide/svelte/icons/sticky-note';
 export { default as Phone } from '@lucide/svelte/icons/phone';
 export { default as UserPlus } from '@lucide/svelte/icons/user-plus';
+export { default as UserMinus } from '@lucide/svelte/icons/user-minus';
 export { default as BookUser } from '@lucide/svelte/icons/book-user';
 export { default as Camera } from '@lucide/svelte/icons/camera';
 export { default as BellRing } from '@lucide/svelte/icons/bell-ring';

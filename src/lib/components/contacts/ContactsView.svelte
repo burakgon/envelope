@@ -1,21 +1,24 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '../../api';
-  import { people, bookName } from '../../stores/contacts.svelte';
+  import { people, bookName, groupAddresses } from '../../stores/contacts.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import { ui } from '../../stores/ui.svelte';
   import Avatar from '../Avatar.svelte';
   import FileViewer from '../FileViewer.svelte';
   import Popover from '../Popover.svelte';
   import WindowControls from '../WindowControls.svelte';
+  import AddPeopleDialog from './AddPeopleDialog.svelte';
   import ContactDetail from './ContactDetail.svelte';
   import ContactEditor from './ContactEditor.svelte';
   import DuplicatesDialog from './DuplicatesDialog.svelte';
   import { intlLocale, t } from '../../i18n';
-  import { Download, Merge, More, PanelLeft, Plus, Search, Upload, Users } from '../../icons';
+  import { Download, Mail, Merge, More, PanelLeft, Pen, Plus, Search, Trash, Upload, UserMinus, UserPlus, Users, UsersRound } from '../../icons';
 
   let searchEl: HTMLInputElement | undefined = $state();
   let menu = $state<{ x: number; y: number } | null>(null);
+  /** The menu of the group shown (Rename…, Delete group…). */
+  let groupMenu = $state<{ x: number; y: number } | null>(null);
   /** A file of contacts being looked at, to choose whom to add. */
   let importing = $state<string | null>(null);
   let duplicates = $state(false);
@@ -88,8 +91,13 @@
       {#if ui.sidebarHidden}
         <button class="icon-btn" title={t('contacts.showSidebar')} onclick={() => (ui.sidebarCollapsed = false)}><PanelLeft size={17} /></button>
       {/if}
-      <h1 data-tauri-drag-region>{t('contacts.title')}</h1>
-      <span class="count" data-tauri-drag-region>{people.total}</span>
+      {#if people.group}
+        <h1 class="truncate" title={people.group.name} data-tauri-drag-region>{people.group.name}</h1>
+        <span class="count" data-tauri-drag-region>{people.group.members.length}</span>
+      {:else}
+        <h1 data-tauri-drag-region>{t('contacts.title')}</h1>
+        <span class="count" data-tauri-drag-region>{people.total}</span>
+      {/if}
       <span class="grow" data-tauri-drag-region></span>
       <button
         class="icon-btn"
@@ -102,6 +110,31 @@
         }}><More size={18} /></button>
       <button class="icon-btn" title={t('contacts.newContactShortcut', { key: 'C' })} onclick={() => people.newContact()}><Plus size={18} /></button>
     </header>
+    {#if people.group}
+      {@const g = people.group}
+      <div class="group-bar">
+        <button class="btn primary sm" title={t('groups.write')} disabled={!groupAddresses(g).length} onclick={() => people.writeTo(g)}>
+          <Mail size={14} /><span class="truncate">{t('groups.write')}</span>
+        </button>
+        {#if g.readOnly}
+          <span class="note">{t('groups.readOnly')}</span>
+        {:else}
+          <button class="btn sm" title={t('groups.addPeople')} onclick={() => (people.adding = g.id)}>
+            <UserPlus size={14} /><span class="truncate">{t('groups.addPeople')}</span>
+          </button>
+          <span class="grow"></span>
+          <button
+            class="icon-btn sm group-menu"
+            title={t('common.more')}
+            aria-label={t('common.more')}
+            aria-haspopup="menu"
+            onclick={(e) => {
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              groupMenu = { x: r.right, y: r.bottom + 4 };
+            }}><More size={16} /></button>
+        {/if}
+      </div>
+    {/if}
     <div class="search">
       <Search size={15} />
       <input
@@ -114,6 +147,37 @@
       />
     </div>
     <div class="items">
+      {#if people.group}
+        {@const g = people.group}
+        {#each people.members as m (m.contactId ?? m.email)}
+          <div class="member">
+            {#if m.contactId != null}
+              <button class="row" class:on={people.selectedId === m.contactId} onclick={() => people.select(m.contactId)}>
+                {@render person(m.name, m.email, m.photo, m.organization ?? m.email)}
+              </button>
+            {:else}
+              <div class="row">{@render person(m.name, m.email, null, m.name !== m.email ? m.email : null)}</div>
+            {/if}
+            {#if !g.readOnly}
+              <button
+                class="icon-btn sm remove"
+                title={t('groups.remove')}
+                aria-label={t('groups.removeName', { name: m.name })}
+                onclick={() => people.removeFromGroup(g, m)}><UserMinus size={15} /></button>
+            {/if}
+          </div>
+        {:else}
+          <div class="empty">
+            {#if people.query}
+              {t('contacts.noMatches', { query: people.query })}
+            {:else}
+              <UsersRound size={28} />
+              <p>{t('groups.empty')}</p>
+              {#if !g.readOnly}<button class="btn" onclick={() => (people.adding = g.id)}><UserPlus size={15} />{t('groups.addPeople')}</button>{/if}
+            {/if}
+          </div>
+        {/each}
+      {:else}
       {#each sections as s (s.key)}
         <div class="section">
         <div class="letter">{s.letter}</div>
@@ -142,8 +206,21 @@
           {/if}
         </div>
       {/each}
+      {/if}
     </div>
   </div>
+
+  {#snippet person(name: string, email: string | null, photo: string | null, line: string | null)}
+    {#if photo}
+      <img class="photo" src={photo} alt="" />
+    {:else}
+      <Avatar person={{ name, email: email ?? name }} size={34} />
+    {/if}
+    <span class="txt">
+      <b class="truncate">{name}</b>
+      <span class="truncate">{line ?? ''}</span>
+    </span>
+  {/snippet}
 
   <div class="pane">
     <header data-tauri-drag-region><span class="grow" data-tauri-drag-region></span><WindowControls /></header>
@@ -166,13 +243,22 @@
 
 {#if menu}
   <Popover x={menu.x} y={menu.y} align="end" onclose={() => (menu = null)} width={240}>
+    <button class="menu-item" onclick={() => { menu = null; people.newGroup(); }}><UsersRound size={15} />{t('groups.newGroupItem')}</button>
     <button class="menu-item" onclick={importContacts}><Upload size={15} />{t('contacts.import')}</button>
     <button class="menu-item" onclick={exportContacts}><Download size={15} />{t('contacts.export')}</button>
     <button class="menu-item" onclick={() => { menu = null; duplicates = true; }}><Merge size={15} />{t('contacts.findDuplicates')}</button>
   </Popover>
 {/if}
 {#if importing}<FileViewer path={importing} onclose={() => (importing = null)} />{/if}
+{#if groupMenu && people.group}
+  {@const g = people.group}
+  <Popover x={groupMenu.x} y={groupMenu.y} align="end" onclose={() => (groupMenu = null)} width={220}>
+    <button class="menu-item" onclick={() => { groupMenu = null; people.renameGroup(g); }}><Pen size={15} />{t('groups.renameItem')}</button>
+    <button class="menu-item danger" onclick={() => { groupMenu = null; people.deleteGroup(g); }}><Trash size={15} />{t('groups.deleteItem')}</button>
+  </Popover>
+{/if}
 {#if duplicates}<DuplicatesDialog onclose={() => (duplicates = false)} />{/if}
+{#if people.adding != null}<AddPeopleDialog groupId={people.adding} onclose={() => (people.adding = null)} />{/if}
 
 <style>
   .contacts {
@@ -288,6 +374,47 @@
   .txt span {
     font-size: var(--text-sm);
     color: var(--text-3);
+  }
+  h1.truncate {
+    min-width: 0;
+  }
+  /* What can be done with the group shown; long labels shorten rather than wrap. */
+  .group-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 12px 10px;
+  }
+  .group-bar .btn {
+    gap: 6px;
+    min-width: 0;
+  }
+  .group-bar :global(svg) {
+    flex-shrink: 0;
+  }
+  .note {
+    font-size: var(--text-sm);
+    color: var(--text-3);
+    white-space: nowrap;
+  }
+  /* One of the group's people, with Remove on hover or when reached with the keyboard. */
+  .member {
+    position: relative;
+  }
+  .member:has(.remove) .row {
+    padding-right: 40px;
+  }
+  .remove {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity var(--dur-fast);
+  }
+  .member:hover .remove,
+  .remove:focus-visible {
+    opacity: 1;
   }
   .empty {
     display: flex;

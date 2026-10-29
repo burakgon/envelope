@@ -642,6 +642,7 @@ export function createMockApi(): Api {
         .slice(0, 8)
         .map((c, i) => ({ name: c.name ?? null, email: c.email, score: 10 - i }));
     },
+    suggestGroups: async (q) => people.suggestGroups(q),
     identities: async () => structuredClone(identities),
     vips: async () => [...vips.values()].sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email)),
     setVip: async (email, name, on) => {
@@ -763,6 +764,30 @@ export function createMockApi(): Api {
       export: async (bookId) => delay(people.contacts.filter((c) => bookId == null || c.bookId === bookId).length),
       duplicates: async () => delay(people.duplicates()),
       merge: async (ids) => delay(people.merge(ids)),
+      groups: async () => delay(people.groupList()),
+      createGroup: async (bookId, name, contactIds) => {
+        const id = people.createGroup(bookId, name, contactIds);
+        emit({ type: 'contactsChanged', bookIds: [bookId] });
+        return delay(id);
+      },
+      renameGroup: async (id, name) => {
+        people.renameGroup(id, name);
+        emit({ type: 'contactsChanged', bookIds: [] });
+      },
+      deleteGroup: async (id) => {
+        people.deleteGroup(id);
+        emit({ type: 'contactsChanged', bookIds: [] });
+      },
+      addToGroup: async (id, contactIds, emails) => {
+        const added = people.addToGroup(id, contactIds, emails ?? []);
+        if (added) emit({ type: 'contactsChanged', bookIds: [] });
+        return delay(added);
+      },
+      removeFromGroup: async (id, contactIds, emails) => {
+        const removed = people.removeFromGroup(id, contactIds, emails);
+        if (removed) emit({ type: 'contactsChanged', bookIds: [] });
+        return delay(removed);
+      },
     },
 
     tasks: {

@@ -1,7 +1,9 @@
 //! CardDAV end-to-end test against the development server (Radicale):
 //! discovery, the initial sync of server cards (vCard 3.0 and 4.0, labels,
 //! photos, groups), creating, editing (including a conflicting server edit)
-//! and deleting contacts, and picking up changes made on the server.
+//! and deleting contacts, and picking up changes made on the server. A
+//! second test does the same with contact groups, in address books of their
+//! own (of sam@envelope.test, which it leaves as it found them).
 //!
 //! Run: ENVELOPE_TEST_IMAP=1 cargo test -p envelope-core --test live_contacts -- --nocapture
 
@@ -29,9 +31,13 @@ impl EventSink for Events {
 }
 
 fn account() -> NewAccount {
+    account_of("alex@envelope.test", "Alex Morgan")
+}
+
+fn account_of(email: &str, name: &str) -> NewAccount {
     NewAccount {
-        email: "alex@envelope.test".into(),
-        name: "Alex Morgan".into(),
+        email: email.into(),
+        name: name.into(),
         provider: "generic".into(),
         password: "password".into(),
         config: AccountConfig {
@@ -468,5 +474,290 @@ X-ADDRESSBOOKSERVER-MEMBER:urn:uuid:zeynep-1\r\nEND:VCARD\r\n"
     assert_eq!(z2.notes.as_deref(), Some("Kahve sever."));
     assert_eq!(z2.title.as_deref(), Some("Kıdemli Mühendis"));
     engine2.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The groups of one address book: each group's name and its members' names.
+async fn groups_of(engine: &Engine, book: i64) -> Vec<(String, Vec<String>)> {
+    engine
+        .contact_groups()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|g| g.book_id == book)
+        .map(|g| (g.name, g.members.into_iter().map(|m| m.name).collect()))
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn carddav_groups() {
+    if std::env::var("ENVELOPE_TEST_IMAP").is_err() {
+        return;
+    }
+    unsafe { std::env::set_var("ENVELOPE_SECRETS", "file") };
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter("info,envelope_core=debug,hyper=info,reqwest=info,rustls=info,h2=info")
+        .try_init();
+    const SAM: &str = "http://127.0.0.1:5232/sam@envelope.test/";
+
+    // Two address books of sam's: one with an Apple group and the people in
+    // it, one without groups.
+    let dav = DavClient::new(
+        DAV,
+        envelope_dav::Auth::basic("sam@envelope.test", "password"),
+    )
+    .unwrap();
+    let run = uuid::Uuid::new_v4().simple().to_string();
+    let family_book = format!("Family {}", &run[..8]);
+    let work_book = format!("Work {}", &run[..8]);
+    let family_href = dav
+        .create_addressbook(SAM, &NewAddressBook::new(&family_book))
+        .await
+        .unwrap();
+    let work_href = dav
+        .create_addressbook(SAM, &NewAddressBook::new(&work_book))
+        .await
+        .unwrap();
+    let put = |book: &str, uid: &str, card: String| {
+        let href = envelope_dav::object_href(book, uid, ObjectKind::Contact).unwrap();
+        let dav = dav.clone();
+        async move {
+            dav.put(&href, &card, Precondition::IfNoneMatch)
+                .await
+                .unwrap();
+            href
+        }
+    };
+    put(
+        &family_href,
+        "ada-1",
+        "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:ada-1\r\nFN:Ada Lovelace\r\nN:Lovelace;Ada;;;\r\nEMAIL:ada@example.com\r\nEND:VCARD\r\n".into(),
+    )
+    .await;
+    put(
+        &family_href,
+        "grace-1",
+        "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:grace-1\r\nFN:Grace Hopper\r\nN:Hopper;Grace;;;\r\nEMAIL:grace@navy.example\r\nEND:VCARD\r\n".into(),
+    )
+    .await;
+    let family = put(
+        &family_href,
+        "family-1",
+        "BEGIN:VCARD\r\nVERSION:3.0\r\nPRODID:-//Apple Inc.//macOS 15.0//EN\r\nN:Family\r\nFN:Family\r\n\
+X-ADDRESSBOOKSERVER-KIND:group\r\nX-ADDRESSBOOKSERVER-MEMBER:urn:uuid:ada-1\r\n\
+X-ADDRESSBOOKSERVER-MEMBER:urn:uuid:someone-elsewhere\r\nUID:family-1\r\nEND:VCARD\r\n"
+            .into(),
+    )
+    .await;
+    put(
+        &work_href,
+        "linus-1",
+        "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:urn:uuid:linus-1\r\nFN:Linus Torvalds\r\nEMAIL:linus@kernel.example\r\nEND:VCARD\r\n".into(),
+    )
+    .await;
+
+    let dir = std::env::temp_dir().join(format!("envelope-groups-{run}"));
+    let engine = Engine::start(
+        Paths {
+            data: dir.join("d"),
+            cache: dir.join("c"),
+        },
+        Events::default(),
+    )
+    .unwrap();
+    engine
+        .add_password_account(account_of("sam@envelope.test", "Sam Lee"))
+        .await
+        .unwrap();
+    let book_id = |name: &str| {
+        engine
+            .contact_books()
+            .unwrap()
+            .into_iter()
+            .find(|b| b.name == name)
+            .map(|b| b.id)
+    };
+    let (family_id, work_id) = until("initial sync", || async {
+        let ids = (book_id(&family_book)?, book_id(&work_book)?);
+        (groups_of(&engine, ids.0).await.len() == 1 && names(&engine).await.len() >= 3)
+            .then_some(ids)
+    })
+    .await;
+    assert_eq!(
+        groups_of(&engine, family_id).await,
+        [("Family".to_owned(), vec!["Ada Lovelace".to_owned()])],
+        "the member that isn't here is not shown"
+    );
+    let group_id = |book: i64, name: &str| {
+        let engine = engine.clone();
+        let name = name.to_owned();
+        async move {
+            engine
+                .contact_groups()
+                .await
+                .unwrap()
+                .into_iter()
+                .find(|g| g.book_id == book && g.name == name)
+                .map(|g| g.id)
+                .unwrap()
+        }
+    };
+    let contact_id = |book: i64, name: &str| {
+        let engine = engine.clone();
+        let name = name.to_owned();
+        async move {
+            let page = engine
+                .contacts_list(&name, Some(book), 0, 10)
+                .await
+                .unwrap();
+            page.items.iter().find(|c| c.name == name).unwrap().id
+        }
+    };
+    let synced = |id: i64| {
+        let engine = engine.clone();
+        async move { (state(&engine, id) == cdb::SYNCED).then_some(()) }
+    };
+    let href_of = |id: i64| {
+        engine
+            .db
+            .read(|c| cdb::get_contact(c, id))
+            .unwrap()
+            .remote_id
+            .unwrap()
+    };
+    let ada = contact_id(family_id, "Ada Lovelace").await;
+    let grace = contact_id(family_id, "Grace Hopper").await;
+    let linus = contact_id(work_id, "Linus Torvalds").await;
+
+    // New groups go up the way their address book writes groups.
+    let team = engine
+        .create_group(family_id, "Team", vec![ada, grace])
+        .await
+        .unwrap();
+    let kernel = engine
+        .create_group(work_id, "Kernel", vec![linus])
+        .await
+        .unwrap();
+    until("new groups uploaded", || async {
+        synced(team).await?;
+        synced(kernel).await
+    })
+    .await;
+    let card = dav.get(&href_of(team)).await.unwrap().data;
+    for line in [
+        "VERSION:3.0",
+        "FN:Team",
+        "X-ADDRESSBOOKSERVER-KIND:group",
+        "X-ADDRESSBOOKSERVER-MEMBER:urn:uuid:ada-1",
+        "X-ADDRESSBOOKSERVER-MEMBER:urn:uuid:grace-1",
+    ] {
+        assert!(card.contains(line), "missing {line} in\n{card}");
+    }
+    let card = dav.get(&href_of(kernel)).await.unwrap().data;
+    for line in [
+        "VERSION:4.0",
+        "KIND:group",
+        "FN:Kernel",
+        "MEMBER:urn:uuid:linus-1",
+    ] {
+        assert!(card.contains(line), "missing {line} in\n{card}");
+    }
+
+    // Renamed, and one member out.
+    engine.rename_group(team, "Core team").await.unwrap();
+    engine
+        .remove_from_group(team, vec![grace], Vec::new())
+        .await
+        .unwrap();
+    until("edit uploaded", || synced(team)).await;
+    let card = dav.get(&href_of(team)).await.unwrap().data;
+    assert!(card.contains("FN:Core team"), "{card}");
+    assert!(card.contains("N:Core team;;;;"), "{card}");
+    assert!(!card.contains("grace-1"), "{card}");
+
+    // Family changes on the server while Grace joins here: both stay, and
+    // so does the member Envelope doesn't know.
+    let server = dav.get(&family).await.unwrap();
+    let mut theirs = envelope_core::envelope_ical::parse_vcard(&server.data).unwrap();
+    theirs.members.push("mailto:aunt@example.com".into());
+    let changed = envelope_core::envelope_ical::upsert_contact(&server.data, &theirs).unwrap();
+    dav.put(
+        &family,
+        &changed,
+        Precondition::IfMatch(server.etag.clone().unwrap()),
+    )
+    .await
+    .unwrap();
+    let family_group = group_id(family_id, "Family").await;
+    engine
+        .add_to_group(family_group, vec![grace], Vec::new())
+        .await
+        .unwrap();
+    until("conflict uploaded", || synced(family_group)).await;
+    let card = dav.get(&family).await.unwrap().data;
+    for member in [
+        "urn:uuid:ada-1",
+        "urn:uuid:someone-elsewhere",
+        "mailto:aunt@example.com",
+        "urn:uuid:grace-1",
+    ] {
+        assert!(
+            card.contains(&format!("X-ADDRESSBOOKSERVER-MEMBER:{member}")),
+            "missing {member} in\n{card}"
+        );
+    }
+    let members = until("merged copy", || async {
+        let groups = groups_of(&engine, family_id).await;
+        let (_, members) = groups.into_iter().find(|(n, _)| n == "Family")?;
+        (members.len() == 3).then_some(members)
+    })
+    .await;
+    assert_eq!(
+        members,
+        ["Ada Lovelace", "aunt@example.com", "Grace Hopper"]
+    );
+
+    // Deleted here, gone there; the people stay.
+    let kernel_href = href_of(kernel);
+    engine.delete_group(kernel).await.unwrap();
+    until("delete uploaded", || async {
+        dav.get(&kernel_href)
+            .await
+            .err()
+            .filter(|e| matches!(e, envelope_dav::DavError::NotFound { .. }))
+    })
+    .await;
+    assert!(engine.contact(linus).await.is_ok());
+
+    // Groups made on the server show up after a sync.
+    put(
+        &work_href,
+        "ops-1",
+        "BEGIN:VCARD\r\nVERSION:4.0\r\nKIND:group\r\nFN:Ops\r\nMEMBER:urn:uuid:linus-1\r\n\
+MEMBER:mailto:oncall@kernel.example\r\nUID:ops-1\r\nEND:VCARD\r\n"
+            .into(),
+    )
+    .await;
+    engine.sync_now(None);
+    let ops = until("server group", || async {
+        let groups = groups_of(&engine, work_id).await;
+        groups.into_iter().find(|(n, _)| n == "Ops").map(|(_, m)| m)
+    })
+    .await;
+    assert_eq!(ops, ["Linus Torvalds", "oncall@kernel.example"]);
+    let suggested = engine.suggest_groups("ops", 4).unwrap();
+    assert_eq!(
+        suggested[0]
+            .addresses
+            .iter()
+            .map(|a| a.email.as_str())
+            .collect::<Vec<_>>(),
+        ["linus@kernel.example", "oncall@kernel.example"]
+    );
+
+    engine.shutdown();
+    for href in [&family_href, &work_href] {
+        dav.delete(href, None).await.unwrap();
+    }
     let _ = std::fs::remove_dir_all(dir);
 }

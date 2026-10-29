@@ -96,6 +96,8 @@ export interface Api {
   retrySend(outboxId: number): Promise<void>;
   outbox(): Promise<T.OutboxItem[]>;
   suggestContacts(query: string): Promise<T.ContactSuggestion[]>;
+  /** Contact groups whose name has a word starting with `query`, with their members' addresses. */
+  suggestGroups(query: string): Promise<T.GroupSuggestion[]>;
   identities(): Promise<T.Identity[]>;
   vips(): Promise<T.Vip[]>;
   setVip(email: string, name: string | null, vip: boolean): Promise<void>;
@@ -222,6 +224,17 @@ export interface Api {
     duplicates(): Promise<T.ContactSummary[][]>;
     /** Merges contacts into the first of `ids`; returns how many went into it. */
     merge(ids: number[]): Promise<number>;
+    /** The groups of every address book (in their order, by name) with their members. */
+    groups(): Promise<T.ContactGroup[]>;
+    /** Creates a group in an address book with these of its contacts; returns its id. */
+    createGroup(bookId: number, name: string, contactIds: number[]): Promise<number>;
+    renameGroup(id: number, name: string): Promise<void>;
+    /** Deletes a group; the people in it stay. */
+    deleteGroup(id: number): Promise<void>;
+    /** Adds contacts of the group's address book to it, and addresses; returns how many joined. */
+    addToGroup(id: number, contactIds: number[], emails?: string[]): Promise<number>;
+    /** Takes contacts, and members that are only an address, out of a group; returns how many left. */
+    removeFromGroup(id: number, contactIds: number[], emails: string[]): Promise<number>;
   };
 
   tasks: {

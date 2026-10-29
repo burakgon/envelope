@@ -9,7 +9,7 @@
   import { dateFormat, listDate } from '../../utils/format';
   import { t } from '../../i18n';
   import Avatar from '../Avatar.svelte';
-  import { Cake, Crown, Globe, Mail, MapPin, Pen, Phone, StickyNote, Trash } from '../../icons';
+  import { Cake, Crown, Globe, Mail, MapPin, Pen, Phone, StickyNote, Trash, UsersRound } from '../../icons';
   import { vips } from '../../stores/vips.svelte';
 
   let { contact: c }: { contact: Contact } = $props();
@@ -20,6 +20,7 @@
   const primary = $derived(c.emails[0]?.value ?? null);
   /** A VIP: one of the contact's addresses is. */
   const vip = $derived(c.emails.some((e) => vips.has(e.value)));
+  const inGroups = $derived(people.groupsOf(c.id));
 
   onMount(async () => {
     const address = c.emails[0]?.value;
@@ -128,6 +129,17 @@
         <div class="nothing">{t('contacts.noDetails')}</div>
       {/if}
     </div>
+
+    {#if inGroups.length}
+      <div class="card">
+        <div class="head">{t('groups.title')}</div>
+        <div class="groups">
+          {#each inGroups as g (g.id)}
+            <button class="group" onclick={() => people.setGroup(g.id)}><UsersRound size={14} />{g.name}</button>
+          {/each}
+        </div>
+      </div>
+    {/if}
 
     {#if threads.length}
       <div class="card">
@@ -253,6 +265,27 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-3);
+  }
+  .groups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 2px 16px 12px;
+  }
+  .group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 11px;
+    border-radius: 999px;
+    font-size: var(--text-sm);
+    font-weight: 550;
+    color: var(--accent-text);
+    background: var(--accent-soft);
+  }
+  .group:hover {
+    background: color-mix(in oklab, var(--accent) 22%, transparent);
   }
   .thread {
     display: grid;

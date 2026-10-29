@@ -77,7 +77,7 @@ pub use calendar::{
 pub use client::{ClientConfig, GoogleClient, RetryPolicy};
 pub use error::{ApiError, Error, Result};
 pub use gmail::{GmailProfile, SendAsAlias, SmtpRelay, VacationSettings, VerificationStatus};
-pub use people::{ContactPage, ContactSource, ContactSync, GoogleContact};
+pub use people::{ContactPage, ContactSource, ContactSync, GoogleContact, GoogleContactGroup};
 pub use tasks::{
     GoogleTask, GoogleTaskList, NewTask, TaskChanges, TaskCursor, TaskLink, TaskPage, TaskPatch,
     TaskPosition, TaskQuery, TaskStatus,

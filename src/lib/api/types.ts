@@ -402,6 +402,38 @@ export interface ContactPage {
   items: ContactSummary[];
 }
 
+/** A contact group (a list) of an address book. */
+export interface ContactGroup {
+  id: number;
+  bookId: number;
+  name: string;
+  /** Can't be renamed, deleted or changed here: a read-only address book, or Exchange's lists. */
+  readOnly: boolean;
+  /** By name. Members that aren't in the address book aren't listed (they stay in the group). */
+  members: GroupMember[];
+}
+
+/** One of a group's people: a contact of its address book, or an address alone. */
+export interface GroupMember {
+  contactId: number | null;
+  /** The contact's name; for an address alone, the address unless the server named it. */
+  name: string;
+  /** Primary e-mail address. */
+  email: string | null;
+  organization: string | null;
+  photo: string | null;
+}
+
+/** A group offered in the composer's address fields. */
+export interface GroupSuggestion {
+  id: number;
+  name: string;
+  /** How many people are in it. */
+  count: number;
+  /** Its members' primary addresses, once each (members without one are left out). */
+  addresses: Address[];
+}
+
 /** A sender whose mail matters most. */
 export interface Vip {
   /** In lowercase. */

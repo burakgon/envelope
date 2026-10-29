@@ -259,6 +259,7 @@ fn map_contact(wire: WireContact) -> Contact {
         photo: None,
         addresses,
         urls,
+        members: Vec::new(),
     }
 }
 
@@ -518,6 +519,7 @@ fn map_person(wire: WirePerson) -> Contact {
         photo: None,
         addresses: Vec::new(),
         urls: Vec::new(),
+        members: Vec::new(),
     }
 }
 

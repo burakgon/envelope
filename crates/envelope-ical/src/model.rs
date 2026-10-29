@@ -249,6 +249,11 @@ pub struct Contact {
     /// Web sites (`URL`), typed like e-mail addresses.
     #[serde(default)]
     pub urls: Vec<ContactField>,
+    /// The members of a contact group (`MEMBER`, Apple's
+    /// `X-ADDRESSBOOKSERVER-MEMBER`), as written: `urn:uuid:…` for a card
+    /// of the same address book, `mailto:…` for an address alone.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub members: Vec<String>,
 }
 
 /// A typed value of a contact (an e-mail address or phone number).

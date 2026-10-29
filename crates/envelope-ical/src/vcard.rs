@@ -9,6 +9,12 @@
 //! New cards are written as vCard 3.0, the version with the widest CardDAV
 //! support. [`upsert_contact`] edits existing cards in place, keeping
 //! unknown properties and the card's version (2.1 is upgraded to 3.0).
+//!
+//! Contact groups are cards too: vCard 4.0 `KIND:group` with `MEMBER`
+//! properties, or Apple's vCard 3.0 `X-ADDRESSBOOKSERVER-KIND:group` with
+//! `X-ADDRESSBOOKSERVER-MEMBER` (iCloud's). Their members are read into
+//! [`Contact::members`], and new groups are written in either style
+//! ([`group_to_vcard`]).
 
 use std::collections::HashMap;
 
@@ -27,6 +33,13 @@ use crate::writer::write_components;
 /// year, so February 29 can be represented; it is also Apple's convention
 /// (`X-APPLE-OMIT-YEAR=1604`).
 pub const NO_YEAR: i32 = 1604;
+
+/// A member of a group card (vCard 4.0).
+const MEMBER: &str = "MEMBER";
+/// A member of a group card in Apple's style.
+const APPLE_MEMBER: &str = "X-ADDRESSBOOKSERVER-MEMBER";
+/// Apple's `KIND`, which makes a vCard 3.0 card a group.
+const APPLE_KIND: &str = "X-ADDRESSBOOKSERVER-KIND";
 
 fn parse_cards(text: &str) -> Vec<Component> {
     parse_with(
@@ -75,10 +88,76 @@ pub fn parse_vcard_with_kind(text: &str) -> Result<(Contact, Option<String>)> {
     let card = cards.first().ok_or(Error::NoVCard)?;
     let kind = card
         .value("KIND")
-        .or_else(|| card.value("X-ADDRESSBOOKSERVER-KIND"))
+        .or_else(|| card.value(APPLE_KIND))
         .map(|k| k.trim().to_ascii_lowercase())
         .filter(|k| !k.is_empty());
     Ok((contact_from_vcard(card), kind))
+}
+
+/// How a contact group card says that it is one and who is in it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupStyle {
+    /// vCard 4.0 `KIND:group` with `MEMBER` properties (RFC 6350).
+    Standard,
+    /// vCard 3.0 with Apple's `X-ADDRESSBOOKSERVER-KIND:group` and
+    /// `X-ADDRESSBOOKSERVER-MEMBER`, which Apple's apps and iCloud use.
+    Apple,
+}
+
+fn is_group_kind(card: &Component, name: &str) -> bool {
+    card.value(name)
+        .is_some_and(|k| k.trim().eq_ignore_ascii_case("group"))
+}
+
+/// The style of the first card of `text`, or `None` when it is not a group.
+pub fn group_style(text: &str) -> Option<GroupStyle> {
+    let cards = parse_cards(text);
+    let card = cards.first()?;
+    if is_group_kind(card, APPLE_KIND) {
+        Some(GroupStyle::Apple)
+    } else if is_group_kind(card, "KIND") {
+        Some(GroupStyle::Standard)
+    } else {
+        None
+    }
+}
+
+/// The part of a member or UID after a `urn:uuid:` prefix.
+fn without_urn_uuid(value: &str) -> &str {
+    let value = value.trim();
+    match value.get(..9) {
+        Some(prefix) if prefix.eq_ignore_ascii_case("urn:uuid:") => value[9..].trim(),
+        _ => value,
+    }
+}
+
+/// The member value that refers to the card with this `UID`
+/// (`urn:uuid:…`, as Apple and Thunderbird write it).
+pub fn member_for_uid(uid: &str) -> String {
+    format!("urn:uuid:{}", without_urn_uuid(uid))
+}
+
+/// The member value for an e-mail address that is not a card.
+pub fn member_for_email(email: &str) -> String {
+    format!("mailto:{}", email.trim())
+}
+
+/// Whether `member` refers to the card with this `UID`; `urn:uuid:` prefixes
+/// and the case of the letters do not matter.
+pub fn member_is_uid(member: &str, uid: &str) -> bool {
+    let uid = without_urn_uuid(uid);
+    !uid.is_empty() && without_urn_uuid(member).eq_ignore_ascii_case(uid)
+}
+
+/// The address of a `mailto:` member.
+pub fn member_email(member: &str) -> Option<&str> {
+    let member = member.trim();
+    let rest = match member.get(..7) {
+        Some(scheme) if scheme.eq_ignore_ascii_case("mailto:") => &member[7..],
+        _ => return None,
+    };
+    let address = rest.split('?').next().unwrap_or_default().trim();
+    address.contains('@').then_some(address)
 }
 
 fn is_quoted_printable(property: &Property) -> bool {
@@ -488,6 +567,12 @@ pub fn contact_from_vcard(card: &Component) -> Contact {
             }
             "BDAY" if contact.birthday.is_none() => contact.birthday = parse_birthday(property),
             "PHOTO" if contact.photo.is_none() => contact.photo = parse_photo(property),
+            MEMBER | APPLE_MEMBER => {
+                let member = text_of(property);
+                if !member.is_empty() && !contact.members.contains(&member) {
+                    contact.members.push(member);
+                }
+            }
             _ => {}
         }
     }
@@ -756,6 +841,39 @@ pub fn contact_to_vcard(contact: &Contact) -> String {
     card.to_ical()
 }
 
+/// Serializes a contact group (its name, `UID` and members) as a new group
+/// card in `style`. Apple's style is vCard 3.0, which wants an `N`: Apple
+/// writes the group's name there too.
+pub fn group_to_vcard(group: &Contact, style: GroupStyle) -> String {
+    let mut card = Component::new("VCARD");
+    let name = group.name.trim();
+    let member_property = match style {
+        GroupStyle::Standard => {
+            card.push(Property::new("VERSION", "4.0"));
+            card.push(Property::new("PRODID", PRODID));
+            card.push(Property::new("KIND", "group"));
+            card.push(Property::text("FN", name));
+            MEMBER
+        }
+        GroupStyle::Apple => {
+            card.push(Property::new("VERSION", "3.0"));
+            card.push(Property::new("PRODID", PRODID));
+            card.push(Property::new("N", format!("{};;;;", escape_text(name))));
+            card.push(Property::text("FN", name));
+            card.push(Property::new(APPLE_KIND, "group"));
+            APPLE_MEMBER
+        }
+    };
+    for member in &group.members {
+        // Members are URIs, not text: nothing is escaped.
+        card.push(Property::new(member_property, member.trim()));
+    }
+    if !group.uid.trim().is_empty() {
+        card.push(Property::new("UID", group.uid.trim()));
+    }
+    card.to_ical()
+}
+
 /// Upgrades a vCard 2.1 card in place to 3.0 syntax: decodes
 /// quoted-printable values, turns bare type parameters into `TYPE=` and
 /// re-escapes text values.
@@ -934,7 +1052,63 @@ pub fn upsert_contact(existing: &str, contact: &Contact) -> Result<String> {
             }
         }
     }
+    if old.members != contact.members {
+        merge_members(card, &contact.members);
+    }
     Ok(write_components(&cards))
+}
+
+fn is_member(property: &Property) -> bool {
+    property.name.eq_ignore_ascii_case(MEMBER) || property.name.eq_ignore_ascii_case(APPLE_MEMBER)
+}
+
+/// Rewrites the members of a group card: members that stay keep their
+/// properties (and with them members Envelope does not know), new ones are
+/// written the way the card already writes them (both ways when it uses
+/// both), or as its `KIND` asks.
+fn merge_members(card: &mut Component, wanted: &[String]) {
+    let existing: Vec<Property> = card
+        .properties
+        .iter()
+        .filter(|p| is_member(p))
+        .cloned()
+        .collect();
+    let mut names: Vec<&str> = Vec::new();
+    for property in &existing {
+        let name = if property.name.eq_ignore_ascii_case(APPLE_MEMBER) {
+            APPLE_MEMBER
+        } else {
+            MEMBER
+        };
+        if !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    if names.is_empty() {
+        names.push(if is_group_kind(card, APPLE_KIND) {
+            APPLE_MEMBER
+        } else {
+            MEMBER
+        });
+    }
+    let mut out = Vec::new();
+    for member in wanted {
+        let kept: Vec<&Property> = existing
+            .iter()
+            .filter(|p| text_of(p) == member.trim())
+            .collect();
+        if kept.is_empty() {
+            out.extend(names.iter().map(|name| Property::new(*name, member.trim())));
+        } else {
+            out.extend(kept.into_iter().cloned());
+        }
+    }
+    let position = card.properties.iter().position(is_member);
+    card.properties.retain(|p| !is_member(p));
+    let index = position
+        .unwrap_or(card.properties.len())
+        .min(card.properties.len());
+    card.properties.splice(index..index, out);
 }
 
 /// Rewrites the `EMAIL`, `TEL`, `URL` and `ADR` properties whose lists
@@ -1135,6 +1309,7 @@ mod tests {
                 kind: Some("work".into()),
                 preferred: false,
             }],
+            members: Vec::new(),
         };
         let text = contact_to_vcard(&contact);
         assert!(text.contains("VERSION:3.0\r\n"));
@@ -1282,5 +1457,161 @@ ADR;TYPE=home;LABEL=\"Hauptstr. 1\\n10115 Berlin\":;;;;;;\r\nEND:VCARD\r\n";
         let (_, kind) =
             parse_vcard_with_kind("BEGIN:VCARD\r\nFN:Y\r\nEND:VCARD\r\n").expect("card");
         assert_eq!(kind, None);
+    }
+
+    const APPLE_GROUP: &str = "BEGIN:VCARD\r\nVERSION:3.0\r\nPRODID:-//Apple Inc.//iOS 17.4//EN\r\n\
+N:Family\r\nFN:Family\r\nX-ADDRESSBOOKSERVER-KIND:group\r\n\
+X-ADDRESSBOOKSERVER-MEMBER:urn:uuid:zeynep-1\r\n\
+X-ADDRESSBOOKSERVER-MEMBER:urn:uuid:GONE-0000\r\n\
+X-ADDRESSBOOKSERVER-MEMBER:urn:uuid:zeynep-1\r\n\
+REV:2026-10-01T10:00:00Z\r\nUID:family\r\nEND:VCARD\r\n";
+
+    const STANDARD_GROUP: &str = "BEGIN:VCARD\r\nVERSION:4.0\r\nKIND:group\r\nFN:Design team\r\n\
+MEMBER:urn:uuid:03a0e51f-d1aa-4385-8a53-e29025acd8af\r\nMEMBER:mailto:sofia@example.com\r\n\
+X-UNKNOWN:kept\r\nUID:urn:uuid:team-1\r\nEND:VCARD\r\n";
+
+    #[test]
+    fn group_members_are_read_in_both_styles() {
+        let (family, kind) = parse_vcard_with_kind(APPLE_GROUP).expect("card");
+        assert_eq!(kind.as_deref(), Some("group"));
+        assert_eq!(
+            family.members,
+            ["urn:uuid:zeynep-1", "urn:uuid:GONE-0000"],
+            "a member listed twice counts once"
+        );
+        assert_eq!(group_style(APPLE_GROUP), Some(GroupStyle::Apple));
+        let team = parse_vcard(STANDARD_GROUP).expect("card");
+        assert_eq!(team.name, "Design team");
+        assert_eq!(
+            team.members,
+            [
+                "urn:uuid:03a0e51f-d1aa-4385-8a53-e29025acd8af",
+                "mailto:sofia@example.com"
+            ]
+        );
+        assert_eq!(group_style(STANDARD_GROUP), Some(GroupStyle::Standard));
+        assert_eq!(
+            group_style("BEGIN:VCARD\r\nVERSION:4.0\r\nKIND:individual\r\nFN:A\r\nEND:VCARD\r\n"),
+            None
+        );
+        // Escaped colons, as Apple writes in URLs, read the same.
+        let escaped = parse_vcard(
+            "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:G\r\nX-ADDRESSBOOKSERVER-KIND:group\r\n\
+X-ADDRESSBOOKSERVER-MEMBER:urn\\:uuid\\:a-1\r\nEND:VCARD\r\n",
+        )
+        .expect("card");
+        assert_eq!(escaped.members, ["urn:uuid:a-1"]);
+    }
+
+    #[test]
+    fn member_references() {
+        assert_eq!(member_for_uid("zeynep-1"), "urn:uuid:zeynep-1");
+        assert_eq!(member_for_uid(" urn:uuid:A-1 "), "urn:uuid:A-1");
+        assert_eq!(member_for_uid("URN:UUID:A-1"), "urn:uuid:A-1");
+        assert!(member_is_uid("urn:uuid:ABC-1", "abc-1"));
+        assert!(member_is_uid("URN:UUID:abc-1", "urn:uuid:ABC-1"));
+        assert!(member_is_uid("https://x.example/1", "https://x.example/1"));
+        assert!(!member_is_uid("urn:uuid:abc-1", "abc-2"));
+        assert!(!member_is_uid("urn:uuid:", ""));
+        assert_eq!(
+            member_for_email(" ada@example.com"),
+            "mailto:ada@example.com"
+        );
+        assert_eq!(
+            member_email("MAILTO:ada@example.com?subject=Hi"),
+            Some("ada@example.com")
+        );
+        assert_eq!(member_email("urn:uuid:ada@example.com"), None);
+        assert_eq!(member_email("mailto:"), None);
+        assert_eq!(member_email("ü"), None);
+    }
+
+    #[test]
+    fn new_groups_in_both_styles() {
+        let group = Contact {
+            uid: "g-1".into(),
+            name: "Design; team".into(),
+            members: vec!["urn:uuid:a-1".into(), "mailto:b@example.com".into()],
+            ..Contact::default()
+        };
+        let standard = group_to_vcard(&group, GroupStyle::Standard);
+        for line in [
+            "VERSION:4.0\r\n",
+            "KIND:group\r\n",
+            "FN:Design\\; team\r\n",
+            "MEMBER:urn:uuid:a-1\r\n",
+            "MEMBER:mailto:b@example.com\r\n",
+            "UID:g-1\r\n",
+        ] {
+            assert!(standard.contains(line), "{line} missing in\n{standard}");
+        }
+        assert!(!standard.contains("\r\nN:"), "vCard 4.0 needs no N");
+        let apple = group_to_vcard(&group, GroupStyle::Apple);
+        for line in [
+            "VERSION:3.0\r\n",
+            "N:Design\\; team;;;;\r\n",
+            "FN:Design\\; team\r\n",
+            "X-ADDRESSBOOKSERVER-KIND:group\r\n",
+            "X-ADDRESSBOOKSERVER-MEMBER:urn:uuid:a-1\r\n",
+            "X-ADDRESSBOOKSERVER-MEMBER:mailto:b@example.com\r\n",
+        ] {
+            assert!(apple.contains(line), "{line} missing in\n{apple}");
+        }
+        assert!(!apple.contains("\r\nKIND:"));
+        for (text, style) in [(standard, GroupStyle::Standard), (apple, GroupStyle::Apple)] {
+            let (back, kind) = parse_vcard_with_kind(&text).expect("card");
+            assert_eq!(kind.as_deref(), Some("group"));
+            assert_eq!(group_style(&text), Some(style));
+            assert_eq!(back.name, group.name);
+            assert_eq!(back.members, group.members);
+            assert_eq!(back.uid, group.uid);
+        }
+    }
+
+    #[test]
+    fn group_edits_keep_the_card_style_and_unknown_members() {
+        // Apple: a member added and one taken out; the member Envelope does
+        // not know (GONE-0000) stays, and so does the rest of the card.
+        let mut family = parse_vcard(APPLE_GROUP).expect("card");
+        family.members = vec!["urn:uuid:GONE-0000".into(), "urn:uuid:can-1".into()];
+        family.name = "Relatives".into();
+        let updated = upsert_contact(APPLE_GROUP, &family).expect("upsert");
+        assert!(updated.contains("FN:Relatives\r\n"), "{updated}");
+        assert!(updated.contains("X-ADDRESSBOOKSERVER-MEMBER:urn:uuid:GONE-0000\r\n"));
+        assert!(updated.contains("X-ADDRESSBOOKSERVER-MEMBER:urn:uuid:can-1\r\n"));
+        assert!(!updated.contains("zeynep-1"), "{updated}");
+        assert!(!updated.contains("\r\nMEMBER:"), "{updated}");
+        assert!(updated.contains("X-ADDRESSBOOKSERVER-KIND:group\r\n"));
+        assert!(updated.contains("REV:2026-10-01T10:00:00Z\r\n"));
+        assert_eq!(parse_vcard(&updated).expect("card").members, family.members);
+
+        // vCard 4.0: new members are MEMBER properties.
+        let mut team = parse_vcard(STANDARD_GROUP).expect("card");
+        team.members.remove(0);
+        team.members.push("urn:uuid:new-1".into());
+        let updated = upsert_contact(STANDARD_GROUP, &team).expect("upsert");
+        assert!(updated.contains("MEMBER:mailto:sofia@example.com\r\nMEMBER:urn:uuid:new-1\r\n"));
+        assert!(!updated.contains("03a0e51f"));
+        assert!(updated.contains("X-UNKNOWN:kept\r\n"));
+        assert!(updated.contains("KIND:group\r\n"));
+
+        // A card that writes members both ways goes on writing both.
+        let both = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Both\r\nKIND:group\r\nX-ADDRESSBOOKSERVER-KIND:group\r\n\
+MEMBER:urn:uuid:a-1\r\nX-ADDRESSBOOKSERVER-MEMBER:urn:uuid:a-1\r\nEND:VCARD\r\n";
+        let mut group = parse_vcard(both).expect("card");
+        assert_eq!(group.members, ["urn:uuid:a-1"]);
+        group.members.push("urn:uuid:b-2".into());
+        let updated = upsert_contact(both, &group).expect("upsert");
+        assert!(updated.contains("MEMBER:urn:uuid:a-1\r\nX-ADDRESSBOOKSERVER-MEMBER:urn:uuid:a-1\r\nMEMBER:urn:uuid:b-2\r\nX-ADDRESSBOOKSERVER-MEMBER:urn:uuid:b-2\r\n"), "{updated}");
+
+        // An empty Apple group gets Apple's member properties.
+        let empty = "BEGIN:VCARD\r\nVERSION:3.0\r\nN:E\r\nFN:E\r\nX-ADDRESSBOOKSERVER-KIND:group\r\nUID:e\r\nEND:VCARD\r\n";
+        let mut group = parse_vcard(empty).expect("card");
+        group.members.push("urn:uuid:a-1".into());
+        let updated = upsert_contact(empty, &group).expect("upsert");
+        assert!(
+            updated.contains("X-ADDRESSBOOKSERVER-MEMBER:urn:uuid:a-1\r\n"),
+            "{updated}"
+        );
     }
 }

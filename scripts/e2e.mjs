@@ -1102,6 +1102,97 @@ await step('duplicate contacts are found and merged into the fuller one', async 
   }
 });
 
+await step('a contact group typed in To adds its people, each once', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('body').press('c');
+    const to = p.locator('.dock .composer .chips input').first();
+    await to.waitFor({ timeout: 5000 });
+    // Maya is there already: the group adds the other four.
+    await to.fill('maya@northwind.design');
+    await p.keyboard.press('Enter');
+    await to.fill('design');
+    const option = p.locator('.suggest .opt', { hasText: 'Design team' });
+    await option.waitFor({ timeout: 5000 });
+    if (!(await option.innerText()).includes('5 people')) throw new Error(`the group is offered as "${await option.innerText()}"`);
+    if (!(await option.locator('svg').count())) throw new Error('the group has no icon');
+    await p.keyboard.press('Enter');
+    const chips = p.locator('.dock .composer .field').first().locator('.chip-addr');
+    await eventually(p, async () => (await chips.count()) === 5, async () => `To holds ${await chips.count()} addresses`);
+    const names = await chips.allInnerTexts();
+    for (const name of ['Sofia Martínez', 'Priya Raman', 'Daniel Okafor', 'Olivia Brooks']) {
+      if (!names.some((n) => n.includes(name))) throw new Error(`${name} is missing: ${names.join(', ')}`);
+    }
+  } finally {
+    await p.close();
+  }
+});
+
+await step('a contact group is made, renamed, filled, emptied and deleted in Contacts', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('.modes button[aria-label="Contacts"]').click();
+    await p.locator('.contacts .row').first().waitFor({ timeout: 5000 });
+    const group = (name) => p.locator('.sidebar .item.in-book', { hasText: name });
+    if ((await group('Design team').locator('.count').innerText()) !== '5') throw new Error('Design team does not count 5 people');
+    // A new group of the iCloud address book; a name another group there has is refused first.
+    const book = p.locator('.sidebar .book', { hasText: 'iCloud' });
+    await book.hover();
+    await book.locator('.add-group').click();
+    const prompt = p.locator('[role="dialog"] input');
+    await prompt.waitFor({ timeout: 5000 });
+    await p.keyboard.type('family');
+    await p.keyboard.press('Enter');
+    await p.locator('[role="dialog"] .message', { hasText: 'already a group called “family”' }).waitFor({ timeout: 5000 });
+    await prompt.fill('Climbing');
+    await p.keyboard.press('Enter');
+    await toast(p, 'Group “Climbing” created');
+    // Then people to add: the address book's contacts.
+    const picker = p.locator('[role="dialog"]', { hasText: 'Add people to “Climbing”' });
+    await picker.waitFor({ timeout: 5000 });
+    for (const name of ['Zoe Garcia', 'Ben Cohen']) await picker.locator('label.person', { hasText: name }).click();
+    await picker.locator('button.primary', { hasText: 'Add 2 people' }).click();
+    await toast(p, 'Added 2 people to “Climbing”');
+    const members = p.locator('.contacts .list .member');
+    await eventually(p, async () => (await members.count()) === 2 && (await group('Climbing').locator('.count').innerText()) === '2', 'Climbing does not hold 2 people');
+    // Renamed from the group's menu.
+    await p.locator('.group-bar .group-menu').click();
+    await p.locator('.popover .menu-item', { hasText: 'Rename…' }).click();
+    await prompt.waitFor({ timeout: 5000 });
+    await prompt.fill('Bouldering');
+    await p.keyboard.press('Enter');
+    await toast(p, 'Renamed to “Bouldering”');
+    await p.locator('.contacts .list header h1', { hasText: 'Bouldering' }).waitFor({ timeout: 5000 });
+    // A contact's page shows the groups it is in.
+    await members.filter({ hasText: 'Zoe Garcia' }).locator('.row').click();
+    await p.locator('.contacts .detail .group', { hasText: 'Bouldering' }).waitFor({ timeout: 5000 });
+    // Taken out of the group from its list.
+    const ben = members.filter({ hasText: 'Ben Cohen' });
+    await ben.hover();
+    await ben.locator('.remove').click();
+    await toast(p, 'Removed Ben Cohen from “Bouldering”');
+    await eventually(p, async () => (await members.count()) === 1, 'Ben Cohen is still in the group');
+    // Deleting asks first, and the people stay.
+    await p.locator('.group-bar .group-menu').click();
+    await p.locator('.popover .menu-item', { hasText: 'Delete group…' }).click();
+    const ask = p.locator('[role="alertdialog"]');
+    await ask.locator('h3', { hasText: 'Delete group “Bouldering”?' }).waitFor({ timeout: 5000 });
+    await ask.locator('.message', { hasText: 'The person in it stays in your contacts.' }).waitFor({ timeout: 5000 });
+    await ask.locator('button.danger').click();
+    await toast(p, 'Deleted “Bouldering”');
+    await eventually(p, async () => !(await group('Bouldering').count()), 'Bouldering is still listed');
+    await p.locator('.contacts .row', { hasText: 'Zoe Garcia' }).waitFor({ timeout: 5000 });
+    // A read-only group can still be written to.
+    await group('Design team').click();
+    await p.locator('.group-bar .note', { hasText: 'Read-only' }).waitFor({ timeout: 5000 });
+    if (await p.locator('.group-bar button', { hasText: 'Add people…' }).count()) throw new Error('a read-only group offers Add people…');
+    await p.locator('.group-bar button', { hasText: 'Write to group' }).click();
+    await eventually(p, async () => (await p.locator('.dock .composer .field').first().locator('.chip-addr').count()) === 5, 'Write to group did not address the 5 people');
+  } finally {
+    await p.close();
+  }
+});
+
 await step('messages from an mbox file are imported into a folder', async () => {
   const p = await open();
   try {

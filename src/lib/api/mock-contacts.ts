@@ -98,6 +98,12 @@ export function merge(ids: number[]): number {
   const [keep, ...rest] = ids.map((id) => contacts.find((c) => c.id === id)).filter((c): c is T.Contact => !!c);
   if (!keep) return 0;
   for (const other of rest) {
+    // The groups the duplicate was in have the contact kept instead.
+    for (const g of groups) {
+      if (!g.members.includes(other.id)) continue;
+      g.members = g.members.filter((m) => m !== other.id);
+      if (!g.members.includes(keep.id)) g.members.push(keep.id);
+    }
     for (const e of other.emails) if (!keep.emails.some((m) => m.value.toLowerCase() === e.value.toLowerCase())) keep.emails.push(e);
     for (const p of other.phones) if (!keep.phones.some((m) => m.value.replace(/\D/g, '') === p.value.replace(/\D/g, ''))) keep.phones.push(p);
     keep.organization ??= other.organization;
@@ -124,4 +130,137 @@ export function save(input: T.ContactInput): number {
 export function remove(id: number) {
   const i = contacts.findIndex((c) => c.id === id);
   if (i >= 0) contacts.splice(i, 1);
+}
+
+// ----- Groups ------------------------------------------------------------------
+
+/** A demo group: its people by contact id, and members that are only an address. */
+interface Group {
+  id: number;
+  bookId: number;
+  name: string;
+  members: number[];
+  emails: string[];
+}
+
+const idOf = (name: string) => contacts.find((c) => c.name === name)?.id ?? 0;
+
+// Design team is a label of the Google address book (read-only, as Google's labels are in
+// Envelope); Family is a group of the iCloud one.
+const groups: Group[] = [
+  { id: 901, bookId: 1, name: 'Design team', members: ['Sofia Martínez', 'Priya Raman', 'Daniel Okafor', 'Maya Chen', 'Olivia Brooks'].map(idOf), emails: [] },
+  { id: 902, bookId: 2, name: 'Family', members: ['Linda Morgan', 'Elif Yılmaz', 'Noah Williams'].map(idOf), emails: [] },
+];
+let groupSeq = 903;
+
+/** Groups of address books on this computer and on CardDAV servers can be changed. */
+const groupsEditable = (bookId: number) => {
+  const b = books.find((x) => x.id === bookId);
+  return !!b && !b.readOnly && (b.kind === 'local' || b.kind === 'carddav');
+};
+
+const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+function view(g: Group): T.ContactGroup {
+  const people: T.GroupMember[] = g.members
+    .map((id) => contacts.find((c) => c.id === id && c.bookId === g.bookId))
+    .filter((c): c is T.Contact => !!c)
+    .map((c) => ({ contactId: c.id, name: c.name, email: c.emails[0]?.value ?? null, organization: c.organization, photo: c.photo }));
+  const addresses: T.GroupMember[] = g.emails.map((e) => ({ contactId: null, name: e, email: e, organization: null, photo: null }));
+  return {
+    id: g.id,
+    bookId: g.bookId,
+    name: g.name,
+    readOnly: !groupsEditable(g.bookId),
+    members: [...people, ...addresses].sort((a, b) => a.name.localeCompare(b.name)),
+  };
+}
+
+function editable(id: number): Group {
+  const g = groups.find((x) => x.id === id);
+  if (!g) throw { message: 'Group not found', kind: 'notFound' };
+  if (!groupsEditable(g.bookId)) throw { message: 'This group can’t be changed here.', kind: 'invalid' };
+  return g;
+}
+
+function checkName(bookId: number, name: string, except?: number): string {
+  const n = name.trim();
+  if (!n) throw { message: 'Enter a name.', kind: 'invalid' };
+  if (groups.some((g) => g.bookId === bookId && g.id !== except && fold(g.name) === fold(n))) {
+    throw { message: `There’s already a group called “${n}” in this address book.`, kind: 'invalid' };
+  }
+  return n;
+}
+
+/** Every group, in the address books' order and by name. */
+export function groupList(): T.ContactGroup[] {
+  return books.flatMap((b) =>
+    groups
+      .filter((g) => g.bookId === b.id)
+      .map(view)
+      .sort((x, y) => x.name.localeCompare(y.name)),
+  );
+}
+
+export function createGroup(bookId: number, name: string, ids: number[]): number {
+  if (!groupsEditable(bookId)) throw { message: 'Groups can’t be added to this address book.', kind: 'invalid' };
+  const g: Group = { id: groupSeq++, bookId, name: checkName(bookId, name), members: [], emails: [] };
+  groups.push(g);
+  addToGroup(g.id, ids, []);
+  return g.id;
+}
+
+export function renameGroup(id: number, name: string) {
+  const g = editable(id);
+  g.name = checkName(g.bookId, name, id);
+}
+
+export function deleteGroup(id: number) {
+  editable(id);
+  groups.splice(
+    groups.findIndex((g) => g.id === id),
+    1,
+  );
+}
+
+export function addToGroup(id: number, ids: number[], emails: string[]): number {
+  const g = editable(id);
+  let added = 0;
+  for (const c of ids.map((i) => contacts.find((x) => x.id === i && x.bookId === g.bookId))) {
+    if (c && !g.members.includes(c.id)) {
+      g.members.push(c.id);
+      added++;
+    }
+  }
+  for (const e of emails) {
+    if (!g.emails.some((x) => x.toLowerCase() === e.toLowerCase())) {
+      g.emails.push(e);
+      added++;
+    }
+  }
+  return added;
+}
+
+export function removeFromGroup(id: number, ids: number[], emails: string[]): number {
+  const g = editable(id);
+  const before = g.members.length + g.emails.length;
+  g.members = g.members.filter((m) => !ids.includes(m));
+  g.emails = g.emails.filter((e) => !emails.some((x) => x.toLowerCase() === e.toLowerCase()));
+  return before - g.members.length - g.emails.length;
+}
+
+/** Groups with a word of their name starting with `query`, with their members' addresses. */
+export function suggestGroups(query: string): T.GroupSuggestion[] {
+  const q = fold(query.trim());
+  if (!q) return [];
+  return groupList()
+    .filter((g) => fold(g.name).startsWith(q) || fold(g.name).split(/[^\p{L}\p{N}]+/u).some((w) => w.startsWith(q)))
+    .map((g) => ({
+      id: g.id,
+      name: g.name,
+      count: g.members.length,
+      addresses: g.members.filter((m) => m.email).map((m) => ({ name: m.contactId != null ? m.name : null, email: m.email! })),
+    }))
+    .filter((s) => s.addresses.length)
+    .slice(0, 4);
 }

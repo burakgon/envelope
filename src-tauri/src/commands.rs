@@ -1137,6 +1137,64 @@ pub async fn contact_delete(state: State<'_, AppState>, id: i64) -> R<()> {
     Ok(state.engine.delete_contact(id).await?)
 }
 
+use envelope_core::contacts::groups::{ContactGroup, GroupSuggestion};
+
+#[tauri::command]
+pub async fn contact_groups(state: State<'_, AppState>) -> R<Vec<ContactGroup>> {
+    Ok(state.engine.contact_groups().await?)
+}
+
+#[tauri::command]
+pub async fn contact_group_create(
+    state: State<'_, AppState>,
+    book_id: i64,
+    name: String,
+    contact_ids: Vec<i64>,
+) -> R<i64> {
+    Ok(state
+        .engine
+        .create_group(book_id, &name, contact_ids)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn contact_group_rename(state: State<'_, AppState>, id: i64, name: String) -> R<()> {
+    Ok(state.engine.rename_group(id, &name).await?)
+}
+
+#[tauri::command]
+pub async fn contact_group_delete(state: State<'_, AppState>, id: i64) -> R<()> {
+    Ok(state.engine.delete_group(id).await?)
+}
+
+#[tauri::command]
+pub async fn contact_group_add(
+    state: State<'_, AppState>,
+    id: i64,
+    contact_ids: Vec<i64>,
+    emails: Vec<String>,
+) -> R<usize> {
+    Ok(state.engine.add_to_group(id, contact_ids, emails).await?)
+}
+
+#[tauri::command]
+pub async fn contact_group_remove(
+    state: State<'_, AppState>,
+    id: i64,
+    contact_ids: Vec<i64>,
+    emails: Vec<String>,
+) -> R<usize> {
+    Ok(state
+        .engine
+        .remove_from_group(id, contact_ids, emails)
+        .await?)
+}
+
+#[tauri::command]
+pub fn suggest_groups(state: State<'_, AppState>, query: String) -> R<Vec<GroupSuggestion>> {
+    Ok(state.engine.suggest_groups(&query, 4)?)
+}
+
 // ----- tasks ---------------------------------------------------------------------------
 
 use envelope_core::tasks::{Task, TaskInput, TaskList, TaskView};

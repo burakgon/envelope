@@ -4,7 +4,8 @@
 //! copy that state started from (`base`: a vCard, a Google person, …) and a
 //! `local_state` saying whether it still has to be written to the server.
 //! Sync never overwrites rows with local changes; the push step merges them
-//! with the server copy instead.
+//! with the server copy instead. Contact groups are rows too (`is_group`),
+//! with their members in the contact's `members`.
 
 use std::collections::{HashMap, HashSet};
 
@@ -770,6 +771,38 @@ pub fn delete_row(tx: &Transaction<'_>, id: i64) -> Result<()> {
     Ok(())
 }
 
+/// Stores a contact group created here (see [`insert_local`]).
+pub fn insert_local_group(
+    tx: &Transaction<'_>,
+    book_id: i64,
+    uid: &str,
+    remote_id: Option<&str>,
+    group: &Contact,
+    state: i64,
+) -> Result<i64> {
+    let id = insert_local(
+        tx,
+        book_id,
+        uid,
+        remote_id,
+        group,
+        state,
+        &PhotoEdit::Unchanged,
+    )?;
+    tx.execute("UPDATE contacts SET is_group = 1 WHERE id = ?", [id])?;
+    Ok(id)
+}
+
+/// The groups of an address book that are not deleted, by name.
+pub fn book_groups(c: &Connection, book_id: i64) -> Result<Vec<ContactRow>> {
+    let mut st = c.prepare_cached(&format!(
+        "SELECT {ROW_COLUMNS} FROM contacts WHERE book_id = ? AND is_group = 1 AND local_state != ?
+         ORDER BY sort_key, id"
+    ))?;
+    let rows = st.query_map(params![book_id, DELETED], contact_from_row)?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 /// Contacts of a book with local changes due to be pushed.
 pub fn dirty_rows(c: &Connection, book_id: i64) -> Result<Vec<ContactRow>> {
     let mut st = c.prepare_cached(&format!(
@@ -1030,6 +1063,21 @@ pub fn list_contacts(
         })
     })?;
     Ok((total, rows.collect::<rusqlite::Result<_>>()?))
+}
+
+/// Groups of visible address books whose search text holds `term`
+/// (folded), by name: the candidates for address autocomplete.
+pub fn groups_matching(c: &Connection, term: &str, limit: i64) -> Result<Vec<ContactRow>> {
+    let mut st = c.prepare_cached(&format!(
+        "SELECT {ROW_COLUMNS} FROM contacts WHERE id IN (
+           SELECT c.id FROM contacts c JOIN address_books b ON b.id = c.book_id
+             LEFT JOIN accounts a ON a.id = b.account_id
+           WHERE c.local_state != 3 AND c.is_group = 1 AND (b.account_id IS NULL OR a.enabled = 1)
+             AND instr(c.search, ?))
+         ORDER BY sort_key, id LIMIT ?"
+    ))?;
+    let rows = st.query_map(params![term, limit], contact_from_row)?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
 /// A contact found for address autocomplete.

@@ -1,6 +1,7 @@
 //! Contacts: the engine API on a local address book, CardDAV storage quirks,
-//! and two-way sync with mock Google People and Microsoft Graph servers, all
-//! with a real (temporary) database.
+//! two-way sync with mock Google People and Microsoft Graph servers, and
+//! contact groups going up to a mock CardDAV server and coming from a mock
+//! Exchange server, all with a real (temporary) database.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -8,7 +9,9 @@ use std::sync::Arc;
 use base64::Engine as _;
 use parking_lot::Mutex;
 use serde_json::{Value, json};
-use wiremock::matchers::{body_partial_json, method, path, query_param, query_param_is_missing};
+use wiremock::matchers::{
+    body_partial_json, header, method, path, query_param, query_param_is_missing,
+};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use super::*;
@@ -896,6 +899,139 @@ async fn google_read_only_grants_keep_edits_local_until_refused() {
     assert_eq!(fx.list("").await.len(), 1, "restored from the server");
 }
 
+/// A Google account with Ada and Grace, and one label (with `members`)
+/// besides Google's own groups and an empty label.
+async fn google_with_label(server: &MockServer, name: &str, members: Value) {
+    server.reset().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/people/me/connections"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "connections": [
+                ada(server, "%A1"),
+                { "resourceName": "people/c2", "etag": "%G1", "names": [{ "displayName": "Grace Hopper" }],
+                  "emailAddresses": [{ "value": "grace@navy.example" }] }
+            ],
+            "nextSyncToken": "t1"
+        })))
+        .mount(server)
+        .await;
+    let count = members.as_array().map_or(0, Vec::len);
+    Mock::given(method("GET"))
+        .and(path("/v1/contactGroups"))
+        .and(query_param(
+            "groupFields",
+            "name,groupType,memberCount,metadata",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "contactGroups": [
+                { "resourceName": "contactGroups/myContacts", "groupType": "SYSTEM_CONTACT_GROUP",
+                  "name": "myContacts", "formattedName": "My Contacts", "memberCount": 2 },
+                { "resourceName": "contactGroups/starred", "groupType": "SYSTEM_CONTACT_GROUP", "name": "starred" },
+                { "resourceName": "contactGroups/1a2b", "etag": "e1", "groupType": "USER_CONTACT_GROUP",
+                  "name": name, "formattedName": name, "memberCount": count },
+                { "resourceName": "contactGroups/9z", "groupType": "USER_CONTACT_GROUP", "name": "Empty" }
+            ]
+        })))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/contactGroups:batchGet"))
+        .and(query_param("resourceNames", "contactGroups/1a2b"))
+        .and(query_param("maxMembers", count.to_string()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "responses": [{
+                "requestedResourceName": "contactGroups/1a2b",
+                "contactGroup": { "resourceName": "contactGroups/1a2b", "name": name, "memberResourceNames": members }
+            }]
+        })))
+        .mount(server)
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn google_labels_are_read_only_groups() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = fx.account("ada@gmail.example");
+    let client = google(&server);
+    google_with_label(&server, "Design team", json!(["people/c1", "people/c2"])).await;
+    let changed = google_sync(&fx.engine, &account, &client, true, true)
+        .await
+        .expect("sync");
+    let book = fx.books(&account).remove(0);
+    assert!(changed.contains(&book.id));
+    let groups = fx.engine.contact_groups().await.expect("groups");
+    assert_eq!(
+        groups
+            .iter()
+            .map(|g| (
+                g.name.as_str(),
+                g.read_only,
+                g.members
+                    .iter()
+                    .map(|m| m.name.as_str())
+                    .collect::<Vec<_>>()
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("Design team", true, vec!["Ada Lovelace", "Grace Hopper"]),
+            ("Empty", true, Vec::new()),
+        ],
+        "the user's labels, not Google's own groups"
+    );
+    let team = groups[0].id;
+    assert!(fx.engine.rename_group(team, "Designers").await.is_err());
+    assert_eq!(fx.list("").await.len(), 2, "labels are not contacts");
+
+    // Renamed, and one person less, on Google. A full sync of the people
+    // (the token expired) keeps the labels.
+    google_with_label(&server, "Designers", json!(["people/c2"])).await;
+    fx.engine
+        .db
+        .write(|tx| {
+            tx.execute(
+                "UPDATE address_books SET sync_state = '{}' WHERE id = ?",
+                [book.id],
+            )?;
+            Ok(())
+        })
+        .expect("reset");
+    google_sync(&fx.engine, &account, &client, true, true)
+        .await
+        .expect("sync");
+    let groups = fx.engine.contact_groups().await.expect("groups");
+    assert_eq!(groups[0].id, team, "the same group, changed");
+    assert_eq!(groups[0].name, "Designers");
+    assert_eq!(
+        groups[0]
+            .members
+            .iter()
+            .map(|m| m.name.as_str())
+            .collect::<Vec<_>>(),
+        ["Grace Hopper"]
+    );
+
+    // Labels deleted on Google go here too.
+    server.reset().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/people/me/connections"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "connections": [], "nextSyncToken": "t2"
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/contactGroups"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "contactGroups": [] })))
+        .mount(&server)
+        .await;
+    google_sync(&fx.engine, &account, &client, true, true)
+        .await
+        .expect("sync");
+    assert!(fx.engine.contact_groups().await.expect("groups").is_empty());
+    assert_eq!(fx.list("").await.len(), 2);
+}
+
 // ---------------------------------------------------------------------------
 // Microsoft Graph
 
@@ -1240,6 +1376,7 @@ fn maps_exchange_contacts() {
         categories: vec![],
         source: Some("Store".into()),
         last_modified: None,
+        members: Vec::new(),
     };
     let mapped = super::ews_contact(&c, "AAMk1");
     assert_eq!(mapped.name, "Daniel Okafor");
@@ -1312,6 +1449,7 @@ fn exchange_edits_touch_only_what_changed() {
         categories: Vec::new(),
         source: None,
         last_modified: None,
+        members: Vec::new(),
     };
     let mut desired = ews_contact(&server, "AAMk1");
     // Unchanged: nothing to send.
@@ -1410,6 +1548,7 @@ fn exchange_edits_place_addresses_by_kind() {
         categories: Vec::new(),
         source: None,
         last_modified: None,
+        members: Vec::new(),
     };
     let mut desired = ews_contact(&server, "AAMk1");
     assert_eq!(ews_changes(&server, &desired), []);
@@ -1794,4 +1933,319 @@ async fn duplicates_are_found_and_merged() {
     );
     let groups = fx.engine.contact_duplicates().await.expect("duplicates");
     assert_eq!(groups.len(), 1);
+}
+
+// ---------------------------------------------------------------------------
+// Contact groups
+
+/// The PUT bodies a mock server received for `href`, in order.
+async fn uploads(server: &MockServer, href: &str) -> Vec<String> {
+    server
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|r| {
+            r.method.as_str() == "PUT"
+                && envelope_dav::Url::parse(href).is_ok_and(|u| u.path() == r.url.path())
+        })
+        .map(|r| String::from_utf8_lossy(&r.body).into_owned())
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn carddav_groups_go_up_in_the_books_style_and_merge_server_edits() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = fx.account("alex@example.com");
+    let collection = format!("{}/ab/", server.uri());
+    let book = fx.book(&account, "carddav", &collection);
+    let client = DavClient::new(&server.uri(), envelope_dav::Auth::None).expect("client");
+    store_vcards(
+        &fx.engine,
+        book.id,
+        vec![
+            object(
+                &format!("{collection}ada.vcf"),
+                "\"1\"",
+                "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:ada-1\r\nFN:Ada Lovelace\r\nEMAIL:ada@example.com\r\nEND:VCARD\r\n",
+            ),
+            object(
+                &format!("{collection}grace.vcf"),
+                "\"1\"",
+                "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:urn:uuid:grace-1\r\nFN:Grace Hopper\r\nEND:VCARD\r\n",
+            ),
+        ],
+        Vec::new(),
+    )
+    .await
+    .expect("store");
+    let ada = fx.id_of("Ada Lovelace").await;
+    let grace = fx.id_of("Grace Hopper").await;
+    let push = async |id: i64| {
+        let row = fx.row(id);
+        let book = fx.books(&account).remove(0);
+        let style = fx
+            .engine
+            .db
+            .read(|c| crate::contacts::groups::book_style(c, &book))
+            .expect("style");
+        let outcome = carddav_push(&client, &book, &row, None, style).await;
+        settle(&fx.engine, &book, &row, outcome).expect("settle")
+    };
+
+    // No Apple groups there: a new group is a vCard 4.0 group card.
+    let team = fx
+        .engine
+        .create_group(book.id, "Team", vec![ada])
+        .await
+        .expect("create");
+    let href = fx.row(team).remote_id.expect("href");
+    let at = href.trim_start_matches(&server.uri()).to_owned();
+    Mock::given(method("PUT"))
+        .and(path(&at))
+        .and(header("If-None-Match", "*"))
+        .respond_with(ResponseTemplate::new(201).insert_header("ETag", "\"g1\""))
+        .expect(1)
+        .mount(&server)
+        .await;
+    assert!(push(team).await);
+    let sent = uploads(&server, &href).await.remove(0);
+    for line in [
+        "VERSION:4.0\r\n",
+        "KIND:group\r\n",
+        "FN:Team\r\n",
+        "MEMBER:urn:uuid:ada-1\r\n",
+    ] {
+        assert!(sent.contains(line), "{line} missing in\n{sent}");
+    }
+    let row = fx.row(team);
+    assert_eq!(row.local_state, cdb::SYNCED);
+    assert_eq!(row.etag.as_deref(), Some("\"g1\""));
+    assert!(row.is_group);
+
+    // Someone else adds an address on the server while Grace is added here:
+    // the upload finds the newer card and keeps both changes.
+    let theirs = sent.replace(
+        "MEMBER:urn:uuid:ada-1\r\n",
+        "MEMBER:urn:uuid:ada-1\r\nMEMBER:mailto:boss@example.com\r\n",
+    );
+    Mock::given(method("PUT"))
+        .and(path(&at))
+        .and(header("If-Match", "\"g1\""))
+        .respond_with(ResponseTemplate::new(412))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(&at))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("ETag", "\"g2\"")
+                .insert_header("Content-Type", "text/vcard")
+                .set_body_string(theirs),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path(&at))
+        .and(header("If-Match", "\"g2\""))
+        .respond_with(ResponseTemplate::new(204).insert_header("ETag", "\"g3\""))
+        .expect(1)
+        .mount(&server)
+        .await;
+    assert_eq!(
+        fx.engine
+            .add_to_group(team, vec![grace], Vec::new())
+            .await
+            .expect("add"),
+        1
+    );
+    assert_eq!(fx.row(team).local_state, cdb::MODIFIED);
+    assert!(push(team).await);
+    let merged = uploads(&server, &href).await.pop().expect("upload");
+    for line in [
+        "MEMBER:urn:uuid:ada-1\r\n",
+        "MEMBER:mailto:boss@example.com\r\n",
+        "MEMBER:urn:uuid:grace-1\r\n",
+    ] {
+        assert!(merged.contains(line), "{line} missing in\n{merged}");
+    }
+    assert_eq!(fx.row(team).etag.as_deref(), Some("\"g3\""));
+    let members: Vec<String> = fx
+        .engine
+        .contact_groups()
+        .await
+        .expect("groups")
+        .remove(0)
+        .members
+        .into_iter()
+        .map(|m| m.name)
+        .collect();
+    assert_eq!(
+        members,
+        ["Ada Lovelace", "boss@example.com", "Grace Hopper"]
+    );
+
+    // Once the address book has an Apple group, new ones are written so.
+    store_vcards(
+        &fx.engine,
+        book.id,
+        vec![object(
+            &format!("{collection}family.vcf"),
+            "\"f\"",
+            "BEGIN:VCARD\r\nVERSION:3.0\r\nN:Family\r\nFN:Family\r\nX-ADDRESSBOOKSERVER-KIND:group\r\nUID:family\r\nEND:VCARD\r\n",
+        )],
+        Vec::new(),
+    )
+    .await
+    .expect("store");
+    let friends = fx
+        .engine
+        .create_group(book.id, "Friends", vec![grace])
+        .await
+        .expect("create");
+    let href = fx.row(friends).remote_id.expect("href");
+    Mock::given(method("PUT"))
+        .and(path(href.trim_start_matches(&server.uri())))
+        .respond_with(ResponseTemplate::new(201).insert_header("ETag", "\"a1\""))
+        .expect(1)
+        .mount(&server)
+        .await;
+    assert!(push(friends).await);
+    let sent = uploads(&server, &href).await.remove(0);
+    for line in [
+        "VERSION:3.0\r\n",
+        "N:Friends;;;;\r\n",
+        "X-ADDRESSBOOKSERVER-KIND:group\r\n",
+        "X-ADDRESSBOOKSERVER-MEMBER:urn:uuid:grace-1\r\n",
+    ] {
+        assert!(sent.contains(line), "{line} missing in\n{sent}");
+    }
+    assert!(!sent.contains("\r\nKIND:"), "{sent}");
+
+    // Deleted here, deleted there.
+    Mock::given(method("DELETE"))
+        .and(path(&at))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&server)
+        .await;
+    fx.engine.delete_group(team).await.expect("delete");
+    assert!(push(team).await);
+    assert!(
+        fx.engine.db.read(|c| cdb::get_contact(c, team)).is_err(),
+        "the row goes once the server deleted it"
+    );
+}
+
+/// An Exchange contacts folder with a person and a contact group.
+struct ExchangeGroup;
+
+impl wiremock::Respond for ExchangeGroup {
+    fn respond(&self, request: &wiremock::Request) -> ResponseTemplate {
+        const NS: &str = concat!(
+            r#"xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" "#,
+            r#"xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types""#
+        );
+        const SOFIA: &str = r#"<t:Contact><t:ItemId Id="c1" ChangeKey="k1"/><t:DisplayName>Sofia Martínez</t:DisplayName><t:EmailAddresses><t:Entry Key="EmailAddress1">sofia@lumen.dev</t:Entry></t:EmailAddresses></t:Contact>"#;
+        const TEAM: &str = r#"<t:DistributionList><t:ItemId Id="g1" ChangeKey="k1"/><t:DisplayName>Design team</t:DisplayName><t:Members><t:Member Key="1"><t:Mailbox><t:Name>Sofia</t:Name><t:EmailAddress>sofia@lumen.dev</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType><t:MailboxType>Contact</t:MailboxType><t:ItemId Id="c1"/></t:Mailbox></t:Member><t:Member Key="2"><t:Mailbox><t:Name>Maya Chen</t:Name><t:EmailAddress>maya@northwind.design</t:EmailAddress><t:RoutingType>SMTP</t:RoutingType><t:MailboxType>OneOff</t:MailboxType></t:Mailbox></t:Member><t:Member Key="3"><t:Mailbox><t:Name>Old list</t:Name><t:MailboxType>PrivateDL</t:MailboxType></t:Mailbox></t:Member></t:Members></t:DistributionList>"#;
+        let body = String::from_utf8_lossy(&request.body).into_owned();
+        let (op, messages) = if body.contains("<m:FindItem") {
+            (
+                "FindItem",
+                format!(
+                    r#"<m:FindItemResponseMessage ResponseClass="Success"><m:ResponseCode>NoError</m:ResponseCode><m:RootFolder IndexedPagingOffset="2" TotalItemsInView="2" IncludesLastItemInRange="true"><t:Items>{SOFIA}<t:DistributionList><t:ItemId Id="g1" ChangeKey="k1"/><t:DisplayName>Design team</t:DisplayName></t:DistributionList></t:Items></m:RootFolder></m:FindItemResponseMessage>"#
+                ),
+            )
+        } else {
+            let items: String = body
+                .split(r#"<t:ItemId Id=""#)
+                .skip(1)
+                .filter_map(|rest| rest.split('"').next())
+                .map(|id| {
+                    let item = if id == "c1" { SOFIA } else { TEAM };
+                    format!(
+                        r#"<m:GetItemResponseMessage ResponseClass="Success"><m:ResponseCode>NoError</m:ResponseCode><m:Items>{item}</m:Items></m:GetItemResponseMessage>"#
+                    )
+                })
+                .collect();
+            ("GetItem", items)
+        };
+        ResponseTemplate::new(200)
+            .insert_header("content-type", "text/xml; charset=utf-8")
+            .set_body_string(format!(
+                r#"<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Header><h:ServerVersionInfo MajorVersion="15" MinorVersion="1" MajorBuildNumber="2507" MinorBuildNumber="6" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types"/></s:Header><s:Body><m:{op}Response {NS}><m:ResponseMessages>{messages}</m:ResponseMessages></m:{op}Response></s:Body></s:Envelope>"#
+            ))
+    }
+}
+
+#[tokio::test]
+async fn exchange_contact_groups_are_read_only_lists() {
+    use crate::model::{Address, AuthMethod, ExchangeAuth, ExchangeConfig};
+    let fx = fixture();
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path(envelope_ews::EWS_PATH))
+        .respond_with(ExchangeGroup)
+        .mount(&server)
+        .await;
+    let config = AccountConfig {
+        auth: AuthMethod::Password,
+        exchange: Some(ExchangeConfig {
+            ews_url: format!("{}{}", server.uri(), envelope_ews::EWS_PATH),
+            auth: ExchangeAuth::Basic,
+            ..ExchangeConfig::default()
+        }),
+        ..AccountConfig::default()
+    };
+    let id = fx
+        .engine
+        .db
+        .write(|tx| {
+            mail::insert_account(
+                tx,
+                AccountKind::Exchange,
+                "exchange",
+                "jane@example.com",
+                "Jane Doe",
+                "#0ea5e9",
+                &config,
+            )
+        })
+        .expect("account");
+    fx.engine
+        .secrets
+        .preload(&crate::secrets::password_key(id), "secret");
+    let account = fx.engine.account_row(id).expect("account row");
+    // The second sync reads nothing again, and keeps the group.
+    for _ in 0..2 {
+        ews_sync(&fx.engine, &account, true).await.expect("sync");
+        let groups = fx.engine.contact_groups().await.expect("groups");
+        assert_eq!(groups.len(), 1);
+        let team = &groups[0];
+        assert_eq!(team.name, "Design team");
+        assert!(team.read_only);
+        assert_eq!(
+            team.members
+                .iter()
+                .map(|m| (m.contact_id.is_some(), m.name.as_str()))
+                .collect::<Vec<_>>(),
+            [(false, "Maya Chen"), (true, "Sofia Martínez")],
+            "the contact in it is the contact; another address keeps Exchange's name"
+        );
+    }
+    let team = fx.engine.contact_groups().await.expect("groups")[0].id;
+    assert!(fx.engine.rename_group(team, "Designers").await.is_err());
+    assert!(fx.engine.delete_group(team).await.is_err());
+    let suggested = fx.engine.suggest_groups("team", 5).expect("suggest");
+    assert_eq!(suggested.len(), 1);
+    assert_eq!(
+        suggested[0].addresses,
+        [
+            Address::new(Some("Maya Chen".into()), "maya@northwind.design"),
+            Address::new(Some("Sofia Martínez".into()), "sofia@lumen.dev"),
+        ]
+    );
+    let names: Vec<String> = fx.list("").await.into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["Sofia Martínez"], "the group is not a contact");
 }

@@ -7,7 +7,7 @@
   import {
     AlertCircle, Archive, Calendar, ChevronDown, Clock, Compose, File, Folder as FolderIcon, Inbox, Mail,
     Mails, PanelLeft, Plus, Send, Settings, ShieldAlert, Spinner, Star, Tag, Trash, WifiOff, Flag, BookUser, UserPlus, Users, BellRing, ListChecks,
-    Bookmark, Pen, Crown,
+    Bookmark, Pen, Crown, UsersRound,
   } from '../icons';
   import { vips } from '../stores/vips.svelte';
   import Popover from './Popover.svelte';
@@ -22,7 +22,7 @@
   import { api } from '../api';
   import CalendarSidebar from './calendar/CalendarSidebar.svelte';
   import { cal } from '../stores/calendar.svelte';
-  import { people, bookName } from '../stores/contacts.svelte';
+  import { people, bookName, groupsEditable, newGroupTitle } from '../stores/contacts.svelte';
   import { tasks } from '../stores/tasks.svelte';
   import TasksSidebar from './tasks/TasksSidebar.svelte';
   import { intlLocale, t } from '../i18n';
@@ -377,13 +377,23 @@
   {:else if ui.view === 'contacts'}
   <nav class="scroll">
     <div class="group">
-      <button class="item" class:active={people.bookId == null} onclick={() => people.setBook(null)}>
+      <button class="item" class:active={people.bookId == null && people.groupId == null} onclick={() => people.setBook(null)}>
         <Users size={16} /><span class="name">{t('sidebar.allContacts')}</span>
       </button>
       {#each people.books as b (b.id)}
-        <button class="item" class:active={people.bookId === b.id} onclick={() => people.setBook(b.id)}>
-          <BookUser size={16} /><span class="name truncate">{bookName(b)}</span>
-        </button>
+        <div class="book">
+          <button class="item" class:active={people.bookId === b.id && people.groupId == null} onclick={() => people.setBook(b.id)}>
+            <BookUser size={16} /><span class="name truncate">{bookName(b)}</span>
+          </button>
+          {#if groupsEditable(b)}
+            <button class="add-group" title={newGroupTitle(b)} aria-label={newGroupTitle(b)} onclick={() => people.newGroup(b.id)}><Plus size={14} /></button>
+          {/if}
+        </div>
+        {#each people.groups.filter((g) => g.bookId === b.id) as g (g.id)}
+          <button class="item in-book" class:active={people.groupId === g.id} onclick={() => people.setGroup(g.id)}>
+            <UsersRound size={15} /><span class="name truncate">{g.name}</span><span class="count">{g.members.length}</span>
+          </button>
+        {/each}
       {/each}
     </div>
   </nav>
@@ -991,6 +1001,38 @@
   .add-folder:hover {
     background: var(--bg-hover);
     color: var(--text);
+  }
+  /* An address book, with "New group" shown on hover or when reached with the keyboard. */
+  .book {
+    position: relative;
+  }
+  .book .item {
+    padding-right: 34px;
+  }
+  .add-group {
+    position: absolute;
+    top: 4.5px;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    color: var(--text-3);
+    opacity: 0;
+    transition: opacity var(--dur-fast), background var(--dur-fast);
+  }
+  .book:hover .add-group,
+  .add-group:focus-visible {
+    opacity: 1;
+  }
+  .add-group:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+  /* A group, under its address book. */
+  .item.in-book {
+    padding-left: 24px;
   }
   .alert {
     display: grid;
