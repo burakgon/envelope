@@ -1,5 +1,5 @@
-// OpenPGP in the interface: opened (decrypted or verified) messages and the
-// passphrase prompt.
+// OpenPGP and S/MIME in the interface: opened (decrypted or verified) messages
+// and the passphrase prompt.
 
 import { api } from '../api';
 import type { KeyInfo, MessageView, OpenedMessage } from '../api';
@@ -24,7 +24,12 @@ export function keyName(key: KeyInfo | null | undefined): string {
 }
 
 export function isEncrypted(m: Pick<MessageView, 'crypto'>): boolean {
-  return m.crypto === 'encrypted' || m.crypto === 'inline-encrypted';
+  return m.crypto === 'encrypted' || m.crypto === 'inline-encrypted' || m.crypto === 'smime-encrypted';
+}
+
+/** The content is inside the protection (encrypted, or S/MIME opaque signed): its attachments come with opening it. */
+export function isContained(m: Pick<MessageView, 'crypto'>): boolean {
+  return isEncrypted(m) || m.crypto === 'smime-opaque';
 }
 
 class Pgp {

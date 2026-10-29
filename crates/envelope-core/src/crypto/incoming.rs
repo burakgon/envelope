@@ -1,5 +1,6 @@
-//! Receiving: Autocrypt headers, noting OpenPGP content when messages are
-//! downloaded, and decrypting or verifying them when they are opened.
+//! Receiving: Autocrypt headers, noting OpenPGP and S/MIME content when
+//! messages are downloaded, and decrypting or verifying them when they are
+//! opened.
 
 use std::collections::{BTreeSet, HashSet};
 use std::path::PathBuf;
@@ -14,7 +15,8 @@ use rusqlite::{Connection, Transaction};
 use serde::{Deserialize, Serialize};
 
 use super::keys::{KeyInfo, public_of, store_cert};
-use super::{ENCRYPTED_SNIPPET, Opened};
+use super::smime::{self, SmimeSignature};
+use super::{ENCRYPTED_SNIPPET, Opened, Protection};
 use crate::db::crypto::{self as store, Peer};
 use crate::db::mail::{self, MessageMeta};
 use crate::db::now_ms;
@@ -27,9 +29,10 @@ use crate::model::{AttachmentInfo, EngineEvent, MessageBody};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignatureView {
-    /// `good`, `bad` or `unknownKey`.
+    /// `good`, `bad` or `unknownKey` (for S/MIME: the signature fits, it
+    /// does not, or it cannot be checked).
     pub status: String,
-    /// The signer's key, when known.
+    /// The signer's OpenPGP key, when known.
     pub signer: Option<KeyInfo>,
     /// Fingerprint or key id named in the signature.
     pub issuer: Option<String>,
@@ -37,6 +40,8 @@ pub struct SignatureView {
     pub created: Option<i64>,
     /// The signing key carries the sender's address.
     pub sender_matches: bool,
+    /// An S/MIME signature: its certificate and how each check went.
+    pub smime: Option<SmimeSignature>,
 }
 
 /// An encrypted or signed message, opened.
@@ -44,11 +49,12 @@ pub struct SignatureView {
 #[serde(rename_all = "camelCase")]
 pub struct OpenedMessage {
     pub message_id: i64,
-    /// `encrypted`, `signed`, `inline-encrypted` or `inline-signed`.
+    /// `encrypted`, `signed`, `inline-encrypted` or `inline-signed`; for
+    /// S/MIME `smime-encrypted`, `smime-signed` or `smime-opaque`.
     pub kind: String,
     pub encrypted: bool,
     /// `ok`, `locked` (a passphrase is needed), `noKey` (not encrypted to any
-    /// of the user's keys) or `error`.
+    /// of the user's keys or certificates) or `error`.
     pub status: String,
     pub error: Option<String>,
     /// The key whose passphrase is needed (`locked`).
@@ -56,7 +62,7 @@ pub struct OpenedMessage {
     /// The decrypted content, or the text of an inline signed message.
     /// `None` when the stored body is the content (PGP/MIME signed).
     pub body: Option<MessageBody>,
-    /// Attachments inside the encryption.
+    /// Attachments inside the encryption (or the opaque signature).
     pub attachments: Vec<AttachmentInfo>,
     /// The real subject (protected headers).
     pub subject: Option<String>,
@@ -70,7 +76,7 @@ pub struct OpenedMessage {
 }
 
 impl OpenedMessage {
-    fn new(message_id: i64, kind: Kind) -> OpenedMessage {
+    fn new(message_id: i64, kind: Protection) -> OpenedMessage {
         OpenedMessage {
             message_id,
             kind: kind.as_str().to_string(),
@@ -194,17 +200,17 @@ pub(crate) fn on_headers(
     }
 }
 
-/// Notes the OpenPGP content of a downloaded message and adapts what is
-/// stored: encrypted messages keep no readable body until they are opened,
-/// signatures are not listed as attachments, inline signed text loses its
-/// armor. Returns the kind of OpenPGP content.
+/// Notes the OpenPGP or S/MIME content of a downloaded message and adapts
+/// what is stored: encrypted messages keep no readable body until they are
+/// opened, signatures are not listed as attachments, inline signed text
+/// loses its armor. Returns the kind of protection.
 pub(crate) fn on_source(
     tx: &Transaction<'_>,
     message_id: i64,
     raw: &[u8],
     meta: &MessageMeta,
     body: &mut ParsedBody,
-) -> Result<Option<Kind>> {
+) -> Result<Option<Protection>> {
     let mine = my_emails(tx)?;
     // Keys from spam are not taken.
     let junk: bool = tx.query_row(
@@ -218,11 +224,19 @@ pub(crate) fn on_source(
     {
         autocrypt_seen(tx, &from.email, meta.date, meta.autocrypt.as_deref(), &mine)?;
     }
-    let Some(kind) = pgpmime::detect(raw) else {
+    let Some(protection) = Protection::detect(raw) else {
         store::message_crypto_delete(tx, message_id)?;
         return Ok(None);
     };
-    store::message_crypto_set(tx, message_id, kind.as_str(), raw)?;
+    store::message_crypto_set(tx, message_id, protection.as_str(), raw)?;
+    let kind = match protection {
+        Protection::Pgp(kind) => kind,
+        Protection::Smime(kind) => {
+            let sender = meta.from.as_ref().map(|f| f.email.trim().to_lowercase());
+            smime::on_source(tx, kind, raw, sender.as_deref(), junk, body)?;
+            return Ok(Some(protection));
+        }
+    };
     match kind {
         Kind::Encrypted => {
             body.html = None;
@@ -246,7 +260,7 @@ pub(crate) fn on_source(
             }
         }
     }
-    Ok(Some(kind))
+    Ok(Some(protection))
 }
 
 /// The text of a message with its cleartext signed block unwrapped, and the
@@ -263,16 +277,39 @@ fn cleartext(text: &str, lookup: ops::Lookup<'_>) -> Option<(String, Vec<SigResu
 // Opening
 
 /// Why decryption did not happen.
-enum Failure {
+pub(crate) enum Failure {
     Locked(String, Option<String>),
     NoKey,
+    /// S/MIME: not encrypted to a certificate whose private key is here.
+    NoCertificate,
     Error(String),
 }
 
 impl Engine {
-    /// The decrypted content (a MIME entity) of a PGP/MIME message read from
-    /// a file, or `None` when it is not encrypted.
+    /// The decrypted content (a MIME entity) of a PGP/MIME or S/MIME
+    /// message read from a file (also the content of S/MIME opaque signed
+    /// data), or `None` when it is not encrypted.
     pub(crate) async fn decrypt_file_message(&self, raw: &[u8]) -> Result<Option<Vec<u8>>> {
+        if let Some(Protection::Smime(kind)) = Protection::detect(raw) {
+            let Some(payload) = envelope_smime::mime::payload(raw) else {
+                return Ok(None);
+            };
+            return match kind {
+                envelope_smime::Kind::Signed => Ok(None),
+                envelope_smime::Kind::Opaque => {
+                    let (shown, _) = self.smime_inner(raw.to_vec(), None)?;
+                    Ok((shown != raw).then_some(shown))
+                }
+                envelope_smime::Kind::Encrypted => match self.smime_decrypt(&payload.cms).await {
+                    Ok(content) => Ok(Some(self.smime_inner(content, None)?.0)),
+                    Err(Failure::NoCertificate) => Err(Error::Invalid(
+                        "This message is encrypted to a certificate whose private key is not on this computer.".into(),
+                    )),
+                    Err(Failure::Error(e)) => Err(Error::Invalid(e)),
+                    Err(_) => Ok(None),
+                },
+            };
+        }
         let Some(payload) = pgpmime::encrypted_payload(raw) else {
             return Ok(None);
         };
@@ -285,6 +322,7 @@ impl Engine {
                 "Your key is locked. Open an encrypted message in Envelope to enter its passphrase, then open this file again.".into(),
             )),
             Err(Failure::Error(e)) => Err(Error::Invalid(e)),
+            Err(Failure::NoCertificate) => Ok(None),
         }
     }
 
@@ -304,8 +342,8 @@ impl Engine {
             .ok_or_else(|| {
                 Error::NotFound("This message is neither encrypted nor signed.".into())
             })?;
-        let kind = Kind::parse(&row.kind)
-            .ok_or_else(|| Error::Invalid(format!("unknown OpenPGP content {}", row.kind)))?;
+        let protection = Protection::parse(&row.kind)
+            .ok_or_else(|| Error::Invalid(format!("unknown protected content {}", row.kind)))?;
         let raw = match row.raw {
             Some(raw) => raw,
             None => self.message_source_bytes(message_id).await?,
@@ -313,8 +351,18 @@ impl Engine {
         let message = self.db.read(|c| mail::get_message(c, message_id))?;
         let sender = message.from.as_ref().map(|f| f.email.trim().to_lowercase());
         let sender = sender.as_deref();
-        let mut view = OpenedMessage::new(message_id, kind);
+        let mut view = OpenedMessage::new(message_id, protection);
         let mut entity = None;
+        let kind = match protection {
+            Protection::Pgp(kind) => kind,
+            Protection::Smime(kind) => {
+                entity = self
+                    .open_smime(message_id, message.date, kind, &raw, sender, &mut view)
+                    .await?
+                    .map(Arc::new);
+                return self.remember(message_id, view, entity, row.decrypted);
+            }
+        };
         match kind {
             Kind::Encrypted => {
                 let payload = pgpmime::encrypted_payload(&raw).ok_or_else(|| {
@@ -323,11 +371,12 @@ impl Engine {
                 view.partially_encrypted = !pgpmime::encrypted_is_whole(&raw);
                 match self.decrypt_payload(&payload).await {
                     Ok(d) => {
+                        let signatures = self.signature_views(d.signatures, sender);
                         let shown = self.show_entity(
                             message_id,
                             message.date,
                             &d.data,
-                            d.signatures,
+                            signatures,
                             sender,
                             &mut view,
                         )?;
@@ -393,11 +442,23 @@ impl Engine {
                 }
             }
         }
+        self.remember(message_id, view, entity, row.decrypted)
+    }
+
+    /// Keeps an opened message for the session (and, with the setting, its
+    /// decrypted text for search).
+    fn remember(
+        &self,
+        message_id: i64,
+        view: OpenedMessage,
+        entity: Option<Arc<Vec<u8>>>,
+        kept: bool,
+    ) -> Result<Arc<Opened>> {
         let opened = Arc::new(Opened { view, entity });
         if opened.view.status == "ok" {
             self.crypto.remember_opened(message_id, opened.clone());
             if opened.view.encrypted
-                && !row.decrypted
+                && !kept
                 && self.crypto_settings()?.keep_decrypted
                 && let Err(e) = self.keep_decrypted_copy(message_id, &opened.view)
             {
@@ -407,7 +468,7 @@ impl Engine {
         Ok(opened)
     }
 
-    fn failed(&self, view: &mut OpenedMessage, failure: Failure) {
+    pub(crate) fn failed(&self, view: &mut OpenedMessage, failure: Failure) {
         match failure {
             Failure::Locked(fingerprint, error) => {
                 view.status = "locked".into();
@@ -421,6 +482,13 @@ impl Engine {
                 view.status = "noKey".into();
                 view.error = Some(
                     "This message was not encrypted to any of your keys. It can only be read where the key it was encrypted to is."
+                        .into(),
+                );
+            }
+            Failure::NoCertificate => {
+                view.status = "noKey".into();
+                view.error = Some(
+                    "This message was encrypted to a certificate whose private key is not on this computer. Import that certificate with its private key (a .p12 or .pfx file) in Settings → Encryption to read it."
                         .into(),
                 );
             }
@@ -527,19 +595,20 @@ impl Engine {
                     issuer: r.issuer.label(),
                     created: r.created.map(|c| c * 1000),
                     sender_matches,
+                    smime: None,
                 }
             })
             .collect()
     }
 
-    /// Fills the view from decrypted content. Returns the entity the
-    /// attachment ids refer to.
-    fn show_entity(
+    /// Fills the view from decrypted (or opaque signed) content. Returns
+    /// the entity the attachment ids refer to.
+    pub(crate) fn show_entity(
         &self,
         message_id: i64,
         date: i64,
         data: &[u8],
-        mut signatures: Vec<SigResult>,
+        mut signatures: Vec<SignatureView>,
         sender: Option<&str>,
         view: &mut OpenedMessage,
     ) -> Result<Vec<u8>> {
@@ -550,7 +619,7 @@ impl Engine {
             if let Ok(results) =
                 ops::verify_detached(&parts.data, &parts.signature, &|i| self.certs_for(i))
             {
-                signatures.extend(results);
+                signatures.extend(self.signature_views(results, sender));
             }
             view.partially_signed = !parts.whole;
         }
@@ -567,7 +636,10 @@ impl Engine {
         view.attachments = body
             .attachments
             .iter()
-            .filter(|a| a.mime_type != "application/pgp-signature")
+            .filter(|a| {
+                a.mime_type != "application/pgp-signature"
+                    && !envelope_smime::mime::is_smime_type(&a.mime_type)
+            })
             .filter_map(|a| {
                 let index: usize = a.part_id.strip_prefix("mp:")?.parse().ok()?;
                 Some(AttachmentInfo {
@@ -580,12 +652,12 @@ impl Engine {
                 })
             })
             .collect();
-        view.signatures = self.signature_views(signatures, sender);
+        view.signatures = signatures;
         // Keys of the other recipients, vouched for by the signed sender.
         if view
             .signatures
             .iter()
-            .any(|s| s.status == "good" && s.sender_matches)
+            .any(|s| s.smime.is_none() && s.status == "good" && s.sender_matches)
             && let Err(e) = self.take_gossip(message_id, date, data)
         {
             tracing::debug!("ignoring Autocrypt-Gossip: {e}");
@@ -819,12 +891,12 @@ impl Engine {
         message_id: i64,
         cid: &str,
     ) -> Result<Option<(String, PathBuf)>> {
-        let encrypted = self
+        let contained = self
             .db
             .read(|c| store::message_crypto_kind(c, message_id))?
-            .and_then(|k| Kind::parse(&k))
-            .is_some_and(Kind::is_encrypted);
-        if !encrypted {
+            .and_then(|k| Protection::parse(&k))
+            .is_some_and(Protection::is_contained);
+        if !contained {
             return Ok(None);
         }
         let opened = self.open_inner(message_id).await?;

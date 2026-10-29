@@ -13,9 +13,13 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Notifications for mail from VIPs only, per account; with "Mail from people only", a VIP's mail notifies even when it was sorted as a newsletter.
 - New-mail notifications play the desktop's new-mail sound (Settings → Notifications → Sound).
 - Subscriptions (the newspaper button in the Newsletters tab, or Manage subscriptions in the command palette): every newsletter and mailing list that writes to you, the busiest first, with how many conversations and unread ones each has. Unsubscribe in one click where the list allows it, archive what a list left in the inbox, delete all of its mail (asking first), block it, or show its conversations.
+- S/MIME, as Outlook and most companies use it: signed and encrypted messages (also opaque signed ones, AES-GCM and old 3DES mail) are opened, and their signatures checked. A signature shows as verified only when the message is unchanged and the certificate valid, meant for e-mail, vouched for by an authority this computer trusts and made out to the sender's address; otherwise it says which check failed, with the certificate on request. Mail encrypted to a certificate that isn't here says so and offers to import it.
+- S/MIME certificates in Settings → Encryption: import yours from a `.p12` or `.pfx` file (its password is asked in the app), save and delete certificates, and import other people's. The certificates of people whose signed mail verifies are kept, so you can encrypt to them.
+- The composer signs and encrypts with S/MIME: per message, OpenPGP or S/MIME, with S/MIME the default when you reply to S/MIME mail or have a certificate and no OpenPGP key. Encrypted mail is encrypted to your own certificate too, so Sent stays readable, and encrypted drafts are stored encrypted to it.
 
 ### Fixed
 - A few German texts (blocked senders, account alerts) addressed the reader as "du" instead of "Sie" like the rest.
+- Messages signed with S/MIME showed an `smime.p7s` attachment, and S/MIME encrypted or opaque signed ones looked empty with an `smime.p7m` attachment.
 
 ## [0.4.0] — 2026-10-29
 

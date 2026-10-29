@@ -1,11 +1,11 @@
 <script lang="ts">
   import { api } from '../api';
-  import type { KeyInfo, KeySource, MessageView, OpenedMessage, SignatureView } from '../api';
+  import type { KeyInfo, KeySource, MessageView, OpenedMessage, SignatureView, SmimeSignature } from '../api';
   import { formatFingerprint, isEncrypted, keyName, pgp } from '../stores/pgp.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
   import { dialogs } from '../stores/dialogs.svelte';
   import { t, type MessageKey } from '../i18n';
-  import { longDate } from '../utils/format';
+  import { dateFormat, longDate } from '../utils/format';
   import Popover from './Popover.svelte';
   import { BadgeCheck, Lock, ShieldAlert, ShieldCheck, ShieldQuestion, ShieldX } from '../icons';
 
@@ -22,6 +22,7 @@
   type Tone = 'good' | 'warn' | 'bad' | 'plain';
   const signature = $derived.by((): { label: string; tone: Tone } | null => {
     if (!sig) return null;
+    if (sig.smime) return smimeLabel(sig.smime);
     const name = sig.signer ? keyName(sig.signer) : '';
     if (sig.status === 'bad') return { label: t('crypto.status.badSignature'), tone: 'bad' };
     if (sig.status === 'unknownKey') return { label: t('crypto.status.signedUnknownKey'), tone: 'plain' };
@@ -31,6 +32,64 @@
     if (sig.signer?.verified) return { label: t('crypto.status.signedByVerified', { name }), tone: 'good' };
     return { label: t('crypto.status.signedBy', { name }), tone: 'good' };
   });
+
+  /** A day, as certificates are valid from and until one. */
+  const day = (ms: number) => dateFormat({ year: 'numeric', month: 'long', day: 'numeric' }).format(ms);
+
+  /** A signed message whose signature could not even be read. */
+  const unreadable = $derived(!encrypted && opened?.status === 'error' && !sig);
+
+  /** S/MIME: verified only when every check passed, else the first check that failed. */
+  function smimeLabel(s: SmimeSignature): { label: string; tone: Tone } {
+    const name = s.certificate?.name ?? '';
+    switch (s.verdict) {
+      case 'verified':
+        return { label: t('crypto.status.smimeVerified', { name }), tone: 'good' };
+      case 'bad':
+        return { label: t('crypto.status.badSignature'), tone: 'bad' };
+      case 'noCertificate':
+        return { label: t('crypto.status.smimeNoCertificate'), tone: 'plain' };
+      case 'unsupported':
+        return { label: t('crypto.status.smimeUnsupported'), tone: 'plain' };
+      case 'expired':
+        return { label: t('crypto.status.smimeExpired', { name }), tone: 'warn' };
+      case 'notYetValid':
+        return { label: t('crypto.status.smimeNotYetValid', { name }), tone: 'warn' };
+      case 'notForEmail':
+        return { label: t('crypto.status.smimeNotForEmail', { name }), tone: 'warn' };
+      case 'untrusted':
+        return { label: t('crypto.status.smimeUntrusted', { name }), tone: 'warn' };
+      case 'mismatch':
+        return { label: t('crypto.status.smimeMismatch', { name }), tone: 'warn' };
+    }
+  }
+
+  /** What the S/MIME result means, in a sentence. */
+  function smimeExplain(s: SmimeSignature): string {
+    const c = s.certificate;
+    switch (s.verdict) {
+      case 'verified':
+        return t('crypto.status.smimeVerifiedExplain', { name: c?.name ?? '' });
+      case 'bad':
+        return s.reason === 'signature' ? t('crypto.status.smimeSignatureMismatch') : t('crypto.status.smimeContentChanged');
+      case 'noCertificate':
+        return t('crypto.status.smimeNoCertificateExplain');
+      case 'unsupported':
+        return t('crypto.status.smimeUnsupportedExplain');
+      case 'expired':
+        return t('crypto.status.smimeExpiredExplain', { date: day(c?.notAfter ?? 0) });
+      case 'notYetValid':
+        return t('crypto.status.smimeNotYetValidExplain', { date: day(c?.notBefore ?? 0) });
+      case 'notForEmail':
+        return t('crypto.status.smimeNotForEmailExplain');
+      case 'untrusted':
+        if (s.reason === 'issuerExpired') return t('crypto.status.smimeIssuerExpired', { issuer: s.detail ?? c?.issuer ?? '' });
+        if (s.reason === 'invalid') return t('crypto.status.smimeChainInvalid');
+        return t('crypto.status.smimeUnknownIssuer', { issuer: c?.issuer ?? '' });
+      case 'mismatch':
+        return t('crypto.status.smimeMismatchExplain', { emails: c?.emails.join(', ') ?? '', email: sender });
+    }
+  }
 
   /** Where the signer's key came from (the "Found" row of the details). */
   const sources: Record<KeySource, MessageKey> = {
@@ -89,7 +148,7 @@
   }
 </script>
 
-{#if decrypted || signature || (encrypted && opened && opened.status !== 'ok')}
+{#if decrypted || signature || unreadable || (encrypted && opened && opened.status !== 'ok')}
   <div class="status">
     {#if decrypted}
       <button class="pill enc" onclick={open} title={t('crypto.status.encryptionDetails')}><Lock size={13} /><span class="truncate">{t('crypto.status.encrypted')}</span></button>
@@ -105,12 +164,14 @@
     {#if signature}
       <button class="pill {signature.tone}" onclick={open} title={t('crypto.status.signatureDetails')}>
         {#if signature.tone === 'good'}
-          {#if sig?.signer?.verified}<BadgeCheck size={13} />{:else}<ShieldCheck size={13} />{/if}
+          {#if sig?.signer?.verified || sig?.smime?.verdict === 'verified'}<BadgeCheck size={13} />{:else}<ShieldCheck size={13} />{/if}
         {:else if signature.tone === 'bad'}<ShieldX size={13} />
         {:else if signature.tone === 'warn'}<ShieldAlert size={13} />
         {:else}<ShieldQuestion size={13} />{/if}
         <span class="truncate">{signature.label}</span>
       </button>
+    {:else if unreadable}
+      <button class="pill" onclick={open} title={opened?.error ?? ''}><ShieldQuestion size={13} /><span class="truncate">{t('crypto.status.signatureUnreadable')}</span></button>
     {/if}
     {#if opened?.partiallySigned}<span class="note">{t('crypto.status.partlySigned')}</span>{/if}
     {#if opened?.partiallyEncrypted}<span class="note">{t('crypto.status.partlyEncrypted')}</span>{/if}
@@ -125,13 +186,41 @@
           <h4><Lock size={14} />{opened.status === 'ok' ? t('crypto.status.encrypted') : t('crypto.status.encryptedNotDecrypted')}</h4>
           <p>
             {#if opened.status === 'ok'}{t('crypto.status.encryptedExplain')}
+            {:else if opened.status === 'noKey' && opened.kind.startsWith('smime-')}{t('crypto.notice.smimeNoKey')}
             {:else}{opened.error ?? t('crypto.messageNotDecrypted')}{/if}
           </p>
         </section>
       {/if}
+      {#if unreadable}
+        <section>
+          <h4 class="warn"><ShieldQuestion size={14} />{t('crypto.status.signatureUnreadable')}</h4>
+          <p class="tech selectable">{opened.error}</p>
+        </section>
+      {/if}
       {#each opened.signatures as s, i (i)}
         <section>
-          {#if s.status === 'good'}
+          {#if s.smime}
+            {@const v = s.smime}
+            {@const c = v.certificate}
+            {@const label = smimeLabel(v)}
+            <h4 class:warn={label.tone === 'warn' || label.tone === 'plain'} class:bad={label.tone === 'bad'}>
+              {#if v.verdict === 'verified'}<BadgeCheck size={14} />{:else if label.tone === 'bad'}<ShieldX size={14} />{:else if label.tone === 'warn'}<ShieldAlert size={14} />{:else}<ShieldQuestion size={14} />{/if}{label.label}
+            </h4>
+            <p>{smimeExplain(v)}</p>
+            {#if v.detail && (v.verdict === 'unsupported' || v.reason === 'invalid')}<p class="tech selectable">{v.detail}</p>{/if}
+            {#if c}
+              <div class="key">
+                <div class="row"><span>{t('crypto.status.rowCertificate')}</span><b>{c.name}</b></div>
+                {#if c.emails.length}<div class="row"><span>{t('crypto.status.rowAddress')}</span><span class="selectable">{c.emails.join(', ')}</span></div>{/if}
+                <div class="row"><span>{t('crypto.status.rowIssuer')}</span><span>{v.chain.length ? v.chain.join(' › ') : c.issuer}</span></div>
+                <div class="row"><span>{t('crypto.status.rowValid')}</span><span>{t('crypto.status.validFromTo', { from: day(c.notBefore), until: day(c.notAfter) })}</span></div>
+                {#if s.created}<div class="row"><span>{t('crypto.status.rowSigned')}</span><span>{longDate(s.created)}</span></div>{/if}
+                <div class="row"><span>{t('crypto.status.rowSerial')}</span><code class="selectable">{c.serial}</code></div>
+                <div class="row"><span>{t('crypto.status.rowFingerprint')}</span><code class="selectable">{formatFingerprint(c.fingerprint)}</code></div>
+                <div class="row"><span>{t('crypto.status.rowAlgorithm')}</span><span>{v.algorithm} · {c.algorithm}</span></div>
+              </div>
+            {/if}
+          {:else if s.status === 'good'}
             <h4 class:warn={!s.senderMatches}><ShieldCheck size={14} />{t('crypto.status.goodSignature')}</h4>
             <p>
               {s.created ? t('crypto.status.madeByOn', { name: keyName(s.signer), date: longDate(s.created) }) : t('crypto.status.madeBy', { name: keyName(s.signer) })}
@@ -284,5 +373,12 @@
     color: var(--accent-text);
     font-weight: 600;
     font-size: var(--text-sm);
+  }
+  /* Technical details, in English: the rule a chain breaks, an algorithm. */
+  .tech {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-3);
+    overflow-wrap: anywhere;
   }
 </style>

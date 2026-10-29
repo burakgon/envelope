@@ -16,7 +16,7 @@ use crate::engine::{Engine, EventSink, Paths};
 use crate::model::*;
 
 #[derive(Clone, Default)]
-struct Events(Arc<Mutex<Vec<EngineEvent>>>);
+pub(super) struct Events(Arc<Mutex<Vec<EngineEvent>>>);
 
 impl EventSink for Events {
     fn emit(&self, e: EngineEvent) {
@@ -24,9 +24,9 @@ impl EventSink for Events {
     }
 }
 
-struct Fixture {
-    engine: Engine,
-    dir: PathBuf,
+pub(super) struct Fixture {
+    pub engine: Engine,
+    pub dir: PathBuf,
     /// (account id, inbox folder id) per address.
     accounts: Vec<(String, i64, i64)>,
 }
@@ -39,7 +39,7 @@ impl Drop for Fixture {
 }
 
 impl Fixture {
-    fn new(addresses: &[(&str, &str)]) -> Fixture {
+    pub fn new(addresses: &[(&str, &str)]) -> Fixture {
         // Secrets go to a file in the test directory, not the desktop keyring.
         unsafe { std::env::set_var("ENVELOPE_SECRETS", "file") };
         let dir = std::env::temp_dir().join(format!("envelope-pgp-{}", uuid::Uuid::new_v4()));
@@ -93,13 +93,13 @@ impl Fixture {
         }
     }
 
-    fn account(&self, email: &str) -> (i64, i64) {
+    pub fn account(&self, email: &str) -> (i64, i64) {
         let a = self.accounts.iter().find(|a| a.0 == email).unwrap();
         (a.1, a.2)
     }
 
     /// Delivers a raw message into the inbox of `to`, as body sync would.
-    fn deliver(&self, to: &str, raw: &[u8]) -> i64 {
+    pub fn deliver(&self, to: &str, raw: &[u8]) -> i64 {
         let (account, inbox) = self.account(to);
         let raw = raw.to_vec();
         self.engine
@@ -124,7 +124,7 @@ impl Fixture {
             .unwrap()
     }
 
-    async fn render(&self, draft: &DraftInput, for_draft: bool) -> Vec<u8> {
+    pub async fn render(&self, draft: &DraftInput, for_draft: bool) -> Vec<u8> {
         crate::sync::render_draft(&self.engine, draft, for_draft)
             .await
             .unwrap()
@@ -132,7 +132,7 @@ impl Fixture {
     }
 }
 
-fn draft(from_account: i64, to: &[&str], subject: &str, html: &str) -> DraftInput {
+pub(super) fn draft(from_account: i64, to: &[&str], subject: &str, html: &str) -> DraftInput {
     DraftInput {
         account_id: from_account,
         to: to.iter().map(|e| Address::new(None, *e)).collect(),
@@ -164,7 +164,7 @@ async fn encrypted_and_signed_mail_round_trip() {
 
     // The composer sees keys for both sides.
     let status = e
-        .compose_crypto(alex, None, None, &["Elif@Example.com".into()])
+        .compose_crypto(alex, None, None, &["Elif@Example.com".into()], None)
         .unwrap();
     assert!(status.can_encrypt && status.can_sign && !status.own_locked);
     assert_eq!(
@@ -437,7 +437,7 @@ async fn autocrypt_signatures_and_key_management() {
 
     // Alex can now encrypt to Dana.
     let status = e
-        .compose_crypto(alex, None, None, &["dana@example.org".into()])
+        .compose_crypto(alex, None, None, &["dana@example.org".into()], None)
         .unwrap();
     assert!(status.can_encrypt);
     assert!(!status.mutual, "Dana did not ask for encryption");
@@ -618,6 +618,7 @@ async fn keys_found_in_directories() {
             None,
             None,
             &["zoe@example.net".into(), "nobody@example.net".into()],
+            None,
         )
         .unwrap();
     assert!(!status.can_encrypt);

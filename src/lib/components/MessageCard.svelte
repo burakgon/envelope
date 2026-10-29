@@ -14,7 +14,7 @@
   import InviteCard from './InviteCard.svelte';
   import ImageViewer from './ImageViewer.svelte';
   import { printMessage } from '../utils/print';
-  import { isEncrypted, pgp } from '../stores/pgp.svelte';
+  import { isContained, isEncrypted, pgp } from '../stores/pgp.svelte';
   import CryptoStatus from './CryptoStatus.svelte';
   import CryptoNotice from './CryptoNotice.svelte';
   import { ai } from '../stores/ai.svelte';
@@ -74,12 +74,12 @@
   });
   const shown = $derived.by((): MessageView | null => {
     if (opened?.body) {
-      const attachments = isEncrypted(message) ? opened.attachments : message.attachments;
+      const attachments = isContained(message) ? opened.attachments : message.attachments;
       return { ...message, body: opened.body, attachments };
     }
     if (!isEncrypted(message)) return message;
     // A decrypted copy kept from an earlier session.
-    if (message.crypto === 'encrypted' && (message.body?.html || message.body?.text)) return message;
+    if ((message.crypto === 'encrypted' || message.crypto === 'smime-encrypted') && (message.body?.html || message.body?.text)) return message;
     // Inline PGP that cannot be decrypted here reads as it was sent.
     if (message.crypto === 'inline-encrypted' && (opened?.status === 'noKey' || opened?.status === 'error')) return message;
     return null;

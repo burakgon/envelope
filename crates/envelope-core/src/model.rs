@@ -499,7 +499,8 @@ pub struct MessageView {
     pub calendar_method: Option<String>,
     pub is_auto: bool,
     /// OpenPGP content: `encrypted`, `signed`, `inline-encrypted` or
-    /// `inline-signed` (see `Engine::open_message`).
+    /// `inline-signed`; S/MIME: `smime-encrypted`, `smime-signed` or
+    /// `smime-opaque` (see `Engine::open_message`).
     pub crypto: Option<String>,
 }
 
@@ -573,10 +574,13 @@ pub struct DraftInput {
     pub request_read_receipt: bool,
     /// Remind me if nobody replies within this many days.
     pub follow_up_days: Option<u32>,
-    /// Encrypt with OpenPGP (to every recipient and the sender).
+    /// Encrypt (to every recipient and the sender).
     pub encrypt: Option<bool>,
-    /// Sign with the sender's OpenPGP key.
+    /// Sign with the sender's key or certificate.
     pub sign: Option<bool>,
+    /// Use S/MIME rather than OpenPGP; unset: the default for the sender
+    /// and the conversation.
+    pub smime: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

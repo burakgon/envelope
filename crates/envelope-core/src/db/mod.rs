@@ -6,6 +6,7 @@ pub mod contacts;
 pub mod crypto;
 pub mod mail;
 pub mod misc;
+pub mod smime;
 pub mod tasks;
 
 use std::path::Path;
@@ -21,9 +22,10 @@ const SCHEMA: &str = concat!(
     include_str!("contacts.sql"),
     include_str!("crypto.sql"),
     include_str!("tasks.sql"),
-    include_str!("vips.sql")
+    include_str!("vips.sql"),
+    include_str!("smime.sql")
 );
-const SCHEMA_VERSION: i64 = 10;
+const SCHEMA_VERSION: i64 = 12;
 
 /// Steps from one schema version to the next, applied in order to older databases.
 const MIGRATIONS: &[(i64, &str)] = &[
@@ -59,6 +61,8 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (7, include_str!("tasks.sql")),
     // VIP senders.
     (10, include_str!("vips.sql")),
+    // S/MIME certificates.
+    (12, include_str!("smime.sql")),
 ];
 
 /// Columns added to existing tables: (version, table, column, declaration).

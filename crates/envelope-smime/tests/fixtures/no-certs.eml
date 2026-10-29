@@ -1,0 +1,43 @@
+From: Alice Example <alice@example.com>
+To: Bob Example <bob@example.org>
+Subject: No certificate
+Date: Wed, 28 Oct 2026 09:30:00 +0100
+Message-ID: <no-certs@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/signed; protocol="application/pkcs7-signature"; micalg="sha-256"; boundary="----20AAB2740648CBFA124C6AD30430DE1B"
+
+This is an S/MIME signed message
+
+------20AAB2740648CBFA124C6AD30430DE1B
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Hello Bob,
+
+the figures are below. G=C3=B6r=C3=BC=C5=9F=C3=BCr=C3=BCz!
+
+Q1: 42
+Q2: 47
+
+------20AAB2740648CBFA124C6AD30430DE1B
+Content-Type: application/pkcs7-signature; name="smime.p7s"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="smime.p7s"
+
+MIICiwYJKoZIhvcNAQcCoIICfDCCAngCAQExDTALBglghkgBZQMEAgEwCwYJKoZI
+hvcNAQcBMYICVTCCAlECAQEwRTA4MRYwFAYDVQQKDA1FbnZlbG9wZSBUZXN0MR4w
+HAYDVQQDDBVFbnZlbG9wZSBUZXN0IE1haWwgQ0ECCQEITQOgRZdGBDALBglghkgB
+ZQMEAgGggeQwGAYJKoZIhvcNAQkDMQsGCSqGSIb3DQEHATAcBgkqhkiG9w0BCQUx
+DxcNMjYxMDI5MjAzMjE3WjAvBgkqhkiG9w0BCQQxIgQgoTcFuvLhsHfVE26SkbpF
+MfgDCUWBD7eKP8XsxppO208weQYJKoZIhvcNAQkPMWwwajALBglghkgBZQMEASow
+CwYJYIZIAWUDBAEWMAsGCWCGSAFlAwQBAjAKBggqhkiG9w0DBzAOBggqhkiG9w0D
+AgICAIAwDQYIKoZIhvcNAwICAUAwBwYFKw4DAgcwDQYIKoZIhvcNAwICASgwDQYJ
+KoZIhvcNAQEBBQAEggEAOx/2QiuFTPfk1rOj/8QXs/mDQPkFHNKbCYwLqUwNpyfn
+vH9lX/g6Zi+IGozUdeuG5Pf7vsa7C969OuYfQecMoBf+8vh+zF0jG1MUZFvkl9Px
+190vscTIm5Wa1S3s4PJJvz7ym/jqqVxtXvYQzkFN+qfwC+v3XQU2ZmU8howLE/CO
+/Aa9rtvtyjK+cuT93obC2JdG6j1ANcmm/IKgIOUyNuLyZ1HwBBYLvLhv2IJKp1H7
+zfc5dQ+7e6mjDbZSFir8xk5GCv/w21ajeMvF4gvnkup/Sp94Tmb8SnnZ8TWV26Va
+leCMh7i2th6goIaJ8cqWvlVzH1TPekTGuy9JEe3/Gw==
+
+------20AAB2740648CBFA124C6AD30430DE1B--
+

@@ -1477,7 +1477,7 @@ pub(crate) async fn fetch_bodies(
             client.select(&folder, None).await?;
         }
         let (small, large): (Vec<&BodyTarget>, Vec<&BodyTarget>) = targets.iter().partition(|t| {
-            t.size <= FULL_BODY_LIMIT || t.structure.as_ref().is_none_or(mime::has_openpgp)
+            t.size <= FULL_BODY_LIMIT || t.structure.as_ref().is_none_or(mime::has_protection)
         });
         // Small messages: whole message in batches.
         for chunk in small.chunks(20) {

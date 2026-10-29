@@ -1,6 +1,9 @@
-//! IPC commands for OpenPGP: keys, settings, composing and opening messages.
+//! IPC commands for OpenPGP and S/MIME: keys and certificates, settings,
+//! composing and opening messages.
 
-use envelope_core::crypto::{ComposeCrypto, CryptoSettings, KeyInfo, OpenedMessage, OwnKey};
+use envelope_core::crypto::{
+    CertificateInfo, ComposeCrypto, CryptoSettings, KeyInfo, OpenedMessage, OwnKey,
+};
 use envelope_core::model::Address;
 use tauri::State;
 
@@ -171,10 +174,11 @@ pub fn crypto_compose_status(
     identity_id: Option<i64>,
     from: Option<Address>,
     recipients: Vec<String>,
+    reply_to: Option<i64>,
 ) -> R<ComposeCrypto> {
     Ok(state
         .engine
-        .compose_crypto(account_id, identity_id, from, &recipients)?)
+        .compose_crypto(account_id, identity_id, from, &recipients, reply_to)?)
 }
 
 #[tauri::command]
@@ -193,4 +197,71 @@ pub async fn crypto_lookup(
 #[tauri::command]
 pub async fn crypto_open(state: State<'_, AppState>, message_id: i64) -> R<OpenedMessage> {
     Ok(state.engine.open_message(message_id).await?)
+}
+
+// ----- S/MIME ------------------------------------------------------------------
+
+#[tauri::command]
+pub fn smime_certificates(state: State<'_, AppState>, query: String) -> R<Vec<CertificateInfo>> {
+    Ok(state.engine.smime_certificates(&query)?)
+}
+
+/// Imports a certificate file: a `.p12` / `.pfx` with its password (the
+/// user's own), or other people's certificates.
+#[tauri::command]
+pub async fn smime_import_file(
+    state: State<'_, AppState>,
+    path: String,
+    password: Option<String>,
+    own_email: Option<String>,
+) -> R<Vec<CertificateInfo>> {
+    let size = tokio::fs::metadata(&path)
+        .await
+        .map_err(|e| CmdError::from(format!("{path}: {e}")))?
+        .len();
+    if size > MAX_KEY_FILE {
+        return Err(CmdError::from(
+            "This file is too large to be a certificate.".to_string(),
+        ));
+    }
+    let data = tokio::fs::read(&path)
+        .await
+        .map_err(|e| CmdError::from(format!("{path}: {e}")))?;
+    Ok(state
+        .engine
+        .import_smime(&data, password.as_deref(), own_email.as_deref())
+        .await?)
+}
+
+/// A certificate as PEM text.
+#[tauri::command]
+pub fn smime_export(state: State<'_, AppState>, fingerprint: String) -> R<String> {
+    Ok(state.engine.export_smime_certificate(&fingerprint)?)
+}
+
+/// Saves a certificate: DER for `.cer` and `.der` files (as Windows expects
+/// them), PEM otherwise.
+#[tauri::command]
+pub async fn smime_export_file(
+    state: State<'_, AppState>,
+    fingerprint: String,
+    path: String,
+) -> R<()> {
+    let lower = path.to_lowercase();
+    let data = if lower.ends_with(".cer") || lower.ends_with(".der") {
+        state.engine.smime_certificate_der(&fingerprint)?
+    } else {
+        state
+            .engine
+            .export_smime_certificate(&fingerprint)?
+            .into_bytes()
+    };
+    tokio::fs::write(&path, data)
+        .await
+        .map_err(|e| CmdError::from(format!("could not save: {e}")))
+}
+
+#[tauri::command]
+pub async fn smime_delete(state: State<'_, AppState>, fingerprint: String) -> R<()> {
+    Ok(state.engine.delete_smime_certificate(&fingerprint).await?)
 }

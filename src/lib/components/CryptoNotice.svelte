@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { MessageView, OpenedMessage } from '../api';
   import { pgp } from '../stores/pgp.svelte';
+  import { ui } from '../stores/ui.svelte';
   import { t } from '../i18n';
   import { KeyRound, Lock, ShieldAlert } from '../icons';
 
@@ -8,6 +9,8 @@
   let { message, opened }: { message: MessageView; opened: OpenedMessage | null } = $props();
 
   const failed = $derived(pgp.failed[message.id] ?? null);
+  /** S/MIME mail for a certificate whose private key is not here: it can be imported. */
+  const noCertificate = $derived(opened?.status === 'noKey' && opened.kind.startsWith('smime-'));
 </script>
 
 <div class="notice" class:warn={!!failed || (!!opened && opened.status !== 'locked')}>
@@ -25,6 +28,10 @@
       {#if opened.error}<b>{opened.error}.</b>{/if}
     </span>
     <button class="btn sm primary" onclick={() => pgp.unlock(opened.lockedKey!, opened.error)}>{t('crypto.notice.unlock')}</button>
+  {:else if noCertificate}
+    <ShieldAlert size={16} />
+    <span class="txt">{t('crypto.notice.smimeNoKey')}</span>
+    <button class="btn sm" onclick={() => ui.open('settings', 'encryption')}>{t('crypto.notice.importCertificate')}</button>
   {:else}
     <ShieldAlert size={16} />
     <span class="txt">{opened.error ?? t('crypto.messageNotDecrypted')}</span>

@@ -28,7 +28,8 @@ pub struct KeyRow {
     pub updated_at: i64,
 }
 
-fn spaced(list: &[String]) -> String {
+/// A list as stored for `instr` lookups: ` a b c `.
+pub(crate) fn spaced(list: &[String]) -> String {
     if list.is_empty() {
         " ".into()
     } else {
@@ -36,7 +37,7 @@ fn spaced(list: &[String]) -> String {
     }
 }
 
-fn unspaced(s: &str) -> Vec<String> {
+pub(crate) fn unspaced(s: &str) -> Vec<String> {
     s.split_whitespace().map(str::to_string).collect()
 }
 

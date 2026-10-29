@@ -82,7 +82,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - **Rules** that file, label, mark or silence new mail as it arrives, and run on the mail already there when you want — for every kind of account.
 - **Automatic replies** (out of office) for Microsoft 365, Exchange, Gmail and IMAP servers with Sieve, with optional dates and a reminder while they are on.
 - **Safe HTML rendering** in a sandboxed frame with remote content blocking, tracking-pixel removal, dark-mode adaptation for plain emails and `cid:` inline images. Links show where they really go, and warn when their text names another site.
-- **End-to-end encryption** with OpenPGP that sets itself up: keys are created and exchanged with Autocrypt and found in the recipient's Web Key Directory, the lock in the composer turns on when everyone has a key, and messages show who signed them. Experts can import, export and verify keys — see [docs/ENCRYPTION.md](docs/ENCRYPTION.md).
+- **End-to-end encryption** with OpenPGP that sets itself up: keys are created and exchanged with Autocrypt and found in the recipient's Web Key Directory, the lock in the composer turns on when everyone has a key, and messages show who signed them. Experts can import, export and verify keys. **S/MIME** for Outlook and company mail too: import your certificate (`.p12` or `.pfx`) to sign and decrypt, the certificates of people who send you signed mail are kept for encrypting to them, and signatures are checked up to the authorities your system trusts — see [docs/ENCRYPTION.md](docs/ENCRYPTION.md).
 - **Offline-first**: read, search, triage and write without a connection; changes sync when you're back.
 - **Push mail** via IMAP IDLE, CONDSTORE/QRESYNC for fast resyncs, Gmail extensions (labels, thread ids, `X-GM-RAW` search) when talking to Gmail.
 - Desktop notifications with Archive and Mark as Read buttons and the desktop's new-mail sound — for all new mail, only mail from people, only VIPs, or nothing, per account — an unread badge, `mailto:` handling, **Save all** for attachments, and saved messages (`.eml`), calendar files (`.ics`) and contact cards (`.vcf`, `.csv`) open straight from your file manager.
@@ -213,6 +213,7 @@ Envelope is a [Tauri 2](https://tauri.app) application: a Rust core and a Svelte
 | [`envelope-dav`](crates/envelope-dav) | CalDAV / CardDAV client with discovery, sync-collection and multiget |
 | [`envelope-ical`](crates/envelope-ical) | iCalendar parsing and writing, recurrence expansion, time zones, iTIP |
 | [`envelope-pgp`](crates/envelope-pgp) | OpenPGP on rPGP: keys, PGP/MIME and inline PGP with protected headers, Autocrypt, Web Key Directory |
+| [`envelope-smime`](crates/envelope-smime) | S/MIME on the RustCrypto crates: certificates and chains, PKCS #12, CMS signatures and encryption (BER-tolerant), S/MIME messages |
 | [`envelope-ai`](crates/envelope-ai) | Streaming client for OpenAI-compatible, Anthropic and Gemini APIs |
 | [`src-tauri`](src-tauri) | Desktop shell: commands, events, `att://` protocol for attachments, notifications |
 | [`src`](src) | The Svelte 5 + TypeScript interface |

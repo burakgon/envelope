@@ -8,7 +8,7 @@ import { rawMessages, t } from '../i18n';
 import en from '../i18n/locales/en.json';
 import { dateFormat, displayName } from '../utils/format';
 import { EMAIL, mentionedAttachment, sendable, wordList } from '../utils/compose';
-import { isEncrypted, pgp } from './pgp.svelte';
+import { isContained, isEncrypted, pgp } from './pgp.svelte';
 
 export interface ComposerState {
   key: number;
@@ -161,9 +161,10 @@ class Compose {
   /** `date`: the original's, for the header above the quote, when it is not in the open conversation. */
   async reply(messageId: number, mode: 'reply' | 'replyAll' | 'forward', inline = true, date?: number) {
     try {
-      // An encrypted original is decrypted first, so the reply can quote it.
+      // An encrypted original is decrypted first, so the reply can quote it (and a forward has
+      // the attachments inside an encryption or an opaque S/MIME signature).
       const original = mail.detail?.messages.find((m) => m.id === messageId);
-      if (original && isEncrypted(original)) await pgp.open(messageId);
+      if (original && isContained(original)) await pgp.open(messageId);
       const data = await api.composeReply(messageId, mode, quoteText(original?.date ?? date));
       const threadId = mail.detail?.thread.id ?? null;
       this.open(data, { inline, threadId, showCc: data.cc.length > 0 });

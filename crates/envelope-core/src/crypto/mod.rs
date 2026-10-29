@@ -1,7 +1,8 @@
 //! End-to-end encryption and signing with OpenPGP, Autocrypt style: keys are
 //! created and exchanged in the background so encryption is available
 //! whenever every recipient has a key, while experts can import, export,
-//! verify and choose keys themselves. See `docs/ENCRYPTION.md`.
+//! verify and choose keys themselves. S/MIME (`smime`) goes through the same
+//! steps with certificates. See `docs/ENCRYPTION.md`.
 //!
 //! - Secret keys live in the system keyring (`pgp:secret:<fingerprint>`),
 //!   never in the database. Public keys and what is known about them are in
@@ -16,16 +17,19 @@
 mod incoming;
 mod keys;
 mod outgoing;
+mod smime;
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
+use envelope_pgp::pgpmime;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 pub use incoming::{OpenedMessage, SignatureView};
 pub use keys::{KeyInfo, OwnKey};
 pub use outgoing::{ComposeCrypto, RecipientKey};
+pub use smime::{CertificateInfo, RecipientCertificate, SmimeCompose, SmimeSignature};
 
 pub(crate) use incoming::{my_emails, on_headers, on_source};
 pub(crate) use outgoing::{apply_plan, plan_outgoing};
@@ -36,6 +40,53 @@ use crate::error::Result;
 
 /// Shown instead of the content of a message that is still encrypted.
 pub const ENCRYPTED_SNIPPET: &str = "Encrypted message";
+
+/// What protects a message: OpenPGP or S/MIME, and how.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Protection {
+    Pgp(pgpmime::Kind),
+    Smime(envelope_smime::Kind),
+}
+
+impl Protection {
+    /// Finds OpenPGP or S/MIME content in a message.
+    pub fn detect(raw: &[u8]) -> Option<Protection> {
+        pgpmime::detect(raw)
+            .map(Protection::Pgp)
+            .or_else(|| envelope_smime::mime::detect(raw).map(Protection::Smime))
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Protection::Pgp(k) => k.as_str(),
+            Protection::Smime(k) => k.as_str(),
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Protection> {
+        pgpmime::Kind::parse(s)
+            .map(Protection::Pgp)
+            .or_else(|| envelope_smime::Kind::parse(s).map(Protection::Smime))
+    }
+
+    pub fn is_encrypted(self) -> bool {
+        match self {
+            Protection::Pgp(k) => k.is_encrypted(),
+            Protection::Smime(k) => k.is_encrypted(),
+        }
+    }
+
+    /// The content is inside the protection (encrypted, or opaque signed
+    /// data): its attachments are known once the message is opened.
+    pub fn is_contained(self) -> bool {
+        self.is_encrypted() || self == Protection::Smime(envelope_smime::Kind::Opaque)
+    }
+}
+
+/// Whether a stored kind of protection is encryption.
+pub(crate) fn is_encrypted_kind(kind: &str) -> bool {
+    Protection::parse(kind).is_some_and(Protection::is_encrypted)
+}
 
 const SETTINGS_KEY: &str = "crypto.settings";
 
@@ -172,5 +223,7 @@ impl Engine {
     }
 }
 
+#[cfg(test)]
+mod smime_tests;
 #[cfg(test)]
 mod tests;

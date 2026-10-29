@@ -1,0 +1,22 @@
+From: Bob Example <bob@example.org>
+To: Alice Example <alice@example.com>
+Subject: Old secret
+Date: Wed, 28 Oct 2026 09:30:00 +0100
+Message-ID: <des3-alice@example.org>
+MIME-Version: 1.0
+Content-Type: application/pkcs7-mime; smime-type=enveloped-data;
+ name="smime.p7m"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="smime.p7m"
+
+MIICWgYJKoZIhvcNAQcDoIICSzCCAkcCAQAxggFhMIIBXQIBADBFMDgxFjAUBgNVBAoMDUVudmVs
+b3BlIFRlc3QxHjAcBgNVBAMMFUVudmVsb3BlIFRlc3QgTWFpbCBDQQIJAQhNA6BFl0YEMA0GCSqG
+SIb3DQEBAQUABIIBAABd5CB96J8FPhZ93M7xp8Ua9xIje4rMPDA+Mfe2N/4ZG6xNg22Q72KAP4Xb
+BDMGfE2XDMfDA8B2T5rUVU4Yeqmw7ixrUbR8tfspvzIk+y9FZ4npnBlOj7rCTU47NpKI4bgLesno
+OkVkAwFO79sv8QCLpw0WmWOPOGhBpumuDv+KuSJYj9siB6tZhNl/pGsedGRw3ShJ8zX8uXPGv8Nz
+hLZ1RnBC6l4gWZ5rD6mterE8sX1QqrdF21Cjwg088f6SoQJFuWpLDZ38RExhLng59pQ/zF5yarQu
+VxMDWz12X1/IyaM1G3GkF78iXDKz18OIH88MvAKCBB2oPg9Q6kMYYdcwgdwGCSqGSIb3DQEHATAU
+BggqhkiG9w0DBwQI9hNFDsnYy8+AgbiWvswiiDhYrruICil8x1N+h7MB/VH0wke1vZ5j64fl5d53
+CL2iPhnVzJy3I3Dv6+oT/6aqKgQ0eFlRDVYZckd4wW4OTvEAYomOBbAQdNImiz1FCoOJYIz2TWyu
+OFNhKAn6XrO+6Q5yW6++TaL+tTuhsFEpqodUodmRhAHE6pvfjJS4ofnWE2MlVT/eAaH7q/pyrEpW
+RNhU3GOUErSp16SoY+XTWFk4d78tvDK+cE0hGkd4a/cg1bTS

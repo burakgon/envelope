@@ -22,7 +22,7 @@ Everything the interface shows comes from one SQLite database (`envelope.db` in 
 
 - **Mail:** `accounts`, `folders`, `messages`, `message_folders` (a message can sit in several folders, as with Gmail labels), `threads` and `thread_folders`. Thread rows keep precomputed aggregates (unread count, participants, last date, category), so a message list is one indexed query, even with hundreds of thousands of messages.
 - **Bodies** are compressed with zstd and indexed for full-text search with FTS5.
-- **Calendars, contacts and tasks** have their own tables (`calendars`, `events`, `address_books`, `contacts`, `task_lists`, `tasks`); OpenPGP keys and per-message encryption state live in `crypto.sql`.
+- **Calendars, contacts and tasks** have their own tables (`calendars`, `events`, `address_books`, `contacts`, `task_lists`, `tasks`); OpenPGP keys and per-message encryption state live in `crypto.sql`, S/MIME certificates in `smime.sql`.
 - **Schema changes** go in `db/mod.rs`: a list of migrations by version, and a list of columns added to existing tables (checked before they are added).
 
 Attachments and inline pictures are fetched on demand, cached on disk, and served to the interface through the `att://` protocol (`src-tauri/src/protocol.rs`).
@@ -55,7 +55,7 @@ Mail is hostile input. The interface sanitizes message HTML with DOMPurify (`src
 
 ## Secrets
 
-Passwords, OAuth tokens, AI API keys and OpenPGP secret keys go to the system keyring through [oo7](https://github.com/bilelmoussaoui/oo7): the Secret Service on the desktop, the Secret portal inside Flatpak. Only when no keyring is available do they fall back to a file readable by the user alone. Decrypted OpenPGP messages stay in memory unless the user asks for them to be kept for search (see [ENCRYPTION.md](ENCRYPTION.md)).
+Passwords, OAuth tokens, AI API keys, OpenPGP secret keys and S/MIME private keys go to the system keyring through [oo7](https://github.com/bilelmoussaoui/oo7): the Secret Service on the desktop, the Secret portal inside Flatpak. Only when no keyring is available do they fall back to a file readable by the user alone. Decrypted OpenPGP and S/MIME messages stay in memory unless the user asks for them to be kept for search (see [ENCRYPTION.md](ENCRYPTION.md)).
 
 ## The interface
 
