@@ -33,6 +33,43 @@
   let added = $state<string | null>(null);
   /** The password step was reached through "Use an app password" for Google (its hint is ours, not discovery's). */
   let googleAppPassword = $state(false);
+  /**
+   * The domain whose detected settings fill the server fields. A password only goes to servers detected
+   * for its own address: when the address moves to another domain they are detected again. Null when the
+   * fields are empty or were chosen by hand (typed in, or "Use an app password").
+   */
+  let serversFor = $state<string | null>(null);
+
+  const blankServer = (port: number): ServerConfig => ({ host: '', port, security: 'tls', username: '' });
+  const domainOf = (address: string) => address.trim().split('@')[1]?.toLowerCase() ?? '';
+
+  /** Addresses Google or Microsoft sign-in may be offered for without asking: their own mail domains. */
+  const signInDomains: Record<OAuthProvider, RegExp> = {
+    google: /^(gmail|googlemail)\.com$/,
+    microsoft: /^(outlook|hotmail|live|msn|passport)\.[a-z.]+$/,
+  };
+
+  /** Forgets everything that belonged to the provider chosen before: password, servers, hints and errors. */
+  function reset() {
+    password = '';
+    error = null;
+    discovery = null;
+    provider = 'generic';
+    advanced = false;
+    imap = blankServer(993);
+    smtp = blankServer(465);
+    caldav = '';
+    insecure = false;
+    ewsUrl = '';
+    ewsUser = '';
+    googleAppPassword = false;
+    serversFor = null;
+  }
+
+  function back() {
+    reset();
+    step = 'providers';
+  }
 
   onMount(async () => {
     info = await api.info().catch(() => null);
@@ -53,42 +90,66 @@
     ui.close();
   }
 
-  function pick(id: string) {
-    error = null;
+  /**
+   * Opens a provider's form with nothing left from the one before. `detected` is what discovery found
+   * for the address typed: the sign-in of the provider it belongs to may suggest it.
+   */
+  function pick(id: string, detected: Discovery | null = null) {
+    const typed = email.trim();
+    reset();
     provider = id;
     if (id === 'gmail' || id === 'outlook') {
       oauthProvider = id === 'gmail' ? 'google' : 'microsoft';
+      // Never suggest an address of another provider to Google or Microsoft.
+      const kind = id === 'gmail' ? 'gmail' : 'microsoft';
+      if (detected?.kind !== kind && !signInDomains[oauthProvider].test(domainOf(typed))) email = '';
       step = 'oauth';
     } else if (id === 'exchange') {
       step = 'exchange';
     } else {
       step = 'password';
-      discovery = null;
-      googleAppPassword = false;
     }
   }
 
+  /** Fills the server fields with what is found for the address; on the provider list it also picks the provider. */
   async function detect() {
     if (!email.includes('@')) return;
+    const typed = email.trim();
     busy = true;
     error = null;
     try {
-      const d = await api.discover(email.trim());
-      discovery = d;
-      googleAppPassword = false;
-      if (d.kind === 'gmail' && provider !== 'generic') return pick('gmail');
-      if (d.kind === 'microsoft') return pick('outlook');
-      if (d.kind === 'exchange') return pick('exchange');
-      provider = d.provider;
-      if (d.imap) imap = { ...d.imap };
-      if (d.smtp) smtp = { ...d.smtp };
-      caldav = d.caldavUrl ?? '';
+      const d = await api.discover(typed);
+      // The address changed while discovery ran: its answer is for another one.
+      if (email.trim() !== typed) return;
+      if (d.kind === 'gmail' && provider !== 'generic') return pick('gmail', d);
+      if (d.kind === 'microsoft') return pick('outlook', d);
+      if (d.kind === 'exchange') return pick('exchange', d);
+      applyDiscovery(d);
       step = 'password';
     } catch (e) {
       error = errorMessage(e);
     } finally {
       busy = false;
     }
+  }
+
+  /** Takes servers, provider and hints from discovery, replacing whatever was there. */
+  function applyDiscovery(d: Discovery) {
+    discovery = d;
+    googleAppPassword = false;
+    provider = d.provider;
+    imap = d.imap ? { ...d.imap } : blankServer(993);
+    smtp = d.smtp ? { ...d.smtp } : blankServer(465);
+    caldav = d.caldavUrl ?? '';
+    serversFor = domainOf(d.email);
+  }
+
+  /** The server fields don't belong to the address (empty, or detected for another domain). */
+  const serversStale = () => !imap.host || (serversFor !== null && serversFor !== domainOf(email));
+
+  /** Typed into a server field: the user's choice, kept when the address changes. */
+  function serversEdited() {
+    serversFor = null;
   }
 
   async function startOAuth() {
@@ -112,6 +173,8 @@
     smtp = provider === 'gmail' ? { host: 'smtp.gmail.com', port: 465, security: 'tls', username: '' } : { host: 'smtp.office365.com', port: 587, security: 'startTls', username: '' };
     discovery = { email, provider, providerName: provider === 'gmail' ? 'Gmail' : 'Outlook', kind: 'imap', auth: 'password', imap, smtp, caldavUrl: null, carddavUrl: null, passwordHint: null, passwordHelpUrl: provider === 'gmail' ? 'https://myaccount.google.com/apppasswords' : null };
     googleAppPassword = provider === 'gmail';
+    // Chosen for the provider, not the domain (Workspace and Microsoft 365 addresses have their own).
+    serversFor = null;
     step = 'password';
   }
 
@@ -123,14 +186,8 @@
     busy = true;
     error = null;
     try {
-      if (!imap.host) {
-        const d = await api.discover(email.trim());
-        discovery = d;
-        googleAppPassword = false;
-        if (d.imap) imap = { ...d.imap };
-        if (d.smtp) smtp = { ...d.smtp };
-        caldav = caldav || d.caldavUrl || '';
-      }
+      // Servers detected for another address never get this one's password.
+      if (serversStale()) applyDiscovery(await api.discover(email.trim()));
       const config: AccountConfig = {
         auth: 'password',
         imap: { ...imap },
@@ -249,7 +306,7 @@
       </div>
       {#if error}<p class="error">{error}</p>{/if}
     {:else if step === 'oauth'}
-      <button class="back" onclick={() => (step = 'providers')}><ArrowLeft size={15} /> {t('common.back')}</button>
+      <button class="back" onclick={back}><ArrowLeft size={15} /> {t('common.back')}</button>
       <h2>{t('onboarding.oauthTitle', { provider: oauthProvider === 'google' ? 'Google' : 'Microsoft' })}</h2>
       <p class="sub">{t('onboarding.oauthIntro')}</p>
       <label class="label" for="ob-email">{t('onboarding.oauthEmailLabel')}</label>
@@ -272,7 +329,7 @@
       </div>
       {#if error}<p class="error">{error}</p>{/if}
     {:else if step === 'password'}
-      <button class="back" onclick={() => (step = 'providers')}><ArrowLeft size={15} /> {t('common.back')}</button>
+      <button class="back" onclick={back}><ArrowLeft size={15} /> {t('common.back')}</button>
       <h2>{provider === 'generic' ? t('onboarding.passwordTitleGeneric') : t('onboarding.passwordTitle', { provider: providerName })}</h2>
       {#if hint}
         <div class="note">
@@ -289,7 +346,7 @@
         </div>
         <div>
           <label class="label" for="pw-email">{t('onboarding.emailLabel')}</label>
-          <input id="pw-email" class="input" type="email" bind:value={email} placeholder={t('onboarding.emailPlaceholder')} onblur={() => !imap.host && email.includes('@') && detect()} spellcheck="false" />
+          <input id="pw-email" class="input" type="email" bind:value={email} placeholder={t('onboarding.emailPlaceholder')} onblur={() => email.includes('@') && serversStale() && detect()} spellcheck="false" />
         </div>
         <div>
           <label class="label" for="pw-pass">{provider === 'generic' ? t('onboarding.passwordLabel') : t('onboarding.appPasswordLabel')}</label>
@@ -303,21 +360,21 @@
           <div class="adv">
             <div class="srv">
               <span class="srv-title">{t('onboarding.incomingServer')}</span>
-              <input class="input" placeholder="imap.example.com" bind:value={imap.host} />
-              <input class="input port" type="number" bind:value={imap.port} />
-              <select class="input sec" bind:value={imap.security} onchange={() => securityPort('imap', imap.security)}>
+              <input class="input" placeholder="imap.example.com" bind:value={imap.host} oninput={serversEdited} />
+              <input class="input port" type="number" bind:value={imap.port} oninput={serversEdited} />
+              <select class="input sec" bind:value={imap.security} onchange={() => { serversEdited(); securityPort('imap', imap.security); }}>
                 <option value="tls">SSL/TLS</option><option value="startTls">STARTTLS</option><option value="none">{t('onboarding.securityNone')}</option>
               </select>
-              <input class="input" placeholder={t('onboarding.usernamePlaceholder')} bind:value={imap.username} />
+              <input class="input" placeholder={t('onboarding.usernamePlaceholder')} bind:value={imap.username} oninput={serversEdited} />
             </div>
             <div class="srv">
               <span class="srv-title">{t('onboarding.outgoingServer')}</span>
-              <input class="input" placeholder="smtp.example.com" bind:value={smtp.host} />
-              <input class="input port" type="number" bind:value={smtp.port} />
-              <select class="input sec" bind:value={smtp.security} onchange={() => securityPort('smtp', smtp.security)}>
+              <input class="input" placeholder="smtp.example.com" bind:value={smtp.host} oninput={serversEdited} />
+              <input class="input port" type="number" bind:value={smtp.port} oninput={serversEdited} />
+              <select class="input sec" bind:value={smtp.security} onchange={() => { serversEdited(); securityPort('smtp', smtp.security); }}>
                 <option value="tls">SSL/TLS</option><option value="startTls">STARTTLS</option><option value="none">{t('onboarding.securityNone')}</option>
               </select>
-              <input class="input" placeholder={t('onboarding.usernamePlaceholder')} bind:value={smtp.username} />
+              <input class="input" placeholder={t('onboarding.usernamePlaceholder')} bind:value={smtp.username} oninput={serversEdited} />
             </div>
             <div>
               <label class="label" for="pw-caldav">{t('onboarding.caldavLabel')}</label>
@@ -335,7 +392,7 @@
         </div>
       </form>
     {:else if step === 'exchange'}
-      <button class="back" onclick={() => (step = 'providers')}><ArrowLeft size={15} /> {t('common.back')}</button>
+      <button class="back" onclick={back}><ArrowLeft size={15} /> {t('common.back')}</button>
       <h2>{t('onboarding.exchangeTitle')}</h2>
       <div class="note">
         <Lock size={15} />
@@ -391,7 +448,7 @@
           <button class:on={ui.settings.theme === 'system'} onclick={() => ui.set('theme', 'system')}>{t('onboarding.themeAuto')}</button>
         </div>
         <div class="actions center">
-          <button class="btn ghost" onclick={() => { step = 'providers'; email = ''; password = ''; error = null; }}>{t('onboarding.addAnotherAccount')}</button>
+          <button class="btn ghost" onclick={() => { back(); email = ''; name = ''; }}>{t('onboarding.addAnotherAccount')}</button>
           <button class="btn primary lg" onclick={() => ui.close()}>{t('onboarding.openEnvelope')} <ArrowRight size={16} /></button>
         </div>
       </div>

@@ -649,6 +649,57 @@ await step('an inline reply pops out into a window of its own', async () => {
 
 await w.close();
 
+/** A fresh window of the demo, with `session` put in its sessionStorage first. */
+async function fresh(session = {}) {
+  const p = await open();
+  await p.addInitScript((entries) => entries.forEach(([k, v]) => sessionStorage.setItem(k, v)), Object.entries(session));
+  await p.goto(url);
+  await p.locator('.row').first().waitFor({ state: 'visible', timeout: 5000 });
+  return p;
+}
+/** Polls a condition on page `p`. */
+async function eventually(p, check, failure) {
+  for (const end = Date.now() + 5000; Date.now() < end; await p.waitForTimeout(100)) if (await check()) return;
+  throw new Error(typeof failure === 'function' ? await failure() : failure);
+}
+const personal = (p) => p.locator('.sidebar .account').nth(1);
+const toast = (p, text) => p.locator('.toast', { hasText: text }).first().waitFor({ timeout: 5000 });
+
+await step('account setup forgets the provider it backed out of', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('.sidebar .item.add').click();
+    await p.locator('.detect input').fill('someone@icloud.com');
+    await p.keyboard.press('Enter');
+    await p.locator('#pw-pass').fill('an-app-password');
+    await p.locator('.back').click();
+    // Google's sign-in is not offered the iCloud address.
+    await p.locator('.prov', { hasText: 'Google' }).click();
+    if ((await p.locator('#ob-email').inputValue()) !== '') throw new Error('Google sign-in got the iCloud address');
+    await p.locator('.back').click();
+    await p.locator('.prov', { hasText: 'Other' }).click();
+    if (await p.locator('#pw-pass').inputValue()) throw new Error('the password stayed');
+    await p.locator('.adv-toggle').click();
+    const host = p.locator('.srv input').first();
+    if (await host.inputValue()) throw new Error(`the iCloud server stayed: ${await host.inputValue()}`);
+    // A new address finds its own servers; another domain finds them again.
+    await p.locator('#pw-email').fill('me@posteo.de');
+    await p.locator('#pw-pass').click();
+    await eventually(p, async () => (await host.inputValue()) === 'imap.posteo.de', async () => `the server is ${await host.inputValue()}`);
+    await p.locator('#pw-email').fill('me@icloud.com');
+    await p.locator('#pw-pass').click();
+    await eventually(p, async () => (await host.inputValue()) === 'imap.icloud.com', async () => `after another domain the server is ${await host.inputValue()}`);
+    // A server typed by hand stays.
+    await host.fill('mail.example.org');
+    await p.locator('#pw-email').fill('me@example.org');
+    await p.locator('#pw-pass').click();
+    await p.waitForTimeout(600);
+    if ((await host.inputValue()) !== 'mail.example.org') throw new Error('a server typed by hand was replaced');
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });
