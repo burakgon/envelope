@@ -549,6 +549,67 @@ async fn exchange_tasks_pull_push_and_pull_again() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn exchange_tasks_cleared_while_uploaded_go_from_the_server() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = exchange_account(&fx, &server);
+    let service = exchange_service(&fx, &account).await;
+    mount_folders(&server).await;
+    store_lists(&fx, &account, service.as_ref()).await;
+    let tasks = list_named(&fx, &account, "Tasks");
+    let venue = fx.create(input(tasks.id, "Book the venue")).await;
+    fx.engine
+        .complete_task(venue.id, true)
+        .await
+        .expect("complete");
+    on(
+        &server,
+        "<m:CreateItem",
+        response(
+            "CreateItem",
+            &[success(
+                "CreateItem",
+                r#"<m:Items><t:Task><t:ItemId Id="N1" ChangeKey="N1-1"/></t:Task></m:Items>"#,
+            )],
+        )
+        .set_delay(std::time::Duration::from_millis(300)),
+    )
+    .await;
+    on(
+        &server,
+        "<m:DeleteItem",
+        response("DeleteItem", &[success("DeleteItem", "")]),
+    )
+    .await;
+    Items::default().mount(&server).await;
+
+    // Cleared away while Exchange is creating it.
+    let pushing = {
+        let (engine, list) = (fx.engine.clone(), tasks.clone());
+        tokio::spawn(async move { push_list(&engine, service.as_ref(), &list).await })
+    };
+    until_received(&server, |r| body(r).contains("<m:CreateItem")).await;
+    fx.engine
+        .clear_completed_tasks(tasks.id)
+        .await
+        .expect("clear");
+    pushing.await.expect("join").expect("push");
+    let row = fx.row(venue.id);
+    assert_eq!(
+        (row.local_state, row.remote_id.as_deref()),
+        (tdb::DELETED, Some("N1"))
+    );
+    retry_now(&fx, tasks.id);
+    let service = exchange_service(&fx, &account).await;
+    push_list(&fx.engine, service.as_ref(), &tasks)
+        .await
+        .expect("push");
+    let requests = server.received_requests().await.expect("requests");
+    assert_eq!(writes(&requests, "DeleteItem", "N1").len(), 1);
+    assert!(fx.rows(tasks.id).is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn exchange_expired_sync_states_list_the_folder_again() {
     let fx = fixture();
     let server = MockServer::start().await;

@@ -1027,6 +1027,27 @@ fn order(fx: &Fixture, list: i64, parent: Option<i64>) -> Vec<String> {
         .expect("order")
 }
 
+/// Waits until `server` received a request with `verb` to a path ending in
+/// `suffix` (one that is being answered slowly, say).
+async fn until_requested(server: &MockServer, verb: &str, suffix: &str) {
+    until_received(server, |r| {
+        r.method.as_str() == verb && r.url.path().ends_with(suffix)
+    })
+    .await;
+}
+
+/// Waits until `server` received a request that is `wanted`.
+async fn until_received(server: &MockServer, wanted: impl Fn(&Request) -> bool) {
+    for _ in 0..500 {
+        let requests = server.received_requests().await.unwrap_or_default();
+        if requests.iter().any(&wanted) {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("the request did not come");
+}
+
 /// Lets the next push retry every task of `list` that waits for a retry.
 fn retry_now(fx: &Fixture, list: i64) {
     fx.engine

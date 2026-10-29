@@ -430,10 +430,12 @@ fn new_remote_id(list: &ListRow, uid: &str) -> Result<Option<String>> {
     }
 }
 
-/// Takes a task out of its list: deleted at once on this computer or when
-/// it never reached the server, else marked for deletion there.
+/// Takes a task out of its list: deleted at once from a list on this
+/// computer, else marked for deletion, which the next upload carries out.
+/// A task that is not on the server yet is marked too: should an upload
+/// under way create it there, it is deleted there as well.
 fn retire(tx: &rusqlite::Transaction<'_>, list: &ListRow, row: &TaskRow) -> Result<()> {
-    if list.account_id.is_none() || (row.local_state == tdb::CREATED && row.remote_id.is_none()) {
+    if list.account_id.is_none() {
         tdb::delete_row(tx, row.id)
     } else if row.local_state != tdb::DELETED {
         tdb::mark_deleted(tx, row.id)

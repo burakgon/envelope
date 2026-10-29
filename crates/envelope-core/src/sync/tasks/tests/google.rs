@@ -178,13 +178,7 @@ impl Store {
         Mock::given(method("POST"))
             .and(path(L1))
             .respond_with(move |request: &Request| {
-                let query: HashMap<String, String> = query(request).into_iter().collect();
-                let id = format!("N{}", store.writes.fetch_add(1, Ordering::SeqCst));
-                let position = store.after(query.get("previous"));
-                let mut created = task(&id, "", &position, json_body(request));
-                merge(&mut created, json!({ "parent": query.get("parent") }));
-                store.tasks.lock().insert(id, created.clone());
-                ResponseTemplate::new(200).set_body_json(created)
+                ResponseTemplate::new(200).set_body_json(store.insert(request))
             })
             .mount(server)
             .await;
@@ -197,6 +191,32 @@ impl Store {
                     None => google_error(404, "notFound", "Not Found"),
                 }
             })
+            .mount(server)
+            .await;
+    }
+
+    /// Stores the task an insert asks for; returns it as Google does.
+    fn insert(&self, request: &Request) -> Value {
+        let query: HashMap<String, String> = query(request).into_iter().collect();
+        let id = format!("N{}", self.writes.fetch_add(1, Ordering::SeqCst));
+        let position = self.after(query.get("previous"));
+        let mut created = task(&id, "", &position, json_body(request));
+        merge(&mut created, json!({ "parent": query.get("parent") }));
+        self.tasks.lock().insert(id, created.clone());
+        created
+    }
+
+    /// Answers inserts only after a while, to change tasks meanwhile.
+    async fn insert_slowly(&self, server: &MockServer) {
+        let store = self.clone();
+        Mock::given(method("POST"))
+            .and(path(L1))
+            .respond_with(move |request: &Request| {
+                ResponseTemplate::new(200)
+                    .set_body_json(store.insert(request))
+                    .set_delay(std::time::Duration::from_millis(300))
+            })
+            .with_priority(1)
             .mount(server)
             .await;
     }
@@ -684,6 +704,43 @@ async fn google_subtasks_wait_for_their_task() {
         inserts.iter().all(|r| query(r).is_empty()),
         "only the task was tried"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn google_tasks_deleted_while_uploaded_go_from_the_server_too() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = oauth_account(&fx, AccountKind::Gmail, TASKS_SCOPE);
+    let service = google_tasks(&fx, &server);
+    mount_lists(&server).await;
+    store_lists(&fx, &account, &service).await;
+    let l1 = list_named(&fx, &account, "My Tasks");
+    let store = Store::default();
+    store.mount(&server).await;
+    store.insert_slowly(&server).await;
+    let call = fx.create(input(l1.id, "Call Maya")).await;
+
+    // Deleted while Google is creating it.
+    let pushing = {
+        let (engine, list) = (fx.engine.clone(), l1.clone());
+        tokio::spawn(async move { push_list(&engine, &service, &list).await })
+    };
+    until_requested(&server, "POST", L1).await;
+    fx.engine.delete_task(call.id).await.expect("delete");
+    pushing.await.expect("join").expect("push");
+    let row = fx.row(call.id);
+    assert_eq!(
+        (row.local_state, row.remote_id.as_deref()),
+        (tdb::DELETED, Some("N0")),
+        "kept to be deleted where it was made"
+    );
+    assert!(fx.titles(TaskView::All, false).await.is_empty());
+    retry_now(&fx, l1.id);
+    push_list(&fx.engine, &google_tasks(&fx, &server), &l1)
+        .await
+        .expect("push");
+    assert!(store.tasks.lock().is_empty(), "deleted on the server too");
+    assert!(fx.rows(l1.id).is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

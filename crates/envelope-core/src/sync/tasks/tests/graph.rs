@@ -160,6 +160,47 @@ impl Todo {
         self.0.lock().tasks[id].clone()
     }
 
+    /// Stores the task a create asks for; returns it as Graph does.
+    fn create(&self, request: &Request) -> Value {
+        let mut state = self.0.lock();
+        state.writes += 1;
+        let id = format!("N{}", state.writes);
+        let mut body = json_body(request);
+        let links = body
+            .as_object_mut()
+            .and_then(|b| b.remove("linkedResources"));
+        let mut task = todo_task(&id, "", body);
+        if let Some(Value::Array(links)) = links {
+            let links: Vec<Value> = links
+                .into_iter()
+                .enumerate()
+                .map(|(i, mut link)| {
+                    merge(&mut link, json!({ "id": format!("link{i}") }));
+                    link
+                })
+                .collect();
+            merge(&mut task, json!({ "linkedResources": links }));
+        }
+        state.tasks.insert(id.clone(), task.clone());
+        state.steps.insert(id, Vec::new());
+        task
+    }
+
+    /// Answers creates only after a while, to change tasks meanwhile.
+    async fn create_slowly(&self, server: &MockServer) {
+        let todo = self.clone();
+        Mock::given(method("POST"))
+            .and(path(format!("{LISTS}/L1/tasks")))
+            .respond_with(move |request: &Request| {
+                ResponseTemplate::new(201)
+                    .set_body_json(todo.create(request))
+                    .set_delay(std::time::Duration::from_millis(300))
+            })
+            .with_priority(1)
+            .mount(server)
+            .await;
+    }
+
     fn step_names(&self, task: &str) -> Vec<String> {
         self.0.lock().steps[task]
             .iter()
@@ -201,28 +242,7 @@ impl Todo {
         Mock::given(method("POST"))
             .and(path(format!("{LISTS}/L1/tasks")))
             .respond_with(move |request: &Request| {
-                let mut state = todo.0.lock();
-                state.writes += 1;
-                let id = format!("N{}", state.writes);
-                let mut body = json_body(request);
-                let links = body
-                    .as_object_mut()
-                    .and_then(|b| b.remove("linkedResources"));
-                let mut task = todo_task(&id, "", body);
-                if let Some(Value::Array(links)) = links {
-                    let links: Vec<Value> = links
-                        .into_iter()
-                        .enumerate()
-                        .map(|(i, mut link)| {
-                            merge(&mut link, json!({ "id": format!("link{i}") }));
-                            link
-                        })
-                        .collect();
-                    merge(&mut task, json!({ "linkedResources": links }));
-                }
-                state.tasks.insert(id.clone(), task.clone());
-                state.steps.insert(id, Vec::new());
-                ResponseTemplate::new(201).set_body_json(task)
+                ResponseTemplate::new(201).set_body_json(todo.create(request))
             })
             .mount(server)
             .await;
@@ -812,6 +832,50 @@ async fn todo_steps_wait_for_their_task() {
     assert!(
         requests_to(&requests, "POST", "/checklistItems").is_empty(),
         "no step went up without its task"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn todo_tasks_moved_while_uploaded_go_from_the_server() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = oauth_account(&fx, AccountKind::Microsoft, TASKS_SCOPE);
+    let service = todo_service(&fx, &server);
+    mount_lists(&server).await;
+    store_lists(&fx, &account, &service).await;
+    let l1 = list_named(&fx, &account, "Tasks");
+    let todo = Todo::default();
+    todo.mount(&server).await;
+    todo.create_slowly(&server).await;
+    let plan = fx.create(input(l1.id, "Plan the offsite")).await;
+
+    // Moved to the list on this computer while To Do is creating it.
+    let pushing = {
+        let (engine, list) = (fx.engine.clone(), l1.clone());
+        tokio::spawn(async move { push_list(&engine, &service, &list).await })
+    };
+    until_requested(&server, "POST", "/L1/tasks").await;
+    let local = fx.local_list();
+    let moved = fx
+        .engine
+        .update_task(plan.id, input(local, "Plan the offsite"))
+        .await
+        .expect("move");
+    pushing.await.expect("join").expect("push");
+    let row = fx.row(plan.id);
+    assert_eq!(
+        (row.local_state, row.remote_id.as_deref()),
+        (tdb::DELETED, Some("N1"))
+    );
+    retry_now(&fx, l1.id);
+    push_list(&fx.engine, &todo_service(&fx, &server), &l1)
+        .await
+        .expect("push");
+    assert!(todo.tasks().is_empty(), "not left behind in To Do");
+    assert!(fx.rows(l1.id).is_empty());
+    assert_eq!(
+        fx.engine.task(moved.id).await.expect("moved").list_id,
+        local
     );
 }
 

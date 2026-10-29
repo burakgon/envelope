@@ -403,16 +403,23 @@ pub(crate) async fn push_list(
 
 /// Gives up on a local change: a task the server would not create is kept
 /// in the list on this computer, anything else returns to the server's
-/// copy.
+/// copy. A task deleted while its change was being uploaded is left to its
+/// deletion.
 fn give_up(engine: &Engine, list: &ListRow, row: &TaskRow) -> Result<()> {
-    if row.local_state == tdb::CREATED {
-        let local = engine.ensure_local_task_list()?;
-        engine.db.write(|tx| tdb::keep_locally(tx, row.id, local))
-    } else {
-        engine
-            .db
-            .write(|tx| tdb::discard_local_change(tx, row.id, list.id))
-    }
+    let local = engine.ensure_local_task_list()?;
+    engine.db.write(|tx| {
+        let Ok(current) = tdb::get_task(tx, row.id) else {
+            return Ok(());
+        };
+        if current.local_state == tdb::DELETED && row.local_state != tdb::DELETED {
+            return Ok(());
+        }
+        if current.local_state == tdb::CREATED {
+            tdb::keep_locally(tx, current.id, local)
+        } else {
+            tdb::discard_local_change(tx, current.id, list.id)
+        }
+    })
 }
 
 /// Records the outcome of one upload. Returns whether the task changed
