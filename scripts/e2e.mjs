@@ -435,6 +435,28 @@ await step('a new message: writing goes above the signature, and From swaps the 
   if (!(await editor().innerText()).startsWith('Hello there.')) throw new Error('the text changed with the signature');
 });
 
+await step('formatting: size, color, alignment, a picture, and clearing it', async () => {
+  await w.locator('.dock .composer .icon-btn[title="Formatting"]').click();
+  await editor().locator('p').first().click();
+  await w.keyboard.press('Home');
+  await w.keyboard.press('Shift+End');
+  const tool = (name) => w.locator(`.dock .composer .toolbar button[aria-label="${name}"]`);
+  await tool('Text size').click();
+  await w.locator('.popover .menu-item', { hasText: 'Large' }).click();
+  await tool('Text color').click();
+  await w.locator('.popover .swatch[aria-label="#d93025"]').click();
+  await editor().locator('span[style*="font-size: 18px"][style*="color"]').waitFor({ timeout: 5000 });
+  await tool('Alignment').click();
+  await w.locator('.popover button[aria-label="Center"]').click();
+  await editor().locator('p[style*="text-align: center"]').waitFor({ timeout: 5000 });
+  await tool('Clear formatting').click();
+  const line = editor().locator('p').first();
+  await wUntil(async () => !(await line.locator('span[style]').count()) && !(await line.getAttribute('style')), 'the formatting stayed');
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  await w.locator('.dock .composer input.picker').setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await editor().locator('img[src^="data:image/png"]').waitFor({ timeout: 5000 });
+});
+
 await step('Send asks about an address that looks wrong and a missing attachment', async () => {
   await w.locator('.dock .composer .chips input').first().fill('bob@example');
   await w.keyboard.press('Enter');

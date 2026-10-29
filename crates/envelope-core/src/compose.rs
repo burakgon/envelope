@@ -176,12 +176,34 @@ pub fn render(out: &Outgoing) -> Result<Rendered> {
             b = b.body(alternative);
         }
         None => {
-            b = b.text_body(text).html_body(wrap_html(&out.html));
-            for a in &out.attachments {
-                b = match &a.content_id {
-                    Some(cid) => b.inline(a.mime_type.clone(), cid.clone(), a.data.clone()),
-                    None => b.attachment(a.mime_type.clone(), a.filename.clone(), a.data.clone()),
-                };
+            use mail_builder::mime::{BodyPart, MimePart};
+            let alternative = MimePart::new(
+                "multipart/alternative",
+                vec![
+                    MimePart::new("text/plain", BodyPart::Text(text.clone().into())),
+                    MimePart::new("text/html", BodyPart::Text(wrap_html(&out.html).into())),
+                ],
+            );
+            let (pictures, files): (Vec<&FilePart>, Vec<&FilePart>) =
+                out.attachments.iter().partition(|a| a.content_id.is_some());
+            // Pictures in the text travel with it; files after it.
+            let main = if pictures.is_empty() {
+                alternative
+            } else {
+                let mut parts = vec![alternative];
+                parts.extend(pictures.into_iter().map(|a| {
+                    MimePart::new(a.mime_type.clone(), BodyPart::Binary(a.data.clone().into()))
+                        .inline()
+                        .cid(a.content_id.clone().unwrap_or_default())
+                }));
+                MimePart::new("multipart/related", parts)
+            };
+            if files.is_empty() {
+                b = b.body(main);
+            } else {
+                let mut parts = vec![main];
+                parts.extend(files.into_iter().map(file_part));
+                b = b.body(MimePart::new("multipart/mixed", parts));
             }
         }
     }
@@ -200,6 +222,48 @@ pub fn render(out: &Outgoing) -> Result<Rendered> {
         envelope_from: out.from.email.clone(),
         recipients,
     })
+}
+
+/// An attached file.
+fn file_part(a: &FilePart) -> mail_builder::mime::MimePart<'static> {
+    use mail_builder::mime::{BodyPart, MimePart};
+    MimePart::new(a.mime_type.clone(), BodyPart::Binary(a.data.clone().into()))
+        .attachment(a.filename.clone())
+}
+
+/// Pictures written into the text as `data:` URLs (pasted or inserted) become
+/// inline parts it refers to by `cid:`, which every mail program shows.
+pub fn inline_data_images(html: &str) -> (String, Vec<FilePart>) {
+    use base64::Engine as _;
+    static DATA_IMAGE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(
+            r#"(?i)(<img\b[^>]*?\bsrc\s*=\s*)(["'])data:(image/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)["']"#,
+        )
+        .expect("valid regex")
+    });
+    let mut parts = Vec::new();
+    let out = DATA_IMAGE.replace_all(html, |c: &regex::Captures<'_>| {
+        let mime = c[3].to_ascii_lowercase();
+        let cleaned: String = c[4].chars().filter(|ch| !ch.is_whitespace()).collect();
+        let Ok(data) = base64::engine::general_purpose::STANDARD.decode(cleaned.as_bytes()) else {
+            return c[0].to_string();
+        };
+        let n = parts.len() + 1;
+        let cid = format!("image{n}.{}@envelope", uuid::Uuid::new_v4().simple());
+        let ext = match mime.as_str() {
+            "image/jpeg" => "jpg",
+            "image/svg+xml" => "svg",
+            other => other.trim_start_matches("image/"),
+        };
+        parts.push(FilePart {
+            filename: format!("image{n}.{ext}"),
+            mime_type: mime,
+            data,
+            content_id: Some(cid.clone()),
+        });
+        format!("{}{}cid:{cid}{}", &c[1], &c[2], &c[2])
+    });
+    (out.into_owned(), parts)
 }
 
 /// "Re: " / "Fwd: " subject prefixes without stacking them.
@@ -246,6 +310,35 @@ mod tests {
         assert_eq!(meta.to[0].name.as_deref(), Some("Elif Yılmaz"));
         assert_eq!(body.attachments.len(), 1);
         assert!(body.html.unwrap().contains("görüşürüz"));
+    }
+
+    #[test]
+    fn pictures_in_the_text_become_inline_parts() {
+        // A 1×1 PNG, as the editor writes a pasted or inserted picture.
+        let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        let html = format!(
+            "<p>Look:</p><img alt=\"x\" src=\"data:image/png;base64,{png}\"><img src='data:image/png;base64,!!'>"
+        );
+        let (out, parts) = inline_data_images(&html);
+        assert_eq!(parts.len(), 1, "the broken one stays as it was");
+        let cid = parts[0].content_id.clone().unwrap();
+        assert!(out.contains(&format!("src=\"cid:{cid}\"")), "{out}");
+        assert!(out.contains("data:image/png;base64,!!"));
+        assert_eq!(&parts[0].data[1..4], b"PNG");
+        assert_eq!(parts[0].filename, "image1.png");
+
+        let r = render(&Outgoing {
+            from: Address::new(None, "alex@envelope.test"),
+            to: vec![Address::new(None, "elif@example.com")],
+            subject: "Picture".into(),
+            html: out,
+            attachments: parts,
+            ..Default::default()
+        })
+        .unwrap();
+        let s = String::from_utf8_lossy(&r.mime);
+        assert!(s.contains("multipart/related"), "{s}");
+        assert!(s.contains(&format!("Content-ID: <{cid}>")), "{s}");
     }
 
     #[test]

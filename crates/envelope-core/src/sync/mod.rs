@@ -284,6 +284,9 @@ pub(crate) async fn render_draft(
             content_id: if a.inline { a.content_id.clone() } else { None },
         });
     }
+    // Pasted and inserted pictures go along as inline parts.
+    let (html, pictures) = compose::inline_data_images(&draft.html);
+    attachments.extend(pictures);
     let mut out = Outgoing {
         from,
         reply_to,
@@ -291,7 +294,7 @@ pub(crate) async fn render_draft(
         cc: draft.cc.clone(),
         bcc: draft.bcc.clone(),
         subject: draft.subject.clone(),
-        html: draft.html.clone(),
+        html,
         text: draft.text.clone(),
         in_reply_to,
         references,
