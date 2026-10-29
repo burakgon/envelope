@@ -71,6 +71,8 @@ class Cal {
   private seq = 0;
   private taskSeq = 0;
   private started = false;
+  /** The first load has been asked for. */
+  private loaded = false;
 
   weekStart = $derived(ui.settings.weekStart ?? 1);
 
@@ -130,13 +132,17 @@ class Cal {
     await this.loadBirthdays();
   }
 
+  /** Reads the birthdays again, and the calendar with them when they changed. */
   async loadBirthdays() {
+    let list: Birthday[] = [];
     try {
-      this.birthdays = await api.calendar.birthdays();
+      list = await api.calendar.birthdays();
     } catch {
-      this.birthdays = [];
+      /* none shown */
     }
-    this.load();
+    const changed = JSON.stringify(list) !== JSON.stringify(this.birthdays);
+    this.birthdays = list;
+    if (changed || !this.loaded) this.load();
   }
 
   async loadCalendars() {
@@ -148,6 +154,7 @@ class Cal {
   }
 
   async load() {
+    this.loaded = true;
     const seq = ++this.seq;
     const [from, to] = this.range;
     this.loading = true;
