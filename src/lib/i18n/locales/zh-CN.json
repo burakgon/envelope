@@ -217,7 +217,8 @@
   "mail.unmuted": "已取消静音",
   "mail.labelAdded": "已添加标签“{name}”",
   "mail.labelRemoved": "已移除标签“{name}”",
-  "mail.allMarkedRead": "已全部标为已读",
+  "mail.markedReadCount": "{count, plural, other {已将 # 个会话标为已读}}",
+  "mail.nothingUnread": "这里没有未读会话",
 
   "reader.toolbarArchive": "归档（{key}）",
   "reader.toolbarMoveToInbox": "移至收件箱",

@@ -700,6 +700,24 @@ await step('account setup forgets the provider it backed out of', async () => {
   }
 });
 
+await step('Mark all as read takes only the tab shown, says how many and undoes', async () => {
+  const p = await fresh();
+  try {
+    const badge = (tab) => p.locator('.tabs button', { hasText: tab }).locator('.badge');
+    const people = Number(await badge('People').innerText());
+    const newsletters = await badge('Newsletters').innerText();
+    await p.locator('.list .tools .icon-btn[title="Filter"]').click();
+    await p.locator('.menu-item', { hasText: 'Mark all as read' }).click();
+    await toast(p, `Marked ${people} conversation${people === 1 ? '' : 's'} as read`);
+    await badge('People').waitFor({ state: 'detached', timeout: 5000 });
+    if ((await badge('Newsletters').innerText()) !== newsletters) throw new Error('another tab was marked read');
+    await p.locator('.toast', { hasText: 'as read' }).first().locator('.action').click();
+    await eventually(p, async () => (await badge('People').count()) && Number(await badge('People').innerText()) === people, 'Undo did not bring the unread back');
+  } finally {
+    await p.close();
+  }
+});
+
 await step('a banner asks to sign in again, and says when a server is out of reach', async () => {
   const trouble = {
     1: { state: 'offline', message: 'connection refused (os error 111)', failures: 4 },

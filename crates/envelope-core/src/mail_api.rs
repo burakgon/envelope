@@ -28,6 +28,16 @@ pub struct UndoToken {
     pub snoozed: Vec<(i64, Option<i64>)>,
 }
 
+/// What "Mark all as read" changed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkedRead {
+    /// Conversations marked read.
+    pub threads: i64,
+    /// Messages that were unread: marking them unread again undoes it.
+    pub message_ids: Vec<i64>,
+}
+
 impl Engine {
     // ----- listing -------------------------------------------------------------
 
@@ -229,23 +239,53 @@ impl Engine {
         Ok(())
     }
 
-    /// Marks every thread in a folder as read.
-    pub fn mark_folder_read(&self, folder_id: i64) -> Result<()> {
-        let threads: Vec<i64> = self.db.read(|c| {
-            let mut st = c.prepare(
-                "SELECT thread_id FROM thread_folders WHERE folder_id = ? AND unread > 0",
+    /// Marks every unread conversation of a list as read: the mailbox with its
+    /// filter, inbox tab and search, as the list shows it. Returns the
+    /// messages that were unread, to undo it.
+    pub fn mark_read(
+        &self,
+        mailbox: &Mailbox,
+        filter: &ListFilter,
+        search: Option<&str>,
+    ) -> Result<MarkedRead> {
+        let search = search
+            .filter(|s| !s.trim().is_empty())
+            .and_then(crate::search::compile);
+        let filter = ListFilter {
+            unread: true,
+            ..filter.clone()
+        };
+        let (threads, message_ids) = self.db.read(|c| {
+            let sql = mail::list_sql(c, mailbox, &filter, search)?;
+            let mut st = c.prepare(&format!("SELECT DISTINCT t.id FROM {}", sql.from_where))?;
+            let threads: Vec<i64> = st
+                .query_map(rusqlite::params_from_iter(sql.values.iter()), |r| r.get(0))?
+                .collect::<rusqlite::Result<_>>()?;
+            let mut unread = c.prepare_cached(
+                "SELECT id FROM messages WHERE thread_id = ? AND (flags & 1) = 0 AND (flags & 8) = 0",
             )?;
-            let rows = st.query_map([folder_id], |r| r.get(0))?;
-            Ok(rows.collect::<rusqlite::Result<Vec<i64>>>()?)
+            let mut message_ids = Vec::new();
+            for t in &threads {
+                for m in unread.query_map([t], |r| r.get::<_, i64>(0))? {
+                    message_ids.push(m?);
+                }
+            }
+            Ok((threads, message_ids))
         })?;
-        self.set_flags(
-            &threads,
-            &[],
-            &FlagChange {
-                seen: Some(true),
-                flagged: None,
-            },
-        )
+        if !threads.is_empty() {
+            self.set_flags(
+                &threads,
+                &[],
+                &FlagChange {
+                    seen: Some(true),
+                    flagged: None,
+                },
+            )?;
+        }
+        Ok(MarkedRead {
+            threads: threads.len() as i64,
+            message_ids,
+        })
     }
 
     fn after_local_change(&self, accounts: &[i64], threads: &BTreeSet<i64>) -> Result<()> {

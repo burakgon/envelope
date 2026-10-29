@@ -217,7 +217,8 @@
   "mail.unmuted": "Sourdine retirée",
   "mail.labelAdded": "Libellé « {name} » ajouté",
   "mail.labelRemoved": "Libellé « {name} » retiré",
-  "mail.allMarkedRead": "Tout est marqué comme lu",
+  "mail.markedReadCount": "{count, plural, one {# conversation marquée comme lue} other {# conversations marquées comme lues}}",
+  "mail.nothingUnread": "Aucune conversation non lue ici",
 
   "reader.toolbarArchive": "Archiver ({key})",
   "reader.toolbarMoveToInbox": "Déplacer vers la boîte de réception",

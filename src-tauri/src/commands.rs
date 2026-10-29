@@ -1,5 +1,6 @@
 //! IPC commands called by the UI.
 
+use envelope_core::mail_api::MarkedRead;
 use envelope_core::model::*;
 use envelope_core::oauth::{ClientConfig, Provider};
 use envelope_core::{AccountPatch, UndoToken};
@@ -242,8 +243,15 @@ pub fn set_flags(
 }
 
 #[tauri::command]
-pub fn mark_folder_read(state: State<'_, AppState>, folder_id: i64) -> R<()> {
-    Ok(state.engine.mark_folder_read(folder_id)?)
+pub fn mark_read(
+    state: State<'_, AppState>,
+    mailbox: Mailbox,
+    filter: ListFilter,
+    search: Option<String>,
+) -> R<MarkedRead> {
+    Ok(state
+        .engine
+        .mark_read(&mailbox, &filter, search.as_deref())?)
 }
 
 #[tauri::command]

@@ -217,7 +217,8 @@
   "mail.unmuted": "ミュートを解除しました",
   "mail.labelAdded": "ラベル「{name}」を付けました",
   "mail.labelRemoved": "ラベル「{name}」を外しました",
-  "mail.allMarkedRead": "すべて既読にしました",
+  "mail.markedReadCount": "{count, plural, other {# 件のスレッドを既読にしました}}",
+  "mail.nothingUnread": "未読のスレッドはありません",
 
   "reader.toolbarArchive": "アーカイブ（{key}）",
   "reader.toolbarMoveToInbox": "受信トレイに移動",

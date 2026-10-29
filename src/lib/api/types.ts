@@ -240,6 +240,14 @@ export interface UndoToken {
   snoozed: [number, number | null][];
 }
 
+/** What "Mark all as read" changed. */
+export interface MarkedRead {
+  /** Conversations marked read. */
+  threads: number;
+  /** Messages that were unread: marking them unread again undoes it. */
+  messageIds: number[];
+}
+
 export interface DraftAttachment {
   filename: string;
   mimeType: string;

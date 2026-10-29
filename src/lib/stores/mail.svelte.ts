@@ -651,11 +651,29 @@ class Mail {
     await api.setFlags([], [m.id], { seen });
   }
 
-  async markAllRead() {
-    const mb = this.mailbox;
-    const ids = mb.kind === 'folder' ? [mb.id] : mb.kind === 'unified' ? this.folders.filter((f) => f.role === mb.role).map((f) => f.id) : [];
-    for (const id of ids) await api.markFolderRead(id);
-    toasts.show(t('mail.allMarkedRead'));
+  /**
+   * Marks every unread conversation of the list as read, as the list shows it (mailbox, filter,
+   * inbox tab and search), or of `folder` (from its menu in the sidebar). Undo marks the same
+   * messages unread again.
+   */
+  async markAllRead(folder?: Folder) {
+    const mailbox: Mailbox = folder ? { kind: 'folder', id: folder.id } : this.search ? { kind: 'everything' } : this.mailbox;
+    const filter: ListFilter = folder ? {} : { ...this.filter };
+    if (!folder && this.splitActive && this.category) filter.category = this.category;
+    const search = folder ? null : this.search || null;
+    try {
+      const done = await api.markRead(mailbox, filter, search);
+      if (!done.threads) {
+        toasts.show(t('mail.nothingUnread'));
+        return;
+      }
+      toasts.undoable(t('mail.markedReadCount', { count: done.threads }), async () => {
+        await api.setFlags([], done.messageIds, { seen: false });
+        this.refresh();
+      });
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
   }
 
   foldersOf(accountId: number): Folder[] {

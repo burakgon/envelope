@@ -42,11 +42,7 @@ export function createMockApi(): Api {
   }
 
   function recount() {
-    for (const f of data.folders) {
-      const inFolder = threads.filter((t) => t.folderIds.includes(f.id) && !(f.role === 'inbox' && t.snoozedUntil));
-      f.totalCount = inFolder.length;
-      f.unreadCount = inFolder.filter((t) => t.unreadCount > 0).length;
-    }
+    // Conversations first: the folders count their unread ones.
     for (const t of threads) {
       const ms = messages.filter((m) => m.threadId === t.id);
       t.unreadCount = ms.filter((m) => !m.flags.seen).length;
@@ -59,6 +55,11 @@ export function createMockApi(): Api {
         t.snippet = last.snippet;
         t.lastSender = last.from;
       }
+    }
+    for (const f of data.folders) {
+      const inFolder = threads.filter((t) => t.folderIds.includes(f.id) && !(f.role === 'inbox' && t.snoozedUntil));
+      f.totalCount = inFolder.length;
+      f.unreadCount = inFolder.filter((t) => t.unreadCount > 0).length;
     }
   }
   recount();
@@ -219,10 +220,12 @@ export function createMockApi(): Api {
       }
       changed([...threadIds, ...targets.map((m) => m.threadId)]);
     },
-    markFolderRead: async (folderId) => {
-      const ids = threads.filter((t) => t.folderIds.includes(folderId)).map((t) => t.id);
-      messages.filter((m) => ids.includes(m.threadId)).forEach((m) => (m.flags.seen = true));
+    markRead: async (mailbox, filter, search) => {
+      const ids = list({ mailbox, filter: { ...filter, unread: true }, search, offset: 0, limit: 100_000 }).items.map((t) => t.id);
+      const unread = messages.filter((m) => ids.includes(m.threadId) && !m.flags.seen && !m.flags.draft);
+      unread.forEach((m) => (m.flags.seen = true));
       changed(ids);
+      return { threads: ids.length, messageIds: unread.map((m) => m.id) };
     },
     moveThreads: async (threadIds, source, target) => {
       const token: T.UndoToken = { accountOps: [], locations: [], flags: [], snoozed: [] };

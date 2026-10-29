@@ -217,7 +217,8 @@
   "mail.unmuted": "Non più silenziata",
   "mail.labelAdded": "Etichetta “{name}” aggiunta",
   "mail.labelRemoved": "Etichetta “{name}” rimossa",
-  "mail.allMarkedRead": "Tutti segnati come letti",
+  "mail.markedReadCount": "{count, plural, one {# conversazione segnata come letta} other {# conversazioni segnate come lette}}",
+  "mail.nothingUnread": "Nessuna conversazione da leggere qui",
 
   "reader.toolbarArchive": "Archivia ({key})",
   "reader.toolbarMoveToInbox": "Sposta in Posta in arrivo",

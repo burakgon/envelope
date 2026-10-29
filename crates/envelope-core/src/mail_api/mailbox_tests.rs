@@ -1,11 +1,15 @@
 //! Engine actions on mail against a real temporary database. The fixture is
 //! shared with the folder tests.
 
+use std::collections::BTreeSet;
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
 
 use super::*;
+use crate::db::mail::{FolderUpsert, MessageMeta};
 use crate::engine::{EventSink, Paths};
 
 #[derive(Clone, Default)]
@@ -73,4 +77,232 @@ async fn sync_failures_are_counted_until_a_sync_works() {
     );
     engine.shutdown();
     let _ = std::fs::remove_dir_all(dir);
+}
+
+pub(crate) struct Fixture {
+    pub(crate) engine: Engine,
+    dir: PathBuf,
+    pub(crate) account: i64,
+    /// Folder ids by server path.
+    pub(crate) folders: HashMap<String, i64>,
+}
+
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        self.engine.shutdown();
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+pub(crate) fn folder(path: &str, role: Option<FolderRole>, parent: Option<&str>) -> FolderUpsert {
+    FolderUpsert {
+        remote_id: path.into(),
+        name: path.rsplit('/').next().unwrap_or(path).into(),
+        path: path.into(),
+        parent_remote_id: parent.map(Into::into),
+        role,
+        kind: "folder".into(),
+        delimiter: Some("/".into()),
+        selectable: true,
+        sort_order: 0,
+        color: None,
+    }
+}
+
+/// An IMAP account (its worker kept away) with an inbox, Trash, Spam and folders.
+pub(crate) fn fixture() -> Fixture {
+    let dir = std::env::temp_dir().join(format!(
+        "envelope-folders-{}",
+        uuid::Uuid::new_v4().simple()
+    ));
+    let engine = Engine::start(
+        Paths {
+            data: dir.join("data"),
+            cache: dir.join("cache"),
+        },
+        Events::default(),
+    )
+    .expect("engine");
+    let (account, folders) = engine
+        .db
+        .write(|tx| {
+            let account = mail::insert_account(
+                tx,
+                AccountKind::Imap,
+                "generic",
+                "me@example.com",
+                "Me",
+                "#000",
+                &AccountConfig::default(),
+            )?;
+            tx.execute("UPDATE accounts SET enabled = 0 WHERE id = ?", [account])?;
+            let folders = mail::sync_folders(
+                tx,
+                account,
+                &[
+                    folder("INBOX", Some(FolderRole::Inbox), None),
+                    folder("Sent", Some(FolderRole::Sent), None),
+                    folder("Trash", Some(FolderRole::Trash), None),
+                    folder("Trash/Old", None, Some("Trash")),
+                    folder("Junk", Some(FolderRole::Junk), None),
+                    folder("Archive", Some(FolderRole::Archive), None),
+                    folder("Work", None, None),
+                    folder("Work/Clients", None, Some("Work")),
+                ],
+            )?;
+            Ok((account, folders))
+        })
+        .expect("account");
+    Fixture {
+        engine,
+        dir,
+        account,
+        folders,
+    }
+}
+
+/// A folder's id, by server path.
+impl Fixture {
+    pub(crate) fn id(&self, path: &str) -> i64 {
+        self.folders[path]
+    }
+}
+
+/// Stores a message in a folder; returns (message id, thread id).
+impl Fixture {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn message(
+        &self,
+        path: &str,
+        uid: u32,
+        message_id: &str,
+        reply_to: Option<&str>,
+        from: &str,
+        subject: &str,
+        date: i64,
+        flags: i64,
+    ) -> (i64, i64) {
+        let meta = MessageMeta {
+            message_id: Some(message_id.into()),
+            in_reply_to: reply_to.map(Into::into),
+            references: reply_to.map(|r| vec![r.to_string()]).unwrap_or_default(),
+            subject: subject.into(),
+            from: Some(Address::new(None, from)),
+            to: vec![Address::new(None, "me@example.com")],
+            date,
+            flags,
+            ..Default::default()
+        };
+        let folder = self.id(path);
+        let account = self.account;
+        self.engine
+            .db
+            .write(|tx| {
+                let stored = mail::upsert_message(tx, account, folder, Some(uid), &meta)?;
+                let touched = mail::refresh_threads(tx, &[stored.thread_id].into())?;
+                mail::refresh_folder_counts(tx, &touched)?;
+                Ok((stored.message_id, stored.thread_id))
+            })
+            .expect("message")
+    }
+}
+
+/// How many messages of a conversation are unread.
+impl Fixture {
+    pub(crate) fn unread(&self, thread: i64) -> i64 {
+        self.engine
+            .thread(thread)
+            .expect("thread")
+            .thread
+            .unread_count
+    }
+}
+
+#[tokio::test]
+async fn mark_all_read_takes_the_list_as_shown_and_can_be_undone() {
+    let fx = fixture();
+    let inbox = fx.id("INBOX");
+    let (m1, people) = fx.message(
+        "INBOX",
+        1,
+        "p@x",
+        None,
+        "ann@example.com",
+        "Dinner?",
+        1_000,
+        0,
+    );
+    let (m2, _) = fx.message(
+        "INBOX",
+        2,
+        "p2@x",
+        Some("p@x"),
+        "ann@example.com",
+        "Re: Dinner?",
+        1_100,
+        0,
+    );
+    let (_, news) = fx.message(
+        "INBOX",
+        3,
+        "n@x",
+        None,
+        "news@example.com",
+        "Weekly digest",
+        2_000,
+        0,
+    );
+    let (_, read) = fx.message("INBOX", 4, "r@x", None, "bob@example.com", "Done", 3_000, 1);
+    fx.engine
+        .db
+        .write(|tx| {
+            tx.execute(
+                "UPDATE threads SET category = 'newsletters' WHERE id = ?",
+                [news],
+            )?;
+            tx.execute(
+                "UPDATE threads SET category = 'people' WHERE id IN (?, ?)",
+                [people, read],
+            )?;
+            Ok(())
+        })
+        .expect("categories");
+    // The People tab: newsletters stay unread.
+    let filter = ListFilter {
+        category: Some("people".into()),
+        ..Default::default()
+    };
+    let marked = fx
+        .engine
+        .mark_read(&Mailbox::Folder { id: inbox }, &filter, None)
+        .expect("mark");
+    assert_eq!(marked.threads, 1);
+    assert_eq!(
+        marked.message_ids.iter().copied().collect::<BTreeSet<_>>(),
+        BTreeSet::from([m1, m2])
+    );
+    assert_eq!(fx.unread(people), 0);
+    assert_eq!(fx.unread(news), 1);
+    // A search narrows it further.
+    let none = fx
+        .engine
+        .mark_read(
+            &Mailbox::Everything,
+            &ListFilter::default(),
+            Some("nothing-like-this"),
+        )
+        .expect("search");
+    assert_eq!(none.threads, 0);
+    // Undo: the same messages unread again.
+    fx.engine
+        .set_flags(
+            &[],
+            &marked.message_ids,
+            &FlagChange {
+                seen: Some(false),
+                flagged: None,
+            },
+        )
+        .expect("undo");
+    assert_eq!(fx.unread(people), 2);
 }

@@ -217,7 +217,8 @@
   "mail.unmuted": "Stummschaltung aufgehoben",
   "mail.labelAdded": "Label „{name}“ hinzugefügt",
   "mail.labelRemoved": "Label „{name}“ entfernt",
-  "mail.allMarkedRead": "Alle als gelesen markiert",
+  "mail.markedReadCount": "{count, plural, one {# Konversation als gelesen markiert} other {# Konversationen als gelesen markiert}}",
+  "mail.nothingUnread": "Hier gibt es keine ungelesenen Konversationen",
 
   "reader.toolbarArchive": "Archivieren ({key})",
   "reader.toolbarMoveToInbox": "In den Posteingang verschieben",

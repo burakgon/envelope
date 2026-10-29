@@ -209,7 +209,7 @@ pub fn run() {
             commands::thread,
             commands::load_bodies,
             commands::set_flags,
-            commands::mark_folder_read,
+            commands::mark_read,
             commands::move_threads,
             commands::undo,
             commands::delete_forever,

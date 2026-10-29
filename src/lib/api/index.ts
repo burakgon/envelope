@@ -31,7 +31,8 @@ export interface Api {
   thread(id: number): Promise<T.ThreadDetail>;
   loadBodies(ids: number[]): Promise<T.MessageView[]>;
   setFlags(threadIds: number[], messageIds: number[], change: T.FlagChange): Promise<void>;
-  markFolderRead(folderId: number): Promise<void>;
+  /** Marks every unread conversation of a list (mailbox, filter, inbox tab, search) as read. */
+  markRead(mailbox: T.Mailbox, filter: T.ListFilter, search: string | null): Promise<T.MarkedRead>;
   moveThreads(threadIds: number[], source: number | null, target: T.MoveTarget): Promise<T.UndoToken>;
   undo(token: T.UndoToken): Promise<void>;
   deleteForever(threadIds: number[]): Promise<void>;

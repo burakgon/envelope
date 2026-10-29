@@ -217,7 +217,8 @@
   "mail.unmuted": "Sessiz kaldırıldı",
   "mail.labelAdded": "“{name}” etiketi eklendi",
   "mail.labelRemoved": "“{name}” etiketi kaldırıldı",
-  "mail.allMarkedRead": "Tümü okundu olarak işaretlendi",
+  "mail.markedReadCount": "{count, plural, one {# konuşma okundu olarak işaretlendi} other {# konuşma okundu olarak işaretlendi}}",
+  "mail.nothingUnread": "Burada okunmamış konuşma yok",
 
   "reader.toolbarArchive": "Arşivle ({key})",
   "reader.toolbarMoveToInbox": "Gelen Kutusu’na taşı",

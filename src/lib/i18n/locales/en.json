@@ -217,7 +217,8 @@
   "mail.unmuted": "Unmuted",
   "mail.labelAdded": "Added label “{name}”",
   "mail.labelRemoved": "Removed label “{name}”",
-  "mail.allMarkedRead": "All marked as read",
+  "mail.markedReadCount": "{count, plural, one {Marked # conversation as read} other {Marked # conversations as read}}",
+  "mail.nothingUnread": "No unread conversations here",
 
   "reader.toolbarArchive": "Archive ({key})",
   "reader.toolbarMoveToInbox": "Move to Inbox",

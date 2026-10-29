@@ -217,7 +217,8 @@
   "mail.unmuted": "Ya no está silenciada",
   "mail.labelAdded": "Etiqueta “{name}” agregada",
   "mail.labelRemoved": "Etiqueta “{name}” quitada",
-  "mail.allMarkedRead": "Todo marcado como leído",
+  "mail.markedReadCount": "{count, plural, one {# conversación marcada como leída} other {# conversaciones marcadas como leídas}}",
+  "mail.nothingUnread": "No hay conversaciones sin leer aquí",
 
   "reader.toolbarArchive": "Archivar ({key})",
   "reader.toolbarMoveToInbox": "Mover a Recibidos",

@@ -57,7 +57,7 @@ export function createTauriApi(): Api {
     thread: (id) => invoke('thread', { id }),
     loadBodies: (ids) => invoke('load_bodies', { ids }),
     setFlags: (threadIds, messageIds, change) => invoke('set_flags', { threadIds, messageIds, change }),
-    markFolderRead: (folderId) => invoke('mark_folder_read', { folderId }),
+    markRead: (mailbox, filter, search) => invoke('mark_read', { mailbox, filter, search }),
     moveThreads: (threadIds, source, target) => invoke('move_threads', { threadIds, source, target }),
     undo: (token) => invoke('undo', { token }),
     deleteForever: (threadIds) => invoke('delete_forever', { threadIds }),

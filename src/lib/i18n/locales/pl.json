@@ -217,7 +217,8 @@
   "mail.unmuted": "Wyłączono wyciszenie",
   "mail.labelAdded": "Dodano etykietę „{name}”",
   "mail.labelRemoved": "Usunięto etykietę „{name}”",
-  "mail.allMarkedRead": "Wszystkie oznaczono jako przeczytane",
+  "mail.markedReadCount": "Oznaczono jako przeczytane · {count, plural, one {# wątek} few {# wątki} many {# wątków} other {# wątku}}",
+  "mail.nothingUnread": "Brak nieprzeczytanych wątków",
 
   "reader.toolbarArchive": "Archiwizuj ({key})",
   "reader.toolbarMoveToInbox": "Przenieś do Odebranych",
