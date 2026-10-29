@@ -31,7 +31,7 @@ const features: Record<T.TaskListKind, Pick<T.TaskList, 'dueTimes' | 'importance
   ews: { dueTimes: false, importance: true, subtasks: false, reorder: false },
 };
 
-type StoredList = Omit<T.TaskList, 'openCount'> & { sortOrder: number };
+type StoredList = Omit<T.TaskList, 'openCount' | 'completedCount'> & { sortOrder: number };
 
 const L = (id: number, accountId: number | null, kind: T.TaskListKind, name: string, color: string, isDefault: boolean, sortOrder: number): StoredList => ({
   id, accountId, kind, name, color, readOnly: false, isDefault, sortOrder, ...features[kind],
@@ -183,7 +183,11 @@ function byListOrder(a: Stored, b: Stored): number {
 }
 
 export function taskLists(): T.TaskList[] {
-  return ordered().map(({ sortOrder: _s, ...l }) => ({ ...l, openCount: tasks.filter((t) => t.listId === l.id && t.completedAt == null).length }));
+  return ordered().map(({ sortOrder: _s, ...l }) => ({
+    ...l,
+    openCount: tasks.filter((t) => t.listId === l.id && t.completedAt == null).length,
+    completedCount: tasks.filter((t) => t.listId === l.id && t.parentId == null && t.completedAt != null).length,
+  }));
 }
 
 export function query(v: T.TaskView, includeCompleted: boolean): T.Task[] {
@@ -397,8 +401,9 @@ export function removeList(id: number) {
   for (const t of tasks.filter((x) => x.listId === id)) tasks.splice(tasks.indexOf(t), 1);
 }
 
+/** Deletes the completed top-level tasks of a list with their subtasks (completed subtasks of open tasks stay). */
 export function clearCompleted(listId: number) {
   writable(listId);
-  const done = new Set(tasks.filter((t) => t.listId === listId && t.completedAt != null).map((t) => t.id));
+  const done = new Set(tasks.filter((t) => t.listId === listId && t.parentId == null && t.completedAt != null).map((t) => t.id));
   for (const t of tasks.filter((x) => done.has(x.id) || (x.parentId != null && done.has(x.parentId)))) tasks.splice(tasks.indexOf(t), 1);
 }

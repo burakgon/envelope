@@ -358,6 +358,8 @@ export interface TaskList {
   isDefault: boolean;
   /** Tasks not completed yet (subtasks included). */
   openCount: number;
+  /** Completed top-level tasks: what `clearCompleted` deletes (with their subtasks). */
+  completedCount: number;
   /** What the service stores: a time of day on due dates, importance, subtasks. */
   dueTimes: boolean;
   importance: boolean;

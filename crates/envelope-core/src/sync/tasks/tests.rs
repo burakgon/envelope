@@ -549,12 +549,47 @@ async fn reordering_deleting_and_clearing() {
     fx.engine.delete_task(b).await.expect("delete");
     assert!(fx.engine.task(sub.id).await.is_err());
     assert!(fx.engine.task_subtasks(b).await.is_err());
-    // Clearing completed tasks.
+    // Clearing completed tasks: the completed top-level ones go with their
+    // subtasks, completed subtasks of open tasks stay.
+    let d1 = fx
+        .create(TaskInput {
+            parent_id: Some(Some(d)),
+            ..input(list, "D1")
+        })
+        .await;
+    fx.engine
+        .complete_task(d1.id, true)
+        .await
+        .expect("complete");
+    fx.create(TaskInput {
+        parent_id: Some(Some(c)),
+        ..input(list, "C1")
+    })
+    .await;
     fx.engine.complete_task(a, true).await.expect("complete");
     fx.engine.complete_task(c, true).await.expect("complete");
+    let counts = |fx: &Fixture| {
+        fx.engine
+            .task_lists()
+            .expect("lists")
+            .into_iter()
+            .find(|l| l.id == list)
+            .map(|l| (l.open_count, l.completed_count))
+    };
+    assert_eq!(
+        counts(&fx),
+        Some((2, 2)),
+        "D and C1 are open; A and C are what clearing deletes"
+    );
     fx.engine.clear_completed_tasks(list).await.expect("clear");
     assert_eq!(fx.titles(TaskView::List(list), true).await, ["D"]);
-    assert_eq!(fx.rows(list).len(), 1, "gone at once on this computer");
+    let kids = fx.engine.task_subtasks(d).await.expect("subtasks");
+    assert_eq!(
+        kids.iter().map(|t| t.title.as_str()).collect::<Vec<_>>(),
+        ["D1"]
+    );
+    assert_eq!(fx.rows(list).len(), 2, "gone at once on this computer");
+    assert_eq!(counts(&fx), Some((1, 0)));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

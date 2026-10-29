@@ -280,13 +280,31 @@ pub fn set_list_sync_state(tx: &Transaction<'_>, id: i64, state: &ListSyncState)
     Ok(())
 }
 
-/// Tasks not completed yet, per list.
-pub fn open_counts(c: &Connection) -> Result<HashMap<i64, i64>> {
+/// How many tasks a list has.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ListCounts {
+    /// Not completed yet (subtasks included).
+    pub open: i64,
+    /// Completed top-level tasks: what clearing the completed tasks deletes.
+    pub completed: i64,
+}
+
+/// The counts of every list that has tasks.
+pub fn list_counts(c: &Connection) -> Result<HashMap<i64, ListCounts>> {
     let mut st = c.prepare_cached(
-        "SELECT list_id, count(*) FROM tasks WHERE completed_at IS NULL AND local_state != 3
-         GROUP BY list_id",
+        "SELECT list_id, sum(completed_at IS NULL),
+           sum(completed_at IS NOT NULL AND parent_id IS NULL)
+         FROM tasks WHERE local_state != 3 GROUP BY list_id",
     )?;
-    let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+    let rows = st.query_map([], |r| {
+        Ok((
+            r.get(0)?,
+            ListCounts {
+                open: r.get(1)?,
+                completed: r.get(2)?,
+            },
+        ))
+    })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
@@ -516,11 +534,13 @@ pub fn children(c: &Connection, parent_id: i64) -> Result<Vec<TaskRow>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-/// Completed tasks of a list (subtasks too).
+/// Completed top-level tasks of a list, which clearing its completed
+/// tasks deletes (with their subtasks). Completed subtasks of open tasks
+/// stay with them.
 pub fn completed_in(c: &Connection, list_id: i64) -> Result<Vec<TaskRow>> {
     let mut st = c.prepare_cached(&format!(
-        "SELECT {TASK_COLUMNS} FROM tasks t WHERE t.list_id = ? AND t.local_state != 3
-           AND t.completed_at IS NOT NULL ORDER BY t.parent_id IS NULL, t.id"
+        "SELECT {TASK_COLUMNS} FROM tasks t WHERE t.list_id = ? AND t.parent_id IS NULL
+           AND t.local_state != 3 AND t.completed_at IS NOT NULL ORDER BY t.id"
     ))?;
     let rows = st.query_map([list_id], task_from_row)?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)

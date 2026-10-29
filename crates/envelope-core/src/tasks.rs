@@ -13,7 +13,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::calendar::local_tz;
 use crate::db::now_ms;
-use crate::db::tasks::{self as tdb, ListRow, POSITION_STEP, TaskFields, TaskRow};
+use crate::db::tasks::{self as tdb, ListCounts, ListRow, POSITION_STEP, TaskFields, TaskRow};
 use crate::engine::Engine;
 use crate::error::{Error, Result};
 use crate::model::EngineEvent;
@@ -118,6 +118,8 @@ pub struct TaskList {
     pub is_default: bool,
     /// Tasks not completed yet (subtasks included).
     pub open_count: i64,
+    /// Completed top-level tasks: what clearing the completed ones deletes.
+    pub completed_count: i64,
     pub due_times: bool,
     pub importance: bool,
     pub subtasks: bool,
@@ -276,7 +278,7 @@ fn due_change(
 // ---------------------------------------------------------------------------
 // Views of stored rows
 
-fn list_view(list: &ListRow, open_count: i64) -> TaskList {
+fn list_view(list: &ListRow, counts: ListCounts) -> TaskList {
     let features = list.kind.features();
     TaskList {
         id: list.id,
@@ -286,7 +288,8 @@ fn list_view(list: &ListRow, open_count: i64) -> TaskList {
         color: list.color.clone(),
         read_only: list.read_only,
         is_default: list.is_default,
-        open_count,
+        open_count: counts.open,
+        completed_count: counts.completed,
         due_times: features.due_times,
         importance: features.importance,
         subtasks: features.subtasks,
@@ -765,23 +768,13 @@ fn clear_completed_tx(tx: &rusqlite::Transaction<'_>, list_id: i64) -> Result<Wr
     let list = tdb::get_list(tx, list_id)?;
     writable(&list)?;
     let done = tdb::completed_in(tx, list.id)?;
-    if done.is_empty() {
-        return Ok(Written::of(&list, false));
-    }
-    let mut gone = std::collections::HashSet::new();
     for row in &done {
         for child in tdb::children(tx, row.id)? {
-            if gone.insert(child.id) {
-                retire(tx, &list, &child)?;
-            }
+            retire(tx, &list, &child)?;
         }
+        retire(tx, &list, row)?;
     }
-    for row in &done {
-        if gone.insert(row.id) {
-            retire(tx, &list, row)?;
-        }
-    }
-    Ok(Written::of(&list, true))
+    Ok(Written::of(&list, !done.is_empty()))
 }
 
 impl Engine {
@@ -806,18 +799,21 @@ impl Engine {
         self.ensure_local_task_list()?;
         let (lists, counts) = self
             .db
-            .read(|c| Ok((tdb::list_lists(c)?, tdb::open_counts(c)?)))?;
+            .read(|c| Ok((tdb::list_lists(c)?, tdb::list_counts(c)?)))?;
         Ok(lists
             .iter()
-            .map(|l| list_view(l, counts.get(&l.id).copied().unwrap_or(0)))
+            .map(|l| list_view(l, counts.get(&l.id).copied().unwrap_or_default()))
             .collect())
     }
 
     fn task_list(&self, id: i64) -> Result<TaskList> {
         let (list, counts) = self
             .db
-            .read(|c| Ok((tdb::get_list(c, id)?, tdb::open_counts(c)?)))?;
-        Ok(list_view(&list, counts.get(&id).copied().unwrap_or(0)))
+            .read(|c| Ok((tdb::get_list(c, id)?, tdb::list_counts(c)?)))?;
+        Ok(list_view(
+            &list,
+            counts.get(&id).copied().unwrap_or_default(),
+        ))
     }
 
     /// The tasks of a view, in display order (see [`TaskView`]).
@@ -944,7 +940,8 @@ impl Engine {
         Ok(())
     }
 
-    /// Deletes the completed tasks of a list (with their subtasks).
+    /// Deletes the completed top-level tasks of a list, with their
+    /// subtasks; completed subtasks of open tasks stay.
     pub async fn clear_completed_tasks(&self, list_id: i64) -> Result<()> {
         let written = self
             .db
@@ -1097,14 +1094,17 @@ mod tests {
                 sort_order: 0,
                 sync_state: Default::default(),
             },
-            2,
+            ListCounts {
+                open: 2,
+                completed: 1,
+            },
         );
         assert_eq!(
             serde_json::to_value(&list).ok(),
             Some(serde_json::json!({
                 "id": 3, "accountId": null, "kind": "local", "name": "Tasks", "color": "#6d5efc",
-                "readOnly": false, "isDefault": true, "openCount": 2, "dueTimes": true,
-                "importance": true, "subtasks": true, "reorder": true
+                "readOnly": false, "isDefault": true, "openCount": 2, "completedCount": 1,
+                "dueTimes": true, "importance": true, "subtasks": true, "reorder": true
             }))
         );
         let task = Task {
