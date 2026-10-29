@@ -331,27 +331,27 @@
   <div class="group">
     <div class="row">
       <div class="txt"><b>{t('settings.encryption.encryptWhenPossible')}</b><span>{t('settings.encryption.encryptWhenPossibleDesc')}</span></div>
-      <Toggle checked={settings.encryptWhenPossible} onchange={(v) => set('encryptWhenPossible', v)} />
+      <Toggle label={t('settings.encryption.encryptWhenPossible')} checked={settings.encryptWhenPossible} onchange={(v) => set('encryptWhenPossible', v)} />
     </div>
     <div class="row">
       <div class="txt"><b>{t('settings.encryption.signByDefault')}</b><span>{t('settings.encryption.signByDefaultDesc')}</span></div>
-      <Toggle checked={settings.signByDefault} onchange={(v) => set('signByDefault', v)} />
+      <Toggle label={t('settings.encryption.signByDefault')} checked={settings.signByDefault} onchange={(v) => set('signByDefault', v)} />
     </div>
     <div class="row">
       <div class="txt"><b>{t('settings.encryption.sendAutocrypt')}</b><span>{t('settings.encryption.sendAutocryptDesc')}</span></div>
-      <Toggle checked={settings.sendAutocrypt} onchange={(v) => set('sendAutocrypt', v)} />
+      <Toggle label={t('settings.encryption.sendAutocrypt')} checked={settings.sendAutocrypt} onchange={(v) => set('sendAutocrypt', v)} />
     </div>
     <div class="row">
       <div class="txt"><b>{t('settings.encryption.protectSubject')}</b><span>{t('settings.encryption.protectSubjectDesc')}</span></div>
-      <Toggle checked={settings.protectSubject} onchange={(v) => set('protectSubject', v)} />
+      <Toggle label={t('settings.encryption.protectSubject')} checked={settings.protectSubject} onchange={(v) => set('protectSubject', v)} />
     </div>
     <div class="row">
       <div class="txt"><b>{t('settings.encryption.wkdLookup')}</b><span>{t('settings.encryption.wkdLookupDesc')}</span></div>
-      <Toggle checked={settings.wkdLookup} onchange={(v) => set('wkdLookup', v)} />
+      <Toggle label={t('settings.encryption.wkdLookup')} checked={settings.wkdLookup} onchange={(v) => set('wkdLookup', v)} />
     </div>
     <div class="row">
       <div class="txt"><b>{t('settings.encryption.keepDecrypted')}</b><span>{t('settings.encryption.keepDecryptedDesc')}</span></div>
-      <Toggle checked={settings.keepDecrypted} onchange={(v) => set('keepDecrypted', v)} />
+      <Toggle label={t('settings.encryption.keepDecrypted')} checked={settings.keepDecrypted} onchange={(v) => set('keepDecrypted', v)} />
     </div>
     <div class="row">
       <div class="txt"><b>{t('settings.encryption.passphrases')}</b><span>{t('settings.encryption.passphrasesDesc')}</span></div>
@@ -364,7 +364,7 @@
 <div class="tools">
   <div class="search">
     <Search size={14} />
-    <input class="bare" placeholder={t('settings.encryption.searchPlaceholder')} bind:value={query} oninput={searchKeys} />
+    <input class="bare" placeholder={t('settings.encryption.searchPlaceholder')} aria-label={t('settings.encryption.searchPlaceholder')} bind:value={query} oninput={searchKeys} />
   </div>
   <button class="btn sm" onclick={() => (importing = { email: null, text: '', passphrase: '' })}><Upload size={13} />{t('settings.encryption.importOthersKeys')}</button>
 </div>
@@ -381,7 +381,7 @@
   </div>
 {/if}
 <div class="find">
-  <input class="input" placeholder={t('settings.encryption.findPlaceholder')} bind:value={finding} onkeydown={(e) => e.key === 'Enter' && find()} />
+  <input class="input" placeholder={t('settings.encryption.findPlaceholder')} aria-label={t('settings.encryption.findPlaceholder')} bind:value={finding} onkeydown={(e) => e.key === 'Enter' && find()} />
   <button class="btn sm" disabled={busy || !finding.includes('@')} onclick={find} title={t('settings.encryption.findHint')}>{t('settings.encryption.find')}</button>
 </div>
 <div class="list">

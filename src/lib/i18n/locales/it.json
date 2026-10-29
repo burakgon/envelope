@@ -751,6 +751,8 @@
   "settings.appearance.systemTitlebar": "Usa la barra del titolo di sistema",
   "settings.appearance.systemTitlebarDesc": "Mostra le decorazioni delle finestre del desktop al posto di quelle di Envelope.",
   "settings.accounts.color": "Colore dell’account",
+  "settings.accounts.name": "Nome dell’account",
+  "settings.accounts.syncAccount": "Sincronizza {email}",
   "settings.accounts.signInAgain": "Accedi di nuovo",
   "settings.accounts.remove": "Rimuovi account",
   "settings.accounts.removeTitle": "Rimuovere {email}?",

@@ -9,6 +9,7 @@
   import Markdown from './Markdown.svelte';
   import { ArrowRight, Mail, Sparkles, X } from '../icons';
   import { t } from '../i18n';
+  import { modal } from '../actions/modal';
 
   let question = $state(ui.askAi);
   let asked = $state('');
@@ -61,10 +62,10 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={() => ui.close()}>
-  <div class="panel" role="dialog" aria-label={t('askAi.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && ui.close()}>
+  <div class="panel" role="dialog" aria-label={t('askAi.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && ui.close()} use:modal>
     <form class="q" onsubmit={(e) => { e.preventDefault(); ask(); }}>
       <span class="spark"><Sparkles size={18} /></span>
-      <input bind:this={input} bind:value={question} placeholder={t('askAi.placeholder')} />
+      <input bind:this={input} bind:value={question} placeholder={t('askAi.placeholder')} aria-label={t('askAi.title')} />
       <button class="go" type="submit" disabled={!question.trim() || busy} aria-label={t('askAi.ask')}><ArrowRight size={16} /></button>
       <button class="icon-btn" type="button" aria-label={t('common.close')} onclick={() => ui.close()}><X size={17} /></button>
     </form>

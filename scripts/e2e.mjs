@@ -1185,6 +1185,97 @@ await step('the work week view shows Monday to Friday, from its key and the pale
 });
 await z.close();
 
+/** Whether the focus is inside `locator`'s element. */
+const holdsFocus = (locator) => locator.evaluate((el) => el.contains(document.activeElement));
+
+await step('dialogs take the focus, keep Tab inside and give the focus back', async () => {
+  const p = await fresh();
+  try {
+    const list = p.getByRole('listbox', { name: 'Conversations' });
+    await p.locator('.row').first().click();
+    if (!(await holdsFocus(list))) throw new Error('a clicked row did not give the list the focus');
+    for (const [name, open] of [
+      ['Settings', () => p.keyboard.press('Control+,')],
+      ['Keyboard shortcuts', () => p.keyboard.press('?')],
+      ['Command palette', () => p.keyboard.press('Control+k')],
+    ]) {
+      await open();
+      const dialog = p.getByRole('dialog', { name });
+      await dialog.waitFor({ timeout: 5000 });
+      if ((await dialog.getAttribute('aria-modal')) !== 'true') throw new Error(`${name} is not modal`);
+      await eventually(p, () => holdsFocus(dialog), `${name} did not take the focus`);
+      for (let i = 0; i < 25; i++) {
+        await p.keyboard.press(i % 4 === 3 ? 'Shift+Tab' : 'Tab');
+        if (!(await holdsFocus(dialog))) throw new Error(`Tab left ${name} after ${i + 1} presses`);
+      }
+      await p.keyboard.press('Escape');
+      await dialog.waitFor({ state: 'detached', timeout: 5000 });
+      await eventually(p, () => holdsFocus(list), `closing ${name} did not give the list the focus back`);
+    }
+  } finally {
+    await p.close();
+  }
+});
+
+await step('every switch and dropdown in Settings has a name', async () => {
+  const p = await fresh();
+  try {
+    await p.keyboard.press('Control+,');
+    const settings = p.getByRole('dialog', { name: 'Settings' });
+    await settings.waitFor({ timeout: 5000 });
+    const unnamed = [];
+    for (const tab of await settings.locator('.tab').allInnerTexts()) {
+      await settings.locator('.tab', { hasText: tab }).click();
+      await p.waitForTimeout(150);
+      // Controls without a name read "- switch [checked]" or "- combobox:" in the accessibility tree.
+      const tree = await settings.ariaSnapshot();
+      for (const line of tree.split('\n')) if (/^\s*- (switch|combobox|textbox)\b(?! ")/.test(line)) unnamed.push(`${tab}: ${line.trim()}`);
+    }
+    if (unnamed.length) throw new Error(unnamed.join('; '));
+  } finally {
+    await p.close();
+  }
+});
+
+await step('the list tells which conversation is selected, and row buttons are reached only on it', async () => {
+  const p = await fresh();
+  try {
+    const list = p.getByRole('listbox', { name: 'Conversations' });
+    await p.locator('body').press('j');
+    await p.locator('body').press('j');
+    await eventually(p, () => holdsFocus(list), 'j did not give the list the focus');
+    const selected = list.getByRole('option', { selected: true });
+    if ((await selected.count()) !== 1) throw new Error(`${await selected.count()} conversations are selected`);
+    const active = await list.getAttribute('aria-activedescendant');
+    if (!active || active !== (await selected.getAttribute('id'))) throw new Error(`the list points at ${active}, not the selected row`);
+    const subject = (await p.locator('.reader .subject-block h2').innerText()).trim();
+    if (!(await selected.innerText()).includes(subject)) throw new Error(`the selected row is not "${subject}"`);
+    // Only the selected row's buttons are in the tab order, and its actions show once one has the focus.
+    const reachable = await p.locator('.row button:not([tabindex="-1"])').evaluateAll((els) => els.map((b) => b.closest('.row')?.getAttribute('aria-selected')));
+    if (!reachable.length || reachable.some((s) => s !== 'true')) throw new Error('buttons of rows that are not selected can be tabbed to');
+    await p.keyboard.press('Tab');
+    await p.keyboard.press('Tab');
+    const archive = selected.locator('.actions button').first();
+    if (!(await archive.evaluate((b) => b === document.activeElement))) throw new Error('Tab did not reach the row\'s actions');
+    const shown = async () => Number(await selected.locator('.actions').evaluate((el) => getComputedStyle(el).opacity)) === 1;
+    await eventually(p, shown, 'the focused actions stay hidden');
+  } finally {
+    await p.close();
+  }
+});
+
+await step('the composer names its From and Subject fields', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('body').press('c');
+    const composer = p.locator('.dock .composer');
+    await composer.getByRole('combobox', { name: 'From' }).waitFor({ timeout: 5000 });
+    await composer.getByRole('textbox', { name: 'Subject' }).waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

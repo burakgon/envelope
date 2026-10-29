@@ -92,10 +92,6 @@
     opacity: 0.45;
     pointer-events: none;
   }
-  .menu-item:focus-visible {
-    outline: none;
-    background: var(--bg-hover);
-  }
   .swatches {
     display: grid;
     grid-template-columns: repeat(6, 1fr);

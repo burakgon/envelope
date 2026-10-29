@@ -751,6 +751,8 @@
   "settings.appearance.systemTitlebar": "Sistem başlık çubuğunu kullan",
   "settings.appearance.systemTitlebarDesc": "Envelope’un kendi çerçevesi yerine masaüstünüzün pencere çerçevesi kullanılır.",
   "settings.accounts.color": "Hesap rengi",
+  "settings.accounts.name": "Hesap adı",
+  "settings.accounts.syncAccount": "{email} hesabını eşitle",
   "settings.accounts.signInAgain": "Yeniden oturum aç",
   "settings.accounts.remove": "Hesabı kaldır",
   "settings.accounts.removeTitle": "{email} hesabı kaldırılsın mı?",

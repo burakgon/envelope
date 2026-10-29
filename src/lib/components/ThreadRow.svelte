@@ -36,6 +36,8 @@
   const compact = $derived(ui.settings.density === 'compact');
   /** A draft only on this computer: it can be opened or discarded, nothing else. */
   const local = $derived(thread.localDraftId != null);
+  /** The row's buttons are reached with Tab only on the selected row (the list itself keeps the focus). */
+  const tab = $derived(selected ? 0 : -1);
 
   function dragStart(e: DragEvent) {
     const ids = checked && mail.checked.size > 0 ? [...mail.checked] : [thread.id];
@@ -56,8 +58,10 @@
   class:checked
   class:unread
   class:compact
+  id="thread-{thread.id}"
   role="option"
   aria-selected={selected}
+  aria-checked={mail.checked.size ? checked : undefined}
   tabindex="-1"
   draggable={!local}
   ondragstart={dragStart}
@@ -75,12 +79,12 @@
     {:else if local}
       <span class="local-box"></span>
     {:else if ui.settings.showAvatars && !compact}
-      <button class="avatar-btn" class:on={checked} aria-label={t('threadRow.select')} onclick={(e) => act(e, () => mail.toggleCheck(thread.id))}>
+      <button class="avatar-btn" class:on={checked} tabindex={tab} aria-label={t('threadRow.select')} onclick={(e) => act(e, () => mail.toggleCheck(thread.id))}>
         <span class="av"><Avatar person={lastSender} size={34} /></span>
         <span class="tick"><Check size={16} strokeWidth={3} /></span>
       </button>
     {:else}
-      <button class="checkbox" class:on={checked} aria-label={t('threadRow.select')} onclick={(e) => act(e, () => mail.toggleCheck(thread.id))}>
+      <button class="checkbox" class:on={checked} tabindex={tab} aria-label={t('threadRow.select')} onclick={(e) => act(e, () => mail.toggleCheck(thread.id))}>
         {#if checked}<Check size={12} strokeWidth={3} />{/if}
       </button>
     {/if}
@@ -121,15 +125,15 @@
 
   <div class="actions" role="toolbar">
     {#if local}
-      <button class="icon-btn sm" title={t('composer.discardDraft')} aria-label={t('composer.discardDraft')} onclick={(e) => act(e, () => mail.trash([thread.id]))}><Trash size={15} /></button>
+      <button class="icon-btn sm" tabindex={tab} title={t('composer.discardDraft')} aria-label={t('composer.discardDraft')} onclick={(e) => act(e, () => mail.trash([thread.id]))}><Trash size={15} /></button>
     {:else}
-    <button class="icon-btn sm" title={t('threadRow.archive', { key: 'E' })} onclick={(e) => act(e, () => mail.archive([thread.id]))}><Archive size={15} /></button>
-    <button class="icon-btn sm" title={t('threadRow.delete', { key: '#' })} onclick={(e) => act(e, () => mail.trash([thread.id]))}><Trash size={15} /></button>
-    <button class="icon-btn sm" title={unread ? t('threadRow.markAsRead', { key: 'U' }) : t('threadRow.markAsUnread', { key: 'U' })} onclick={(e) => act(e, () => mail.toggleRead([thread.id]))}>
+    <button class="icon-btn sm" tabindex={tab} title={t('threadRow.archive', { key: 'E' })} onclick={(e) => act(e, () => mail.archive([thread.id]))}><Archive size={15} /></button>
+    <button class="icon-btn sm" tabindex={tab} title={t('threadRow.delete', { key: '#' })} onclick={(e) => act(e, () => mail.trash([thread.id]))}><Trash size={15} /></button>
+    <button class="icon-btn sm" tabindex={tab} title={unread ? t('threadRow.markAsRead', { key: 'U' }) : t('threadRow.markAsUnread', { key: 'U' })} onclick={(e) => act(e, () => mail.toggleRead([thread.id]))}>
       {#if unread}<MailOpen size={15} />{:else}<Mail size={15} />{/if}
     </button>
-    <button class="icon-btn sm" title={t('threadRow.snooze', { key: 'H' })} onclick={(e) => act(e, () => onsnooze(e))}><Clock size={15} /></button>
-    <button class="icon-btn sm star-btn" class:on={thread.flagged} title={t('threadRow.star', { key: 'S' })} onclick={(e) => act(e, () => mail.toggleStar([thread.id]))}>
+    <button class="icon-btn sm" tabindex={tab} title={t('threadRow.snooze', { key: 'H' })} onclick={(e) => act(e, () => onsnooze(e))}><Clock size={15} /></button>
+    <button class="icon-btn sm star-btn" tabindex={tab} class:on={thread.flagged} title={t('threadRow.star', { key: 'S' })} onclick={(e) => act(e, () => mail.toggleStar([thread.id]))}>
       <Star size={15} fill={thread.flagged ? 'currentColor' : 'none'} />
     </button>
     {/if}
@@ -363,10 +367,24 @@
     transform: translateX(6px);
     transition: opacity var(--dur-fast), transform var(--dur) var(--ease-out);
   }
-  .row:hover .actions {
+  /* With the pointer over the row, or the keyboard on one of its buttons. */
+  .row:hover .actions,
+  .actions:focus-within {
     opacity: 1;
     pointer-events: auto;
     transform: none;
+  }
+  .avatar-btn:focus-visible .tick {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .avatar-btn:focus-visible .av {
+    opacity: 0;
+  }
+  .avatar-btn:focus-visible:not(.on) .tick {
+    background: var(--bg-elevated);
+    color: var(--text-3);
+    box-shadow: inset 0 0 0 1.5px var(--border-strong);
   }
   .star-btn.on {
     color: var(--star);

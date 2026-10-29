@@ -8,8 +8,10 @@
   import { autoReplies } from '../../stores/autoReplies.svelte';
   import DatePicker from '../calendar/DatePicker.svelte';
   import Toggle from './Toggle.svelte';
+  import { modal } from '../../actions/modal';
 
   let { account, onclose }: { account: Account; onclose: () => void } = $props();
+  const uid = $props.id();
 
   let info = $state<AutoReplyInfo | null>(null);
   let reply = $state<AutoReply | null>(null);
@@ -79,11 +81,11 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={onclose}>
-  <div class="dialog" role="dialog" aria-label={t('autoReply.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
+  <div class="dialog" role="dialog" aria-labelledby="{uid}-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key} use:modal>
     <header>
       <span class="icon"><Away size={18} /></span>
       <div>
-        <h3>{t('autoReply.title')}</h3>
+        <h3 id="{uid}-title">{t('autoReply.title')}</h3>
         <span class="sub">{account.email}</span>
       </div>
     </header>

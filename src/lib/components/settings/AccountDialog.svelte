@@ -7,6 +7,7 @@
   import { confirmDiscard } from '../../stores/dialogs.svelte';
   import { mail } from '../../stores/mail.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
+  import { modal } from '../../actions/modal';
 
   let { account, onclose }: { account: Account; onclose: () => void } = $props();
 
@@ -127,7 +128,7 @@
 {/snippet}
 
 <div class="backdrop" role="presentation" onclick={close}>
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="acct-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
+  <div class="dialog" role="dialog" aria-labelledby="acct-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key} use:modal>
     <header>
       <span class="icon"><Settings size={18} /></span>
       <div>

@@ -751,6 +751,8 @@
   "settings.appearance.systemTitlebar": "System-Titelleiste verwenden",
   "settings.appearance.systemTitlebarDesc": "Zeigt die Fensterdekoration Ihres Desktops statt der von Envelope.",
   "settings.accounts.color": "Kontofarbe",
+  "settings.accounts.name": "Kontoname",
+  "settings.accounts.syncAccount": "{email} synchronisieren",
   "settings.accounts.signInAgain": "Erneut anmelden",
   "settings.accounts.remove": "Konto entfernen",
   "settings.accounts.removeTitle": "{email} entfernen?",

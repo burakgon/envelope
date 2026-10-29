@@ -23,8 +23,10 @@
   import { fileIconKind } from '../utils/format';
   import { CalendarPlus, Code, Eye, FileArrow, Filter, FolderDown, Forward, Image, Mail, More, Pen, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy, Ban } from '../icons';
   import { blockSender, isBlocked, unblock } from '../stores/rules.svelte';
+  import { modal } from '../actions/modal';
 
   let { message, expanded, ontoggle }: { message: MessageView; expanded: boolean; ontoggle: () => void } = $props();
+  const uid = $props.id();
 
   let allowRemote = $state(false);
   let stats = $state({ blocked: 0, trackers: 0, designed: false });
@@ -319,8 +321,8 @@
 
 {#if source !== null}
   <div class="source-backdrop" role="presentation" onclick={() => (source = null)}>
-    <div class="source" role="dialog" aria-label={t('message.source')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (source = null)}>
-      <header><strong>{t('message.source')}</strong><button class="btn sm" onclick={() => { navigator.clipboard.writeText(source ?? ''); toasts.show(t('common.copied')); }}>{t('common.copy')}</button><button class="btn sm" onclick={() => (source = null)}>{t('common.close')}</button></header>
+    <div class="source" role="dialog" aria-labelledby="{uid}-source" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (source = null)} use:modal>
+      <header><strong id="{uid}-source">{t('message.source')}</strong><button class="btn sm" onclick={() => { navigator.clipboard.writeText(source ?? ''); toasts.show(t('common.copied')); }}>{t('common.copy')}</button><button class="btn sm" onclick={() => (source = null)}>{t('common.close')}</button></header>
       <pre class="selectable">{source}</pre>
     </div>
   </div>

@@ -21,6 +21,7 @@
     Ban,
   } from '../icons';
   import { blockSender, senderOf } from '../stores/rules.svelte';
+  import { modal } from '../actions/modal';
 
   type Group = 'actions' | 'goTo' | 'help' | 'calendar' | 'conversation' | 'folders';
 
@@ -323,7 +324,7 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={() => ui.close()}>
-  <div class="palette" role="dialog" aria-label={t('palette.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
+  <div class="palette" role="dialog" aria-label={t('palette.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key} use:modal>
     <div class="search">
       <Search size={18} />
       <input bind:this={input} bind:value={q} placeholder={t('palette.placeholder')} spellcheck="false" />

@@ -135,6 +135,8 @@
   }
 
   function open(e: MouseEvent, th: ThreadSummary) {
+    // The list keeps the focus, and names the row it is on (aria-activedescendant).
+    viewport?.focus({ preventScroll: true });
     if (e.shiftKey) mail.checkRange(th.id);
     else if (e.ctrlKey || e.metaKey) mail.toggleCheck(th.id);
     else {
@@ -270,7 +272,15 @@
     </div>
   {/if}
 
-  <div class="viewport" bind:this={viewport} onscroll={() => (scrollTop = viewport?.scrollTop ?? 0)} role="listbox" aria-label={t('threadList.conversations')} tabindex="0">
+  <div
+    class="viewport"
+    bind:this={viewport}
+    onscroll={() => (scrollTop = viewport?.scrollTop ?? 0)}
+    role="listbox"
+    aria-label={t('threadList.conversations')}
+    aria-activedescendant={visible.some((th) => th.id === mail.selectedId) ? `thread-${mail.selectedId}` : undefined}
+    tabindex="0"
+  >
     {#if mail.loading && mail.items.length === 0}
       {#each Array(8) as _, i (i)}
         <div class="skel" style:height="{rowH}px">
@@ -582,6 +592,10 @@
     overflow-x: hidden;
     contain: strict;
     padding-top: 2px;
+  }
+  /* The keyboard is on the list: the row it is on shows it. */
+  .viewport:focus-visible :global(.row.selected) {
+    box-shadow: inset 0 0 0 2px var(--accent);
   }
   .spacer-box {
     position: relative;

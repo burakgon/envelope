@@ -751,6 +751,8 @@
   "settings.appearance.systemTitlebar": "Używaj systemowego paska tytułu",
   "settings.appearance.systemTitlebarDesc": "Pokazuj dekoracje okien środowiska pulpitu zamiast własnych dekoracji Envelope.",
   "settings.accounts.color": "Kolor konta",
+  "settings.accounts.name": "Nazwa konta",
+  "settings.accounts.syncAccount": "Synchronizuj {email}",
   "settings.accounts.signInAgain": "Zaloguj się ponownie",
   "settings.accounts.remove": "Usuń konto",
   "settings.accounts.removeTitle": "Usunąć konto {email}?",

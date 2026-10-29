@@ -751,6 +751,8 @@
   "settings.appearance.systemTitlebar": "システムのタイトルバーを使用",
   "settings.appearance.systemTitlebarDesc": "Envelope 独自のタイトルバーではなく、デスクトップ環境のウィンドウ装飾を使用します。",
   "settings.accounts.color": "アカウントの色",
+  "settings.accounts.name": "アカウント名",
+  "settings.accounts.syncAccount": "{email} を同期",
   "settings.accounts.signInAgain": "再ログイン",
   "settings.accounts.remove": "アカウントを削除",
   "settings.accounts.removeTitle": "{email} を削除しますか？",

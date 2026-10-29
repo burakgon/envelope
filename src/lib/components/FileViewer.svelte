@@ -10,9 +10,11 @@
   import { errorMessage, toasts } from '../stores/toasts.svelte';
   import { dateFormat, displayName, fileSize, longDate, timeOf } from '../utils/format';
   import MailFrame from './MailFrame.svelte';
+  import { modal } from '../actions/modal';
 
   /** A saved message or calendar file opened with Envelope. */
   let { path, onclose }: { path: string; onclose: () => void } = $props();
+  const dialogId = $props.id();
 
   let file = $state<OpenedFile | null>(null);
   let failure = $state<string | null>(null);
@@ -177,16 +179,17 @@
     class="window"
     class:wide={file?.kind === 'message'}
     role="dialog"
-    aria-label={name}
+    aria-labelledby="{dialogId}-title"
     tabindex="-1"
     onclick={(e) => e.stopPropagation()}
     onkeydown={key}
+    use:modal
   >
     <header>
       <span class="kind">
         {#if file?.kind === 'calendar'}<Calendar size={16} />{:else if file?.kind === 'contacts'}<Users size={16} />{:else}<Mail size={16} />{/if}
       </span>
-      <span class="name" title={path}>{name}</span>
+      <span class="name" id="{dialogId}-title" title={path}>{name}</span>
       <button class="icon-btn" aria-label={t('common.close')} onclick={onclose}><X size={16} /></button>
     </header>
 

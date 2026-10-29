@@ -5,6 +5,7 @@
   import { Spinner } from '../../icons';
   import { cal } from '../../stores/calendar.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
+  import { modal } from '../../actions/modal';
 
   /** Subscribing to a calendar published at an address (holidays, sports, school, team calendars). */
   let { initial = '', onclose }: { initial?: string; onclose: () => void } = $props();
@@ -44,7 +45,7 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={onclose}>
-  <div class="dialog" role="dialog" aria-label={t('calendar.subscribe.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
+  <div class="dialog" role="dialog" aria-label={t('calendar.subscribe.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key} use:modal>
     <h3>{t('calendar.subscribe.title')}</h3>
     <p>{t('calendar.subscribe.description')}</p>
     <input bind:this={input} class="input" placeholder={t('calendar.subscribe.urlPlaceholder')} bind:value={url} spellcheck="false" />

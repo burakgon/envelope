@@ -16,6 +16,7 @@
   import { blockedSenders, unblock } from '../../stores/rules.svelte';
   import Toggle from './Toggle.svelte';
   import Logo from '../Logo.svelte';
+  import { modal } from '../../actions/modal';
   import {
     Away, Bell, Calendar, FileText, Filter, Info, Keyboard, Mail, Palette, Pen, Settings as Gear, ShieldCheck, Sparkles, Users, X, Plus, Trash, Moon, Sun, Lock, ExternalLink, Code,
   } from '../../icons';
@@ -27,6 +28,7 @@
   import Editor from '../Editor.svelte';
   import { languages, resolveLanguage, t, type LanguageSetting } from '../../i18n';
 
+  const uid = $props.id();
   let tpl = $state<Template | null>(null);
 
   function saveTemplate() {
@@ -154,9 +156,9 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={() => ui.close()}>
-  <div class="window" role="dialog" aria-label={t('settings.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && ui.close()}>
+  <div class="window" role="dialog" aria-labelledby="{uid}-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && ui.close()} use:modal>
     <nav>
-      <div class="nav-title">{t('settings.title')}</div>
+      <div class="nav-title" id="{uid}-title">{t('settings.title')}</div>
       {#each tabs as tab (tab.id)}
         <button class="tab" class:on={ui.settingsTab === tab.id} title={tab.label} onclick={() => (ui.settingsTab = tab.id)}>
           <tab.icon size={16} /><span class="truncate">{tab.label}</span>
@@ -171,7 +173,7 @@
         <div class="group">
           <div class="row">
             <div class="txt"><b>{t('settings.language')}</b><span>{t('settings.languageDesc')}</span></div>
-            <select class="input sel" value={ui.settings.language} onchange={(e) => ui.set('language', (e.currentTarget as HTMLSelectElement).value as LanguageSetting)}>
+            <select aria-label={t('settings.language')} class="input sel" value={ui.settings.language} onchange={(e) => ui.set('language', (e.currentTarget as HTMLSelectElement).value as LanguageSetting)}>
               <option value="system">{t('settings.languageSystem', { language: languages.find((l) => l.code === resolveLanguage('system').lang)?.name ?? 'English' })}</option>
               {#each languages as l (l.code)}
                 <option value={l.code} lang={l.code}>{l.name}</option>
@@ -180,11 +182,11 @@
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.general.splitInbox')}</b><span>{t('settings.general.splitInboxDesc')}</span></div>
-            <Toggle checked={ui.settings.splitInbox} onchange={(v) => { ui.set('splitInbox', v); mail.refresh(); }} />
+            <Toggle label={t('settings.general.splitInbox')} checked={ui.settings.splitInbox} onchange={(v) => { ui.set('splitInbox', v); mail.refresh(); }} />
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.general.markRead')}</b><span>{t('settings.general.markReadDesc')}</span></div>
-            <select class="input sel" value={String(ui.settings.markReadDelayMs)} onchange={(e) => ui.set('markReadDelayMs', Number((e.currentTarget as HTMLSelectElement).value))}>
+            <select aria-label={t('settings.general.markRead')} class="input sel" value={String(ui.settings.markReadDelayMs)} onchange={(e) => ui.set('markReadDelayMs', Number((e.currentTarget as HTMLSelectElement).value))}>
               <option value="0">{t('settings.general.markReadImmediately')}</option>
               <option value="600">{t('settings.general.markReadAfterMoment')}</option>
               <option value="3000">{t('settings.general.markReadAfterSeconds', { count: 3 })}</option>
@@ -193,7 +195,7 @@
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.general.undoSend')}</b><span>{t('settings.general.undoSendDesc')}</span></div>
-            <select class="input sel" value={String(ui.settings.undoSendSeconds)} onchange={(e) => ui.set('undoSendSeconds', Number((e.currentTarget as HTMLSelectElement).value))}>
+            <select aria-label={t('settings.general.undoSend')} class="input sel" value={String(ui.settings.undoSendSeconds)} onchange={(e) => ui.set('undoSendSeconds', Number((e.currentTarget as HTMLSelectElement).value))}>
               <option value="0">{t('common.off')}</option>
               <option value="5">{t('settings.general.undoSendSeconds', { count: 5 })}</option>
               <option value="10">{t('settings.general.undoSendSeconds', { count: 10 })}</option>
@@ -203,26 +205,26 @@
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.general.defaultReply')}</b><span>{t('settings.general.defaultReplyDesc', { key: 'R' })}</span></div>
-            <select class="input sel" value={ui.settings.defaultReply} onchange={(e) => ui.set('defaultReply', (e.currentTarget as HTMLSelectElement).value as 'reply' | 'replyAll')}>
+            <select aria-label={t('settings.general.defaultReply')} class="input sel" value={ui.settings.defaultReply} onchange={(e) => ui.set('defaultReply', (e.currentTarget as HTMLSelectElement).value as 'reply' | 'replyAll')}>
               <option value="reply">{t('settings.general.reply')}</option>
               <option value="replyAll">{t('settings.general.replyAll')}</option>
             </select>
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.general.sendAndArchive')}</b><span>{t('settings.general.sendAndArchiveDesc')}</span></div>
-            <Toggle checked={ui.settings.sendAndArchive} onchange={(v) => ui.set('sendAndArchive', v)} />
+            <Toggle label={t('settings.general.sendAndArchive')} checked={ui.settings.sendAndArchive} onchange={(v) => ui.set('sendAndArchive', v)} />
           </div>
         </div>
         <div class="group">
           {#if info?.trayAvailable}
             <div class="row">
               <div class="txt"><b>{t('settings.general.closeToTray')}</b><span>{t('settings.general.closeToTrayDesc')}</span></div>
-              <Toggle checked={ui.settings.closeToTray} onchange={(v) => ui.set('closeToTray', v)} />
+              <Toggle label={t('settings.general.closeToTray')} checked={ui.settings.closeToTray} onchange={(v) => ui.set('closeToTray', v)} />
             </div>
           {/if}
           <div class="row">
             <div class="txt"><b>{t('settings.general.autostart')}</b><span>{info?.trayAvailable ? t('settings.general.autostartTrayDesc') : t('settings.general.autostartDesc')}</span></div>
-            <Toggle
+            <Toggle label={t('settings.general.autostart')}
               checked={autostart}
               onchange={async (v) => {
                 try {
@@ -278,7 +280,7 @@
         <div class="group">
           <div class="row">
             <div class="txt"><b>{t('settings.calendar.weekStart')}</b></div>
-            <select class="input sel" value={String(ui.settings.weekStart)} onchange={(e) => { ui.set('weekStart', Number((e.currentTarget as HTMLSelectElement).value)); cal.load(); }}>
+            <select aria-label={t('settings.calendar.weekStart')} class="input sel" value={String(ui.settings.weekStart)} onchange={(e) => { ui.set('weekStart', Number((e.currentTarget as HTMLSelectElement).value)); cal.load(); }}>
               {#each [1, 0, 6] as day (day)}
                 <!-- 2 January 2000 was a Sunday. -->
                 <option value={String(day)}>{dateFormat({ weekday: 'long' }).format(new Date(2000, 0, 2 + day))}</option>
@@ -287,7 +289,7 @@
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.calendar.defaultCalendar')}</b><span>{t('settings.calendar.defaultCalendarDesc')}</span></div>
-            <select
+            <select aria-label={t('settings.calendar.defaultCalendar')}
               class="input sel"
               value={String(cal.defaultCalendar()?.id ?? '')}
               onchange={(e) => ui.set('defaultCalendarId', Number((e.currentTarget as HTMLSelectElement).value) || null)}
@@ -297,7 +299,7 @@
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.calendar.eventLength')}</b></div>
-            <select class="input sel" value={String(ui.settings.defaultEventMinutes)} onchange={(e) => ui.set('defaultEventMinutes', Number((e.currentTarget as HTMLSelectElement).value))}>
+            <select aria-label={t('settings.calendar.eventLength')} class="input sel" value={String(ui.settings.defaultEventMinutes)} onchange={(e) => ui.set('defaultEventMinutes', Number((e.currentTarget as HTMLSelectElement).value))}>
               <option value="15">{t('settings.calendar.lengthMinutes', { count: 15 })}</option>
               <option value="30">{t('settings.calendar.lengthMinutes', { count: 30 })}</option>
               <option value="45">{t('settings.calendar.lengthMinutes', { count: 45 })}</option>
@@ -308,7 +310,7 @@
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.calendar.reminder')}</b><span>{t('settings.calendar.reminderDesc')}</span></div>
-            <select class="input sel" value={String(ui.settings.defaultAlarm)} onchange={(e) => ui.set('defaultAlarm', Number((e.currentTarget as HTMLSelectElement).value))}>
+            <select aria-label={t('settings.calendar.reminder')} class="input sel" value={String(ui.settings.defaultAlarm)} onchange={(e) => ui.set('defaultAlarm', Number((e.currentTarget as HTMLSelectElement).value))}>
               <option value="-1">{t('common.none')}</option>
               <option value="0">{t('settings.calendar.reminderAtStart')}</option>
               <option value="5">{t('settings.calendar.reminderMinutes', { count: 5 })}</option>
@@ -321,7 +323,7 @@
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.calendar.showDeclined')}</b></div>
-            <Toggle checked={ui.settings.showDeclined} onchange={(v) => { ui.set('showDeclined', v); cal.load(); }} />
+            <Toggle label={t('settings.calendar.showDeclined')} checked={ui.settings.showDeclined} onchange={(v) => { ui.set('showDeclined', v); cal.load(); }} />
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.calendar.secondTimeZone')}</b><span>{t('settings.calendar.secondTimeZoneDesc')}</span></div>
@@ -339,7 +341,7 @@
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.calendar.eventReminders')}</b><span>{t('settings.calendar.eventRemindersDesc')}</span></div>
-            <Toggle checked={ui.settings.calendarNotifications} onchange={(v) => ui.set('calendarNotifications', v)} />
+            <Toggle label={t('settings.calendar.eventReminders')} checked={ui.settings.calendarNotifications} onchange={(v) => ui.set('calendarNotifications', v)} />
           </div>
         </div>
       {:else if ui.settingsTab === 'appearance'}
@@ -370,16 +372,16 @@
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.appearance.showAvatars')}</b></div>
-            <Toggle checked={ui.settings.showAvatars} onchange={(v) => ui.set('showAvatars', v)} />
+            <Toggle label={t('settings.appearance.showAvatars')} checked={ui.settings.showAvatars} onchange={(v) => ui.set('showAvatars', v)} />
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.appearance.darkEmails')}</b><span>{t('settings.appearance.darkEmailsDesc')}</span></div>
-            <Toggle checked={ui.settings.darkEmails} onchange={(v) => ui.set('darkEmails', v)} />
+            <Toggle label={t('settings.appearance.darkEmails')} checked={ui.settings.darkEmails} onchange={(v) => ui.set('darkEmails', v)} />
           </div>
           {#if !api.isDemo}
             <div class="row">
               <div class="txt"><b>{t('settings.appearance.systemTitlebar')}</b><span>{t('settings.appearance.systemTitlebarDesc')}</span></div>
-              <Toggle checked={ui.settings.nativeTitlebar} onchange={(v) => ui.set('nativeTitlebar', v)} />
+              <Toggle label={t('settings.appearance.systemTitlebar')} checked={ui.settings.nativeTitlebar} onchange={(v) => ui.set('nativeTitlebar', v)} />
             </div>
           {/if}
         </div>
@@ -391,7 +393,7 @@
             <div class="acct">
               <input type="color" class="color" value={a.color} onchange={(e) => saveAccount(a, { color: (e.currentTarget as HTMLInputElement).value })} title={t('settings.accounts.color')} />
               <div class="acct-info">
-                <input class="name-input" value={a.label ?? ''} placeholder={a.email} onchange={(e) => saveAccount(a, { label: (e.currentTarget as HTMLInputElement).value })} />
+                <input class="name-input" value={a.label ?? ''} placeholder={a.email} aria-label={t('settings.accounts.name')} onchange={(e) => saveAccount(a, { label: (e.currentTarget as HTMLInputElement).value })} />
                 <span class="acct-sub" title={a.config.exchange?.ewsUrl ?? undefined}>{a.email} · {accountKindLabel(a)}{autoReplies.on[a.id] ? ` · ${t('settings.accounts.autoRepliesOn')}` : ''}</span>
                 {#if problem}
                   <span class="acct-problem" class:sign-in={problem === 'signIn'}>
@@ -403,7 +405,7 @@
                   </span>
                 {/if}
               </div>
-              <Toggle checked={a.enabled} onchange={(v) => saveAccount(a, { enabled: v })} />
+              <Toggle label={t('settings.accounts.syncAccount', { email: a.email })} checked={a.enabled} onchange={(v) => saveAccount(a, { enabled: v })} />
               <button class="icon-btn" class:active={autoReplies.on[a.id]} title={t('autoReply.title')} aria-label={t('autoReply.title')} onclick={() => (autoReplyFor = a)}><Away size={16} /></button>
               <button class="icon-btn" title={t('accountSettings.title')} aria-label={t('accountSettings.title')} onclick={() => (settingsFor = a)}><Gear size={16} /></button>
               <button class="btn sm" class:primary={problem === 'signIn'} onclick={() => reauth(a)}><Lock size={13} />{t('settings.accounts.signInAgain')}</button>
@@ -465,11 +467,11 @@
         <div class="group">
           <div class="row">
             <div class="txt"><b>{t('settings.notifications.newMail')}</b><span>{t('settings.notifications.newMailDesc')}</span></div>
-            <Toggle checked={ui.settings.notifications} onchange={(v) => ui.set('notifications', v)} />
+            <Toggle label={t('settings.notifications.newMail')} checked={ui.settings.notifications} onchange={(v) => ui.set('notifications', v)} />
           </div>
           <div class="row">
             <div class="txt"><b>{t('settings.calendar.eventReminders')}</b><span>{t('settings.calendar.eventRemindersDesc')}</span></div>
-            <Toggle checked={ui.settings.calendarNotifications} onchange={(v) => ui.set('calendarNotifications', v)} />
+            <Toggle label={t('settings.calendar.eventReminders')} checked={ui.settings.calendarNotifications} onchange={(v) => ui.set('calendarNotifications', v)} />
           </div>
           <div class="row">
             <div class="txt"><b>{t('tasks.settings.notifications')}</b><span>{t('tasks.settings.notificationsDesc')}</span></div>
@@ -481,7 +483,7 @@
         <div class="group">
           <div class="row">
             <div class="txt"><b>{t('settings.privacy.remoteImages')}</b><span>{t('settings.privacy.remoteImagesDesc')}</span></div>
-            <select class="input sel" value={ui.settings.loadRemoteImages} onchange={(e) => ui.set('loadRemoteImages', (e.currentTarget as HTMLSelectElement).value as 'ask' | 'always' | 'never')}>
+            <select aria-label={t('settings.privacy.remoteImages')} class="input sel" value={ui.settings.loadRemoteImages} onchange={(e) => ui.set('loadRemoteImages', (e.currentTarget as HTMLSelectElement).value as 'ask' | 'always' | 'never')}>
               <option value="ask">{t('settings.privacy.askFirst')}</option>
               <option value="always">{t('settings.privacy.alwaysLoad')}</option>
             </select>

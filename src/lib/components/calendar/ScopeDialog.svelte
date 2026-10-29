@@ -3,6 +3,7 @@
   import type { EditScope } from '../../api';
   import { cal } from '../../stores/calendar.svelte';
   import { t, type MessageKey } from '../../i18n';
+  import { modal } from '../../actions/modal';
 
   const ask = cal.scopeAsk!;
   let choice = $state<EditScope>('this');
@@ -27,7 +28,7 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={() => ask.resolve(null)}>
-  <div class="dialog" role="dialog" aria-label={ask.title} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
+  <div class="dialog" role="dialog" aria-label={ask.title} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key} use:modal>
     <h3>{ask.title}</h3>
     <div class="opts" role="radiogroup">
       {#each options as o, i (o.value)}

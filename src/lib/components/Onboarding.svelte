@@ -8,9 +8,11 @@
   import { t, tParts, type MessageKey } from '../i18n';
   import Logo from './Logo.svelte';
   import WindowControls from './WindowControls.svelte';
+  import { modal } from '../actions/modal';
   import { ArrowLeft, ArrowRight, Check, ChevronDown, ExternalLink, Lock, Moon, Spinner, Sun, X, ShieldCheck, Sparkles, Zap } from '../icons';
 
   let { first = false }: { first?: boolean } = $props();
+  const uid = $props.id();
 
   type Step = 'welcome' | 'providers' | 'oauth' | 'password' | 'exchange' | 'done';
   let step = $state<Step>(untrack(() => (first ? 'welcome' : 'providers')));
@@ -294,7 +296,7 @@
   const oauthConfigured = $derived(oauthProvider === 'google' ? info?.googleConfigured : info?.microsoftConfigured);
 </script>
 
-<div class="screen" class:first>
+<div class="screen" class:first role="dialog" aria-labelledby="{uid}-title" tabindex="-1" use:modal>
   <div class="drag" data-tauri-drag-region>
     <span class="grow" data-tauri-drag-region></span>
     {#if !first || mail.accounts.length}
@@ -307,7 +309,7 @@
     {#if step === 'welcome'}
       <div class="welcome">
         <div class="logo-wrap"><Logo size={84} /></div>
-        <h1>{t('onboarding.welcomeTitle')}</h1>
+        <h1 id="{uid}-title">{t('onboarding.welcomeTitle')}</h1>
         <p class="lead">{t('onboarding.welcomeLead')}</p>
         <div class="features">
           <div><Zap size={18} /><span><b>{t('onboarding.featureInstant')}</b>{t('onboarding.featureInstantDesc')}</span></div>
@@ -317,10 +319,10 @@
         <button class="btn primary lg" onclick={() => (step = 'providers')}>{t('onboarding.getStarted')} <ArrowRight size={16} /></button>
       </div>
     {:else if step === 'providers'}
-      <h2>{t('onboarding.addAccountTitle')}</h2>
+      <h2 id="{uid}-title">{t('onboarding.addAccountTitle')}</h2>
       <p class="sub">{t('onboarding.addAccountSub')}</p>
       <form class="detect" onsubmit={(e) => { e.preventDefault(); detect(); }}>
-        <input class="input lg" type="email" placeholder={t('onboarding.emailPlaceholder')} bind:value={email} autocomplete="email" spellcheck="false" />
+        <input class="input lg" type="email" placeholder={t('onboarding.emailPlaceholder')} aria-label={t('onboarding.emailLabel')} bind:value={email} autocomplete="email" spellcheck="false" />
         <button class="btn primary" type="submit" disabled={busy || !email.includes('@')}>
           {#if busy}<span class="spin"><Spinner size={15} /></span>{:else}{t('common.continue')}{/if}
         </button>
@@ -348,7 +350,7 @@
       {#if error}<p class="error">{error}</p>{/if}
     {:else if step === 'oauth'}
       <button class="back" onclick={back}><ArrowLeft size={15} /> {t('common.back')}</button>
-      <h2>{t('onboarding.oauthTitle', { provider: oauthProvider === 'google' ? 'Google' : 'Microsoft' })}</h2>
+      <h2 id="{uid}-title">{t('onboarding.oauthTitle', { provider: oauthProvider === 'google' ? 'Google' : 'Microsoft' })}</h2>
       <p class="sub">{importedFrom ? t('onboarding.importedSignIn', { source: importedFrom }) : t('onboarding.oauthIntro')}</p>
       <label class="label" for="ob-email">{t('onboarding.oauthEmailLabel')}</label>
       <input id="ob-email" class="input" type="email" placeholder={oauthProvider === 'google' ? t('onboarding.oauthEmailPlaceholderGoogle') : t('onboarding.oauthEmailPlaceholderMicrosoft')} bind:value={email} />
@@ -371,7 +373,7 @@
       {#if error}<p class="error">{error}</p>{/if}
     {:else if step === 'password'}
       <button class="back" onclick={back}><ArrowLeft size={15} /> {t('common.back')}</button>
-      <h2>{provider === 'generic' ? t('onboarding.passwordTitleGeneric') : t('onboarding.passwordTitle', { provider: providerName })}</h2>
+      <h2 id="{uid}-title">{provider === 'generic' ? t('onboarding.passwordTitleGeneric') : t('onboarding.passwordTitle', { provider: providerName })}</h2>
       {#if importedFrom}<p class="sub">{t('onboarding.importedPassword', { source: importedFrom })}</p>{/if}
       {#if hint}
         <div class="note">
@@ -435,7 +437,7 @@
       </form>
     {:else if step === 'exchange'}
       <button class="back" onclick={back}><ArrowLeft size={15} /> {t('common.back')}</button>
-      <h2>{t('onboarding.exchangeTitle')}</h2>
+      <h2 id="{uid}-title">{t('onboarding.exchangeTitle')}</h2>
       {#if importedFrom}<p class="sub">{t('onboarding.importedPassword', { source: importedFrom })}</p>{/if}
       <div class="note">
         <Lock size={15} />
@@ -483,7 +485,7 @@
     {:else}
       <div class="welcome">
         <div class="success"><Check size={34} strokeWidth={3} /></div>
-        <h1>{t('onboarding.doneTitle')}</h1>
+        <h1 id="{uid}-title">{t('onboarding.doneTitle')}</h1>
         <p class="lead">{t('onboarding.doneLead', { email: added ?? '' })}</p>
         <div class="themes">
           <button class:on={ui.settings.theme === 'light'} onclick={() => ui.set('theme', 'light')}><Sun size={16} /> {t('onboarding.themeLight')}</button>

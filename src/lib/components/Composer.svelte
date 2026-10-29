@@ -266,7 +266,7 @@
       {#if c.showBcc}<RecipientInput bind:this={recipientFields[2]} label={t('composer.bcc')} bind:value={c.data.bcc} onchange={changed} />{/if}
       {#if !c.inline || c.data.mode === 'forward'}
         <div class="subject">
-          <input placeholder={t('composer.subject')} bind:value={c.data.subject} oninput={changed} spellcheck="true" />
+          <input placeholder={t('composer.subject')} aria-label={t('composer.subject')} bind:value={c.data.subject} oninput={changed} spellcheck="true" />
         </div>
       {/if}
     </div>

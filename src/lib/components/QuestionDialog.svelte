@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onMount } from 'svelte';
+  import { modal } from '../actions/modal';
   import { dialogs } from '../stores/dialogs.svelte';
   import { t } from '../i18n';
   import { composing } from '../utils/format';
@@ -12,12 +13,9 @@
   const Icon = ask.kind !== 'prompt' ? (danger ? Warning : HelpCircle) : ask.type === 'password' ? KeyRound : ask.type === 'url' ? Link : Pen;
 
   let value = $state(ask.kind === 'prompt' ? (ask.value ?? '') : '');
-  let box: HTMLDivElement | undefined = $state();
   let field: HTMLInputElement | undefined = $state();
   let yes: HTMLButtonElement | undefined = $state();
   let no: HTMLButtonElement | undefined = $state();
-  /** Where the focus was, to go back to. */
-  const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
   onMount(() => {
     if (field) {
@@ -25,14 +23,6 @@
       field.select();
     } else (danger ? no : yes)?.focus();
   });
-
-  // Once the dialog is gone, and unless what the answer did put the focus somewhere.
-  onDestroy(() =>
-    queueMicrotask(() => {
-      const now = document.activeElement;
-      if (before?.isConnected && (!now || now === document.body)) before.focus();
-    }),
-  );
 
   function key(e: KeyboardEvent) {
     // The app's shortcuts wait until the question is answered.
@@ -44,26 +34,19 @@
     } else if (e.key === 'Enter' && !(e.target as HTMLElement).closest('button')) {
       e.preventDefault();
       dialogs.answer(true, value);
-    } else if (e.key === 'Tab' && box) {
-      // The focus goes round within the dialog.
-      e.preventDefault();
-      const stops = [...box.querySelectorAll<HTMLElement>('input, button:not(:disabled)')];
-      const i = stops.indexOf(document.activeElement as HTMLElement);
-      stops[e.shiftKey ? (i <= 0 ? stops.length - 1 : i - 1) : (i + 1) % stops.length]?.focus();
     }
   }
 </script>
 
 <div class="backdrop" role="presentation" onpointerdown={(e) => e.target === e.currentTarget && dialogs.dismiss()}>
   <div
-    bind:this={box}
     class="dialog"
     role={ask.kind !== 'prompt' ? 'alertdialog' : 'dialog'}
-    aria-modal="true"
     aria-labelledby="{uid}-title"
     aria-describedby={ask.message ? `${uid}-message` : undefined}
     tabindex="-1"
     onkeydown={key}
+    use:modal
   >
     <div class="head">
       <span class="icon" class:danger><Icon size={18} /></span>

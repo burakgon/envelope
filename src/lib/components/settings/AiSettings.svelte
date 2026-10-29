@@ -95,7 +95,7 @@
 <div class="group">
   <div class="row">
     <div class="txt"><b>{t('settings.ai.enable')}</b><span>{t('settings.ai.enableDesc')}</span></div>
-    <Toggle checked={settings.enabled} onchange={(v) => (settings.enabled = v)} />
+    <Toggle label={t('settings.ai.enable')} checked={settings.enabled} onchange={(v) => (settings.enabled = v)} />
   </div>
 </div>
 

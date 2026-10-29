@@ -52,6 +52,8 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - The `v` and `l` shortcuts no longer type their letter into the Move and Label menus.
 - Events planned in a zone that is not the main one of its Windows zone (Rome, Toronto, Hong Kong, …) went to Exchange in UTC, so repeating ones moved by an hour when the clocks changed; a series ending on a date ended a day late west of UTC.
 - Editing a Microsoft 365 event put it in the computer's time zone; it keeps its own now, and zones go to Microsoft 365 by their Windows names, which it knows for every zone.
+- Dialogs — account setup, Settings, the keyboard shortcuts, the command palette and the others — take the keyboard focus when they open, keep Tab inside, give the focus back when they close, and tell screen readers that they are modal and what they are called.
+- Screen readers name every switch and dropdown in Settings and the composer's From and Subject, and hear which conversation is selected as J and K move through the list. The buttons on a row are reached with Tab on the selected row only, and show while they have the focus; whatever has the keyboard focus shows a ring.
 
 ## [0.3.0] — 2026-10-29
 

@@ -3,6 +3,9 @@
   import { formatFingerprint, pgp } from '../stores/pgp.svelte';
   import { t } from '../i18n';
   import { KeyRound } from '../icons';
+  import { modal } from '../actions/modal';
+
+  const uid = $props.id();
 
   let value = $state('');
   let busy = $state(false);
@@ -27,7 +30,7 @@
     <div
       class="dialog"
       role="dialog"
-      aria-label={t('crypto.passphrase.title')}
+      aria-labelledby="{uid}-title"
       tabindex="-1"
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => {
@@ -36,17 +39,18 @@
           pgp.cancel();
         }
       }}
+      use:modal
     >
       <form onsubmit={submit}>
         <div class="head">
           <span class="icon"><KeyRound size={18} /></span>
           <div>
-            <h3>{t('crypto.passphrase.title')}</h3>
+            <h3 id="{uid}-title">{t('crypto.passphrase.title')}</h3>
             <p class="who">{ask.key.userIds[0] ?? ask.key.emails[0] ?? ''}</p>
           </div>
         </div>
         <code class="fp selectable">{formatFingerprint(ask.key.fingerprint)}</code>
-        <input bind:this={field} class="input" type="password" autocomplete="off" placeholder={t('crypto.passphrase.placeholder')} bind:value />
+        <input bind:this={field} class="input" type="password" autocomplete="off" placeholder={t('crypto.passphrase.placeholder')} aria-label={t('crypto.passphrase.placeholder')} bind:value />
         {#if ask.error}<p class="error">{ask.error}</p>{/if}
         <p class="hint">{t('crypto.passphrase.hint')}</p>
         <footer>

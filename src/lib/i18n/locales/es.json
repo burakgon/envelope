@@ -751,6 +751,8 @@
   "settings.appearance.systemTitlebar": "Usar la barra de título del sistema",
   "settings.appearance.systemTitlebarDesc": "Muestra las decoraciones de ventana de tu escritorio en lugar de las de Envelope.",
   "settings.accounts.color": "Color de la cuenta",
+  "settings.accounts.name": "Nombre de la cuenta",
+  "settings.accounts.syncAccount": "Sincronizar {email}",
   "settings.accounts.signInAgain": "Volver a iniciar sesión",
   "settings.accounts.remove": "Quitar cuenta",
   "settings.accounts.removeTitle": "¿Quitar {email}?",

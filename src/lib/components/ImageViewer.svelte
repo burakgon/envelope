@@ -6,6 +6,7 @@
   import { fileSize } from '../utils/format';
   import { t } from '../i18n';
   import { ChevronLeft, ChevronRight, Download, ExternalLink, X } from '../icons';
+  import { modal } from '../actions/modal';
 
   type Item = AttachmentInfo | { id?: undefined; src: string; filename: string; size?: undefined };
   let { items, start = 0, onclose }: { items: Item[]; start?: number; onclose: () => void } = $props();
@@ -53,7 +54,7 @@
   }
 </script>
 
-<div class="viewer" role="dialog" aria-label={current?.filename} tabindex="-1" bind:this={root} onkeydown={key}>
+<div class="viewer" role="dialog" aria-label={current?.filename} tabindex="-1" bind:this={root} onkeydown={key} use:modal>
   <header>
     <div class="name">
       <b class="truncate">{current?.filename}</b>

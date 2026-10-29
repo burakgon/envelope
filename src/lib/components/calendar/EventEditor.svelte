@@ -16,6 +16,7 @@
   import { mail } from '../../stores/mail.svelte';
   import { confirmDiscard } from '../../stores/dialogs.svelte';
   import { AlignLeft, Bell, Calendar, Clock, Info, MapPin, Repeat, Users, Video, Warning, X } from '../../icons';
+  import { modal } from '../../actions/modal';
 
   const st = cal.editor!;
   const input = st.input;
@@ -205,7 +206,7 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={close}>
-  <div class="editor" role="dialog" aria-label={t('calendar.editor.dialogLabel')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key} style:--c={calendarColor}>
+  <div class="editor" role="dialog" aria-label={t('calendar.editor.dialogLabel')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key} style:--c={calendarColor} use:modal>
     <header>
       <span class="sw"></span>
       <input bind:this={title} class="title" placeholder={t('calendar.editor.titlePlaceholder')} bind:value={input.summary} />
@@ -240,7 +241,7 @@
       <div class="row">
         <Repeat size={17} />
         <div class="grow repeat">
-          <select bind:this={repeatMenu} class="input" value={repeat} onchange={(e) => pickRepeat(e.currentTarget)}>
+          <select bind:this={repeatMenu} class="input" value={repeat} aria-label={t('calendar.recurrence.repeats')} onchange={(e) => pickRepeat(e.currentTarget)}>
             {#each repeatOptions as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
             {#if customRepeat}<option value={repeat}>{describeRule(repeat, startDate, zone)}</option>{/if}
             <option value={CUSTOM}>{t('calendar.recurrence.custom')}</option>
@@ -255,7 +256,7 @@
 
       <div class="row">
         <Calendar size={17} />
-        <select class="input" bind:value={input.calendarId}>
+        <select class="input" bind:value={input.calendarId} aria-label={t('sidebar.modeCalendar')}>
           {#each cal.writable as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
         </select>
       </div>
@@ -298,7 +299,7 @@
           {#each input.alarms as m, i (i)}
             <span class="alarm">{alarmLabel(m)}<button aria-label={t('calendar.editor.removeReminder')} onclick={() => (input.alarms = input.alarms.filter((_, j) => j !== i))}><X size={11} /></button></span>
           {/each}
-          <select class="input add" onchange={(e) => { const v = Number((e.currentTarget as HTMLSelectElement).value); if (!Number.isNaN(v) && !input.alarms.includes(v)) input.alarms = [...input.alarms, v]; (e.currentTarget as HTMLSelectElement).value = ''; }}>
+          <select class="input add" aria-label={t('calendar.editor.addReminder')} onchange={(e) => { const v = Number((e.currentTarget as HTMLSelectElement).value); if (!Number.isNaN(v) && !input.alarms.includes(v)) input.alarms = [...input.alarms, v]; (e.currentTarget as HTMLSelectElement).value = ''; }}>
             <option value="">{t('calendar.editor.addReminder')}</option>
             {#each alarmChoices as m (m)}<option value={m}>{alarmLabel(m)}</option>{/each}
           </select>

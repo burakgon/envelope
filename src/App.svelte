@@ -108,6 +108,16 @@
     return ([...m].reverse().find((x) => !x.flags.draft) ?? m[m.length - 1])?.id ?? null;
   }
 
+  /**
+   * After j or k from outside the list (nothing focused, or the conversation), the list takes the
+   * focus: screen readers then say which conversation the selection moved to.
+   */
+  function focusList() {
+    const now = document.activeElement;
+    if (now && now !== document.body && !now.closest('.reader')) return;
+    document.querySelector<HTMLElement>('.list .viewport')?.focus({ preventScroll: true });
+  }
+
   function startG() {
     gPending = true;
     if (gTimer) clearTimeout(gTimer);
@@ -270,11 +280,13 @@
       case 'ArrowDown':
         e.preventDefault();
         mail.move(1);
+        focusList();
         break;
       case 'k':
       case 'ArrowUp':
         e.preventDefault();
         mail.move(-1);
+        focusList();
         break;
       case 'Enter':
       case 'o': {

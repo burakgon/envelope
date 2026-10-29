@@ -751,6 +751,8 @@
   "settings.appearance.systemTitlebar": "使用系统标题栏",
   "settings.appearance.systemTitlebarDesc": "使用桌面环境的窗口装饰，而不是 Envelope 自带的样式。",
   "settings.accounts.color": "账户颜色",
+  "settings.accounts.name": "账户名称",
+  "settings.accounts.syncAccount": "同步 {email}",
   "settings.accounts.signInAgain": "重新登录",
   "settings.accounts.remove": "移除账户",
   "settings.accounts.removeTitle": "要移除 {email} 吗？",

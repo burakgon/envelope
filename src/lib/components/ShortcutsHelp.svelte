@@ -2,6 +2,9 @@
   import { ui } from '../stores/ui.svelte';
   import { t, tParts, type MessageKey } from '../i18n';
   import { X } from '../icons';
+  import { modal } from '../actions/modal';
+
+  const uid = $props.id();
 
   // Combos are a notation, not display text: keys separated by spaces, "Ctrl K" (together),
   // "J / K" (either), "G then I" (one after the other). Key names and "then" are translated when shown.
@@ -112,9 +115,9 @@
 {/snippet}
 
 <div class="backdrop" role="presentation" onclick={() => ui.close()}>
-  <div class="sheet" role="dialog" aria-label={t('shortcuts.title')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && ui.close()}>
+  <div class="sheet" role="dialog" aria-labelledby="{uid}-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && ui.close()} use:modal>
     <header>
-      <h2>{t('shortcuts.title')}</h2>
+      <h2 id="{uid}-title">{t('shortcuts.title')}</h2>
       <button class="icon-btn" aria-label={t('common.close')} onclick={() => ui.close()}><X size={17} /></button>
     </header>
     <div class="grid">

@@ -7,6 +7,7 @@
   import { people } from '../../stores/contacts.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import Avatar from '../Avatar.svelte';
+  import { modal } from '../../actions/modal';
 
   let { onclose }: { onclose: () => void } = $props();
 
@@ -57,7 +58,7 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={onclose}>
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dup-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
+  <div class="dialog" role="dialog" aria-labelledby="dup-title" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key} use:modal>
     <header>
       <span class="icon"><Users size={18} /></span>
       <div>

@@ -6,6 +6,7 @@
   import { DAY_CODES, buildRule, describeRule, monthlyChoices, repeatChoice, ruleNote, ruleProblem, type Freq } from '../../utils/rrule';
   import DatePicker from './DatePicker.svelte';
   import { Info, Repeat, Warning } from '../../icons';
+  import { modal } from '../../actions/modal';
 
   let {
     rule,
@@ -71,7 +72,7 @@
 </script>
 
 <div class="backdrop" role="presentation" onclick={() => onclose(null)}>
-  <div class="dialog" role="dialog" aria-label={t('calendar.recurrence.customTitle')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key}>
+  <div class="dialog" role="dialog" aria-label={t('calendar.recurrence.customTitle')} tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={key} use:modal>
     <h3>{t('calendar.recurrence.customTitle')}</h3>
 
     <!-- The sentence labels the number in it. -->
