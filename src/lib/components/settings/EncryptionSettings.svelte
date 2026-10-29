@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '../../api';
-  import type { CryptoSettings, KeyInfo, KeySource, OwnKey } from '../../api';
+  import type { ApiError, CertificateInfo, CertificateSource, CryptoSettings, KeyInfo, KeySource, OwnKey } from '../../api';
   import { formatFingerprint, keyName, pgp } from '../../stores/pgp.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import { dialogs } from '../../stores/dialogs.svelte';
   import { t, type MessageKey } from '../../i18n';
-  import { longDate } from '../../utils/format';
+  import { dateFormat, longDate } from '../../utils/format';
   import Toggle from './Toggle.svelte';
   import { BadgeCheck, Copy, Download, KeyRound, Lock, Plus, Search, Trash, Upload, Warning } from '../../icons';
 
@@ -24,6 +24,9 @@
   let creating = $state<{ email: string; name: string; passphrase: string; expert: boolean } | null>(null);
   let verifying = $state<KeyInfo | null>(null);
   let finding = $state('');
+  /** S/MIME certificates: the user's own (private key here) and other people's. */
+  let certs = $state<CertificateInfo[]>([]);
+  let certQuery = $state('');
 
   /** Where a key came from, as a badge (keys.openpgp.org is shown by name). */
   const sources: Partial<Record<KeySource, MessageKey>> = {
@@ -43,7 +46,13 @@
   async function load() {
     try {
       let all: KeyInfo[];
-      [settings, own, others, all] = await Promise.all([api.crypto.settings(), api.crypto.ownKeys(), api.crypto.keys(query), api.crypto.keys('')]);
+      [settings, own, others, all, certs] = await Promise.all([
+        api.crypto.settings(),
+        api.crypto.ownKeys(),
+        api.crypto.keys(query),
+        api.crypto.keys(''),
+        api.crypto.smime.certificates(''),
+      ]);
       others = others.filter((k) => !k.secret);
       spare = all.filter((k) => k.secret && !own.some((o) => o.key?.fingerprint === k.fingerprint));
     } catch (e) {
@@ -187,7 +196,110 @@
   function lockNow() {
     run(() => api.crypto.lock(), t('settings.encryption.passphrasesForgotten'));
   }
+
+  // ----- S/MIME
+
+  /** A day, as certificates are valid until one. */
+  const day = (ms: number) => dateFormat({ year: 'numeric', month: 'long', day: 'numeric' }).format(ms);
+
+  /** The certificate an address signs with: valid ones first, then the newest. */
+  function certificateOf(email: string): CertificateInfo | null {
+    const mine = certs.filter((c) => c.secret && c.emails.includes(email));
+    mine.sort((a, b) => Number(a.expired) - Number(b.expired) || Number(b.canSign) - Number(a.canSign) || b.notAfter - a.notAfter);
+    return mine[0] ?? null;
+  }
+  /** The user's certificates no address signs with: replaced ones (still needed to read older mail), or ones for other addresses. */
+  const spareCerts = $derived(certs.filter((c) => c.secret && !own.some((o) => certificateOf(o.email)?.fingerprint === c.fingerprint)));
+  const othersCerts = $derived.by(() => {
+    const q = certQuery.trim().toLowerCase();
+    return certs.filter(
+      (c) =>
+        !c.secret &&
+        (!q || c.name.toLowerCase().includes(q) || c.emails.some((e) => e.includes(q)) || c.issuer.toLowerCase().includes(q) || c.fingerprint.toLowerCase().includes(q.replace(/[\s:]/g, ''))),
+    );
+  });
+
+  const certSources: Record<CertificateSource, MessageKey> = {
+    own: 'settings.encryption.sourceOwn',
+    message: 'settings.encryption.sourceSignedMail',
+    manual: 'settings.encryption.certificateSourceManual',
+  };
+
+  function askPassword(file: string, wrong: boolean): Promise<string | null> {
+    return dialogs.prompt({
+      title: t('settings.encryption.certificatePassword'),
+      message: wrong ? t('settings.encryption.wrongPassword') : t('settings.encryption.certificatePasswordMessage', { file }),
+      type: 'password',
+      confirmLabel: t('settings.encryption.import'),
+    });
+  }
+
+  /**
+   * Imports a certificate file: a .p12 or .pfx with its password becomes the certificate of `email`
+   * (or of the addresses it is for); other files hold other people's certificates. A file that turns
+   * out to need a password asks for it, and again while it is wrong.
+   */
+  async function importCertificate(email: string | null) {
+    const [path] = await api.pickFiles(t('settings.encryption.chooseCertificate'));
+    if (!path) return;
+    const file = path.split(/[\\/]/).pop() ?? path;
+    let password: string | null = null;
+    if (/\.(p12|pfx)$/i.test(path)) {
+      password = await askPassword(file, false);
+      if (password === null) return;
+    }
+    busy = true;
+    try {
+      for (;;) {
+        try {
+          const list = await api.crypto.smime.importFile(path, password, email);
+          toasts.show(t('settings.encryption.certificateImported', { count: list.length, name: list[0]?.name ?? '' }), { kind: 'success' });
+          break;
+        } catch (e) {
+          if ((e as ApiError).kind !== 'badPassword') throw e;
+          password = await askPassword(file, password !== null);
+          if (password === null) return;
+        }
+      }
+      pgp.forget();
+      await load();
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function saveCertificate(cert: CertificateInfo) {
+    const target = await api.pickSavePath(`${cert.emails[0] ?? cert.name}.pem`);
+    if (!target) return;
+    run(() => api.crypto.smime.exportFile(cert.fingerprint, target), t('settings.encryption.certificateSaved'));
+  }
+
+  async function removeCertificate(cert: CertificateInfo) {
+    const ok = await dialogs.confirm({
+      ...(cert.secret
+        ? { title: t('settings.encryption.deleteOwnCertificateTitle'), message: t('settings.encryption.deleteOwnCertificateConfirm') }
+        : { title: t('settings.encryption.deleteCertificateConfirm', { name: cert.name }) }),
+      detail: formatFingerprint(cert.fingerprint),
+      confirmLabel: t('settings.encryption.deleteCertificate'),
+      danger: true,
+    });
+    if (!ok) return;
+    run(() => api.crypto.smime.remove(cert.fingerprint), t('settings.encryption.certificateDeleted'));
+  }
 </script>
+
+{#snippet certificate(cert: CertificateInfo, email: string | null)}
+  <div class="meta">{t('settings.encryption.certificateIssued', { issuer: cert.issuer, date: day(cert.notAfter) })}</div>
+  <code class="fp selectable">{formatFingerprint(cert.fingerprint)}</code>
+  <div class="btns">
+    <button class="btn sm" onclick={() => saveCertificate(cert)}><Download size={13} />{t('settings.encryption.saveCertificate')}</button>
+    {#if email}<button class="btn sm" disabled={busy} onclick={() => importCertificate(email)}><Upload size={13} />{t('settings.encryption.replaceKey')}</button>{/if}
+    <span class="grow"></span>
+    <button class="icon-btn" title={t('settings.encryption.deleteCertificate')} aria-label={t('settings.encryption.deleteCertificate')} onclick={() => removeCertificate(cert)}><Trash size={15} /></button>
+  </div>
+{/snippet}
 
 <h2>{t('settings.tab.encryption')}</h2>
 <p class="desc">{t('settings.encryption.desc')}</p>
@@ -425,6 +537,73 @@
   {/each}
 </div>
 
+<h3 class="smime">{t('settings.encryption.smimeTitle')}</h3>
+<p class="desc">{t('settings.encryption.smimeDesc')}</p>
+<h4>{t('settings.encryption.yourCertificates')}</h4>
+<div class="list">
+  {#each own as o (o.email)}
+    {@const cert = certificateOf(o.email)}
+    <div class="item">
+      <div class="head">
+        <div class="who">
+          <b>{o.name || o.email}</b>
+          <span>{o.email}</span>
+        </div>
+        {#if cert}
+          <span class="badge" class:warn={cert.expired || cert.notYetValid}>{cert.expired ? t('settings.encryption.certificateExpired') : cert.algorithm}</span>
+        {:else}
+          <span class="badge muted">{t('settings.encryption.noCertificate')}</span>
+        {/if}
+      </div>
+      {#if cert}
+        {@render certificate(cert, o.email)}
+      {:else}
+        <div class="btns">
+          <button class="btn sm" disabled={busy} onclick={() => importCertificate(o.email)}><Upload size={13} />{t('settings.encryption.importCertificate')}</button>
+        </div>
+      {/if}
+    </div>
+  {/each}
+  {#each spareCerts as cert (cert.fingerprint)}
+    <div class="item">
+      <div class="head">
+        <div class="who">
+          <b>{cert.name}</b>
+          <span class="truncate">{cert.emails.join(', ')}</span>
+        </div>
+        <span class="badge" class:warn={cert.expired}>{cert.expired ? t('settings.encryption.certificateExpired') : cert.algorithm}</span>
+      </div>
+      {@render certificate(cert, null)}
+    </div>
+  {/each}
+</div>
+
+<h4>{t('settings.encryption.othersCertificates')}</h4>
+<div class="tools">
+  <div class="search">
+    <Search size={14} />
+    <input class="bare" placeholder={t('settings.encryption.searchCertificates')} aria-label={t('settings.encryption.searchCertificates')} bind:value={certQuery} />
+  </div>
+  <button class="btn sm" disabled={busy} onclick={() => importCertificate(null)}><Upload size={13} />{t('settings.encryption.importOthersKeys')}</button>
+</div>
+<div class="list">
+  {#each othersCerts as cert (cert.fingerprint)}
+    <div class="item">
+      <div class="head">
+        <div class="who">
+          <b>{cert.name}</b>
+          <span class="truncate">{cert.emails.join(', ')}</span>
+        </div>
+        {#if cert.expired || !cert.canEncrypt}<span class="badge warn">{cert.expired ? t('settings.encryption.certificateExpired') : t('settings.encryption.cannotEncrypt')}</span>{/if}
+        <span class="badge muted">{t(certSources[cert.source])}</span>
+      </div>
+      {@render certificate(cert, null)}
+    </div>
+  {:else}
+    <p class="desc">{certQuery ? t('settings.encryption.noMatchingCertificates') : t('settings.encryption.noCertificatesYet')}</p>
+  {/each}
+</div>
+
 <style>
   h2 {
     margin: 0 0 8px;
@@ -434,6 +613,12 @@
   h3 {
     margin: 22px 0 10px;
     font-size: var(--text-md);
+  }
+  /* S/MIME starts a part of its own. */
+  h3.smime {
+    margin-top: 34px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
   }
   h4 {
     margin: 16px 0 4px;

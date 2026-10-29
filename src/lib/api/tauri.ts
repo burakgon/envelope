@@ -170,9 +170,17 @@ export function createTauriApi(): Api {
       setOwnKey: (email, fingerprint) => invoke('crypto_set_own_key', { email, fingerprint }),
       unlock: (fingerprint, passphrase) => invoke('crypto_unlock', { fingerprint, passphrase }),
       lock: () => invoke('crypto_lock'),
-      composeStatus: (accountId, identityId, from, recipients) => invoke('crypto_compose_status', { accountId, identityId, from, recipients }),
+      composeStatus: (accountId, identityId, from, recipients, replyTo) =>
+        invoke('crypto_compose_status', { accountId, identityId, from, recipients, replyTo: replyTo ?? null }),
       lookup: (emails, keyserver, explicit) => invoke('crypto_lookup', { emails, keyserver, explicit }),
       open: (messageId) => invoke('crypto_open', { messageId }),
+      smime: {
+        certificates: (query) => invoke('smime_certificates', { query }),
+        importFile: (path, password, ownEmail) => invoke('smime_import_file', { path, password, ownEmail }),
+        exportText: (fingerprint) => invoke('smime_export', { fingerprint }),
+        exportFile: (fingerprint, path) => invoke('smime_export_file', { fingerprint, path }),
+        remove: (fingerprint) => invoke('smime_delete', { fingerprint }),
+      },
     },
     contacts: {
       books: () => invoke('contact_books'),

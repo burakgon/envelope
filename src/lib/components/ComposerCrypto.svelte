@@ -5,12 +5,13 @@
   import type { ComposerState } from '../stores/compose.svelte';
   import { keyName, pgp } from '../stores/pgp.svelte';
   import { errorMessage, toasts } from '../stores/toasts.svelte';
+  import { ui } from '../stores/ui.svelte';
   import { t } from '../i18n';
   import Popover from './Popover.svelte';
   import Toggle from './settings/Toggle.svelte';
-  import { BadgeCheck, Check, KeyRound, Lock, LockOpen, Search, Warning } from '../icons';
+  import { BadgeCheck, Check, KeyRound, Lock, LockOpen, Search, Upload, Warning } from '../icons';
 
-  // The lock in the composer: encryption and signing for this message.
+  // The lock in the composer: encryption and signing for this message, with OpenPGP or S/MIME.
   let { state: c, onchange }: { state: ComposerState; onchange: () => void } = $props();
 
   let status = $state<ComposeCrypto | null>(null);
@@ -26,11 +27,18 @@
 
   const encryptOn = $derived(!!c.data.encrypt);
   const signOn = $derived(!!c.data.sign);
-  const blocked = $derived(encryptOn && !!status && !status.canEncrypt);
+  /** S/MIME for this message: as chosen, else the default for the sender and the conversation. */
+  const smime = $derived(c.data.smime ?? status?.standard === 'smime');
+  const blocked = $derived(encryptOn && !!status && !caps(status).encrypt);
+
+  /** What the standard this message uses can do. */
+  function caps(s: ComposeCrypto): { encrypt: boolean; sign: boolean } {
+    return (c.data.smime ?? s.standard === 'smime') ? { encrypt: s.smime.canEncrypt, sign: s.smime.canSign } : { encrypt: s.canEncrypt, sign: s.canSign };
+  }
 
   async function refresh(): Promise<ComposeCrypto | null> {
     try {
-      const s = await api.crypto.composeStatus(c.data.accountId, c.data.identityId ?? null, c.data.from ?? null, emails);
+      const s = await api.crypto.composeStatus(c.data.accountId, c.data.identityId ?? null, c.data.from ?? null, emails, c.data.replyToMessageId ?? null);
       status = s;
       decide(s);
       return s;
@@ -43,15 +51,16 @@
   // draft keeps deciding by itself (an encrypted draft stays encrypted).
   function decide(s: ComposeCrypto) {
     let touched = false;
+    const can = caps(s);
     if (autoEncrypt) {
-      const on = s.canEncrypt && s.settings.encryptWhenPossible ? true : null;
+      const on = can.encrypt && s.settings.encryptWhenPossible ? true : null;
       if ((c.data.encrypt ?? null) !== on) {
         c.data.encrypt = on;
         touched = true;
       }
     }
     if (autoSign) {
-      const on = s.canSign && (s.settings.signByDefault || !!c.data.encrypt) ? true : null;
+      const on = can.sign && (s.settings.signByDefault || !!c.data.encrypt) ? true : null;
       if ((c.data.sign ?? null) !== on) {
         c.data.sign = on;
         touched = true;
@@ -79,8 +88,20 @@
   function setEncrypt(on: boolean) {
     autoEncrypt = false;
     c.data.encrypt = on;
-    if (autoSign && status) c.data.sign = status.canSign && (status.settings.signByDefault || on) ? true : null;
+    if (autoSign && status) c.data.sign = caps(status).sign && (status.settings.signByDefault || on) ? true : null;
     onchange();
+  }
+
+  /** OpenPGP or S/MIME for this message; switches left to Envelope follow what the other can do. */
+  function setStandard(useSmime: boolean) {
+    c.data.smime = useSmime;
+    if (status) decide(status);
+    onchange();
+  }
+
+  function importCertificate() {
+    menu = null;
+    ui.open('settings', 'encryption');
   }
 
   function setSign(on: boolean) {
@@ -124,6 +145,21 @@
   export async function prepareSend(): Promise<boolean> {
     const s = status ?? (await refresh());
     if (!s) return !c.data.encrypt && !c.data.sign;
+    if (c.data.smime ?? s.standard === 'smime') {
+      if (c.data.encrypt && !s.smime.canEncrypt) {
+        toasts.error(
+          s.smime.own?.canEncrypt
+            ? t('crypto.composer.cantEncryptMissingCertificates', { addresses: s.smime.missing.join(', ') })
+            : t('crypto.composer.importCertificateToEncrypt', { email: s.from }),
+        );
+        return false;
+      }
+      if (c.data.sign && !s.smime.canSign) {
+        toasts.error(t('crypto.composer.importCertificateToSign', { email: s.from }));
+        return false;
+      }
+      return true;
+    }
     if (c.data.encrypt && !s.canEncrypt) {
       toasts.error(
         s.ownKey
@@ -155,10 +191,12 @@
   class:on={encryptOn && !blocked}
   class:warn={blocked}
   title={blocked
-    ? t('crypto.composer.lockBlocked')
+    ? smime
+      ? t('crypto.composer.lockBlockedSmime')
+      : t('crypto.composer.lockBlocked')
     : encryptOn
       ? t('crypto.composer.lockEncrypted')
-      : status?.canEncrypt
+      : status && caps(status).encrypt
         ? t('crypto.composer.lockNotEncrypted')
         : t('crypto.composer.lockEncryption')}
   onclick={openMenu}
@@ -169,14 +207,22 @@
 {#if menu}
   <Popover x={menu.x} y={menu.y} onclose={() => (menu = null)} width={330}>
     <div class="panel">
+      {#if status && (status.smime.own || c.data.smime)}
+        <div class="standard" role="group" aria-label={t('crypto.composer.standard')}>
+          <button class:on={!smime} aria-pressed={!smime} onclick={() => setStandard(false)}>OpenPGP</button>
+          <button class:on={smime} aria-pressed={smime} onclick={() => setStandard(true)}>S/MIME</button>
+        </div>
+      {/if}
       <div class="row">
         <div class="txt">
           <b>{t('crypto.composer.encrypt')}</b>
           <span>
             {#if !status}{t('crypto.composer.checkingKeys')}
-            {:else if !status.ownKey}{t('crypto.composer.needOwnKey', { email: status.from })}
+            {:else if smime && !status.smime.own}{t('crypto.composer.needOwnCertificate', { email: status.from })}
+            {:else if !smime && !status.ownKey}{t('crypto.composer.needOwnKey', { email: status.from })}
             {:else if !emails.length}{t('crypto.composer.addRecipientsFirst')}
-            {:else if status.canEncrypt}{t('crypto.composer.onlyRecipientsCanRead')}
+            {:else if caps(status).encrypt}{t('crypto.composer.onlyRecipientsCanRead')}
+            {:else if smime}{t('crypto.composer.notEveryRecipientHasCertificate')}
             {:else}{t('crypto.composer.notEveryRecipientHasKey')}{/if}
           </span>
         </div>
@@ -185,15 +231,37 @@
       <div class="row">
         <div class="txt">
           <b>{t('crypto.composer.sign')}</b>
-          <span>{status?.ownKey ? t('crypto.composer.signHint') : t('crypto.composer.signNeedsKey')}</span>
+          <span>
+            {#if smime}{status?.smime.canSign ? t('crypto.composer.signHint') : t('crypto.composer.signNeedsCertificate')}
+            {:else}{status?.ownKey ? t('crypto.composer.signHint') : t('crypto.composer.signNeedsKey')}{/if}
+          </span>
         </div>
         <Toggle label={t('crypto.composer.sign')} checked={signOn} onchange={(v) => setSign(v)} />
       </div>
-      {#if status && !status.ownKey}
+      {#if status && smime}
+        {#if !status.smime.own}
+          <button class="btn sm" onclick={importCertificate}><Upload size={14} /><span class="truncate">{t('crypto.composer.importCertificate')}</span></button>
+        {/if}
+        {#if status.smime.recipients.length}
+          <div class="list">
+            {#each status.smime.recipients as r (r.email)}
+              <div class="who" class:missing={!r.certificate}>
+                {#if r.certificate}<Check size={14} />{:else}<Warning size={14} />{/if}
+                <span class="truncate">{r.email}</span>
+                <span class="what" title={r.certificate ? `${r.certificate.name} · ${r.certificate.issuer}` : ''}>
+                  {r.certificate ? t('crypto.composer.recipientHasCertificate') : t('crypto.composer.recipientNoCertificate')}
+                </span>
+              </div>
+            {/each}
+          </div>
+          {#if status.smime.missing.length}<p class="note">{t('crypto.composer.certificatesFromMail')}</p>{/if}
+        {/if}
+        {#if encryptOn && c.data.bcc.length}<p class="note">{t('crypto.composer.smimeBccVisible')}</p>{/if}
+      {:else if status && !status.ownKey}
         {@const label = t('crypto.composer.createKeyFor', { email: status.from })}
         <button class="btn sm" disabled={busy} onclick={createKey} title={label}><KeyRound size={14} /><span class="truncate">{label}</span></button>
       {/if}
-      {#if status?.recipients.length}
+      {#if !smime && status?.recipients.length}
         <div class="list">
           {#each status.recipients as r (r.email)}
             <div class="who" class:missing={!r.key}>
@@ -278,5 +346,31 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+  }
+  /* OpenPGP or S/MIME: two halves of one control. */
+  .standard {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 2px;
+    border-radius: 9px;
+    background: var(--bg-active);
+  }
+  .standard button {
+    height: 26px;
+    border-radius: 7px;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .standard button.on {
+    color: var(--text);
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-sm);
+  }
+  .note {
+    margin: 0;
+    color: var(--text-3);
+    font-size: var(--text-sm);
+    line-height: 1.45;
   }
 </style>

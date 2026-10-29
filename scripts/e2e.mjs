@@ -1823,6 +1823,81 @@ await step('a toolbar short of room puts the rest in More', async () => {
   }
 });
 
+/** Opens a conversation of window `p` by searching for its subject. */
+async function openIn(p, subject) {
+  await p.locator('.search input').fill(subject);
+  await p.locator('.row', { hasText: subject }).first().click();
+  await p.locator('.reader .subject-block h2', { hasText: subject }).waitFor({ timeout: 5000 });
+}
+
+await step('an S/MIME signed message says who signed it, and shows the certificate on request', async () => {
+  const p = await fresh();
+  try {
+    await openIn(p, 'Angebot für das neue Projekt');
+    const pill = p.locator('.reader .status .pill', { hasText: 'Signed by Lukas Weber — verified' });
+    await pill.waitFor({ timeout: 5000 });
+    // The signed message keeps its attachments.
+    await p.locator('.reader .tile', { hasText: 'Angebot-Relaunch.pdf' }).waitFor({ timeout: 5000 });
+    await pill.click();
+    const details = p.locator('.popover .details');
+    await details.locator('.row', { hasText: 'Issued by' }).waitFor({ timeout: 5000 });
+    const text = await details.innerText();
+    for (const part of ['Harbor Trust Email CA', 'lukas.weber@kraftwerk-studio.de', 'Serial number', 'Fingerprint']) {
+      if (!text.includes(part)) throw new Error(`the details lack "${part}"`);
+    }
+    await p.keyboard.press('Escape');
+    await details.waitFor({ state: 'detached', timeout: 5000 });
+    // Half a screen: the status stays in the window.
+    await p.setViewportSize({ width: 960, height: 900 });
+    await pill.waitFor({ timeout: 5000 });
+    if (!(await inWindow(p, '.reader .status .pill'))) throw new Error('the signature status runs out of the window');
+    await pill.click();
+    await details.waitFor({ timeout: 5000 });
+    if (!(await inWindow(p, '.popover .details'))) throw new Error('the certificate details run out of the window');
+  } finally {
+    await p.close();
+  }
+});
+
+await step('S/MIME: certificates in Settings, a .p12 password asked in the app, and S/MIME for a reply', async () => {
+  const p = await fresh();
+  try {
+    await p.keyboard.press('Control+,');
+    const settings = p.getByRole('dialog', { name: 'Settings' });
+    await settings.waitFor({ timeout: 5000 });
+    await settings.locator('.tab', { hasText: 'Encryption' }).click();
+    await settings.locator('.item', { hasText: 'alex@lumen.dev' }).filter({ hasText: 'Lumen Corporate CA' }).waitFor({ timeout: 5000 });
+    // Lukas's certificate came with his signed mail.
+    await settings.locator('.item', { hasText: 'Lukas Weber' }).filter({ hasText: 'From their signed mail' }).waitFor({ timeout: 5000 });
+    // The personal address has none: importing one asks for the file's password in the app's own dialog.
+    const personal = () => settings.locator('.item', { hasText: 'alex.morgan@icloud.com' });
+    await personal().filter({ hasText: 'No certificate' }).locator('.btn', { hasText: 'Import certificate…' }).click();
+    await p.locator('[role="dialog"] input[type="password"]:focus').waitFor({ timeout: 5000 });
+    await p.keyboard.type('p12-password');
+    await p.keyboard.press('Enter');
+    await toast(p, 'Imported the certificate of Alex Morgan');
+    await personal().filter({ hasText: 'Harbor Trust Email CA' }).waitFor({ timeout: 5000 });
+    await p.keyboard.press('Escape');
+    await settings.waitFor({ state: 'detached', timeout: 5000 });
+    // A reply to Lukas's S/MIME message, from the personal address, uses S/MIME.
+    await openIn(p, 'Angebot für das neue Projekt');
+    await p.locator('body').press('r');
+    const composer = p.locator('.reader .composer.inline');
+    await composer.waitFor({ timeout: 5000 });
+    await composer.locator('.icon-btn.lock').click();
+    const panel = p.locator('.popover .panel');
+    await panel.getByRole('group', { name: 'Encryption standard' }).waitFor({ timeout: 5000 });
+    if ((await panel.getByRole('button', { name: 'S/MIME', exact: true }).getAttribute('aria-pressed')) !== 'true') throw new Error('S/MIME is not chosen for the reply');
+    await panel.locator('.who', { hasText: 'lukas.weber@kraftwerk-studio.de' }).filter({ hasText: 'has a certificate' }).waitFor({ timeout: 5000 });
+    // OpenPGP can still be chosen for this message.
+    await panel.getByRole('button', { name: 'OpenPGP', exact: true }).click();
+    if ((await panel.getByRole('button', { name: 'OpenPGP', exact: true }).getAttribute('aria-pressed')) !== 'true') throw new Error('OpenPGP could not be chosen');
+    await p.keyboard.press('Escape');
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

@@ -222,7 +222,7 @@ export interface MessageView {
   unsubscribe: UnsubscribeInfo | null;
   calendarMethod: string | null;
   isAuto: boolean;
-  /** OpenPGP content, opened with `api.crypto.open`. */
+  /** OpenPGP or S/MIME content, opened with `api.crypto.open`. */
   crypto?: CryptoKind | null;
 }
 
@@ -309,10 +309,12 @@ export interface DraftInput {
   requestReadReceipt?: boolean;
   /** Remind me if nobody replies within this many days. */
   followUpDays?: number | null;
-  /** Encrypt with OpenPGP (to every recipient and the sender). */
+  /** Encrypt (to every recipient and the sender). */
   encrypt?: boolean | null;
-  /** Sign with the sender's OpenPGP key. */
+  /** Sign with the sender's key or certificate. */
   sign?: boolean | null;
+  /** S/MIME rather than OpenPGP; unset: the default for the sender and the conversation. */
+  smime?: boolean | null;
 }
 
 export interface Draft {
@@ -602,7 +604,8 @@ export type EngineEvent =
 
 export interface ApiError {
   message: string;
-  kind: 'auth' | 'notFound' | 'invalid' | 'network' | 'error';
+  /** `badPassword`: the password of a certificate file is wrong. */
+  kind: 'auth' | 'notFound' | 'invalid' | 'network' | 'badPassword' | 'error';
 }
 
 // ----- AI --------------------------------------------------------------------
@@ -899,9 +902,10 @@ export interface InviteInfo {
   recurring: boolean;
 }
 
-// ----- OpenPGP -----------------------------------------------------------------
+// ----- OpenPGP and S/MIME -----------------------------------------------------
 
-export type CryptoKind = 'encrypted' | 'signed' | 'inline-encrypted' | 'inline-signed';
+/** OpenPGP content, or S/MIME (`smime-opaque`: signed data with the content inside the signature). */
+export type CryptoKind = 'encrypted' | 'signed' | 'inline-encrypted' | 'inline-signed' | 'smime-encrypted' | 'smime-signed' | 'smime-opaque';
 
 /** Where a key came from. */
 export type KeySource = 'own' | 'autocrypt' | 'gossip' | 'wkd' | 'keyserver' | 'manual';
@@ -960,6 +964,51 @@ export interface RecipientKey {
   preferEncrypt: boolean;
 }
 
+/** Where an S/MIME certificate came from: the user's own, the signed mail of its owner, or imported. */
+export type CertificateSource = 'own' | 'message' | 'manual';
+
+/** An S/MIME certificate. */
+export interface CertificateInfo {
+  /** SHA-256, upper-case hex. */
+  fingerprint: string;
+  /** The owner's name (common name, organization or address). */
+  name: string;
+  subject: string;
+  emails: string[];
+  /** The issuing authority's name, and written out. */
+  issuer: string;
+  issuerSubject: string;
+  /** Hex, colon separated. */
+  serial: string;
+  algorithm: string;
+  notBefore: number;
+  notAfter: number;
+  expired: boolean;
+  notYetValid: boolean;
+  canSign: boolean;
+  canEncrypt: boolean;
+  /** One of the user's own: the private key is in the keyring. */
+  secret: boolean;
+  source: CertificateSource;
+  addedAt: number;
+  updatedAt: number;
+}
+
+export interface RecipientCertificate {
+  email: string;
+  certificate: CertificateInfo | null;
+}
+
+/** What S/MIME can do for a message being written. */
+export interface SmimeCompose {
+  /** The sender's certificate. */
+  own: CertificateInfo | null;
+  recipients: RecipientCertificate[];
+  missing: string[];
+  canEncrypt: boolean;
+  canSign: boolean;
+}
+
 /** What the composer can do for a message. */
 export interface ComposeCrypto {
   from: string;
@@ -972,6 +1021,25 @@ export interface ComposeCrypto {
   /** Every recipient asked for encryption. */
   mutual: boolean;
   settings: CryptoSettings;
+  smime: SmimeCompose;
+  /** The standard used unless the message chooses. */
+  standard: 'openpgp' | 'smime';
+}
+
+/** The first S/MIME check that failed, or `verified` when all passed. */
+export type SmimeVerdict = 'verified' | 'bad' | 'noCertificate' | 'unsupported' | 'expired' | 'notYetValid' | 'notForEmail' | 'untrusted' | 'mismatch';
+
+/** An S/MIME signature, check by check. */
+export interface SmimeSignature {
+  verdict: SmimeVerdict;
+  /** For `bad`: the `content` changed, or the `signature` does not fit; for `untrusted`: `unknownIssuer`, `issuerExpired` or `invalid`. */
+  reason: string | null;
+  /** Technical detail, in English. */
+  detail: string | null;
+  certificate: CertificateInfo | null;
+  /** The authorities from the issuer up to the trusted root. */
+  chain: string[];
+  algorithm: string;
 }
 
 export interface SignatureView {
@@ -982,6 +1050,8 @@ export interface SignatureView {
   created: number | null;
   /** The signing key carries the sender's address. */
   senderMatches: boolean;
+  /** An S/MIME signature. */
+  smime?: SmimeSignature | null;
 }
 
 /** An encrypted or signed message, opened. */

@@ -182,7 +182,7 @@ export interface Api {
     savePart(path: string, partId: string, target: string): Promise<void>;
   };
 
-  /** OpenPGP end-to-end encryption. */
+  /** End-to-end encryption: OpenPGP, and S/MIME certificates. */
   crypto: {
     settings(): Promise<T.CryptoSettings>;
     setSettings(settings: T.CryptoSettings): Promise<void>;
@@ -205,11 +205,24 @@ export interface Api {
     unlock(fingerprint: string, passphrase: string): Promise<void>;
     /** Forgets passphrases and decrypted messages. */
     lock(): Promise<void>;
-    composeStatus(accountId: number, identityId: number | null, from: T.Address | null, recipients: string[]): Promise<T.ComposeCrypto>;
+    /** `replyTo`: the message being answered (its standard is the default). */
+    composeStatus(accountId: number, identityId: number | null, from: T.Address | null, recipients: string[], replyTo?: number | null): Promise<T.ComposeCrypto>;
     /** Looks keys up in the recipients' Web Key Directories (and on keys.openpgp.org with `keyserver`). */
     lookup(emails: string[], keyserver: boolean, explicit: boolean): Promise<T.KeyInfo[]>;
     /** Decrypts and/or verifies a message. */
     open(messageId: number): Promise<T.OpenedMessage>;
+    smime: {
+      /** People's certificates (the user's own first) matching a name, address or fingerprint. */
+      certificates(query: string): Promise<T.CertificateInfo[]>;
+      /** A .p12 or .pfx file with its password (the user's own; fails with kind `badPassword`), or other people's certificates. */
+      importFile(path: string, password: string | null, ownEmail: string | null): Promise<T.CertificateInfo[]>;
+      /** The certificate as PEM text. */
+      exportText(fingerprint: string): Promise<string>;
+      /** Saves the certificate (DER for .cer and .der, else PEM). */
+      exportFile(fingerprint: string, path: string): Promise<void>;
+      /** Deletes a certificate, and the private key of one's own. */
+      remove(fingerprint: string): Promise<void>;
+    };
   };
 
   contacts: {
