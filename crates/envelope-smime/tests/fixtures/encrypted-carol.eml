@@ -1,0 +1,21 @@
+From: Alice Example <alice@example.com>
+To: Carol Example <carol@example.net>
+Subject: For Carol
+Date: Wed, 28 Oct 2026 09:30:00 +0100
+Message-ID: <encrypted-carol@example.com>
+MIME-Version: 1.0
+Content-Type: application/x-pkcs7-mime; smime-type=enveloped-data;
+ name="smime.p7m"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="smime.p7m"
+
+MIICEwYJKoZIhvcNAQcDoIICBDCCAgACAQIxggEJoYIBBQIBA6BxoW8wCQYHKoZIzj0CAQNiAASJ
+LBU3IZLAM6KFNKWlo7gcwk0fy698pcyaZaRgB+AEDkfmw9hNNs9E83lV/8bz7uHEgifFxYhOzpVi
+UUuIVcqsIotlGLXuPXYyMo32BvtfDrgWaTvKzIu/egkh6eyMcqQwGAYJK4EFEIZIPwACMAsGCWCG
+SAFlAwQBLTBzMHEwRTA4MRYwFAYDVQQKDA1FbnZlbG9wZSBUZXN0MR4wHAYDVQQDDBVFbnZlbG9w
+ZSBUZXN0IE1haWwgQ0ECCQFK94lY5NKhqwQoPRYcobXM/lV+YjOWcPnnhM8GgJxB6rP5N7AqxR91
+r24YsP7mrvjDdTCB7QYJKoZIhvcNAQcBMB0GCWCGSAFlAwQBKgQQF0hTK4Udk5kwqwagKHBwdYCB
+wPr6DEji6XjTzdPSmO0N1KDW9HP7ks2s6VSxCSNK32ZLdtAuW/5hB5V5cUuLTi3pTkj5YlCRFMyM
+eV2HcbhH+DEGxXzQpaaUB2zVHmN2ZNkwhoe9bt62ZQMNEWIgSRUwhl9SR++eqKgXaqNUw/KM+SPl
+owAqTNp7NIpqNaFr4wzknwcGi4AiV2G9ZakOR0pfVlfibDyObsT3LZ7bBejk3Ugl6doQkeKlP4wn
+xKeaqGjg7/T2qJ14GdeFr2QYDQqqRg==

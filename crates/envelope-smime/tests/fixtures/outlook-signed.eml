@@ -1,0 +1,105 @@
+From: Alice Example <alice@example.com>
+To: Bob Example <bob@example.org>
+Subject: Signed report
+Date: Wed, 28 Oct 2026 09:30:00 +0100
+Message-ID: <DB9PR01MB8234A@eurprd01.example.com>
+Thread-Topic: Signed report
+Thread-Index: AdtJ0x2vQmZk8TbqRqCw3Lw2Q4Yh5g==
+Accept-Language: en-US
+Content-Language: en-US
+X-MS-Has-Attach: yes
+X-MS-TNEF-Correlator:
+MIME-Version: 1.0
+Content-Type: multipart/signed; protocol="application/x-pkcs7-signature";
+ micalg=2.16.840.1.101.3.4.2.1; boundary="----=_NextPart_000_0012_01DB2A3C.5E6F7A80"
+
+This is a multipart message in MIME format.
+
+------=_NextPart_000_0012_01DB2A3C.5E6F7A80
+Content-Type: multipart/mixed;
+	boundary="_004_DB9PR01MB82341C0E5D2A4F8E9B1A2C3D4E5F6A7B8C9D0E1F2Aeurprd0_"
+
+--_004_DB9PR01MB82341C0E5D2A4F8E9B1A2C3D4E5F6A7B8C9D0E1F2Aeurprd0_
+Content-Type: multipart/alternative;
+	boundary="_000_DB9PR01MB82341C0E5D2A4F8E9B1A2C3D4E5F6A7B8C9D0E1F2Aeurprd0_"
+
+--_000_DB9PR01MB82341C0E5D2A4F8E9B1A2C3D4E5F6A7B8C9D0E1F2Aeurprd0_
+Content-Type: text/plain; charset="us-ascii"
+Content-Transfer-Encoding: quoted-printable
+
+Hi Bob, the signed report is attached. Alice
+
+--_000_DB9PR01MB82341C0E5D2A4F8E9B1A2C3D4E5F6A7B8C9D0E1F2Aeurprd0_
+Content-Type: text/html; charset="us-ascii"
+Content-Transfer-Encoding: quoted-printable
+
+<html><head><meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3D=
+us-ascii"></head><body lang=3D"EN-US"><div class=3D"WordSection1"><p class=3D=
+"MsoNormal">Hi Bob, the signed report is attached. Alice<o:p></o:p></p></div></body></html>
+
+--_000_DB9PR01MB82341C0E5D2A4F8E9B1A2C3D4E5F6A7B8C9D0E1F2Aeurprd0_--
+
+--_004_DB9PR01MB82341C0E5D2A4F8E9B1A2C3D4E5F6A7B8C9D0E1F2Aeurprd0_
+Content-Type: application/pdf; name="report.pdf"
+Content-Description: report.pdf
+Content-Disposition: attachment; filename="report.pdf"; size=77;
+	creation-date="Wed, 28 Oct 2026 08:25:00 GMT";
+	modification-date="Wed, 28 Oct 2026 08:25:00 GMT"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyA+PiBlbmRvYmoKdHJhaWxlciA8PCAv
+Um9vdCAxIDAgUiA+PgolJUVPRgo=
+
+--_004_DB9PR01MB82341C0E5D2A4F8E9B1A2C3D4E5F6A7B8C9D0E1F2Aeurprd0_--
+
+------=_NextPart_000_0012_01DB2A3C.5E6F7A80
+Content-Type: application/x-pkcs7-signature; name="smime.p7s"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="smime.p7s"
+Content-Description: S/MIME Cryptographic Signature
+
+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
+AlECAQEwRTA4MRYwFAYDVQQKDA1FbnZlbG9wZSBUZXN0MR4wHAYDVQQDDBVFbnZlbG9wZSBUZXN0
+IE1haWwgQ0ECCQEITQOgRZdGBDALBglghkgBZQMEAgGggeQwGAYJKoZIhvcNAQkDMQsGCSqGSIb3
+DQEHATAcBgkqhkiG9w0BCQUxDxcNMjYxMDI5MjAzMjE3WjAvBgkqhkiG9w0BCQQxIgQglOos9ieF
+Sf3DZqDxV3KjwzAoLUs06YnlNRButMGubuQweQYJKoZIhvcNAQkPMWwwajALBglghkgBZQMEASow
+CwYJYIZIAWUDBAEWMAsGCWCGSAFlAwQBAjAKBggqhkiG9w0DBzAOBggqhkiG9w0DAgICAIAwDQYI
+KoZIhvcNAwICAUAwBwYFKw4DAgcwDQYIKoZIhvcNAwICASgwDQYJKoZIhvcNAQEBBQAEggEAQSfs
+7jAT5d6/nuxySrhIaBjkUkTZJkg0T+vJ8FGet+OmuoBcQ0t+xDKrax/WvIODouB2wofHp7PNxiAV
+L8s9rXxzyRMA+9YELx2UoKiWSVaBRn73E5LmlvBMOgLsiK4giO9s+TkcnoNvVIw+nKyJGJfw1wl9
+xvnVWmmoisVjxoNWjZCnEgsNyL15ENkYes8WGEDIxO8YAqyE88bUOMJWswNsc66IBfIImp4uXJnu
+vb4HZRd+mMuDYrco5b8KUXQaDpzIEHS5I3g7St166EzR1bjFjBT0iwg2QA43YkJpAF6U9eX3KIeg
+/2hVrsvZrvd98G6hHM1Ap9IOl3KK8MD9lQ==
+
+------=_NextPart_000_0012_01DB2A3C.5E6F7A80--

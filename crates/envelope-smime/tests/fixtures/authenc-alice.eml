@@ -1,0 +1,23 @@
+From: Bob Example <bob@example.org>
+To: Alice Example <alice@example.com>
+Subject: GCM
+Date: Wed, 28 Oct 2026 09:30:00 +0100
+Message-ID: <authenc-alice@example.org>
+MIME-Version: 1.0
+Content-Type: application/pkcs7-mime; smime-type=authEnveloped-data;
+ name="smime.p7m"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="smime.p7m"
+
+MIICdAYLKoZIhvcNAQkQARegggJjMIICXwIBADGCAWEwggFdAgEAMEUwODEWMBQGA1UECgwNRW52
+ZWxvcGUgVGVzdDEeMBwGA1UEAwwVRW52ZWxvcGUgVGVzdCBNYWlsIENBAgkBCE0DoEWXRgQwDQYJ
+KoZIhvcNAQEBBQAEggEAF4Js2zVqQhG2vKEwzR3QoMbYGqA29WTevHAnljbrQpc84a9+dKmYTfGU
+jWYJjep91C4LTOgocoZ2DGy7glN9cqJy54UZGQdYpCOckvnAKP1gRmeulr+/3SjDKVBIxCpJDCjw
+yTOWb3ezyvRgM9k0Rg7VZC++S0+gMCJuSv4KhH4fOpt293so8e9u7zpi1K2oCdAE6LZuqT0eaibA
+uT9Ns00AqKyz+g1DKvGrT9CElA8zbLbRzg4DAY+WYV+u8L5UQjqHEkn60OkHtR1EJZW33k5f3BUX
+CnYtvtU7ZfP/dq4OOWyAqrewSa1VbplEYxfzxWA9+IX9iz+Ukdrn5HqQxzCB4gYJKoZIhvcNAQcB
+MB4GCWCGSAFlAwQBLjARBAxI2uJ1syw9UpF1vcECARCAgbR645jUEwi0YtNyFzHUcTtO2f0SlOsb
+naCAsO+Favv846QbSobohfURaO3aIon3K9Xury0IUaRgUNSjuBGTpHkKVlNg/MYrtqlPivqxkRek
+8XOFHqE1NbY97Pm4ECpK6rJtPcdfAUh1rtiAPuHbM/Ee9JAUoTGp10Lsn/F83HCjWPGSlHvDbY68
+wL0Z9jbSJuz18zrTTpO/Bfpf1IKcKeME5lipVP5E/50WVxC4pvD1rZHOdS4EEKR4Twlm4b9tbysT
+bFWHfuY=

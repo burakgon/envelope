@@ -1,0 +1,23 @@
+From: Bob Example <bob@example.org>
+To: Alice Example <alice@example.com>
+Subject: OAEP
+Date: Wed, 28 Oct 2026 09:30:00 +0100
+Message-ID: <oaep-alice@example.org>
+MIME-Version: 1.0
+Content-Type: application/pkcs7-mime; smime-type=enveloped-data;
+ name="smime.p7m"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="smime.p7m"
+
+MIIClgYJKoZIhvcNAQcDoIIChzCCAoMCAQAxggGMMIIBiAIBADBFMDgxFjAUBgNVBAoMDUVudmVs
+b3BlIFRlc3QxHjAcBgNVBAMMFUVudmVsb3BlIFRlc3QgTWFpbCBDQQIJAQhNA6BFl0YEMDgGCSqG
+SIb3DQEBBzAroA0wCwYJYIZIAWUDBAIBoRowGAYJKoZIhvcNAQEIMAsGCWCGSAFlAwQCAQSCAQAb
+WWGZfsN2tsJUB87i6xAM0HERN9h5FeP10A2+dDAdx0Z0rOahlbbHWQ6uEwTo3fBKWjTEm3zoOS/W
+U1vGHC1WC2Lyz11E/8nzcEV0hGJmpYA8NXsPMSmAabOR5CJLWo9FUl/91WI7LILp9KgoeG/vZEyf
+R7Ag5J447I6r4i/eGy6bbaS8Ewgqh0hUPS3VNZFfKSyRdk70ootnhLq8yD8Hy5LtarMBzCy9VArb
+vm1lddUqv/KQUCn/dMwg6MJLO0nb5h9UgtK3xqEUQQi9mUT3BmCkei2wGoIWuc8sSe2XuVRKEAU1
+qcu3vmqD0mDUveZ0+lvgaVdLKOBl0PFaYck8MIHtBgkqhkiG9w0BBwEwHQYJYIZIAWUDBAEqBBBz
+I1VqVqldJNG+DY8lxVBTgIHARA0GjqLI4u/5f0I4hoihCtN0q3Sk2nygXutLXxD4UWw6S749i6ln
+0HFk+0GhnXbEO2Eep9kH1Kr0OANYR2Zje9J6Y6lfguzVhnRn/vYVoL01CVx6eNnztmFpQCFRfL3w
+FsQtPwXNVrWmvhSdoMWJ+cH0SlTWdTCvyPglk6bvBnWvWT4B4e1OOkpXzqwIWr1vJKfIP3I3Hh/i
+hpoMOj3+I0eCtAtnLpM4ML13CewkHQTkijZ1xcEdx1C6rWJfs9J8
