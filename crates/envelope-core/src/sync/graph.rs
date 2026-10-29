@@ -426,12 +426,7 @@ fn header_end(mime: &[u8]) -> usize {
 pub async fn run(engine: Engine, account_id: i64, wake: Arc<Notify>, stop: CancellationToken) {
     match GraphMail::for_account(&engine, account_id) {
         Ok(graph) => run_with(engine, account_id, graph, wake, stop).await,
-        Err(e) => engine.set_sync_state(
-            account_id,
-            SyncState::Error {
-                message: e.to_string(),
-            },
-        ),
+        Err(e) => engine.set_sync_state(account_id, SyncState::failed(e.to_string(), false)),
     }
 }
 
@@ -475,13 +470,7 @@ async fn run_with(
             }
             Err(e) => {
                 tracing::warn!(account_id, "Microsoft sync error: {e}");
-                let state = if e.is_transient() {
-                    SyncState::Offline
-                } else {
-                    SyncState::Error {
-                        message: e.to_string(),
-                    }
-                };
+                let state = SyncState::failed(e.to_string(), e.is_transient());
                 engine.set_sync_state(account_id, state);
                 let delay = backoff.max(graph.throttle_delay());
                 tokio::select! {

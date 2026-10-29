@@ -151,10 +151,8 @@
   });
 
   function accountAlert(a: Account) {
-    if (a.sync.state === 'authError') {
-      ui.open('settings', 'accounts');
-      toasts.show(t('sidebar.signInAgain', { email: a.email }));
-    }
+    ui.open('settings', 'accounts');
+    if (a.sync.state === 'authError') toasts.show(t('sidebar.signInAgain', { email: a.email }));
   }
 </script>
 

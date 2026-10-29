@@ -11,6 +11,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Save all… for messages with several attachments: they are saved into a folder at once, and Show in folder opens it.
 - Send asks first when an address doesn't look complete (Edit or Send anyway), and when the text mentions an attachment but nothing is attached (Attach or Send anyway), with the words for it in every interface language.
 - Links in messages show where they go in a small pill while they are pointed at or focused, and warn when their text names another site than the one they open.
+- A banner above the message list when an account needs a new sign-in (with Sign in) or keeps failing to sync (with Retry and Details); the account's entry in Settings says the same.
 
 ### Changed
 - The header above a quoted reply or forwarded message ("On …, … wrote:", "Forwarded message") and its date are written in the interface language.

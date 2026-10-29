@@ -11,6 +11,7 @@
   import AutoReplyDialog from './AutoReplyDialog.svelte';
   import { autoReplies } from '../../stores/autoReplies.svelte';
   import RulesSettings from './RulesSettings.svelte';
+  import { health } from '../../stores/accountHealth.svelte';
   import Toggle from './Toggle.svelte';
   import Logo from '../Logo.svelte';
   import {
@@ -118,20 +119,7 @@
     }
   }
 
-  async function reauth(a: Account) {
-    try {
-      if (a.config.auth === 'password') {
-        const pw = await dialogs.prompt({ title: t('settings.accounts.newPassword', { email: a.email }), type: 'password', confirmLabel: t('settings.accounts.signInAgain') });
-        if (!pw) return;
-        await api.updateAccount(a.id, { password: pw });
-      } else {
-        await api.addOAuthAccount(a.config.auth === 'oAuthGoogle' ? 'google' : 'microsoft', a.email);
-      }
-      toasts.show(t('settings.accounts.signedInAgain'), { kind: 'success' });
-    } catch (e) {
-      toasts.error(errorMessage(e));
-    }
-  }
+  const reauth = (a: Account) => health.signIn(a);
 
   async function saveIdentity() {
     if (!editing) return;
@@ -385,15 +373,25 @@
         <h2>{t('settings.tab.accounts')}</h2>
         <div class="accounts">
           {#each mail.accounts as a (a.id)}
+            {@const problem = health.problem(a)}
             <div class="acct">
               <input type="color" class="color" value={a.color} onchange={(e) => saveAccount(a, { color: (e.currentTarget as HTMLInputElement).value })} title={t('settings.accounts.color')} />
               <div class="acct-info">
                 <input class="name-input" value={a.label ?? ''} placeholder={a.email} onchange={(e) => saveAccount(a, { label: (e.currentTarget as HTMLInputElement).value })} />
-                <span class="acct-sub" title={a.config.exchange?.ewsUrl ?? undefined}>{a.email} · {accountKindLabel(a)} {a.sync.state === 'authError' ? `· ${t('settings.accounts.signInNeeded')}` : ''}{autoReplies.on[a.id] ? ` · ${t('settings.accounts.autoRepliesOn')}` : ''}</span>
+                <span class="acct-sub" title={a.config.exchange?.ewsUrl ?? undefined}>{a.email} · {accountKindLabel(a)}{autoReplies.on[a.id] ? ` · ${t('settings.accounts.autoRepliesOn')}` : ''}</span>
+                {#if problem}
+                  <span class="acct-problem" class:sign-in={problem === 'signIn'}>
+                    {health.text(a)}
+                    {#if problem !== 'signIn'}
+                      <button class="inline-link" onclick={() => health.retry(a)}>{t('accountAlert.retry')}</button>
+                      <button class="inline-link" onclick={() => health.details(a)}>{t('accountAlert.details')}</button>
+                    {/if}
+                  </span>
+                {/if}
               </div>
               <Toggle checked={a.enabled} onchange={(v) => saveAccount(a, { enabled: v })} />
               <button class="icon-btn" class:active={autoReplies.on[a.id]} title={t('autoReply.title')} aria-label={t('autoReply.title')} onclick={() => (autoReplyFor = a)}><Away size={16} /></button>
-              <button class="btn sm" onclick={() => reauth(a)}><Lock size={13} />{t('settings.accounts.signInAgain')}</button>
+              <button class="btn sm" class:primary={problem === 'signIn'} onclick={() => reauth(a)}><Lock size={13} />{t('settings.accounts.signInAgain')}</button>
               <button class="icon-btn" title={t('settings.accounts.remove')} onclick={() => removeAccount(a)}><Trash size={16} /></button>
             </div>
           {/each}
@@ -748,6 +746,23 @@
   }
   .acct-sub {
     color: var(--text-3);
+    font-size: var(--text-sm);
+  }
+  /* A sign-in needed or a sync that keeps failing, with what to do about it. */
+  .acct-problem {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 10px;
+    margin-top: 2px;
+    color: var(--amber-text);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+  .acct-problem.sign-in {
+    color: var(--accent-text);
+  }
+  .acct-problem .inline-link {
     font-size: var(--text-sm);
   }
   .editor-card {

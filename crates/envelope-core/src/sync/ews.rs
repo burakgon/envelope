@@ -649,9 +649,7 @@ pub async fn run(engine: Engine, account_id: i64, wake: Arc<Notify>, stop: Cance
                         message: e.to_string(),
                     }
                 } else {
-                    SyncState::Error {
-                        message: e.to_string(),
-                    }
+                    SyncState::failed(e.to_string(), false)
                 };
                 engine.set_sync_state(account_id, state);
                 tokio::select! {
@@ -692,13 +690,7 @@ pub async fn run(engine: Engine, account_id: i64, wake: Arc<Notify>, stop: Cance
                     backoff = Duration::from_secs(2);
                 }
                 tracing::warn!(account_id, "Exchange sync error: {e}");
-                let state = if e.is_transient() {
-                    SyncState::Offline
-                } else {
-                    SyncState::Error {
-                        message: e.to_string(),
-                    }
-                };
+                let state = SyncState::failed(e.to_string(), e.is_transient());
                 engine.set_sync_state(account_id, state);
                 let delay = backoff.max(ews.throttle_delay());
                 tokio::select! {

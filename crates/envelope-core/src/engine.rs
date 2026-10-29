@@ -60,6 +60,8 @@ pub struct Inner {
     events: Box<dyn EventSink>,
     pub(crate) workers: Mutex<HashMap<i64, Worker>>,
     sync_states: Mutex<HashMap<i64, SyncState>>,
+    /// Sync attempts in a row that failed, per account.
+    sync_failures: Mutex<HashMap<i64, u32>>,
     /// Connections used for user-initiated fetches (bodies, attachments).
     pub(crate) interactive: Mutex<HashMap<i64, ImapSlot>>,
     pub(crate) outbox_wake: Notify,
@@ -107,6 +109,7 @@ impl Engine {
                 events: Box::new(events),
                 workers: Mutex::new(HashMap::new()),
                 sync_states: Mutex::new(HashMap::new()),
+                sync_failures: Mutex::new(HashMap::new()),
                 interactive: Mutex::new(HashMap::new()),
                 outbox_wake: Notify::new(),
                 calendar_wake: Notify::new(),
@@ -142,7 +145,21 @@ impl Engine {
         self.events.emit(event);
     }
 
-    pub(crate) fn set_sync_state(&self, account_id: i64, state: SyncState) {
+    pub(crate) fn set_sync_state(&self, account_id: i64, mut state: SyncState) {
+        // Count failed attempts in a row, so the interface can tell a blip
+        // from an account that keeps failing.
+        match &mut state {
+            SyncState::Offline { failures, .. } | SyncState::Error { failures, .. } => {
+                let mut counts = self.sync_failures.lock();
+                let count = counts.entry(account_id).or_default();
+                *count += 1;
+                *failures = *count;
+            }
+            SyncState::Idle | SyncState::Syncing { .. } => {
+                self.sync_failures.lock().remove(&account_id);
+            }
+            SyncState::Connecting | SyncState::AuthError { .. } => {}
+        }
         let changed = {
             let mut states = self.sync_states.lock();
             let prev = states.insert(account_id, state.clone());

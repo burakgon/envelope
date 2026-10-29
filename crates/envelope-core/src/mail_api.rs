@@ -1644,3 +1644,6 @@ fn sanitize_quoted(html: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+pub(crate) mod mailbox_tests;

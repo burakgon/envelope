@@ -15,6 +15,7 @@
     Archive, Check, CheckCircle, Clock, FileArrow, Filter, Folder, Forward, Mail, MailOpen, More, Newspaper, PanelLeft, Paperclip,
     Bell, Pen, Reply, ReplyAll, Search, ShieldAlert, Star, Tag, Trash, Users, X, Refresh, Sparkles,
   } from '../icons';
+  import AccountAlerts from './AccountAlerts.svelte';
   import { t } from '../i18n';
 
   let viewport: HTMLDivElement | undefined = $state();
@@ -231,6 +232,8 @@
       <span class="kbd">/</span>
     {/if}
   </div>
+
+  <AccountAlerts />
 
   {#if mail.splitActive}
     <div class="tabs" role="tablist">

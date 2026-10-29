@@ -700,6 +700,36 @@ await step('account setup forgets the provider it backed out of', async () => {
   }
 });
 
+await step('a banner asks to sign in again, and says when a server is out of reach', async () => {
+  const trouble = {
+    1: { state: 'offline', message: 'connection refused (os error 111)', failures: 4 },
+    2: { state: 'authError', message: 'Invalid credentials' },
+  };
+  const p = await fresh({ 'envelope.demo.sync': JSON.stringify(trouble) });
+  try {
+    const signIn = p.locator('.alert', { hasText: 'Personal needs you to sign in again.' });
+    await signIn.locator('.btn', { hasText: 'Sign in' }).click();
+    await p.locator('[role="dialog"] input[type="password"]:focus').waitFor({ timeout: 5000 });
+    await p.keyboard.type('hunter2');
+    await p.keyboard.press('Enter');
+    await toast(p, 'Signed in again');
+    await signIn.waitFor({ state: 'detached', timeout: 5000 });
+    const unreachable = p.locator('.alert', { hasText: 'Work can’t reach imap.gmail.com.' });
+    await unreachable.locator('.btn', { hasText: 'Details' }).click();
+    await p.locator('[role="alertdialog"] .detail', { hasText: 'connection refused' }).waitFor({ timeout: 5000 });
+    await p.locator('[role="alertdialog"] .btn.primary', { hasText: 'Retry' }).click();
+    await toast(p, 'Trying Work again…');
+    await p.keyboard.press('Control+,');
+    await p.locator('.window .tab', { hasText: 'Accounts' }).click();
+    await p.locator('.acct-problem', { hasText: 'Work can’t reach imap.gmail.com.' }).waitFor({ timeout: 5000 });
+    await p.keyboard.press('Escape');
+    await unreachable.locator('.close').click();
+    await unreachable.waitFor({ state: 'detached', timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

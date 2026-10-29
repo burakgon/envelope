@@ -129,13 +129,41 @@ pub enum SyncState {
         /// 0..=1 progress of the initial sync, when known.
         progress: Option<f32>,
     },
-    Offline,
+    /// The server could not be reached; retried with growing pauses.
+    Offline {
+        /// What went wrong the last time.
+        #[serde(default)]
+        message: String,
+        /// Attempts in a row that failed (filled in by the engine).
+        #[serde(default)]
+        failures: u32,
+    },
     AuthError {
         message: String,
     },
     Error {
         message: String,
+        /// Attempts in a row that failed (filled in by the engine).
+        #[serde(default)]
+        failures: u32,
     },
+}
+
+impl SyncState {
+    /// A failed attempt to sync (offline when it may work again by itself).
+    pub fn failed(message: String, transient: bool) -> SyncState {
+        if transient {
+            SyncState::Offline {
+                message,
+                failures: 0,
+            }
+        } else {
+            SyncState::Error {
+                message,
+                failures: 0,
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

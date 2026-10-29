@@ -52,9 +52,10 @@ export type SyncState =
   | { state: 'idle' }
   | { state: 'connecting' }
   | { state: 'syncing'; folder: string | null; progress: number | null }
-  | { state: 'offline' }
+  /** `failures`: attempts in a row that failed. */
+  | { state: 'offline'; message?: string; failures?: number }
   | { state: 'authError'; message: string }
-  | { state: 'error'; message: string };
+  | { state: 'error'; message: string; failures?: number };
 
 export interface Account {
   id: number;

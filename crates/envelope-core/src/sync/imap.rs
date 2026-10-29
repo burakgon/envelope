@@ -154,13 +154,7 @@ pub async fn run(engine: Engine, account_id: i64, wake: Arc<Notify>, stop: Cance
             }
             Err(e) => {
                 tracing::warn!(account_id, "sync error: {e}");
-                let state = if e.is_transient() {
-                    SyncState::Offline
-                } else {
-                    SyncState::Error {
-                        message: e.to_string(),
-                    }
-                };
+                let state = SyncState::failed(e.to_string(), e.is_transient());
                 engine.set_sync_state(account_id, state);
                 tokio::select! {
                     _ = stop.cancelled() => return,

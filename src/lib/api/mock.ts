@@ -33,6 +33,14 @@ export function createMockApi(): Api {
 
   const delay = <V>(v: V, ms = 0): Promise<V> => new Promise((r) => setTimeout(() => r(structuredClone(v)), ms));
 
+  // Sync trouble to show (screenshots, tests): `sessionStorage['envelope.demo.sync']` maps account ids to states.
+  try {
+    const trouble = JSON.parse(sessionStorage.getItem('envelope.demo.sync') ?? '{}') as Record<string, T.SyncState>;
+    for (const a of data.accounts) if (trouble[a.id]) a.sync = trouble[a.id];
+  } catch {
+    /* none */
+  }
+
   function recount() {
     for (const f of data.folders) {
       const inFolder = threads.filter((t) => t.folderIds.includes(f.id) && !(f.role === 'inbox' && t.snoozedUntil));
@@ -162,7 +170,13 @@ export function createMockApi(): Api {
     addOAuthAccount: async () => { throw { message: 'Adding accounts is disabled in the demo', kind: 'invalid' }; },
     updateAccount: async (id, patch) => {
       const a = data.accounts.find((x) => x.id === id)!;
-      Object.assign(a, { ...patch, config: patch.config ?? a.config });
+      const { password, ...rest } = patch;
+      Object.assign(a, { ...rest, config: patch.config ?? a.config });
+      // A new password signs the account in again.
+      if (password && a.sync.state === 'authError') {
+        a.sync = { state: 'idle' };
+        emit({ type: 'syncStatus', accountId: id, sync: a.sync });
+      }
       emit({ type: 'accountsChanged' });
       return structuredClone(a);
     },
@@ -172,8 +186,13 @@ export function createMockApi(): Api {
     setOAuthClient: async () => {},
     syncNow: async (accountId) => {
       for (const a of data.accounts.filter((x) => !accountId || x.id === accountId)) {
-        emit({ type: 'syncStatus', accountId: a.id, sync: { state: 'syncing', folder: 'Inbox', progress: null } });
-        setTimeout(() => emit({ type: 'syncStatus', accountId: a.id, sync: { state: 'idle' } }), 900);
+        // An account in trouble (see `envelope.demo.sync`) stays in it, one failure more.
+        const trouble = a.sync.state === 'error' || a.sync.state === 'offline' || a.sync.state === 'authError' ? a.sync : null;
+        emit({ type: 'syncStatus', accountId: a.id, sync: trouble ? { state: 'connecting' } : { state: 'syncing', folder: 'Inbox', progress: null } });
+        setTimeout(() => {
+          if (trouble && trouble.state !== 'authError') a.sync = { ...trouble, failures: (trouble.failures ?? 0) + 1 };
+          emit({ type: 'syncStatus', accountId: a.id, sync: trouble ? a.sync : { state: 'idle' } });
+        }, 900);
       }
     },
 
