@@ -102,25 +102,27 @@
     {:else}
       <form class="options" onsubmit={search}>
         <div class="head">{t('search.options')}</div>
-        <label class="field"><span>{t('search.from')}</span><input class="input" bind:value={options.from} spellcheck="false" /></label>
-        <label class="field"><span>{t('search.to')}</span><input class="input" bind:value={options.to} spellcheck="false" /></label>
-        <label class="field"><span>{t('search.subject')}</span><input class="input" bind:value={options.subject} /></label>
-        <label class="field"><span>{t('search.words')}</span><input class="input" bind:value={options.words} /></label>
-        <label class="field">
-          <span>{t('search.date')}</span>
-          <select class="input" bind:value={options.within}>
-            {#each within as w (w.value)}<option value={w.value}>{t(w.label)}</option>{/each}
-          </select>
-        </label>
-        {#if here}
+        <div class="fields">
+          <label class="field"><span>{t('search.from')}</span><input class="input" bind:value={options.from} spellcheck="false" /></label>
+          <label class="field"><span>{t('search.to')}</span><input class="input" bind:value={options.to} spellcheck="false" /></label>
+          <label class="field"><span>{t('search.subject')}</span><input class="input" bind:value={options.subject} /></label>
+          <label class="field"><span>{t('search.words')}</span><input class="input" bind:value={options.words} /></label>
           <label class="field">
-            <span>{t('search.where')}</span>
-            <select class="input" bind:value={options.folder}>
-              <option value="">{t('search.allMail')}</option>
-              <option value={here.value}>{t('search.thisFolder', { folder: here.name })}</option>
+            <span>{t('search.date')}</span>
+            <select class="input" bind:value={options.within}>
+              {#each within as w (w.value)}<option value={w.value}>{t(w.label)}</option>{/each}
             </select>
           </label>
-        {/if}
+          {#if here}
+            <label class="field">
+              <span>{t('search.where')}</span>
+              <select class="input" bind:value={options.folder}>
+                <option value="">{t('search.allMail')}</option>
+                <option value={here.value}>{t('search.thisFolder', { folder: here.name })}</option>
+              </select>
+            </label>
+          {/if}
+        </div>
         <div class="checks">
           <label><input type="checkbox" bind:checked={options.attachment} /> {t('search.hasAttachment')}</label>
           <label><input type="checkbox" bind:checked={options.unread} /> {t('search.unread')}</label>
@@ -211,13 +213,17 @@
     gap: 6px;
     padding: 0 4px 4px;
   }
-  .field {
+  /* One grid for all fields, so the names take the width of the longest one. */
+  .fields {
     display: grid;
-    grid-template-columns: 7em 1fr;
+    grid-template-columns: max-content 1fr;
     align-items: center;
-    gap: 8px;
+    gap: 6px 10px;
     font-size: var(--text-sm);
     color: var(--text-2);
+  }
+  .field {
+    display: contents;
   }
   .checks {
     display: flex;
