@@ -6,13 +6,13 @@ use serde::{Deserialize, Serialize};
 use tracing::debug;
 use url::Url;
 
-use crate::client::{DavClient, DavRequest, Depth, dav_method};
+use crate::client::{DavClient, DavRequest, Depth, dav_method, normalize_etag};
 use crate::collection::{collection_url_in, expect_created};
 use crate::error::{DavError, Result};
 use crate::href;
 use crate::href::ObjectKind;
 use crate::multistatus::Response;
-use crate::object::{DavObject, data_prop, objects_from_reply};
+use crate::object::{DavObject, ObjectRef, data_prop, objects_from_reply};
 use crate::props::{self, color_for_server, normalize_color, parse_order, timezone_id};
 use crate::xml::{self, Ns, PropName, REQUEST_NAMESPACES, XML_DECLARATION, text_element};
 
@@ -277,6 +277,35 @@ impl DavClient {
         let (objects, _) = objects_from_reply(&reply, &url, data_prop(ObjectKind::Calendar));
         Ok(objects)
     }
+
+    /// Lists the tasks (`VTODO`s) of a calendar with their entity tags, with
+    /// a `calendar-query` report (RFC 4791 §7.8). For calendars that hold
+    /// events as well, where [`list_etags`](DavClient::list_etags) and
+    /// `sync-collection` report every event too.
+    pub async fn list_todo_etags(&self, calendar: &str) -> Result<Vec<ObjectRef>> {
+        let url = self.resolve_input(calendar)?;
+        let reply = self
+            .report(&url, Depth::One, component_query_body("VTODO"))
+            .await?;
+        let mut members = Vec::new();
+        for (member, response) in reply.entries() {
+            if href::same_resource(&member, &url)
+                || response.is_not_found()
+                || response.is_collection()
+                || href::looks_like_collection(&member)
+            {
+                continue;
+            }
+            members.push(ObjectRef {
+                href: member.into(),
+                etag: response
+                    .prop_text(Ns::Dav, "getetag")
+                    .and_then(|etag| normalize_etag(&etag)),
+            });
+        }
+        debug!(calendar = %url, count = members.len(), "listed tasks");
+        Ok(members)
+    }
 }
 
 /// Builds a [`Calendar`] from a PROPFIND response, or `None` if the resource
@@ -365,6 +394,15 @@ fn mkcalendar_body(calendar: &NewCalendar) -> Result<String> {
 /// Formats a UTC instant as an iCalendar DATE-TIME (`20240101T000000Z`).
 fn ical_utc(instant: DateTime<Utc>) -> String {
     instant.format("%Y%m%dT%H%M%SZ").to_string()
+}
+
+/// A `calendar-query` for the entity tags of every `component` object.
+fn component_query_body(component: &str) -> String {
+    format!(
+        "{XML_DECLARATION}<C:calendar-query {REQUEST_NAMESPACES}><D:prop><D:getetag/></D:prop>\
+         <C:filter><C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"{component}\"/>\
+         </C:comp-filter></C:filter></C:calendar-query>"
+    )
 }
 
 fn time_range_query_body(component: &str, start: DateTime<Utc>, end: DateTime<Utc>) -> String {
@@ -646,6 +684,18 @@ mod tests {
             mkcalendar_body(&NewCalendar::new("x").with_color("nope")),
             Err(DavError::InvalidInput(_))
         ));
+    }
+
+    #[test]
+    fn component_query_body_filters_by_component() {
+        let root = xml::parse(&component_query_body("VTODO")).unwrap();
+        assert!(root.is(Ns::CalDav, "calendar-query"));
+        let filter = root.descendant(Ns::CalDav, "comp-filter").unwrap();
+        assert_eq!(filter.attr("name"), Some("VCALENDAR"));
+        let inner = filter.child(Ns::CalDav, "comp-filter").unwrap();
+        assert_eq!(inner.attr("name"), Some("VTODO"));
+        assert!(root.descendant(Ns::Dav, "getetag").is_some());
+        assert!(root.descendant(Ns::CalDav, "calendar-data").is_none());
     }
 
     #[test]

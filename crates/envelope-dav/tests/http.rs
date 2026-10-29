@@ -1173,6 +1173,32 @@ END:VCALENDAR</cal:calendar-data></d:prop><d:status>HTTP/1.1 200 OK</d:status></
     ));
 }
 
+#[tokio::test]
+async fn task_listings_ask_only_for_vtodos() {
+    let server = MockServer::start(|req| {
+        assert_eq!(req.method, "REPORT");
+        assert!(req.body.contains(r#"<C:comp-filter name="VTODO"/>"#));
+        Reply::multistatus(
+            r#"<d:multistatus xmlns:d="DAV:"><d:response><d:href>/cal/</d:href><d:propstat><d:prop><d:getetag/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response>
+               <d:response><d:href>/cal/t1.ics</d:href><d:propstat><d:prop><d:getetag>"t1"</d:getetag></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+               <d:response><d:href>/cal/t%202.ics</d:href><d:propstat><d:prop><d:getetag>W/"t2"</d:getetag></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>"#,
+        )
+    })
+    .await;
+    let client = client(&server, Auth::None);
+    let tasks = client.list_todo_etags("/cal/").await.expect("listing");
+    let found: Vec<(String, Option<String>)> =
+        tasks.into_iter().map(|t| (t.href, t.etag)).collect();
+    assert_eq!(
+        found,
+        [
+            (server.url("/cal/t1.ics"), Some("\"t1\"".to_owned())),
+            (server.url("/cal/t%202.ics"), Some("W/\"t2\"".to_owned()))
+        ]
+    );
+    assert_eq!(server.requests()[0].header("depth"), Some("1"));
+}
+
 // --------------------------------------------------------------- misc errors
 
 #[tokio::test]

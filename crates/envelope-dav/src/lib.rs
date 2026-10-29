@@ -142,6 +142,7 @@ mod send_bounds {
         assert_send(client.update_addressbook("h", &AddressBookPatch::default()));
         assert_send(client.sync_collection("h", None));
         assert_send(client.list_etags("h"));
+        assert_send(client.list_todo_etags("h"));
         assert_send(client.multiget("h", hrefs));
         assert_send(client.multiget("h", strs));
         assert_send(client.addressbook_multiget("h", hrefs));
