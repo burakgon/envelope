@@ -46,6 +46,8 @@ export const contacts: T.Contact[] = [
   C(1, 'Carlos Rossi', 'carlos@globex.com', { organization: 'Globex', title: 'Account Executive', phones: [{ value: '+39 02 555 0110', label: 'work' }] }),
   C(1, 'Aisha Haddad', 'aisha@initech.net', { organization: 'Initech', title: 'CTO' }),
   C(2, 'Ben Cohen', 'ben.cohen@hooli.xyz', { organization: 'Hooli' }),
+  // In the address book twice, as often happens after an import.
+  C(1, 'Dan Okafor', 'Daniel@lumen.dev', { phones: [{ value: '+44 7700 900461', label: 'mobile' }] }),
 ];
 
 const summary = (c: T.Contact): T.ContactSummary => ({
@@ -72,6 +74,41 @@ export const csvContacts: Omit<T.ContactInput, 'bookId'>[] = [
   { id: null, name: 'Jonas Lindqvist', givenName: 'Jonas', familyName: 'Lindqvist', emails: [{ value: 'jonas@fjord.example', label: 'work' }], phones: [{ value: '+46 70 123 45 67', label: 'mobile' }], addresses: [], urls: [], organization: 'Fjord Studio', title: 'Creative Director', birthday: null, notes: null, photo: null },
   { id: null, name: 'Amara Nwosu', givenName: 'Amara', familyName: 'Nwosu', emails: [{ value: 'amara@lagoslabs.example', label: 'work' }], phones: [], addresses: [], urls: ['https://lagoslabs.example'], organization: 'Lagos Labs', title: 'Founder', birthday: null, notes: null, photo: null },
 ];
+
+/** How much a contact holds, to keep the fullest one of duplicates. */
+const filled = (c: T.Contact) =>
+  c.emails.length + c.phones.length + c.addresses.length + c.urls.length + [c.organization, c.title, c.birthday, c.notes, c.photo].filter(Boolean).length;
+
+/** People in an address book more than once, by e-mail address: the fullest first. */
+export function duplicates(): T.ContactSummary[][] {
+  const groups = new Map<string, T.Contact[]>();
+  for (const c of contacts) {
+    for (const e of c.emails) {
+      const key = `${c.bookId} ${e.value.toLowerCase()}`;
+      const group = groups.get(key) ?? [];
+      if (!group.includes(c)) group.push(c);
+      groups.set(key, group);
+    }
+  }
+  return [...groups.values()].filter((g) => g.length > 1).map((g) => [...g].sort((a, b) => filled(b) - filled(a)).map(summary));
+}
+
+/** Merges contacts into the first; returns how many went into it. */
+export function merge(ids: number[]): number {
+  const [keep, ...rest] = ids.map((id) => contacts.find((c) => c.id === id)).filter((c): c is T.Contact => !!c);
+  if (!keep) return 0;
+  for (const other of rest) {
+    for (const e of other.emails) if (!keep.emails.some((m) => m.value.toLowerCase() === e.value.toLowerCase())) keep.emails.push(e);
+    for (const p of other.phones) if (!keep.phones.some((m) => m.value.replace(/\D/g, '') === p.value.replace(/\D/g, ''))) keep.phones.push(p);
+    keep.organization ??= other.organization;
+    keep.title ??= other.title;
+    keep.birthday ??= other.birthday;
+    keep.notes ??= other.notes;
+    keep.photo ??= other.photo;
+    remove(other.id);
+  }
+  return rest.length;
+}
 
 export function save(input: T.ContactInput): number {
   if (input.id != null) {

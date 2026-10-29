@@ -1032,6 +1032,30 @@ await step('account settings are edited after setup, and a wrong server is caugh
   }
 });
 
+await step('duplicate contacts are found and merged into the fuller one', async () => {
+  const p = await open();
+  try {
+    await p.goto(url);
+    await p.locator('.row').first().waitFor({ state: 'visible', timeout: 5000 });
+    await p.locator('.modes button[aria-label="Contacts"]').click();
+    await p.locator('.contacts .row', { hasText: 'Dan Okafor' }).waitFor({ timeout: 5000 });
+    await p.locator('.contacts header .icon-btn[aria-label="More"]').click();
+    await p.locator('.menu-item', { hasText: 'Find duplicates' }).click();
+    const dialog = p.locator('[aria-labelledby="dup-title"]');
+    const group = dialog.locator('.group').first();
+    await group.waitFor({ timeout: 5000 });
+    // The fuller contact is the one kept.
+    if (!(await group.locator('.person.kept').innerText()).includes('Daniel Okafor')) throw new Error(`keeps: ${await group.locator('.person.kept').innerText()}`);
+    await group.locator('button', { hasText: 'Merge' }).click();
+    await p.locator('.toast', { hasText: 'Merged 1 duplicate' }).first().waitFor({ timeout: 5000 });
+    await dialog.locator('.none').waitFor({ timeout: 5000 });
+    await dialog.locator('button', { hasText: 'Close' }).click();
+    await p.locator('.contacts .row', { hasText: 'Dan Okafor' }).waitFor({ state: 'detached', timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

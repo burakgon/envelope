@@ -145,3 +145,4 @@ export { default as RemoveFormatting } from '@lucide/svelte/icons/remove-formatt
 export { default as PopOut } from '@lucide/svelte/icons/square-arrow-out-up-right';
 export { default as FolderDown } from '@lucide/svelte/icons/folder-down';
 export { default as FileArrow } from '@lucide/svelte/icons/file-symlink';
+export { default as Merge } from '@lucide/svelte/icons/merge';

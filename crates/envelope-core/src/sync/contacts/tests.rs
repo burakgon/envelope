@@ -1713,3 +1713,85 @@ async fn csv_exports_are_imported_and_address_books_exported_as_vcards() {
     );
     assert_eq!(cards[1].emails[0].value, "charles@example.com");
 }
+
+#[tokio::test]
+async fn duplicates_are_found_and_merged() {
+    let fx = fixture();
+    let book = fx.engine.contact_books().expect("books")[0].id;
+    let save = |input: ContactInput| {
+        let engine = fx.engine.clone();
+        async move { engine.save_contact(input).await.expect("save") }
+    };
+    let ada = save(ContactInput {
+        book_id: book,
+        name: "Ada Lovelace".into(),
+        emails: vec![lv("ada@example.com", "work")],
+        organization: Some("Analytical Engines".into()),
+        ..ContactInput::default()
+    })
+    .await;
+    let ada_again = save(ContactInput {
+        book_id: book,
+        name: "Ada King".into(),
+        emails: vec![
+            lv("ADA@example.com", "home"),
+            lv("ada@home.example", "home"),
+        ],
+        phones: vec![lv("+44 20 7946 0958", "mobile")],
+        notes: Some("Countess of Lovelace".into()),
+        ..ContactInput::default()
+    })
+    .await;
+    // The same number written two ways.
+    let charles = save(ContactInput {
+        book_id: book,
+        name: "Charles Babbage".into(),
+        phones: vec![lv("+44 20 7946 0001", "work")],
+        ..ContactInput::default()
+    })
+    .await;
+    let charles_again = save(ContactInput {
+        book_id: book,
+        name: "C. Babbage".into(),
+        phones: vec![lv("020 7946 0001", "work")],
+        ..ContactInput::default()
+    })
+    .await;
+    // One word is not enough to call two people the same.
+    for _ in 0..2 {
+        save(ContactInput {
+            book_id: book,
+            name: "Mom".into(),
+            ..ContactInput::default()
+        })
+        .await;
+    }
+
+    let groups = fx.engine.contact_duplicates().await.expect("duplicates");
+    let ids: Vec<Vec<i64>> = groups
+        .iter()
+        .map(|g| g.iter().map(|c| c.id).collect())
+        .collect();
+    // The fuller contact leads each group.
+    assert_eq!(ids, [vec![ada_again, ada], vec![charles, charles_again]]);
+
+    let merged = fx
+        .engine
+        .merge_contacts(vec![ada, ada_again])
+        .await
+        .expect("merge");
+    assert_eq!(merged, 1);
+    let kept = fx.row(ada).contact;
+    assert_eq!(kept.name, "Ada Lovelace");
+    assert_eq!(kept.organization.as_deref(), Some("Analytical Engines"));
+    assert_eq!(kept.note.as_deref(), Some("Countess of Lovelace"));
+    let emails: Vec<&str> = kept.emails.iter().map(|e| e.value.as_str()).collect();
+    assert_eq!(emails, ["ada@example.com", "ada@home.example"]);
+    assert_eq!(kept.phones.len(), 1);
+    assert!(
+        fx.engine.contact(ada_again).await.is_err(),
+        "the merged contact is gone"
+    );
+    let groups = fx.engine.contact_duplicates().await.expect("duplicates");
+    assert_eq!(groups.len(), 1);
+}

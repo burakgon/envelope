@@ -120,6 +120,18 @@ pub async fn discover(email: String) -> R<Discovery> {
 }
 
 #[tauri::command]
+pub async fn contacts_duplicates(
+    state: State<'_, AppState>,
+) -> R<Vec<Vec<envelope_core::contacts::ContactSummary>>> {
+    Ok(state.engine.contact_duplicates().await?)
+}
+
+#[tauri::command]
+pub async fn contacts_merge(state: State<'_, AppState>, ids: Vec<i64>) -> R<usize> {
+    Ok(state.engine.merge_contacts(ids).await?)
+}
+
+#[tauri::command]
 pub async fn contacts_export(
     state: State<'_, AppState>,
     book_id: Option<i64>,

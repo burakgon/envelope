@@ -211,6 +211,10 @@ export interface Api {
     remove(id: number): Promise<void>;
     /** Writes the people of an address book (or of all of them) to a vCard file; returns how many. */
     export(bookId: number | null, path: string): Promise<number>;
+    /** People who are in an address book more than once (same e-mail, number or full name), the fullest first. */
+    duplicates(): Promise<T.ContactSummary[][]>;
+    /** Merges contacts into the first of `ids`; returns how many went into it. */
+    merge(ids: number[]): Promise<number>;
   };
 
   tasks: {

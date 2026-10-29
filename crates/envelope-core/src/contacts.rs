@@ -865,6 +865,113 @@ impl Engine {
         Ok(cards.len())
     }
 
+    /// People who are in one address book more than once: the same e-mail
+    /// address, phone number or full name (of two words or more). Each group
+    /// lists the contacts that belong together, the most complete first.
+    pub async fn contact_duplicates(&self) -> Result<Vec<Vec<ContactSummary>>> {
+        self.db
+            .read_async(|c| {
+                let mut st = c.prepare(
+                    "SELECT c.id, c.book_id, c.name, c.email, c.organization, nullif(c.thumb, ''), c.data,
+                       c.photo_hash IS NOT NULL
+                     FROM contacts c JOIN address_books b ON b.id = c.book_id
+                     WHERE c.local_state != ?1 AND c.is_group = 0 AND b.read_only = 0
+                     ORDER BY c.id",
+                )?;
+                let rows = st
+                    .query_map([cdb::DELETED], |r| {
+                        let data: String = r.get(6)?;
+                        Ok((
+                            ContactSummary {
+                                id: r.get(0)?,
+                                book_id: r.get(1)?,
+                                name: r.get(2)?,
+                                email: r.get(3)?,
+                                organization: r.get(4)?,
+                                photo: r.get(5)?,
+                            },
+                            serde_json::from_str::<Contact>(&data).unwrap_or_default(),
+                            r.get::<_, bool>(7)?,
+                        ))
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(duplicate_groups(rows))
+            })
+            .await
+    }
+
+    /// Merges contacts of one address book into the first of `ids`: its own
+    /// details stay, the others add what it lacks (e-mail addresses, numbers,
+    /// postal addresses and web sites are combined), and then go. Returns how
+    /// many contacts were merged into it.
+    pub async fn merge_contacts(&self, ids: Vec<i64>) -> Result<usize> {
+        let Some((&keep, others)) = ids.split_first() else {
+            return Ok(0);
+        };
+        let others = others.to_vec();
+        let (book_id, merged, remote) = self
+            .db
+            .write_async(move |tx| {
+                let row = cdb::get_contact(tx, keep)?;
+                let book = cdb::get_book(tx, row.book_id)?;
+                if book.read_only {
+                    return Err(Error::Invalid("This address book is read-only.".into()));
+                }
+                let mut contact = row.contact.clone();
+                let mut photo = cdb::contact_photo(tx, keep)?;
+                let mut gone = Vec::new();
+                for &id in &others {
+                    let other = cdb::get_contact(tx, id)?;
+                    if id == keep
+                        || other.book_id != row.book_id
+                        || other.local_state == cdb::DELETED
+                    {
+                        continue;
+                    }
+                    absorb(&mut contact, &other.contact);
+                    if photo.is_none() {
+                        photo = cdb::contact_photo(tx, id)?;
+                    }
+                    gone.push(other);
+                }
+                if gone.is_empty() {
+                    return Ok((book.id, 0, false));
+                }
+                let remote = book.account_id.is_some();
+                let state = match (remote, row.local_state) {
+                    (false, _) => cdb::SYNCED,
+                    (true, cdb::CREATED) => cdb::CREATED,
+                    (true, _) => cdb::MODIFIED,
+                };
+                let edit = match photo {
+                    Some(p) if cdb::contact_photo(tx, keep)?.is_none() => PhotoEdit::Set {
+                        thumb: thumbnail(&p.bytes),
+                        photo: p,
+                    },
+                    _ => PhotoEdit::Unchanged,
+                };
+                cdb::update_local(tx, keep, &contact, state, &edit)?;
+                for other in &gone {
+                    if !remote || (other.local_state == cdb::CREATED && other.remote_id.is_none()) {
+                        cdb::delete_row(tx, other.id)?;
+                    } else {
+                        cdb::mark_deleted(tx, other.id)?;
+                    }
+                }
+                Ok((book.id, gone.len(), remote))
+            })
+            .await?;
+        if merged > 0 {
+            if remote {
+                crate::sync::contacts::wake(self);
+            }
+            self.emit(EngineEvent::ContactsChanged {
+                book_ids: vec![book_id],
+            });
+        }
+        Ok(merged)
+    }
+
     /// Deletes a contact here and, in the background, on the server.
     pub async fn delete_contact(&self, id: i64) -> Result<()> {
         let remote = self
@@ -892,6 +999,154 @@ impl Engine {
             crate::sync::contacts::wake(self);
         }
         Ok(())
+    }
+}
+
+/// Groups contacts that are the same person (see
+/// [`Engine::contact_duplicates`]): `rows` are each contact's summary, its
+/// details and whether it has a photo.
+fn duplicate_groups(rows: Vec<(ContactSummary, Contact, bool)>) -> Vec<Vec<ContactSummary>> {
+    // Union-find over what identifies a person within an address book.
+    let mut parent: Vec<usize> = (0..rows.len()).collect();
+    fn root(parent: &mut [usize], mut i: usize) -> usize {
+        while parent[i] != i {
+            parent[i] = parent[parent[i]];
+            i = parent[i];
+        }
+        i
+    }
+    let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for (i, (summary, contact, _)) in rows.iter().enumerate() {
+        let book = summary.book_id;
+        let mut keys: Vec<String> = contact
+            .emails
+            .iter()
+            .map(|e| e.value.trim().to_lowercase())
+            .filter(|e| e.contains('@'))
+            .map(|e| format!("{book} e {e}"))
+            .collect();
+        // The last nine digits: "+44 20 7946 0001" and "020 7946 0001" alike.
+        keys.extend(contact.phones.iter().filter_map(|p| {
+            let digits = cdb::phone_digits(&p.value);
+            (digits.len() >= 7)
+                .then(|| format!("{book} p {}", &digits[digits.len().saturating_sub(9)..]))
+        }));
+        let name = cdb::fold(summary.name.trim());
+        if name.split_whitespace().count() >= 2 {
+            keys.push(format!(
+                "{book} n {}",
+                name.split_whitespace().collect::<Vec<_>>().join(" ")
+            ));
+        }
+        for key in keys {
+            match seen.get(&key) {
+                Some(&j) => {
+                    let (a, b) = (root(&mut parent, i), root(&mut parent, j));
+                    parent[a] = b;
+                }
+                None => {
+                    seen.insert(key, i);
+                }
+            }
+        }
+    }
+    let mut groups: std::collections::BTreeMap<usize, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for i in 0..rows.len() {
+        let r = root(&mut parent, i);
+        groups.entry(r).or_default().push(i);
+    }
+    // How much a contact holds, to keep the most complete one.
+    let filled = |(_, c, photo): &(ContactSummary, Contact, bool)| {
+        c.emails.len()
+            + c.phones.len()
+            + c.addresses.len()
+            + c.urls.len()
+            + [&c.organization, &c.title, &c.note, &c.nickname]
+                .iter()
+                .filter(|v| v.as_deref().is_some_and(|v| !v.trim().is_empty()))
+                .count()
+            + usize::from(c.birthday.is_some())
+            + usize::from(*photo)
+    };
+    let mut out: Vec<Vec<ContactSummary>> = groups
+        .into_values()
+        .filter(|members| members.len() > 1)
+        .map(|mut members| {
+            members.sort_by_key(|&i| (std::cmp::Reverse(filled(&rows[i])), rows[i].0.id));
+            members.into_iter().map(|i| rows[i].0.clone()).collect()
+        })
+        .collect();
+    out.sort_by(|a, b| cdb::sort_key(&a[0].name).cmp(&cdb::sort_key(&b[0].name)));
+    out
+}
+
+/// Adds to `contact` what `other` knows that it doesn't.
+fn absorb(contact: &mut Contact, other: &Contact) {
+    let empty = |v: &Option<String>| v.as_deref().is_none_or(|v| v.trim().is_empty());
+    if contact.name.trim().is_empty() {
+        contact.name = other.name.clone();
+    }
+    for (mine, theirs) in [
+        (&mut contact.given_name, &other.given_name),
+        (&mut contact.family_name, &other.family_name),
+        (&mut contact.nickname, &other.nickname),
+        (&mut contact.organization, &other.organization),
+        (&mut contact.title, &other.title),
+    ] {
+        if empty(mine) && !empty(theirs) {
+            mine.clone_from(theirs);
+        }
+    }
+    match (&mut contact.note, &other.note) {
+        (_, None) => {}
+        (mine, Some(theirs)) if empty(mine) => *mine = Some(theirs.clone()),
+        (Some(mine), Some(theirs)) if !mine.contains(theirs.trim()) => {
+            mine.push_str("\n\n");
+            mine.push_str(theirs.trim());
+        }
+        _ => {}
+    }
+    contact.birthday = contact.birthday.or(other.birthday);
+    for e in &other.emails {
+        if !contact
+            .emails
+            .iter()
+            .any(|m| m.value.trim().eq_ignore_ascii_case(e.value.trim()))
+        {
+            contact.emails.push(ContactField {
+                preferred: false,
+                ..e.clone()
+            });
+        }
+    }
+    for p in &other.phones {
+        let digits = cdb::phone_digits(&p.value);
+        if !contact
+            .phones
+            .iter()
+            .any(|m| cdb::phone_digits(&m.value) == digits)
+        {
+            contact.phones.push(p.clone());
+        }
+    }
+    for a in &other.addresses {
+        if !contact
+            .addresses
+            .iter()
+            .any(|m| m.formatted() == a.formatted())
+        {
+            contact.addresses.push(a.clone());
+        }
+    }
+    for u in &other.urls {
+        if !contact
+            .urls
+            .iter()
+            .any(|m| m.value.trim().eq_ignore_ascii_case(u.value.trim()))
+        {
+            contact.urls.push(u.clone());
+        }
     }
 }
 

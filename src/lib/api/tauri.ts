@@ -175,6 +175,8 @@ export function createTauriApi(): Api {
       save: (contact) => invoke('contact_save', { contact }),
       remove: (id) => invoke('contact_delete', { id }),
       export: (bookId, path) => invoke('contacts_export', { bookId, path }),
+      duplicates: () => invoke('contacts_duplicates'),
+      merge: (ids) => invoke('contacts_merge', { ids }),
     },
     tasks: {
       lists: () => invoke('task_lists'),

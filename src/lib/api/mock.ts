@@ -707,6 +707,8 @@ export function createMockApi(): Api {
       save: async (contact) => people.save(structuredClone(contact)),
       remove: async (id) => people.remove(id),
       export: async (bookId) => delay(people.contacts.filter((c) => bookId == null || c.bookId === bookId).length),
+      duplicates: async () => delay(people.duplicates()),
+      merge: async (ids) => delay(people.merge(ids)),
     },
 
     tasks: {

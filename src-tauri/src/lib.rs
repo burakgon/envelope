@@ -198,6 +198,8 @@ pub fn run() {
             commands::accounts_elsewhere,
             commands::account_verify,
             commands::contacts_export,
+            commands::contacts_duplicates,
+            commands::contacts_merge,
             commands::account_add_password,
             commands::account_add_exchange,
             commands::account_add_oauth,

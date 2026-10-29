@@ -10,13 +10,15 @@
   import WindowControls from '../WindowControls.svelte';
   import ContactDetail from './ContactDetail.svelte';
   import ContactEditor from './ContactEditor.svelte';
+  import DuplicatesDialog from './DuplicatesDialog.svelte';
   import { intlLocale, t } from '../../i18n';
-  import { Download, More, PanelLeft, Plus, Search, Upload, Users } from '../../icons';
+  import { Download, Merge, More, PanelLeft, Plus, Search, Upload, Users } from '../../icons';
 
   let searchEl: HTMLInputElement | undefined = $state();
   let menu = $state<{ x: number; y: number } | null>(null);
   /** A file of contacts being looked at, to choose whom to add. */
   let importing = $state<string | null>(null);
+  let duplicates = $state(false);
 
   /** Opens a vCard file or a CSV export (Gmail, Outlook, Thunderbird) to choose whom to add. */
   async function importContacts() {
@@ -166,9 +168,11 @@
   <Popover x={menu.x} y={menu.y} align="end" onclose={() => (menu = null)} width={240}>
     <button class="menu-item" onclick={importContacts}><Upload size={15} />{t('contacts.import')}</button>
     <button class="menu-item" onclick={exportContacts}><Download size={15} />{t('contacts.export')}</button>
+    <button class="menu-item" onclick={() => { menu = null; duplicates = true; }}><Merge size={15} />{t('contacts.findDuplicates')}</button>
   </Popover>
 {/if}
 {#if importing}<FileViewer path={importing} onclose={() => (importing = null)} />{/if}
+{#if duplicates}<DuplicatesDialog onclose={() => (duplicates = false)} />{/if}
 
 <style>
   .contacts {
