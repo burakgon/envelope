@@ -86,6 +86,11 @@ class Tasks {
 
   open = $derived(this.items.filter((x) => x.completedAt == null));
   done = $derived(this.items.filter((x) => x.completedAt != null));
+  /**
+   * Completed tasks of the list in view: all of them, though only the latest are loaded, or those
+   * on screen while the list's count catches up with a change.
+   */
+  doneCount = $derived(Math.max(this.currentList?.completedCount ?? 0, this.done.length));
 
   groups = $derived.by((): TaskGroup[] => {
     const view = this.view;
@@ -585,7 +590,7 @@ class Tasks {
   }
 
   async clearCompleted(list: TaskList) {
-    const count = this.done.length;
+    const count = this.isView({ list: list.id }) ? this.doneCount : list.completedCount;
     try {
       await api.tasks.clearCompleted(list.id);
       this.items = this.items.filter((x) => x.completedAt == null);

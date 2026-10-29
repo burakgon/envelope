@@ -210,7 +210,7 @@
                 <div class="completed">
                   <button class="ctoggle" aria-expanded={tasks.showCompleted} onclick={() => (tasks.showCompleted = !tasks.showCompleted)}>
                     <span class="chev" class:open={tasks.showCompleted}><ChevronRight size={14} /></span>
-                    {t('tasks.completedCount', { count: tasks.done.length })}
+                    {t('tasks.completedCount', { count: tasks.doneCount })}
                   </button>
                   {#if tasks.showCompleted && !list.readOnly}
                     <button
@@ -222,7 +222,7 @@
                   {/if}
                 </div>
                 {#if tasks.showCompleted}
-                  <div class="group" role="group" aria-label={t('tasks.completedCount', { count: tasks.done.length })}>
+                  <div class="group" role="group" aria-label={t('tasks.completedCount', { count: tasks.doneCount })}>
                     {#each tasks.done as task (task.id)}
                       <div class="slot" animate:flip={{ duration: 220, easing: cubicOut }} in:enter out:leave>
                         <TaskRow {task} {list} selected={tasks.selectedId === task.id} />

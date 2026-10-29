@@ -131,7 +131,7 @@
     </div>
   {:else if mode === 'clear' && list}
     <div class="form">
-      <p class="ask">{t('tasks.listMenu.clearAsk', { count: tasks.done.length })}</p>
+      <p class="ask">{t('tasks.listMenu.clearAsk', { count: tasks.doneCount })}</p>
       <div class="btns">
         <button class="btn sm" onclick={onclose}>{t('common.cancel')}</button>
         <button class="btn sm danger" onclick={() => act((l) => tasks.clearCompleted(l))}>{t('tasks.listMenu.clearConfirm')}</button>
