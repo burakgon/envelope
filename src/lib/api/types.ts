@@ -342,6 +342,81 @@ export interface ContactSuggestion {
   score: number;
 }
 
+// ----- Tasks -------------------------------------------------------------------
+
+export type TaskListKind = 'local' | 'caldav' | 'google' | 'graph' | 'ews';
+
+export interface TaskList {
+  id: number;
+  accountId: number | null;
+  kind: TaskListKind;
+  name: string;
+  /** `#rrggbb`. */
+  color: string;
+  readOnly: boolean;
+  /** Where new tasks for this account go. */
+  isDefault: boolean;
+  /** Tasks not completed yet (subtasks included). */
+  openCount: number;
+  /** What the service stores: a time of day on due dates, importance, subtasks. */
+  dueTimes: boolean;
+  importance: boolean;
+  subtasks: boolean;
+}
+
+/** The message a task was made from. */
+export interface TaskSource {
+  /** `Message-ID` header, without angle brackets. */
+  messageId: string;
+  /** The conversation, when the message is still in the database. */
+  threadId: number | null;
+  accountId: number | null;
+  subject: string;
+  /** Sender's name or address. */
+  from: string | null;
+}
+
+export interface Task {
+  id: number;
+  listId: number;
+  parentId: number | null;
+  title: string;
+  notes: string;
+  /** The day the task is due (`YYYY-MM-DD`, local). */
+  dueDate: string | null;
+  /** When it is due, if at a time of day (ms since epoch); `dueDate` is then that local day. */
+  dueAt: number | null;
+  /** When it was completed (ms); null while open. */
+  completedAt: number | null;
+  important: boolean;
+  /** Repeats (kept from the server); completing it moves it to its next due date. */
+  repeats: boolean;
+  source: TaskSource | null;
+  /** Subtasks: how many, how many done (0 for subtasks themselves). */
+  subtaskCount: number;
+  subtasksDone: number;
+  createdAt: number;
+  updatedAt: number;
+  /** Changed here and not on the server yet. */
+  pending: boolean;
+  /** Why saving it on the server failed last time. */
+  error: string | null;
+}
+
+export type TaskView = { list: number } | 'today' | 'upcoming' | 'important' | 'all';
+
+export interface TaskInput {
+  listId: number;
+  parentId?: number | null;
+  title: string;
+  notes?: string;
+  dueDate?: string | null;
+  dueAt?: number | null;
+  important?: boolean;
+  /** Database id of a message to link the task to (only when creating). */
+  fromMessage?: number | null;
+}
+
 export interface Discovery {
   email: string;
   provider: string;
@@ -405,6 +480,8 @@ export type EngineEvent =
   | { type: 'newMail'; accountId: number; threads: ThreadSummary[] }
   | { type: 'calendarChanged'; calendarIds: number[] }
   | { type: 'contactsChanged'; bookIds: number[] }
+  /** Tasks or lists changed; an empty `listIds` means the lists themselves changed. */
+  | { type: 'tasksChanged'; listIds: number[] }
   | { type: 'followUpDue'; threadId: number; subject: string }
   | { type: 'outboxChanged' }
   | { type: 'sendFailed'; outboxId: number; error: string }

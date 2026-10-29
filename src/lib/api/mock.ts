@@ -6,6 +6,7 @@ import * as data from './mockdata';
 import { mockAiRun, mockPresets } from './mock-ai';
 import * as cal from './mock-calendar';
 import * as people from './mock-contacts';
+import * as todo from './mock-tasks';
 import { createMockCrypto } from './mock-crypto';
 
 type Listener = (e: T.EngineEvent) => void;
@@ -13,6 +14,8 @@ type Listener = (e: T.EngineEvent) => void;
 export function createMockApi(): Api {
   const listeners = new Set<Listener>();
   const emit = (e: T.EngineEvent) => queueMicrotask(() => listeners.forEach((l) => l(e)));
+  const tasksChanged = (listIds: number[]) => emit({ type: 'tasksChanged', listIds: [...new Set(listIds)] });
+  todo.onSettled((listId) => tasksChanged([listId]));
   const threads = data.threads;
   const messages = data.messages;
   const drafts = new Map<number, T.Draft>();
@@ -415,6 +418,56 @@ export function createMockApi(): Api {
       },
       save: async (contact) => people.save(structuredClone(contact)),
       remove: async (id) => people.remove(id),
+    },
+
+    tasks: {
+      lists: async () => todo.taskLists(),
+      query: async (view, includeCompleted) => todo.query(view, includeCompleted),
+      due: async (from, to) => todo.due(from, to),
+      get: async (id) => todo.get(id),
+      subtasks: async (id) => todo.subtasks(id),
+      create: async (input) => {
+        const task = todo.create(input);
+        tasksChanged([task.listId]);
+        return task;
+      },
+      update: async (id, input) => {
+        const before = todo.listIdOf(id);
+        const task = todo.update(id, input);
+        tasksChanged([before, task.listId]);
+        return task;
+      },
+      complete: async (id, completed) => {
+        const task = todo.complete(id, completed);
+        tasksChanged([task.listId]);
+        return task;
+      },
+      reorder: async (id, beforeId) => {
+        todo.reorder(id, beforeId);
+        tasksChanged([todo.listIdOf(id)]);
+      },
+      remove: async (id) => {
+        const listId = todo.listIdOf(id);
+        todo.remove(id);
+        tasksChanged([listId]);
+      },
+      createList: async (accountId, name) => {
+        const list = todo.createList(accountId, name);
+        tasksChanged([]);
+        return list;
+      },
+      renameList: async (id, name) => {
+        todo.renameList(id, name);
+        tasksChanged([]);
+      },
+      removeList: async (id) => {
+        todo.removeList(id);
+        tasksChanged([]);
+      },
+      clearCompleted: async (listId) => {
+        todo.clearCompleted(listId);
+        tasksChanged([listId]);
+      },
     },
 
     calendar: {

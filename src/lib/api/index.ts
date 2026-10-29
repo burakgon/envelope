@@ -161,6 +161,31 @@ export interface Api {
     remove(id: number): Promise<void>;
   };
 
+  tasks: {
+    /** The local list first, then each account's lists in their order. */
+    lists(): Promise<T.TaskList[]>;
+    /** Tasks in display order; `includeCompleted` only applies to a list. */
+    query(view: T.TaskView, includeCompleted: boolean): Promise<T.Task[]>;
+    /** Open tasks due in [from, to) (ms), for the calendar. */
+    due(from: number, to: number): Promise<T.Task[]>;
+    get(id: number): Promise<T.Task>;
+    /** A task's subtasks by position, completed ones included. */
+    subtasks(id: number): Promise<T.Task[]>;
+    create(input: T.TaskInput): Promise<T.Task>;
+    /** Saves a task; a different `listId` moves it. */
+    update(id: number, input: T.TaskInput): Promise<T.Task>;
+    /** A repeating task comes back open with its next due date. */
+    complete(id: number, completed: boolean): Promise<T.Task>;
+    /** Moves a task before another in its list (null: to the end). */
+    reorder(id: number, beforeId: number | null): Promise<void>;
+    /** Deletes a task and its subtasks. */
+    remove(id: number): Promise<void>;
+    createList(accountId: number | null, name: string): Promise<T.TaskList>;
+    renameList(id: number, name: string): Promise<void>;
+    removeList(id: number): Promise<void>;
+    clearCompleted(listId: number): Promise<void>;
+  };
+
   ai: {
     config(): Promise<T.AiConfig>;
     setConfig(settings: T.AiSettings, apiKey?: string | null): Promise<void>;
