@@ -547,7 +547,7 @@ async fn graph_sync_calendar(
         .map_err(graph_err)?;
     engine.db.write(|tx| cdb::clear_calendar(tx, row.id))?;
     for ge in &events {
-        let pd = serde_json::json!({ "id": ge.id, "seriesMasterId": ge.series_master_id, "isOrganizer": ge.is_organizer });
+        let pd = serde_json::json!({ "id": ge.id, "seriesMasterId": ge.series_master_id, "isOrganizer": ge.is_organizer, "allowNewTimeProposals": ge.allow_new_time_proposals });
         engine.store_event(
             row.id,
             &ge.event,
@@ -613,7 +613,13 @@ pub(crate) async fn write_create(
                 .put(&href, &ics, envelope_dav::Precondition::IfNoneMatch)
                 .await
                 .map_err(dav_err)?;
-            if !event.attendees.is_empty() {
+            // Someone else's meeting filed here (an invitation answered) is
+            // not sent out again.
+            let organizes = event
+                .organizer
+                .as_ref()
+                .is_none_or(|o| o.email.eq_ignore_ascii_case(&account.email));
+            if !event.attendees.is_empty() && organizes {
                 send_itip(engine, &account, event, "REQUEST").await?;
             }
             engine.store_event(
@@ -674,7 +680,7 @@ pub(crate) async fn write_create(
                 graph_sync_calendar(engine, &client, cal).await?;
                 return Ok(0);
             }
-            let pd = serde_json::json!({ "id": ge.id, "seriesMasterId": ge.series_master_id, "isOrganizer": ge.is_organizer });
+            let pd = serde_json::json!({ "id": ge.id, "seriesMasterId": ge.series_master_id, "isOrganizer": ge.is_organizer, "allowNewTimeProposals": ge.allow_new_time_proposals });
             engine.store_event(
                 cal.id,
                 &ge.event,
@@ -1124,12 +1130,16 @@ pub(crate) async fn write_delete(
     Ok(())
 }
 
+/// Records the user's answer to a meeting on their calendar; with `notify`
+/// the organizer is told (a reply goes out), without it the answer only
+/// changes the user's copy (a proposal for a new time carried it already).
 pub(crate) async fn write_respond(
     engine: &Engine,
     cal: &CalendarRow,
     row: &EventRow,
     status: PartStat,
     comment: Option<&str>,
+    notify: bool,
 ) -> Result<()> {
     match cal.kind.as_str() {
         "google" => {
@@ -1138,7 +1148,11 @@ pub(crate) async fn write_respond(
             let id =
                 provider_id(row).ok_or_else(|| Error::Invalid("event has no server id".into()))?;
             let opts = envelope_google::WriteOptions {
-                send_updates: Some(envelope_google::SendUpdates::All),
+                send_updates: Some(if notify {
+                    envelope_google::SendUpdates::All
+                } else {
+                    envelope_google::SendUpdates::None
+                }),
                 ..Default::default()
             };
             let saved = client
@@ -1167,20 +1181,18 @@ pub(crate) async fn write_respond(
                 _ => envelope_graph::EventResponse::TentativelyAccept,
             };
             client
-                .respond_to_event(&id, response, comment, true)
+                .respond_to_event(&id, response, comment, notify)
                 .await
                 .map_err(graph_err)?;
             graph_sync_calendar(engine, &client, cal).await?;
         }
-        "ews" => super::ews::calendar::write_respond(engine, cal, row, status, comment).await?,
+        "ews" => {
+            super::ews::calendar::write_respond(engine, cal, row, status, comment, notify).await?
+        }
         _ => {
             // CalDAV and local: update our copy and e-mail an iTIP reply to the organizer.
             let mut event = row.event.clone();
-            let me: Vec<String> = engine
-                .identities()?
-                .into_iter()
-                .map(|i| i.email.to_lowercase())
-                .collect();
+            let me = engine.my_emails()?;
             let mut my_email = None;
             for a in event.attendees.iter_mut() {
                 if me.contains(&a.email.to_lowercase()) {
@@ -1193,7 +1205,9 @@ pub(crate) async fn write_respond(
                 None => envelope_ical::create_calendar(&row.event)
                     .map_err(|e| Error::Other(e.to_string()))?,
             };
-            if let (Some(email), Some(organizer)) = (my_email, row.event.organizer.clone()) {
+            if let (true, Some(email), Some(organizer)) =
+                (notify, my_email, row.event.organizer.clone())
+            {
                 let reply = envelope_ical::build_reply(&source, &email, status, comment)
                     .map_err(|e| Error::Other(e.to_string()))?;
                 let account_id = cal
@@ -1299,6 +1313,127 @@ pub(crate) async fn send_reply(
             verb.to_lowercase()
         ),
         calendar: Some(("REPLY".into(), ics)),
+        ..Default::default()
+    };
+    queue_mail(engine, account_id, out).await
+}
+
+/// Answers a meeting on a Microsoft calendar tentatively (or declines it)
+/// and proposes `start`–`end` instead; Microsoft 365 sends both to the
+/// organizer.
+pub(crate) async fn graph_propose(
+    engine: &Engine,
+    cal: &CalendarRow,
+    row: &EventRow,
+    status: PartStat,
+    start: chrono::DateTime<Utc>,
+    end: chrono::DateTime<Utc>,
+    comment: Option<&str>,
+) -> Result<()> {
+    let account = account_of(engine, cal)?;
+    let client = graph_client(engine, account.id)?;
+    let id = provider_id(row).ok_or_else(|| Error::Invalid("event has no server id".into()))?;
+    let response = if status == PartStat::Declined {
+        envelope_graph::EventResponse::Decline
+    } else {
+        envelope_graph::EventResponse::TentativelyAccept
+    };
+    client
+        .propose_new_time(&id, response, start, end, comment)
+        .await
+        .map_err(graph_err)?;
+    graph_sync_calendar(engine, &client, cal).await
+}
+
+/// A time span as the mail about an event writes it, on this computer's
+/// clocks: "Thursday, November 5, 2026 11:00 – 12:00 (Europe/Istanbul)".
+pub(crate) fn span_text(start: i64, end: i64) -> String {
+    let tz = local_tz();
+    let at = |ms: i64| chrono::DateTime::from_timestamp_millis(ms).map(|d| d.with_timezone(&tz));
+    let (Some(from), Some(to)) = (at(start), at(end)) else {
+        return String::new();
+    };
+    let to_text = if from.date_naive() == to.date_naive() {
+        to.format("%H:%M").to_string()
+    } else {
+        to.format("%A, %B %-d, %Y %H:%M").to_string()
+    };
+    format!(
+        "{} – {to_text} ({})",
+        from.format("%A, %B %-d, %Y %H:%M"),
+        tz.name()
+    )
+}
+
+/// The note someone wrote to a proposal or its answer, as a paragraph of
+/// the mail.
+fn note_html(comment: Option<&str>) -> String {
+    comment
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .map(|c| {
+            format!(
+                "<p>“{}”</p>",
+                html_escape::encode_text(c).replace('\n', "<br>")
+            )
+        })
+        .unwrap_or_default()
+}
+
+/// E-mails an attendee's proposal of a new time (an iTIP `COUNTER`) to the
+/// organizer. `when` is the proposed time in words.
+pub(crate) async fn send_counter(
+    engine: &Engine,
+    account_id: i64,
+    summary: &str,
+    organizer: &str,
+    when: &str,
+    comment: Option<&str>,
+    ics: String,
+) -> Result<()> {
+    let account = engine.account_row(account_id)?;
+    let out = crate::compose::Outgoing {
+        from: crate::model::Address::new(Some(account.name.clone()), account.email.clone()),
+        to: vec![crate::model::Address::new(None, organizer.to_string())],
+        subject: format!("New time proposed: {summary}"),
+        html: format!(
+            "<p>{} has proposed a new time for {}:</p><p><b>{}</b></p>{}",
+            html_escape::encode_text(&account.name),
+            html_escape::encode_text(summary),
+            html_escape::encode_text(when),
+            note_html(comment)
+        ),
+        calendar: Some(("COUNTER".into(), ics)),
+        ..Default::default()
+    };
+    queue_mail(engine, account_id, out).await
+}
+
+/// E-mails the organizer's refusal of a proposed time (an iTIP
+/// `DECLINECOUNTER`) to the attendee who proposed it. `when` is the time
+/// the event keeps, in words.
+pub(crate) async fn send_decline_counter(
+    engine: &Engine,
+    account_id: i64,
+    summary: &str,
+    attendee: &crate::model::Address,
+    when: &str,
+    comment: Option<&str>,
+    ics: String,
+) -> Result<()> {
+    let account = engine.account_row(account_id)?;
+    let out = crate::compose::Outgoing {
+        from: crate::model::Address::new(Some(account.name.clone()), account.email.clone()),
+        to: vec![attendee.clone()],
+        subject: format!("New time declined: {summary}"),
+        html: format!(
+            "<p>{} has declined the new time you proposed for {}. It stays at:</p><p><b>{}</b></p>{}",
+            html_escape::encode_text(&account.name),
+            html_escape::encode_text(summary),
+            html_escape::encode_text(when),
+            note_html(comment)
+        ),
+        calendar: Some(("DECLINECOUNTER".into(), ics)),
         ..Default::default()
     };
     queue_mail(engine, account_id, out).await

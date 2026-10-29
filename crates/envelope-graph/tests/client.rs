@@ -594,6 +594,13 @@ fn public_futures_are_send() {
     assert_send(&client.create_event(None, &event, &options));
     assert_send(&client.update_event_diff("a", &event, &event, &options));
     assert_send(&client.respond_to_event("a", EventResponse::Accept, None, true));
+    assert_send(&client.propose_new_time(
+        "a",
+        EventResponse::Decline,
+        Utc::now(),
+        Utc::now(),
+        None,
+    ));
     assert_send(&client.get_schedule(&ids, &window, 30));
     assert_send(&client.all_contacts());
     assert_send(&client.contacts_delta("f", None, None));

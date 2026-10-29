@@ -19,6 +19,7 @@ export { default as Sparkles } from '@lucide/svelte/icons/sparkles';
 export { default as Mail } from '@lucide/svelte/icons/mail';
 export { default as Mails } from '@lucide/svelte/icons/mails';
 export { default as AlarmClock } from '@lucide/svelte/icons/alarm-clock';
+export { default as History } from '@lucide/svelte/icons/history';
 export { default as Tag } from '@lucide/svelte/icons/tag';
 export { default as Folder } from '@lucide/svelte/icons/folder';
 export { default as FolderOpen } from '@lucide/svelte/icons/folder-open';

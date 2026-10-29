@@ -881,11 +881,14 @@ impl CalendarItemUpdate {
     }
 }
 
+/// The `CreateItem` answering a meeting, with the new time it proposes
+/// (`ProposedStart` and `ProposedEnd` follow the reference to the meeting).
 pub(crate) fn respond_request(
     item: &ItemId,
     response: MeetingResponse,
     comment: Option<&str>,
     send: bool,
+    proposed: Option<(DateTime<Utc>, DateTime<Utc>)>,
 ) -> String {
     let element = response.element();
     let mut w = XmlWriter::new();
@@ -902,6 +905,10 @@ pub(crate) fn respond_request(
         Body::text(comment).write(&mut w);
     }
     item.write(&mut w, "t:ReferenceItemId");
+    if let Some((start, end)) = proposed {
+        w.text_element("t:ProposedStart", &format_datetime(start))
+            .text_element("t:ProposedEnd", &format_datetime(end));
+    }
     w.end(element).end("m:Items").end("m:CreateItem");
     w.into_string()
 }
@@ -1087,7 +1094,43 @@ impl EwsClient {
         comment: Option<&str>,
         send_response: bool,
     ) -> Result<Option<ItemId>, EwsError> {
-        let body = respond_request(item, response, comment, send_response);
+        let body = respond_request(item, response, comment, send_response, None);
+        let reply = self.call(&SoapRequest::write("CreateItem", body)).await?;
+        Ok(first_item_id(soap::single(&reply)?))
+    }
+
+    /// Tentatively accepts or declines a meeting and proposes that it moves
+    /// to `start`–`end`; the organizer gets the answer with the proposal.
+    /// `item` is the meeting request in the inbox or the calendar item.
+    /// Needs Exchange 2013 SP1 or later
+    /// ([`ExchangeVersion::has_new_time_proposals`]): with an older
+    /// [`version`](Self::version), with an acceptance or with a time that
+    /// ends before it starts it fails with [`EwsError::InvalidInput`].
+    pub async fn propose_new_time(
+        &self,
+        item: &ItemId,
+        response: MeetingResponse,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        comment: Option<&str>,
+    ) -> Result<Option<ItemId>, EwsError> {
+        if !self.version().has_new_time_proposals() {
+            return Err(EwsError::InvalidInput(format!(
+                "proposing a new meeting time needs Exchange 2013 SP1 or later, not {}",
+                self.version()
+            )));
+        }
+        if response == MeetingResponse::Accept {
+            return Err(EwsError::InvalidInput(
+                "a new time goes with a tentative answer or a decline, not an acceptance".into(),
+            ));
+        }
+        if end <= start {
+            return Err(EwsError::InvalidInput(
+                "the proposed time ends before it starts".into(),
+            ));
+        }
+        let body = respond_request(item, response, comment, true, Some((start, end)));
         let reply = self.call(&SoapRequest::write("CreateItem", body)).await?;
         Ok(first_item_id(soap::single(&reply)?))
     }
@@ -1318,12 +1361,19 @@ mod tests {
             MeetingResponse::Accept,
             Some("See you"),
             true,
+            None,
         );
         assert_eq!(
             accept,
             r#"<m:CreateItem MessageDisposition="SendAndSaveCopy"><m:Items><t:AcceptItem><t:Body BodyType="Text">See you</t:Body><t:ReferenceItemId Id="mr" ChangeKey="ck"/></t:AcceptItem></m:Items></m:CreateItem>"#
         );
-        let decline = respond_request(&ItemId::new("mr"), MeetingResponse::Decline, None, false);
+        let decline = respond_request(
+            &ItemId::new("mr"),
+            MeetingResponse::Decline,
+            None,
+            false,
+            None,
+        );
         assert_eq!(
             decline,
             r#"<m:CreateItem MessageDisposition="SaveOnly"><m:Items><t:DeclineItem><t:ReferenceItemId Id="mr"/></t:DeclineItem></m:Items></m:CreateItem>"#
@@ -1333,9 +1383,22 @@ mod tests {
                 &ItemId::new("x"),
                 MeetingResponse::Tentative,
                 Some(" "),
-                true
+                true,
+                None
             )
             .contains("<t:TentativelyAcceptItem><t:ReferenceItemId")
+        );
+        // A new time follows the reference to the meeting.
+        let proposal = respond_request(
+            &ItemId::new("mr"),
+            MeetingResponse::Tentative,
+            Some("Later?"),
+            true,
+            Some((utc(2026, 11, 5, 11, 0), utc(2026, 11, 5, 12, 0))),
+        );
+        assert_eq!(
+            proposal,
+            r#"<m:CreateItem MessageDisposition="SendAndSaveCopy"><m:Items><t:TentativelyAcceptItem><t:Body BodyType="Text">Later?</t:Body><t:ReferenceItemId Id="mr"/><t:ProposedStart>2026-11-05T11:00:00Z</t:ProposedStart><t:ProposedEnd>2026-11-05T12:00:00Z</t:ProposedEnd></t:TentativelyAcceptItem></m:Items></m:CreateItem>"#
         );
     }
 

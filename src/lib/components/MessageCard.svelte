@@ -12,6 +12,7 @@
   import AttachmentTile from './AttachmentTile.svelte';
   import Popover from './Popover.svelte';
   import InviteCard from './InviteCard.svelte';
+  import ProposalCard from './ProposalCard.svelte';
   import ImageViewer from './ImageViewer.svelte';
   import { printMessage } from '../utils/print';
   import { isContained, isEncrypted, pgp } from '../stores/pgp.svelte';
@@ -214,6 +215,8 @@
 
     {#if message.calendarMethod === 'REQUEST' || message.calendarMethod === 'CANCEL'}
       <InviteCard {message} />
+    {:else if message.calendarMethod === 'COUNTER'}
+      <ProposalCard {message} />
     {/if}
 
     {#if stats.blocked > 0 && !remote}

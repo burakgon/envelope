@@ -991,6 +991,30 @@ export interface InviteInfo {
   eventId: number | null;
   conferenceUrl: string | null;
   recurring: boolean;
+  /** Whether a new time can be proposed: for a single event or one occurrence someone else organizes and takes proposals for, through a server that can send them. */
+  canPropose: boolean;
+}
+
+/** Where a proposed new time stands: it can be answered; the event is at that time now; it changed since; it is no longer on the calendar; or the user can't move it. */
+export type ProposalState = 'open' | 'current' | 'outdated' | 'gone' | 'readOnly';
+
+/** A new time an attendee proposed for an event the user organizes (an iTIP COUNTER), against the event as it stands. */
+export interface ProposalInfo {
+  uid: string;
+  summary: string;
+  /** Who proposes. */
+  attendee: Address;
+  /** Their answer, sent with the proposal. */
+  status: PartStat | null;
+  start: number;
+  end: number;
+  allDay: boolean;
+  /** The event's time now, while it is on the calendar. */
+  currentStart: number | null;
+  currentEnd: number | null;
+  comment: string | null;
+  eventId: number | null;
+  state: ProposalState;
 }
 
 // ----- OpenPGP and S/MIME -----------------------------------------------------

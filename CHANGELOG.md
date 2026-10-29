@@ -26,11 +26,14 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Lists sort newest first, oldest first or by sender (whom a conversation is with, without case or accents), from the View menu or the command palette. Each folder keeps its own order; paging stays fast in every order.
 - Conversations open in a window of their own: double-click a row, press Shift+Enter, or choose Open in a new window in the reader's toolbar, a conversation's right-click menu or the command palette. Escape closes it. With conversations off, an open message links to its conversation, which opens in one.
 - A message being written pops out into a window of its own (the button beside Minimize, and the one on a reply under a conversation). Closing that window, however it is closed, keeps the draft. Windows of their own open at the size the last one had, follow settings changed in another window, and hand what was done in them, with Undo, to the main window; notifications, `mailto:` links and files still open in the main window.
+- Propose new time… on an invitation: a day, a start and an end (the end keeps the meeting's length as the start moves) and a note. The proposal goes to the organizer with Maybe as your answer, or No if you had declined, as Outlook does it — through Exchange (2013 SP1 and later) and Microsoft 365 for their meetings, as an iCalendar proposal otherwise. It is offered for single meetings and single occurrences, not for a whole repeating series or all-day events, nor when the organizer asked for no proposals.
+- A time proposed for one of your meetings shows as a card in the message: who proposed it, the new time against the current one, their note and whether you are free then. Accept moves the event (or that occurrence) and sends the update to everyone invited; Decline tells them it stays. A proposal for an event that has changed since, or is gone, says so instead.
 
 ### Fixed
 - Dragging the edge of the conversation list over an open message no longer stops resizing it halfway.
 - Undoing a send with `z` after the message had already gone out says so, instead of opening it again as a new draft.
 - A few German texts (blocked senders, account alerts) addressed the reader as "du" instead of "Sie" like the rest.
+- Answering someone else's invitation on an account with a CalDAV calendar sent their meeting to the other guests again, as an invitation from you.
 - Messages signed with S/MIME showed an `smime.p7s` attachment, and S/MIME encrypted or opaque signed ones looked empty with an `smime.p7m` attachment.
 
 ## [0.4.0] — 2026-10-29

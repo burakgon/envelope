@@ -174,6 +174,14 @@ export interface Api {
     respond(eventId: number, status: T.PartStat, comment?: string | null): Promise<void>;
     invite(messageId: number): Promise<T.InviteInfo>;
     respondInvite(messageId: number, status: T.PartStat, comment?: string | null): Promise<void>;
+    /** Proposes another time for an invitation, answering it "maybe" at the same time (a "no" stays one); resolves to the answer given. */
+    proposeTime(messageId: number, status: T.PartStat, start: number, end: number, comment?: string | null): Promise<T.PartStat>;
+    /** The new time proposed in a message for an event the user organizes. */
+    proposal(messageId: number): Promise<T.ProposalInfo>;
+    /** Moves the event to the proposed time; every attendee gets the update. */
+    acceptProposal(messageId: number): Promise<void>;
+    /** Keeps the event's time and tells the attendee who proposed another. */
+    declineProposal(messageId: number, comment?: string | null): Promise<void>;
     /** When people are busy, asked through the service of the calendar the meeting goes on. */
     freeBusy(calendarId: number, emails: string[], from: number, to: number): Promise<T.Availability[]>;
   };

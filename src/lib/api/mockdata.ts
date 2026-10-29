@@ -102,7 +102,9 @@ interface MsgSeed {
   flagged?: boolean;
   attachments?: { filename: string; mimeType: string; size: number }[];
   unsubscribe?: boolean;
-  invite?: boolean;
+  /** An invitation (`REQUEST`) or a proposal for a new time (`COUNTER`), for the calendar's event of that title. */
+  invite?: 'REQUEST' | 'COUNTER';
+  event?: string;
   /** Marked high (1) or low (-1) importance by its sender. */
   importance?: number;
   /** A draft stored on the server (written on another computer, say). */
@@ -136,7 +138,10 @@ const seeds: ThreadSeed[] = [
     { from: P.priya, to: [P.meWork, P.daniel], at: now - 47 * MIN, seen: false, importance: 1, text: "Great — updated the doc with both of your notes. Final review tomorrow at 10:00, I'll send an invite.\n\nPriya" },
   ]),
   T(1, ['inbox'], 'Invitation: Product sync @ Thu 10:00', [
-    { from: P.daniel, to: [P.meWork, P.priya, P.sofia], at: now - 2 * HOUR, seen: false, invite: true, text: 'Daniel Okafor has invited you to Product sync.\nThursday 10:00 – 10:45 · meet.lumen.dev/product-sync' },
+    { from: P.daniel, to: [P.meWork, P.priya, P.sofia], at: now - 2 * HOUR, seen: false, invite: 'REQUEST', event: 'Product sync', text: 'Daniel Okafor has invited you to Product sync.\nThursday 10:00 – 10:45 · meet.lumen.dev/product-sync' },
+  ]),
+  T(1, ['inbox'], 'New time proposed: Onboarding walkthrough', [
+    { from: P.maya, to: [P.meWork], at: now - 9 * HOUR, seen: false, invite: 'COUNTER', event: 'Onboarding walkthrough', text: 'Maya Chen has proposed a new time for Onboarding walkthrough.\n“Could we start at 16:30? I’m with a client until four.”' },
   ]),
   T(1, ['inbox', 'Releases'], '[lumen/envelope] Release v0.1 checklist (#151)', [
     { from: P.forge, to: [P.meWork], at: now - 3 * HOUR, seen: false, text: "Sofia Martínez requested your review on this pull request.\n\n✓ Packaging for deb, rpm and AppImage\n✓ Flatpak manifest\n○ Release notes\n\n— View it on Gitforge" },
@@ -165,6 +170,9 @@ const seeds: ThreadSeed[] = [
   ], 'notifications'),
   T(1, ['inbox'], 'Tokyo office visit — 東京オフィス', [
     { from: P.kenji, to: [P.meWork], at: now - 1 * DAY - 8 * HOUR, text: 'Hi Alex,\n\nLooking forward to your visit next month! The office is in the new Shibuya building, I booked the big meeting room for Tuesday.\n\nアレックスさん、お会いできるのを楽しみにしています。\n\nKenji', seen: true },
+  ]),
+  T(1, ['inbox'], 'Invitation: Tokyo office tour', [
+    { from: P.kenji, to: [P.meWork], at: now - 1 * DAY - 7 * HOUR, seen: false, invite: 'REQUEST', event: 'Tokyo office tour', text: 'Kenji Tanaka has invited you to Tokyo office tour.\nShibuya Scramble Square, 31F' },
   ]),
   T(1, ['inbox'], 'Your receipt from Lumen Cloud #1043-2201', [
     { from: P.pay, to: [P.meWork], at: now - 3 * DAY, seen: true, html: card(`<p style="color:#6b7080;margin:0">Receipt #1043-2201</p><h1 style="margin:6px 0 4px;font-size:32px">$24.00</h1><p style="margin:0 0 18px">Lumen Cloud Pro · monthly</p><table width="100%" style="font-size:14px;border-collapse:collapse"><tr><td style="padding:8px 0;border-top:1px solid #eee">Pro plan</td><td align="right" style="border-top:1px solid #eee">$24.00</td></tr><tr><td style="padding:8px 0;border-top:1px solid #eee;color:#6b7080">Paid with</td><td align="right" style="border-top:1px solid #eee;color:#6b7080">Visa •••• 4242</td></tr></table>`, '#10b981') },
@@ -263,6 +271,8 @@ for (let i = 0; i < bulk; i++) {
 
 export const threads: ThreadSummary[] = [];
 export const messages: MessageView[] = [];
+/** The calendar event an invitation or a proposal is about, by message id. */
+export const calendarEvents = new Map<number, string>();
 
 let tid = 1;
 let mid = 1;
@@ -277,6 +287,7 @@ for (const s of seeds) {
   const msgs = s.messages.map((m) => {
     const flags = { seen: m.seen ?? true, flagged: m.flagged ?? false, answered: false, draft: m.draft ?? false, forwarded: false };
     const text = m.text ?? null;
+    if (m.event) calendarEvents.set(mid, m.event);
     const view: MessageView = {
       id: mid++, threadId: id, accountId: s.account, folderIds: [...new Set(folderIds)], messageId: `${mid}@demo`, inReplyTo: null, references: [],
       subject: s.subject, from: m.from, to: m.to, cc: m.cc ?? [], bcc: [], replyTo: [], date: m.at, flags,
@@ -285,7 +296,7 @@ for (const s of seeds) {
       attachments: (m.attachments ?? []).map((a) => ({ id: aid++, filename: a.filename, mimeType: a.mimeType, size: a.size, contentId: null, inline: false })),
       body: { html: m.html ?? null, text },
       unsubscribe: m.unsubscribe ? { url: 'https://example.test/unsubscribe', mailto: null, oneClick: true } : null,
-      calendarMethod: m.invite ? 'REQUEST' : null,
+      calendarMethod: m.invite ?? null,
       isAuto: s.category === 'notifications',
       importance: m.importance ?? 0,
     };

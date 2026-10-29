@@ -757,12 +757,14 @@ async fn decline(ews: &EwsMail, id: &str) -> Result<()> {
 }
 
 /// Answers a meeting in the calendar; a series is answered as a whole.
+/// Without `notify` the answer is recorded but not sent.
 pub(crate) async fn write_respond(
     engine: &Engine,
     cal: &CalendarRow,
     row: &EventRow,
     status: PartStat,
     comment: Option<&str>,
+    notify: bool,
 ) -> Result<()> {
     let account = account_of(engine, cal)?;
     let lock = calendar_lock(account.id);
@@ -779,12 +781,55 @@ pub(crate) async fn write_respond(
             &ItemId::new(target),
             mapping::meeting_response(status),
             comment,
-            true,
+            notify,
         )
         .await
         .map_err(|e| ews.err(e))?;
     sync_calendar(engine, &ews, &account, cal).await?;
     Ok(())
+}
+
+/// The account and the Exchange item of a meeting request an Exchange
+/// account received; none for other messages.
+pub(crate) fn meeting_request(
+    engine: &Engine,
+    message_id: i64,
+) -> Result<Option<(AccountRow, String)>> {
+    let (account_id, remote, method): (i64, Option<String>, Option<String>) =
+        engine.db.read(|c| {
+            Ok(c.query_row(
+                "SELECT account_id, remote_id, calendar_method FROM messages WHERE id = ?",
+                [message_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )?)
+        })?;
+    let account = engine.account_row(account_id)?;
+    let Some(remote) = remote else {
+        return Ok(None);
+    };
+    if account.kind != AccountKind::Exchange
+        || method
+            .as_deref()
+            .is_some_and(|m| !m.eq_ignore_ascii_case("REQUEST"))
+    {
+        return Ok(None);
+    }
+    Ok(Some((account, remote)))
+}
+
+/// Whether the account's server takes a new time proposed with an answer:
+/// the schema version the account speaks (`RequestServerVersion`) is
+/// Exchange 2013 SP1 or later. Accounts that recorded none speak the
+/// default, Exchange 2013 SP1, which their server accepts.
+pub(crate) fn takes_proposals(account: &AccountRow) -> bool {
+    account
+        .config
+        .exchange
+        .as_ref()
+        .and_then(|c| c.version.as_deref())
+        .and_then(ews::ExchangeVersion::parse)
+        .unwrap_or_default()
+        .has_new_time_proposals()
 }
 
 /// Answers a meeting request received by an Exchange account through
@@ -796,25 +841,9 @@ pub(crate) async fn respond_to_request(
     status: PartStat,
     comment: Option<&str>,
 ) -> Result<bool> {
-    let (account_id, remote, method): (i64, Option<String>, Option<String>) =
-        engine.db.read(|c| {
-            Ok(c.query_row(
-                "SELECT account_id, remote_id, calendar_method FROM messages WHERE id = ?",
-                [message_id],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-            )?)
-        })?;
-    let account = engine.account_row(account_id)?;
-    let Some(remote) = remote else {
+    let Some((account, remote)) = meeting_request(engine, message_id)? else {
         return Ok(false);
     };
-    if account.kind != AccountKind::Exchange
-        || method
-            .as_deref()
-            .is_some_and(|m| !m.eq_ignore_ascii_case("REQUEST"))
-    {
-        return Ok(false);
-    }
     let ews = EwsMail::for_account(engine, &account).await?;
     if let Err(e) = ews
         .client
@@ -836,14 +865,56 @@ pub(crate) async fn respond_to_request(
         );
         return Ok(false);
     }
-    // The request leaves the inbox and the calendar changes.
+    answered(engine, &account, &ews).await;
+    Ok(true)
+}
+
+/// Proposes a new time for a meeting request an Exchange account received,
+/// through Exchange: the tentative answer (or the decline) goes to the
+/// organizer with the proposal. Returns false for messages that are not
+/// Exchange meeting requests; servers older than Exchange 2013 SP1 can't
+/// carry proposals.
+pub(crate) async fn propose_for_request(
+    engine: &Engine,
+    message_id: i64,
+    status: PartStat,
+    start: chrono::DateTime<Utc>,
+    end: chrono::DateTime<Utc>,
+    comment: Option<&str>,
+) -> Result<bool> {
+    let Some((account, remote)) = meeting_request(engine, message_id)? else {
+        return Ok(false);
+    };
+    if !takes_proposals(&account) {
+        return Err(Error::Invalid(
+            "This Exchange server is too old to send a new time with an answer (that takes Exchange 2013 SP1 or later)".into(),
+        ));
+    }
+    let ews = EwsMail::for_account(engine, &account).await?;
+    ews.client
+        .propose_new_time(
+            &ItemId::new(remote),
+            mapping::meeting_response(status),
+            start,
+            end,
+            comment,
+        )
+        .await
+        .map_err(|e| ews.err(e))?;
+    answered(engine, &account, &ews).await;
+    Ok(true)
+}
+
+/// After a meeting request was answered: the request leaves the inbox and
+/// the calendar changes.
+async fn answered(engine: &Engine, account: &AccountRow, ews: &EwsMail) {
+    let account_id = account.id;
     engine.wake(account_id);
-    match sync_with(engine, &account, &ews).await {
+    match sync_with(engine, account, ews).await {
         Ok(changed) if !changed.is_empty() => engine.emit(EngineEvent::CalendarChanged {
             calendar_ids: changed,
         }),
         Ok(_) => {}
         Err(e) => tracing::warn!(account_id, "calendar refresh after answering failed: {e}"),
     }
-    Ok(true)
 }

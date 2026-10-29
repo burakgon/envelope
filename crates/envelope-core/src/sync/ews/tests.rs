@@ -2512,6 +2512,92 @@ async fn answers_meeting_requests_through_exchange() {
     );
 }
 
+#[tokio::test]
+async fn proposes_new_times_through_exchange_2013_sp1_and_later() {
+    let f = fixture().await;
+    let _session = f.first_sync().await;
+    let m1 = f.message("m1").expect("m1");
+    let set = |sql: &str, id: i64| {
+        f.engine
+            .db
+            .write(|tx| {
+                tx.execute(sql, [id])?;
+                Ok(())
+            })
+            .expect("update")
+    };
+    set(
+        "UPDATE messages SET calendar_method = 'REQUEST' WHERE id = ?",
+        m1.id,
+    );
+    let at = |h: u32| Utc.with_ymd_and_hms(2026, 11, 5, h, 0, 0).unwrap();
+    // The account speaks the default schema, Exchange 2013 SP1.
+    assert!(ews_calendar::takes_proposals(&f.account));
+    for (status, element) in [
+        (PartStat::Tentative, "<t:TentativelyAcceptItem>"),
+        (PartStat::Declined, "<t:DeclineItem>"),
+    ] {
+        let proposed = ews_calendar::propose_for_request(
+            &f.engine,
+            m1.id,
+            status,
+            at(11),
+            at(12),
+            Some("Could we meet later?"),
+        )
+        .await
+        .expect("propose");
+        assert!(proposed);
+        let sent = f
+            .requests("CreateItem")
+            .into_iter()
+            .find(|b| b.contains(element))
+            .expect("answer");
+        assert!(sent.contains(r#"MessageDisposition="SendAndSaveCopy""#));
+        assert!(sent.contains(r#"<t:ReferenceItemId Id="m1"/><t:ProposedStart>2026-11-05T11:00:00Z</t:ProposedStart><t:ProposedEnd>2026-11-05T12:00:00Z</t:ProposedEnd>"#), "{sent}");
+        assert!(sent.contains("Could we meet later?"));
+    }
+    // Messages that aren't meeting requests go the iCalendar way.
+    let m2 = f.message("m2").expect("m2");
+    set(
+        "UPDATE messages SET calendar_method = 'CANCEL' WHERE id = ?",
+        m2.id,
+    );
+    assert!(
+        !ews_calendar::propose_for_request(
+            &f.engine,
+            m2.id,
+            PartStat::Tentative,
+            at(11),
+            at(12),
+            None
+        )
+        .await
+        .expect("not a request")
+    );
+    // Exchange 2010 doesn't take proposals: nothing is sent to it.
+    set(
+        "UPDATE accounts SET config = json_set(config, '$.exchange.version', 'Exchange2010_SP2') WHERE id = ?",
+        f.account.id,
+    );
+    let account = f.engine.account_row(f.account.id).expect("account");
+    assert!(!ews_calendar::takes_proposals(&account));
+    let before = f.requests("CreateItem").len();
+    assert!(
+        ews_calendar::propose_for_request(
+            &f.engine,
+            m1.id,
+            PartStat::Tentative,
+            at(11),
+            at(12),
+            None
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(f.requests("CreateItem").len(), before);
+}
+
 // ---------------------------------------------------------------------------
 // The worker
 

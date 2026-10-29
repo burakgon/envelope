@@ -96,7 +96,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - Events in a time zone of their own, kept by every provider.
 - Guests, RSVP, Google Meet / Teams links and one-click **Join**, reminders, busy/free.
 - **Scheduling assistant**: see when guests are busy (Google, Microsoft 365 and Exchange) and jump to the next time everyone is free.
-- Invitations in mail (iTIP) become cards with **Yes / Maybe / No**, a conflict check against your calendar and replies sent to the organizer.
+- Invitations in mail (iTIP) become cards with **Yes / Maybe / No**, a conflict check against your calendar, replies sent to the organizer and **Propose new time**; a time proposed for your own meeting is accepted or declined from the mail.
 - Two-way sync: **CalDAV** (iCloud, Fastmail, Nextcloud, Radicale, …), **Google Calendar**, **Microsoft 365 / Outlook.com** and **on-premises Exchange**.
 - **Subscribe to published calendars** by URL (`webcal:` links included): holidays, sports, school or team calendars, refreshed by themselves.
 
