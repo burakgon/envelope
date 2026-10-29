@@ -28,6 +28,8 @@ jobs:
       - run: npm run i18n:check
       - run: npm run build
       - run: npm run build:demo
+      # How quick add reads dates and times in the interface languages.
+      - run: npm run test:quickadd
       # Walks through the main screens of the demo build.
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
