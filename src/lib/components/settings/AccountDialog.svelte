@@ -18,6 +18,8 @@
   const initial: AccountConfig = untrack(() => {
     const c = structuredClone($state.snapshot(account.config));
     c.notify ??= 'all';
+    // Unset, the engine keeps a year.
+    c.bodySyncDays ??= 365;
     if (account.kind === 'imap') {
       c.imap ??= blank(993);
       c.smtp ??= blank(465);
@@ -55,7 +57,7 @@
     { days: 30, label: 'accountSettings.downloadMonth' },
     { days: 90, label: 'accountSettings.downloadThreeMonths' },
     { days: 365, label: 'accountSettings.downloadYear' },
-    { days: null, label: 'accountSettings.downloadAll' },
+    { days: 0, label: 'accountSettings.downloadAll' },
   ] as const;
 
   // Switching security moves a standard port to its counterpart; a custom port stays.

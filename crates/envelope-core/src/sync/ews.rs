@@ -1815,13 +1815,12 @@ impl Session {
     /// Downloads bodies of recent messages without attachments (messages with
     /// attachments are fetched when opened). Returns true if more are waiting.
     async fn prefetch_bodies(&mut self, limit: i64) -> Result<bool> {
-        let days = self.account.config.body_sync_days.unwrap_or(365);
-        let since = now_ms() - i64::from(days) * 86_400_000;
+        let since = self.account.config.bodies_since(now_ms());
         let account_id = self.id();
         let mut ids = self
             .engine
             .db
-            .read(|c| mail::messages_without_body(c, account_id, Some(since), true, limit + 1))?;
+            .read(|c| mail::messages_without_body(c, account_id, since, true, limit + 1))?;
         if ids.is_empty() {
             return Ok(false);
         }

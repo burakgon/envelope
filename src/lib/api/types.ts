@@ -19,6 +19,7 @@ export interface AccountConfig {
   carddavUrl: string | null;
   acceptInvalidCerts: boolean;
   saveSentCopy: boolean | null;
+  /** Days of mail whose bodies are downloaded ahead: a year when null, all with 0. */
   bodySyncDays: number | null;
   /** Which new mail notifies (all when missing). */
   notify?: NotifyMode;

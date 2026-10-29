@@ -84,13 +84,25 @@ pub struct AccountConfig {
     /// Whether to save a copy of sent mail to the Sent folder ourselves
     /// (servers like Gmail and Outlook do it automatically).
     pub save_sent_copy: Option<bool>,
-    /// How many days of mail to download message bodies for (None = all).
+    /// How many days of mail to download message bodies for: a year when
+    /// unset, all mail with 0 (see [`AccountConfig::bodies_since`]).
     pub body_sync_days: Option<u32>,
     /// Which new mail of the account notifies.
     pub notify: NotifyMode,
     /// Exchange Web Services settings (Exchange accounts only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exchange: Option<ExchangeConfig>,
+}
+
+impl AccountConfig {
+    /// The oldest date (ms) whose message bodies are downloaded ahead of
+    /// time; `None` for all mail.
+    pub fn bodies_since(&self, now: i64) -> Option<i64> {
+        match self.body_sync_days.unwrap_or(365) {
+            0 => None,
+            days => Some(now - i64::from(days) * 86_400_000),
+        }
+    }
 }
 
 /// Which new mail of an account notifies (on top of the app's own switch).
@@ -794,5 +806,20 @@ mod event_tests {
             json,
             serde_json::json!({ "type": "taskDue", "taskId": 7, "title": "Call Maya", "dueAt": 1_700_000_000_000_i64 })
         );
+    }
+
+    #[test]
+    fn bodies_are_kept_for_a_year_unless_the_account_says_otherwise() {
+        let now = 1_000 * 86_400_000;
+        let with = |days: Option<u32>| AccountConfig {
+            body_sync_days: days,
+            ..AccountConfig::default()
+        };
+        assert_eq!(with(None).bodies_since(now), Some(now - 365 * 86_400_000));
+        assert_eq!(
+            with(Some(30)).bodies_since(now),
+            Some(now - 30 * 86_400_000)
+        );
+        assert_eq!(with(Some(0)).bodies_since(now), None);
     }
 }
