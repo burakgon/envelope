@@ -5,6 +5,7 @@ use envelope_core::mail_api::{MarkedRead, ThreadRef};
 use envelope_core::model::*;
 use envelope_core::oauth::{ClientConfig, Provider};
 use envelope_core::rules::{MailRule, RuleMatches, RuleUndo};
+use envelope_core::subscriptions::Subscription;
 use envelope_core::vip::Vip;
 use envelope_core::{AccountPatch, UndoToken};
 use serde::Serialize;
@@ -551,6 +552,16 @@ pub fn identity_save(state: State<'_, AppState>, identity: Identity) -> R<i64> {
 #[tauri::command]
 pub fn identity_delete(state: State<'_, AppState>, id: i64) -> R<()> {
     Ok(state.engine.delete_identity(id)?)
+}
+
+#[tauri::command]
+pub async fn subscriptions(state: State<'_, AppState>) -> R<Vec<Subscription>> {
+    Ok(state.engine.subscriptions().await?)
+}
+
+#[tauri::command]
+pub fn archive_from_inbox(state: State<'_, AppState>, thread_ids: Vec<i64>) -> R<Vec<UndoToken>> {
+    Ok(state.engine.archive_from_inbox(&thread_ids)?)
 }
 
 #[tauri::command]

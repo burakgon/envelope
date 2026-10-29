@@ -28,6 +28,7 @@ pub mod search;
 pub mod secrets;
 pub mod sieve;
 pub mod smtp;
+pub mod subscriptions;
 pub mod sync;
 pub mod tasks;
 pub mod vip;

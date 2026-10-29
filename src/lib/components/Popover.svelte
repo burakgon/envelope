@@ -8,6 +8,7 @@
     y,
     align = 'start',
     width = null,
+    over = false,
     onclose,
     children,
   }: {
@@ -15,6 +16,8 @@
     y: number;
     align?: 'start' | 'end' | 'center';
     width?: number | null;
+    /** Opened from a dialog: shown above it. */
+    over?: boolean;
     onclose: () => void;
     children: Snippet;
   } = $props();
@@ -127,6 +130,7 @@
 <div
   bind:this={el}
   class="popover"
+  class:over
   role="menu"
   tabindex="-1"
   style:left="{left}px"
@@ -146,6 +150,10 @@
     pointer-events: auto;
     max-height: calc(100vh - 16px);
     overflow-y: auto;
+  }
+  /* Above the dialog it was opened from. */
+  .popover.over {
+    z-index: 1700;
   }
   .popover:focus-visible {
     outline: none;

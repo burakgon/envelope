@@ -270,6 +270,8 @@
     <div class="tools">
       {#if mail.search}
         <button class="icon-btn" title={t('search.save')} aria-label={t('search.save')} onclick={() => saveSearch()}><BookmarkPlus size={16} /></button>
+      {:else if mail.splitActive && mail.category === 'newsletters'}
+        <button class="icon-btn" title={t('subscriptions.manage')} aria-label={t('subscriptions.manage')} onclick={() => ui.open('subscriptions')}><Newspaper size={16} /></button>
       {/if}
       {#if ai.ready}
         <button class="icon-btn ask" title={t('threadList.askInbox')} onclick={() => { ui.askAi = ''; ui.open('ask'); }}><Sparkles size={16} /></button>

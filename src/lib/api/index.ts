@@ -79,6 +79,10 @@ export interface Api {
   };
   messageSource(id: number): Promise<string>;
   unsubscribe(messageId: number): Promise<boolean>;
+  /** Senders of newsletters and other list mail, the busiest first. */
+  subscriptions(): Promise<T.Subscription[]>;
+  /** Takes conversations out of their inboxes, into Archive. */
+  archiveFromInbox(threadIds: number[]): Promise<T.UndoToken[]>;
 
   /** Drafts not waiting in the outbox, with their server copies. */
   drafts(): Promise<T.Draft[]>;

@@ -85,6 +85,8 @@ export function createTauriApi(): Api {
     },
     messageSource: (id) => invoke('message_source', { id }),
     unsubscribe: (messageId) => invoke('unsubscribe', { messageId }),
+    subscriptions: () => invoke('subscriptions'),
+    archiveFromInbox: (threadIds) => invoke('archive_from_inbox', { threadIds }),
 
     drafts: () => invoke('drafts'),
     draft: (id) => invoke('draft', { id }),

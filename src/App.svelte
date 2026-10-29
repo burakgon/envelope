@@ -26,6 +26,7 @@
   import { pgp } from './lib/stores/pgp.svelte';
   import Onboarding from './lib/components/Onboarding.svelte';
   import AskAi from './lib/components/AskAi.svelte';
+  import SubscriptionsDialog from './lib/components/SubscriptionsDialog.svelte';
   import CalendarView from './lib/components/calendar/CalendarView.svelte';
   import EventEditor from './lib/components/calendar/EventEditor.svelte';
   import ContactsView from './lib/components/contacts/ContactsView.svelte';
@@ -464,6 +465,7 @@
 {#if ui.overlay === 'settings'}<Settings />{/if}
 {#if ui.overlay === 'onboarding' || ui.overlay === 'addAccount'}<Onboarding first={ui.overlay === 'onboarding'} />{/if}
 {#if ui.overlay === 'ask'}<AskAi />{/if}
+{#if ui.overlay === 'subscriptions'}<SubscriptionsDialog />{/if}
 {#if cal.editor}<EventEditor />{/if}
 {#if cal.subscribing !== null}<SubscribeDialog initial={cal.subscribing} onclose={() => (cal.subscribing = null)} />{/if}
 {#if openedFiles.length}{#key openedFiles[0]}<FileViewer path={openedFiles[0]} onclose={() => (openedFiles = openedFiles.slice(1))} />{/key}{/if}

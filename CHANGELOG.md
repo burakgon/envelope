@@ -12,6 +12,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - VIPs: Add to VIPs in a message's menu, a conversation's right-click menu, the command palette or on a contact's page. Their conversations are gathered under VIPs in the sidebar, a crown marks their messages, `is:vip` (and From a VIP in the search options) finds them, and Settings → Notifications lists them with Remove.
 - Notifications for mail from VIPs only, per account; with "Mail from people only", a VIP's mail notifies even when it was sorted as a newsletter.
 - New-mail notifications play the desktop's new-mail sound (Settings → Notifications → Sound).
+- Subscriptions (the newspaper button in the Newsletters tab, or Manage subscriptions in the command palette): every newsletter and mailing list that writes to you, the busiest first, with how many conversations and unread ones each has. Unsubscribe in one click where the list allows it, archive what a list left in the inbox, delete all of its mail (asking first), block it, or show its conversations.
 
 ### Fixed
 - A few German texts (blocked senders, account alerts) addressed the reader as "du" instead of "Sie" like the rest.

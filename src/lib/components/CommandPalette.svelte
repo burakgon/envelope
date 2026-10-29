@@ -18,7 +18,7 @@
     ListChecks, ListPlus,
     Check, AlarmClock,
     ShieldAlert, ShieldCheck,
-    Ban, Crown,
+    Ban, Crown, Newspaper,
     ChevronDown, ChevronUp, ChevronsUpDown,
   } from '../icons';
   import { vips } from '../stores/vips.svelte';
@@ -72,6 +72,7 @@
     { id: 'search', label: t('palette.searchMail'), group: 'actions', icon: Search, hint: '/', run: () => (ui.focusSearch++) },
     { id: 'sync', label: t('palette.syncAll'), group: 'actions', icon: Refresh, run: () => api.syncNow(null) },
     { id: 'read-all', label: t('palette.markAllRead'), group: 'actions', icon: Mail, run: () => mail.markAllRead() },
+    { id: 'subscriptions', label: t('palette.subscriptions'), group: 'actions', icon: Newspaper, keywords: `${t('palette.kw.subscriptions')} unsubscribe newsletter`, run: () => ui.open('subscriptions') },
     { id: 'theme', label: ui.isDark ? t('palette.lightTheme') : t('palette.darkTheme'), group: 'actions', icon: ui.isDark ? Sun : Moon, keywords: `${t('palette.kw.theme')} dark light theme appearance`, run: () => ui.set('theme', ui.isDark ? 'light' : 'dark') },
     { id: 'calendar', label: t('palette.openCalendar'), group: 'goTo', icon: Calendar, hint: 'G C', run: () => (ui.view = 'calendar') },
     { id: 'inbox', label: t('mailbox.inbox'), group: 'goTo', icon: Inbox, hint: 'G I', run: () => mail.setMailbox({ kind: 'unified', role: 'inbox' }) },

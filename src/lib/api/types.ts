@@ -402,6 +402,24 @@ export interface ContactPage {
   items: ContactSummary[];
 }
 
+/** A sender of newsletters or other list mail. */
+export interface Subscription {
+  /** In lowercase. */
+  email: string;
+  name: string | null;
+  /** Conversations with their mail, outside Trash and Spam. */
+  conversations: number;
+  /** Of those, the ones where their mail is unread. */
+  unread: number;
+  /** Of those, the ones in an inbox. */
+  inInbox: number;
+  lastDate: number;
+  /** Their newest message that says how to unsubscribe. */
+  unsubscribeMessageId: number | null;
+  /** Unsubscribing takes one request instead of a web page. */
+  oneClick: boolean;
+}
+
 /** A sender whose mail matters most. */
 export interface Vip {
   /** In lowercase. */

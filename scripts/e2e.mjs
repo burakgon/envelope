@@ -913,6 +913,47 @@ await step('VIPs: their own mailbox, a crown, is:vip, and a list in Settings', a
   }
 });
 
+await step('Subscriptions: unsubscribe, archive what a list left in the inbox, delete all of it', async () => {
+  const p = await fresh();
+  try {
+    // From the Newsletters tab of the inbox.
+    await p.locator('.tabs [role="tab"]', { hasText: 'Newsletters' }).click();
+    await p.locator('.list .tools button[aria-label="Manage subscriptions"]').click();
+    const dialog = p.locator('[role="dialog"]', { has: p.locator('h3', { hasText: 'Subscriptions' }) });
+    const byte = dialog.locator('.row', { hasText: 'The Daily Byte' });
+    await byte.waitFor({ timeout: 5000 });
+    if (!(await dialog.locator('.row', { hasText: 'Rust Weekly' }).count())) throw new Error('Rust Weekly is not listed');
+    if (await dialog.locator('.row', { hasText: 'Maya Chen' }).count()) throw new Error('a person is listed');
+    await byte.locator('button', { hasText: 'Unsubscribe' }).click();
+    await toast(p, 'Unsubscribed from The Daily Byte');
+    await byte.locator('.done', { hasText: 'Unsubscribed' }).waitFor({ timeout: 5000 });
+    // What it left in the inbox goes to Archive, and comes back with Undo.
+    await byte.locator('button[aria-label="Archive 1 conversation from the inbox"]').click();
+    await toast(p, 'Archived 1 conversation from The Daily Byte');
+    await eventually(p, async () => (await byte.locator('button[aria-label^="Archive"]').count()) === 0, 'the archive button stayed');
+    await p.locator('.toast', { hasText: 'Archived 1 conversation' }).first().locator('.action').click();
+    await byte.locator('button[aria-label="Archive 1 conversation from the inbox"]').waitFor({ timeout: 5000 });
+    // Deleting all of a sender's mail asks first.
+    const rust = dialog.locator('.row', { hasText: 'Rust Weekly' });
+    await rust.locator('button[aria-label="More"]').click();
+    await p.locator('.menu-item', { hasText: 'Delete all' }).click();
+    const ask = p.locator('[role="alertdialog"]');
+    await ask.locator('h3', { hasText: 'Delete all mail from Rust Weekly?' }).waitFor({ timeout: 5000 });
+    await ask.locator('button.danger').click();
+    await toast(p, 'Moved 1 conversation to Trash');
+    await rust.waitFor({ state: 'detached', timeout: 5000 });
+    // The palette opens it too.
+    await p.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached', timeout: 5000 });
+    await p.keyboard.press('Control+k');
+    await p.keyboard.type('Manage subscriptions');
+    await p.keyboard.press('Enter');
+    await dialog.waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('blocking a sender moves their mail to Spam; Privacy unblocks', async () => {
   const p = await fresh();
   try {

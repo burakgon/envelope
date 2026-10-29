@@ -565,6 +565,36 @@ export function createMockApi(): Api {
       return `From: ${m.from?.name} <${m.from?.email}>\nTo: ${m.to.map((a) => a.email).join(', ')}\nSubject: ${m.subject}\nDate: ${new Date(m.date).toUTCString()}\nMessage-ID: <${m.messageId}>\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\n${m.body?.text ?? m.snippet}`;
     },
     unsubscribe: async () => true,
+    subscriptions: async () => {
+      const mine = new Set(identities.map((i) => i.email.toLowerCase()));
+      const bin = data.folders.filter((f) => f.role === 'trash' || f.role === 'junk').map((f) => f.id);
+      const inboxes = data.folders.filter((f) => f.role === 'inbox').map((f) => f.id);
+      const subs = new Map<string, T.Subscription & { threads: Set<number>; unreadIn: Set<number>; inboxIn: Set<number> }>();
+      for (const m of [...messages].sort((a, b) => b.date - a.date)) {
+        const t = threads.find((x) => x.id === m.threadId);
+        const email = m.from?.email.toLowerCase();
+        if (!t || !email || mine.has(email) || t.folderIds.some((f) => bin.includes(f))) continue;
+        if (!m.unsubscribe && t.category !== 'newsletters') continue;
+        let s = subs.get(email);
+        if (!s) {
+          s = { email, name: m.from?.name ?? null, conversations: 0, unread: 0, inInbox: 0, lastDate: m.date, unsubscribeMessageId: null, oneClick: false, threads: new Set(), unreadIn: new Set(), inboxIn: new Set() };
+          subs.set(email, s);
+        }
+        if (m.unsubscribe && s.unsubscribeMessageId == null) {
+          s.unsubscribeMessageId = m.id;
+          s.oneClick = m.unsubscribe.oneClick;
+        }
+        s.threads.add(t.id);
+        if (!m.flags.seen) s.unreadIn.add(t.id);
+        if (t.folderIds.some((f) => inboxes.includes(f))) s.inboxIn.add(t.id);
+      }
+      return [...subs.values()]
+        .map(({ threads, unreadIn, inboxIn, ...s }) => ({ ...s, conversations: threads.size, unread: unreadIn.size, inInbox: inboxIn.size }))
+        .sort((a, b) => b.conversations - a.conversations || b.lastDate - a.lastDate);
+    },
+    archiveFromInbox: async function (threadIds) {
+      return [await this.moveThreads(threadIds, null, { kind: 'archive' })];
+    },
 
     drafts: async () => drafts.list(),
     draft: async (id) => drafts.get(id),

@@ -91,6 +91,8 @@ export interface Settings {
   rules: MailRule[];
   /** New-mail notifications play the desktop's new-mail sound. */
   notificationSound: boolean;
+  /** Senders unsubscribed from in Subscriptions, by address, with when. */
+  unsubscribed: Record<string, number>;
   /** Searches kept in the sidebar. */
   savedSearches: SavedSearch[];
   /** The last searches made, newest first. */
@@ -133,6 +135,7 @@ export const defaultSettings: Settings = {
   defaultTaskListId: null,
   templates: [],
   notificationSound: true,
+  unsubscribed: {},
   savedSearches: [],
   recentSearches: [],
   rules: [],
@@ -143,7 +146,7 @@ export const defaultSettings: Settings = {
 };
 
 export type View = 'mail' | 'calendar' | 'contacts' | 'tasks';
-export type Overlay = null | 'settings' | 'palette' | 'shortcuts' | 'onboarding' | 'addAccount' | 'ask';
+export type Overlay = null | 'settings' | 'palette' | 'shortcuts' | 'onboarding' | 'addAccount' | 'ask' | 'subscriptions';
 
 class Ui {
   view = $state<View>('mail');
