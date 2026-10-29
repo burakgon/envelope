@@ -183,8 +183,10 @@ export interface Api {
     complete(id: number, completed: boolean): Promise<T.Task>;
     /** Moves a task before another in its list (null: to the end). New tasks go to the end. */
     reorder(id: number, beforeId: number | null): Promise<void>;
-    /** Deletes a task and its subtasks. */
+    /** Deletes a task and its subtasks; for a few seconds `restore` can bring them back. */
     remove(id: number): Promise<void>;
+    /** Brings back a task deleted with `remove`, with the subtasks deleted with it (fails once it is too late). */
+    restore(id: number): Promise<T.Task>;
     createList(accountId: number | null, name: string): Promise<T.TaskList>;
     renameList(id: number, name: string): Promise<void>;
     removeList(id: number): Promise<void>;

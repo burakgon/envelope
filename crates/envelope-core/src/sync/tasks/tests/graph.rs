@@ -539,6 +539,7 @@ async fn todo_pull_push_and_pull_again() {
         })
         .await;
 
+    undo_time_over(&fx);
     sync_account(&fx.engine, &account, &service, false)
         .await
         .expect("push");

@@ -453,6 +453,11 @@ export function createMockApi(): Api {
         todo.remove(id);
         tasksChanged([listId]);
       },
+      restore: async (id) => {
+        const task = todo.restore(id);
+        tasksChanged([task.listId]);
+        return task;
+      },
       createList: async (accountId, name) => {
         const list = todo.createList(accountId, name);
         tasksChanged([]);

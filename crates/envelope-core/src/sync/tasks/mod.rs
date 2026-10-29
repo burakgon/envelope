@@ -163,6 +163,10 @@ pub(crate) fn wake(engine: &Engine) {
 /// Background loops: one uploads local changes and pulls server changes of
 /// every account with task lists, the other announces tasks coming due.
 pub(crate) fn spawn_scheduler(engine: Engine) {
+    // Deletions on this computer can't be undone after a restart.
+    if let Err(e) = engine.purge_deleted_tasks(i64::MAX) {
+        tracing::debug!("deleted tasks: {e}");
+    }
     spawn_due_notifier(engine.clone());
     tokio::spawn(async move {
         // Give mail a head start when the app launches.
@@ -203,12 +207,16 @@ pub(crate) fn spawn_scheduler(engine: Engine) {
 /// Announces tasks as they come due, looking again when the next one is
 /// due or every half minute (edits can bring one forward). Each look also
 /// follows a change of the time zone, which moves the days of tasks due at
-/// a time of day.
+/// a time of day, and removes tasks deleted on this computer that can't be
+/// brought back any more.
 fn spawn_due_notifier(engine: Engine) {
     tokio::spawn(async move {
         loop {
             if let Err(e) = engine.follow_time_zone() {
                 tracing::debug!("task days: {e}");
+            }
+            if let Err(e) = engine.purge_deleted_tasks(now_ms()) {
+                tracing::debug!("deleted tasks: {e}");
             }
             let now = now_ms();
             let wait = match engine.notify_due_tasks(now) {
@@ -378,11 +386,13 @@ pub(crate) async fn push_list(
         // An earlier upload in this round may have moved or settled it (a
         // refused parent takes its new subtasks along).
         let id = queued.id;
+        // A deletion that can still be undone waits.
         let Some(row) = engine
             .db
             .read(|c| tdb::get_task(c, id))
             .ok()
             .filter(|r| r.list_id == list.id && r.local_state != tdb::SYNCED)
+            .filter(|r| r.push_after <= now_ms())
         else {
             continue;
         };

@@ -378,6 +378,7 @@ async fn google_tasks_pull_push_and_pull_again() {
     assert!(pack.pending && plants.pending);
     assert!(!plants.important);
 
+    undo_time_over(&fx);
     sync_account(&fx.engine, &account, &service, false)
         .await
         .expect("push");
@@ -741,6 +742,94 @@ async fn google_tasks_deleted_while_uploaded_go_from_the_server_too() {
         .expect("push");
     assert!(store.tasks.lock().is_empty(), "deleted on the server too");
     assert!(fx.rows(l1.id).is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn google_deletions_wait_while_they_can_be_undone() {
+    let fx = fixture();
+    let server = MockServer::start().await;
+    let account = oauth_account(&fx, AccountKind::Gmail, TASKS_SCOPE);
+    let service = google_tasks(&fx, &server);
+    mount_lists(&server).await;
+    store_lists(&fx, &account, &service).await;
+    let l1 = list_named(&fx, &account, "My Tasks");
+    let first = [
+        task("T1", "Plan the trip", "00000000000000001000", json!({})),
+        task(
+            "T2",
+            "Book flights",
+            "00000000000000001000",
+            json!({ "parent": "T1" }),
+        ),
+        task(
+            "T3",
+            "Find a hotel",
+            "00000000000000002000",
+            json!({ "parent": "T1" }),
+        ),
+    ];
+    let store = Store::new(&first);
+    store.mount(&server).await;
+    Mock::given(method("GET"))
+        .and(path(L1))
+        .respond_with(page(&first))
+        .mount(&server)
+        .await;
+    pull_list(&fx.engine, &service, &l1).await.expect("pull");
+    let [trip, flights, hotel] = ["T1", "T2", "T3"].map(|id| remote_row(&fx, l1.id, id).id);
+    // A change and a new subtask, not uploaded yet.
+    fx.engine
+        .update_task(flights, input(l1.id, "Book the flights"))
+        .await
+        .expect("rename");
+    let pack = fx
+        .create(TaskInput {
+            parent_id: Some(Some(trip)),
+            ..input(l1.id, "Pack")
+        })
+        .await;
+
+    // While the deletion can be undone, nothing reaches Google.
+    fx.engine.delete_task(trip).await.expect("delete");
+    assert!(fx.titles(TaskView::All, false).await.is_empty());
+    push_list(&fx.engine, &service, &l1).await.expect("push");
+    let writes = |server_requests: &[Request]| {
+        server_requests
+            .iter()
+            .filter(|r| r.method.as_str() != "GET")
+            .count()
+    };
+    let requests = server.received_requests().await.expect("requests");
+    assert_eq!(writes(&requests), 0);
+
+    // Brought back as they were: the task still synced, the changes still
+    // to be uploaded.
+    let back = fx.engine.restore_task(trip).await.expect("restore");
+    assert!(!back.pending);
+    let pending = |id| fx.row(id).local_state;
+    assert_eq!(
+        [trip, flights, hotel, pack.id].map(pending),
+        [tdb::SYNCED, tdb::MODIFIED, tdb::SYNCED, tdb::CREATED]
+    );
+    push_list(&fx.engine, &service, &l1).await.expect("push");
+    let requests = server.received_requests().await.expect("requests");
+    assert_eq!(
+        json_body(requests_to(&requests, "PATCH", "/T2")[0]),
+        json!({ "title": "Book the flights" })
+    );
+    let inserts = requests_to(&requests, "POST", L1);
+    assert_eq!(inserts.len(), 1);
+    assert_eq!(query(inserts[0])[0], ("parent".to_owned(), "T1".to_owned()));
+    assert!(requests_to(&requests, "DELETE", "").is_empty());
+
+    // Deleted again: carried out once the time to undo it is over.
+    fx.engine.delete_task(trip).await.expect("delete");
+    undo_time_over(&fx);
+    push_list(&fx.engine, &service, &l1).await.expect("push");
+    assert!(store.tasks.lock().is_empty(), "{:?}", store.tasks.lock());
+    assert!(fx.rows(l1.id).is_empty());
+    let late = fx.engine.restore_task(trip).await;
+    assert!(matches!(late, Err(Error::Invalid(_))), "{late:?}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

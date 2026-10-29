@@ -158,6 +158,7 @@ export function createTauriApi(): Api {
       complete: (id, completed) => invoke('task_complete', { id, completed }),
       reorder: (id, beforeId) => invoke('task_reorder', { id, beforeId: beforeId ?? null }),
       remove: (id) => invoke('task_delete', { id }),
+      restore: (id) => invoke('task_restore', { id }),
       createList: (accountId, name) => invoke('task_list_create', { accountId: accountId ?? null, name }),
       renameList: (id, name) => invoke('task_list_rename', { id, name }),
       removeList: (id) => invoke('task_list_delete', { id }),

@@ -426,6 +426,7 @@ async fn exchange_tasks_pull_push_and_pull_again() {
     )
     .await;
 
+    undo_time_over(&fx);
     sync_account(&fx.engine, &account, service.as_ref(), false)
         .await
         .expect("push");

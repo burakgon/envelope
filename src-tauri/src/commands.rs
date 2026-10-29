@@ -967,6 +967,11 @@ pub async fn task_delete(state: State<'_, AppState>, id: i64) -> R<()> {
 }
 
 #[tauri::command]
+pub async fn task_restore(state: State<'_, AppState>, id: i64) -> R<Task> {
+    Ok(state.engine.restore_task(id).await?)
+}
+
+#[tauri::command]
 pub async fn task_list_create(
     state: State<'_, AppState>,
     account_id: Option<i64>,

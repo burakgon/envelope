@@ -588,7 +588,22 @@ async fn reordering_deleting_and_clearing() {
         kids.iter().map(|t| t.title.as_str()).collect::<Vec<_>>(),
         ["D1"]
     );
-    assert_eq!(fx.rows(list).len(), 2, "gone at once on this computer");
+    let rows = fx.rows(list);
+    assert_eq!(
+        rows.iter()
+            .filter(|r| r.local_state != tdb::DELETED)
+            .count(),
+        2,
+        "gone at once on this computer"
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|r| r.local_state == tdb::DELETED)
+            .map(|r| r.title.as_str())
+            .collect::<Vec<_>>(),
+        ["B", "B1"],
+        "deleted ones wait while they can be brought back"
+    );
     assert_eq!(counts(&fx), Some((1, 0)));
 }
 
@@ -700,6 +715,154 @@ async fn tasks_from_mail_link_back_to_the_conversation() {
         .expect("source");
     assert_eq!((source.thread_id, source.account_id), (None, None));
     assert_eq!(source.message_id, "offer-1@northwind.example");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn deleted_tasks_can_be_brought_back_for_a_while() {
+    let fx = fixture();
+    let list = fx.local_list();
+    let now = crate::db::now_ms() / 1000 * 1000;
+    // Due in a minute: announced then, unless it is deleted.
+    let due = now + 60_000;
+    let trip = fx
+        .create(TaskInput {
+            due_at: Some(Some(due)),
+            important: Some(true),
+            ..input(list, "Plan the trip")
+        })
+        .await;
+    let flights = fx
+        .create(TaskInput {
+            parent_id: Some(Some(trip.id)),
+            ..input(list, "Book flights")
+        })
+        .await;
+    let hotel = fx
+        .create(TaskInput {
+            parent_id: Some(Some(trip.id)),
+            ..input(list, "Find a hotel")
+        })
+        .await;
+    fx.engine
+        .complete_task(hotel.id, true)
+        .await
+        .expect("complete");
+    fx.create(input(list, "Pay rent")).await;
+    let counts = |fx: &Fixture| {
+        fx.engine
+            .task_lists()
+            .expect("lists")
+            .into_iter()
+            .find(|l| l.id == list)
+            .map(|l| (l.open_count, l.completed_count))
+    };
+
+    fx.engine.delete_task(trip.id).await.expect("delete");
+    // Gone at once from every view, count and notice.
+    for view in [
+        TaskView::Today,
+        TaskView::Important,
+        TaskView::All,
+        TaskView::List(list),
+    ] {
+        assert!(
+            fx.titles(view, true).await.iter().all(|t| t == "Pay rent"),
+            "{view:?}"
+        );
+    }
+    assert_eq!(counts(&fx), Some((1, 0)));
+    assert!(
+        fx.engine
+            .tasks_due(now - 3_600_000, now + 3_600_000)
+            .await
+            .expect("due")
+            .is_empty()
+    );
+    assert!(fx.engine.task(trip.id).await.is_err());
+    assert!(fx.engine.task_subtasks(trip.id).await.is_err());
+    let announced = |fx: &Fixture| {
+        fx.events
+            .0
+            .lock()
+            .iter()
+            .filter(|e| matches!(e, EngineEvent::TaskDue { task_id, .. } if *task_id == trip.id))
+            .count()
+    };
+    fx.engine.notify_due_tasks(due).expect("notify");
+    assert_eq!(announced(&fx), 0);
+
+    // Brought back with its subtasks, as they were.
+    let back = fx.engine.restore_task(trip.id).await.expect("restore");
+    assert_eq!(
+        (
+            back.id,
+            back.subtask_count,
+            back.subtasks_done,
+            back.pending
+        ),
+        (trip.id, 2, 1, false)
+    );
+    assert_eq!(
+        fx.titles(TaskView::List(list), false).await,
+        ["Plan the trip", "Pay rent"]
+    );
+    assert_eq!(counts(&fx), Some((3, 0)));
+    assert!(
+        fx.events
+            .tasks_changed()
+            .iter()
+            .filter(|ids| ids.as_slice() == [list])
+            .count()
+            >= 2,
+        "deleting and bringing back are told"
+    );
+    fx.engine.notify_due_tasks(due).expect("notify");
+    assert_eq!(announced(&fx), 1, "announced once it is back");
+    fx.engine
+        .restore_task(trip.id)
+        .await
+        .expect("bringing back twice changes nothing");
+
+    // A subtask deleted on its own does not come back while its task is
+    // deleted, and the task comes back with what went with it.
+    fx.engine.delete_task(flights.id).await.expect("delete");
+    fx.engine.delete_task(trip.id).await.expect("delete");
+    let orphan = fx.engine.restore_task(flights.id).await;
+    assert!(matches!(orphan, Err(Error::Invalid(_))), "{orphan:?}");
+    let back = fx.engine.restore_task(trip.id).await.expect("restore");
+    assert_eq!((back.subtask_count, back.subtasks_done), (1, 1));
+
+    // Past the time to undo it, the deletion is carried out.
+    fx.engine.delete_task(trip.id).await.expect("delete");
+    undo_time_over(&fx);
+    let late = fx.engine.restore_task(trip.id).await;
+    assert!(matches!(late, Err(Error::Invalid(_))), "{late:?}");
+    fx.engine
+        .purge_deleted_tasks(crate::db::now_ms())
+        .expect("purge");
+    assert_eq!(
+        fx.rows(list)
+            .iter()
+            .map(|r| r.title.as_str())
+            .collect::<Vec<_>>(),
+        ["Pay rent"]
+    );
+    let gone = fx.engine.restore_task(trip.id).await;
+    assert!(matches!(gone, Err(Error::Invalid(_))), "{gone:?}");
+
+    // Deletions on this computer are carried out when Envelope starts.
+    let note = fx.create(input(list, "Old note")).await;
+    fx.engine.delete_task(note.id).await.expect("delete");
+    let again = Engine::start(
+        Paths {
+            data: fx.dir.join("data"),
+            cache: fx.dir.join("cache"),
+        },
+        Events::default(),
+    )
+    .expect("start again");
+    assert!(again.db.read(|c| tdb::get_task(c, note.id)).is_err());
+    again.shutdown();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1048,6 +1211,18 @@ async fn until_received(server: &MockServer, wanted: impl Fn(&Request) -> bool) 
     panic!("the request did not come");
 }
 
+/// Lets the next push carry out deletions without waiting out the time
+/// they can be undone.
+fn undo_time_over(fx: &Fixture) {
+    fx.engine
+        .db
+        .write(|tx| {
+            tx.execute("UPDATE tasks SET push_after = 0 WHERE local_state = 3", [])?;
+            Ok(())
+        })
+        .expect("undo time over");
+}
+
 /// Lets the next push retry every task of `list` that waits for a retry.
 fn retry_now(fx: &Fixture, list: i64) {
     fx.engine
@@ -1271,6 +1446,7 @@ async fn caldav_lists_pull_and_push() {
         .expect(1)
         .mount(&server)
         .await;
+    undo_time_over(&fx);
     sync_account(&fx.engine, &account, &service, false)
         .await
         .expect("push");
@@ -1759,6 +1935,14 @@ async fn moving_a_task_to_caldav_creates_it_there() {
         ..input(local, "Cake")
     })
     .await;
+    // A subtask deleted a moment ago does not move along.
+    let balloons = fx
+        .create(TaskInput {
+            parent_id: Some(Some(party.id)),
+            ..input(local, "Balloons")
+        })
+        .await;
+    fx.engine.delete_task(balloons.id).await.expect("delete");
     let moved = fx
         .engine
         .update_task(party.id, input(list.id, "Party"))
@@ -1767,7 +1951,7 @@ async fn moving_a_task_to_caldav_creates_it_there() {
     assert_ne!(moved.id, party.id);
     assert!(moved.pending && moved.important);
     assert!(
-        fx.rows(local).is_empty(),
+        fx.rows(local).iter().all(|r| r.local_state == tdb::DELETED),
         "gone from the list on this computer"
     );
     let rows = fx.rows(list.id);

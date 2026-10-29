@@ -355,7 +355,14 @@ pub struct TaskRow {
     pub local_state: i64,
     pub version: i64,
     pub push_attempts: i64,
+    /// When it may be uploaded next (a retry, or a deletion that can still be
+    /// undone).
+    pub push_after: i64,
     pub push_error: Option<String>,
+    /// Deleted with `task_delete`: the state undoing it brings back…
+    pub deleted_state: Option<i64>,
+    /// …and the task whose deletion took it along (itself, or its parent).
+    pub deleted_with: Option<i64>,
     /// Subtasks (not deleted), and how many of them are done.
     pub subtask_count: i64,
     pub subtasks_done: i64,
@@ -418,7 +425,10 @@ fn task_from_row(r: &Row<'_>) -> rusqlite::Result<TaskRow> {
         local_state: r.get("local_state")?,
         version: r.get("version")?,
         push_attempts: r.get("push_attempts")?,
+        push_after: r.get("push_after")?,
         push_error: r.get("push_error")?,
+        deleted_state: r.get("deleted_state")?,
+        deleted_with: r.get("deleted_with")?,
         subtask_count: r.get("subtask_count")?,
         subtasks_done: r.get("subtasks_done")?,
     })
@@ -652,10 +662,52 @@ pub fn move_local(tx: &Transaction<'_>, id: i64, list_id: i64, f: &TaskFields) -
 pub fn mark_deleted(tx: &Transaction<'_>, id: i64) -> Result<()> {
     tx.execute(
         "UPDATE tasks SET local_state = ?, version = version + 1, push_attempts = 0, push_after = 0,
-           push_error = NULL WHERE id = ?",
+           push_error = NULL, deleted_state = NULL, deleted_with = NULL WHERE id = ?",
         params![DELETED, id],
     )?;
     Ok(())
+}
+
+/// Marks a task deleted with `task_delete`, which can be undone until
+/// `until`: nothing is uploaded (or removed, on this computer) before then.
+/// `with` is the task whose deletion takes it along (itself, or its
+/// parent).
+pub fn delete_undoably(tx: &Transaction<'_>, id: i64, with: i64, until: i64) -> Result<()> {
+    tx.execute(
+        "UPDATE tasks SET deleted_state = local_state, deleted_with = ?1, local_state = ?2,
+           version = version + 1, push_attempts = 0, push_after = ?3, push_error = NULL
+         WHERE id = ?4 AND local_state != ?2",
+        params![with, DELETED, until, id],
+    )?;
+    Ok(())
+}
+
+/// Brings back a task deleted with `task_delete`, and the subtasks deleted
+/// with it, in the state they were in (with the changes the server has not
+/// heard about yet). Returns whether there are such changes.
+pub fn restore_deleted(tx: &Transaction<'_>, id: i64) -> Result<bool> {
+    let pending: bool = tx.query_row(
+        "SELECT count(*) > 0 FROM tasks WHERE deleted_with = ? AND local_state = ? AND deleted_state != ?",
+        params![id, DELETED, SYNCED],
+        |r| r.get(0),
+    )?;
+    tx.execute(
+        "UPDATE tasks SET local_state = deleted_state, deleted_state = NULL, deleted_with = NULL,
+           version = version + 1, push_attempts = 0, push_after = 0, push_error = NULL
+         WHERE deleted_with = ? AND local_state = ? AND deleted_state IS NOT NULL",
+        params![id, DELETED],
+    )?;
+    Ok(pending)
+}
+
+/// Removes the tasks deleted from lists on this computer that can't be
+/// brought back after `until`. Returns how many went.
+pub fn purge_deleted(tx: &Transaction<'_>, until: i64) -> Result<usize> {
+    Ok(tx.execute(
+        "DELETE FROM tasks WHERE local_state = ? AND push_after <= ?
+           AND list_id IN (SELECT id FROM task_lists WHERE account_id IS NULL)",
+        params![DELETED, until],
+    )?)
 }
 
 pub fn delete_row(tx: &Transaction<'_>, id: i64) -> Result<()> {
@@ -980,11 +1032,13 @@ pub fn dirty_rows(c: &Connection, list_id: i64) -> Result<Vec<TaskRow>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-/// When the next upload waiting out a retry delay comes due. Uploads that
-/// are already due are left to the next regular round.
+/// When the next upload waiting out a retry delay (or the time a deletion
+/// can be undone) comes due. Uploads that are already due are left to the
+/// next regular round.
 pub fn next_push_at(c: &Connection) -> Result<Option<i64>> {
     Ok(c.query_row(
-        "SELECT min(push_after) FROM tasks WHERE local_state != 0 AND push_after > ?",
+        "SELECT min(push_after) FROM tasks WHERE local_state != 0 AND push_after > ?
+           AND list_id IN (SELECT id FROM task_lists WHERE account_id IS NOT NULL)",
         [now_ms()],
         |r| r.get(0),
     )?)
@@ -1032,11 +1086,15 @@ pub fn finish_push(tx: &Transaction<'_>, id: i64, version: i64, pushed: &RemoteT
         resolve_parents(tx, list_id)?;
     } else {
         // Edited again while uploading: it exists on the server now, so the
-        // newer state is an update of what was just written.
+        // newer state is an update of what was just written (and so is the
+        // state undoing a deletion brings back). A deletion that can still
+        // be undone keeps waiting.
         let state = if state == CREATED { MODIFIED } else { state };
         tx.execute(
             "UPDATE tasks SET remote_id = ?, etag = ?, uid = ?, data = ?, local_state = ?, push_attempts = 0,
-               push_after = 0, push_error = NULL WHERE id = ?",
+               push_after = CASE WHEN local_state = 3 THEN push_after ELSE 0 END, push_error = NULL,
+               deleted_state = CASE WHEN deleted_state = 1 THEN 2 ELSE deleted_state END
+             WHERE id = ?",
             params![
                 pushed.remote_id,
                 pushed.etag,
@@ -1299,12 +1357,35 @@ mod tests {
         assert_eq!(orphan.parent_id, None);
     }
 
+    /// A list of an account.
+    fn account_list(db: &Db) -> i64 {
+        db.write(|tx| {
+            let account = mail::insert_account(
+                tx,
+                AccountKind::Imap,
+                "generic",
+                "a@example.com",
+                "A",
+                "#10b981",
+                &AccountConfig::default(),
+            )?;
+            let list = ListUpsert {
+                remote_id: "https://dav.example.com/tasks/".into(),
+                name: "Tasks".into(),
+                color: None,
+                read_only: false,
+                is_default: true,
+                sort_order: 0,
+            };
+            insert_list(tx, account, TaskListKind::Caldav, &list)
+        })
+        .expect("account list")
+    }
+
     #[test]
     fn pushes_record_the_server_state() {
         let db = db();
-        let list = db
-            .write(|tx| create_local_list(tx, "Tasks", true))
-            .expect("list");
+        let list = account_list(&db);
         let id = insert(&db, list, &fields("Draft", 1024), CREATED);
         let row = db.read(|c| get_task(c, id)).expect("row");
         let mut pushed = remote("https://dav.example.com/t/1.ics", "Draft");

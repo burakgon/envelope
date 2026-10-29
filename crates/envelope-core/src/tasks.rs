@@ -5,8 +5,9 @@
 //!
 //! Edits are stored locally first and written to the server in the
 //! background by [`crate::sync::tasks`], so they never wait on the network
-//! and work offline. Creating, renaming and deleting a list of an account
-//! happens on the server right away.
+//! and work offline. A deleted task can be brought back for a few seconds,
+//! before its deletion goes anywhere. Creating, renaming and deleting a list
+//! of an account happens on the server right away.
 
 use chrono::{DateTime, NaiveDate};
 use chrono_tz::Tz;
@@ -26,6 +27,11 @@ pub const LOCAL_LIST_NAME: &str = "Tasks";
 
 /// Completed tasks returned with a list at most.
 const MAX_COMPLETED: i64 = 200;
+
+/// How long a task deleted with `task_delete` can be brought back: its
+/// deletion is carried out (uploaded, or the task removed from the list on
+/// this computer) only after that.
+pub const UNDO_DELETE_MS: i64 = 12_000;
 
 /// Tasks due longer ago than this when Envelope notices them (it was not
 /// running, the computer slept) are not announced any more.
@@ -766,15 +772,56 @@ fn reorder_task_tx(
     Ok(Written::of(&list, changed))
 }
 
+/// Deletes a task with its subtasks so that the deletion can be undone for
+/// a while ([`UNDO_DELETE_MS`]); it is carried out after that.
 fn delete_task_tx(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<Written> {
     let row = live_task(tx, id)?;
     let list = tdb::get_list(tx, row.list_id)?;
     writable(&list)?;
+    let until = now_ms() + UNDO_DELETE_MS;
     for child in tdb::children(tx, row.id)? {
-        retire(tx, &list, &child)?;
+        tdb::delete_undoably(tx, child.id, row.id, until)?;
     }
-    retire(tx, &list, &row)?;
+    tdb::delete_undoably(tx, row.id, row.id, until)?;
+    // Lists of accounts wake the sync, which then waits out the time the
+    // deletion can be undone.
     Ok(Written::of(&list, true))
+}
+
+fn restore_task_tx(tx: &rusqlite::Transaction<'_>, id: i64) -> Result<(i64, Written)> {
+    let too_late = || Error::Invalid("The task can't be brought back any more.".into());
+    let row = match tdb::get_task(tx, id) {
+        Ok(row) => row,
+        Err(Error::NotFound(_)) => return Err(too_late()),
+        Err(e) => return Err(e),
+    };
+    let list = tdb::get_list(tx, row.list_id)?;
+    if row.local_state != tdb::DELETED {
+        // Brought back already.
+        return Ok((row.id, Written::of(&list, false)));
+    }
+    if row.deleted_state.is_none() || row.push_after <= now_ms() {
+        return Err(too_late());
+    }
+    if let Some(parent) = row.parent_id {
+        let parent = tdb::get_task(tx, parent)?;
+        if parent.local_state == tdb::DELETED
+            || parent.list_id != row.list_id
+            || parent.parent_id.is_some()
+        {
+            return Err(Error::Invalid(
+                "The task it belonged to isn't there any more.".into(),
+            ));
+        }
+    }
+    let pending = tdb::restore_deleted(tx, row.id)?;
+    Ok((
+        row.id,
+        Written {
+            lists: vec![list.id],
+            remote: pending && list.account_id.is_some(),
+        },
+    ))
 }
 
 fn clear_completed_tx(tx: &rusqlite::Transaction<'_>, list_id: i64) -> Result<Written> {
@@ -943,7 +990,9 @@ impl Engine {
         Ok(())
     }
 
-    /// Deletes a task and its subtasks.
+    /// Deletes a task and its subtasks. For [`UNDO_DELETE_MS`] they can be
+    /// brought back with [`Engine::restore_task`]; until then nothing
+    /// reaches the server.
     pub async fn delete_task(&self, id: i64) -> Result<()> {
         let written = self
             .db
@@ -951,6 +1000,24 @@ impl Engine {
             .await?;
         self.written(written);
         Ok(())
+    }
+
+    /// Brings back a task deleted with [`Engine::delete_task`], with the
+    /// subtasks deleted with it, as they were (changes not uploaded yet
+    /// included). Fails once the deletion has been carried out.
+    pub async fn restore_task(&self, id: i64) -> Result<Task> {
+        let (id, written) = self
+            .db
+            .write_async(move |tx| restore_task_tx(tx, id))
+            .await?;
+        self.written(written);
+        self.task(id).await
+    }
+
+    /// Removes the tasks deleted on this computer that can't be brought
+    /// back after `until` (when Envelope starts, all of them).
+    pub(crate) fn purge_deleted_tasks(&self, until: i64) -> Result<()> {
+        self.db.write(|tx| tdb::purge_deleted(tx, until)).map(drop)
     }
 
     /// Deletes the completed top-level tasks of a list, with their

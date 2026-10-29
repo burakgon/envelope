@@ -285,6 +285,7 @@ pub fn run() {
             commands::task_complete,
             commands::task_reorder,
             commands::task_delete,
+            commands::task_restore,
             commands::task_list_create,
             commands::task_list_rename,
             commands::task_list_delete,

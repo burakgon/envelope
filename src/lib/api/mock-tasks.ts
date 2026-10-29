@@ -365,10 +365,29 @@ export function reorder(id: number, beforeId: number | null) {
   touch(t);
 }
 
+/** How long a deleted task can be brought back. */
+const UNDO_MS = 12_000;
+/** Deleted tasks, with the subtasks deleted with them, while they can be brought back. */
+const removed = new Map<number, { until: number; items: Stored[] }>();
+
 export function remove(id: number) {
   const t = find(id);
   writable(t.listId);
-  for (const x of tasks.filter((c) => c.id === id || c.parentId === id)) tasks.splice(tasks.indexOf(x), 1);
+  const items = tasks.filter((c) => c.id === id || c.parentId === id);
+  for (const x of items) tasks.splice(tasks.indexOf(x), 1);
+  removed.set(id, { until: Date.now() + UNDO_MS, items });
+}
+
+export function restore(id: number): T.Task {
+  if (tasks.some((t) => t.id === id)) return get(id);
+  const deleted = removed.get(id);
+  removed.delete(id);
+  const parentId = deleted?.items.find((t) => t.id === id)?.parentId;
+  if (!deleted || deleted.until < Date.now() || (parentId != null && !tasks.some((t) => t.id === parentId))) {
+    throw invalid("The task can't be brought back any more.");
+  }
+  tasks.push(...deleted.items);
+  return get(id);
 }
 
 export function listIdOf(id: number): number {

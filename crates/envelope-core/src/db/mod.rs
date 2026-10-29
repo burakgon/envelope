@@ -22,7 +22,7 @@ const SCHEMA: &str = concat!(
     include_str!("crypto.sql"),
     include_str!("tasks.sql")
 );
-const SCHEMA_VERSION: i64 = 7;
+const SCHEMA_VERSION: i64 = 8;
 
 /// Steps from one schema version to the next, applied in order to older databases.
 const MIGRATIONS: &[(i64, &str)] = &[
@@ -63,6 +63,9 @@ const MIGRATIONS: &[(i64, &str)] = &[
 const NEW_COLUMNS: &[(i64, &str, &str, &str)] = &[
     // Muted conversations.
     (6, "threads", "muted", "INTEGER NOT NULL DEFAULT 0"),
+    // Task deletions that can be undone.
+    (8, "tasks", "deleted_state", "INTEGER"),
+    (8, "tasks", "deleted_with", "INTEGER"),
 ];
 const MAX_READERS: usize = 6;
 
@@ -349,6 +352,46 @@ mod tests {
             .write(|tx| tasks::create_local_list(tx, "Tasks", true))
             .unwrap();
         assert_eq!(db.read(tasks::local_default_list).unwrap(), Some(list));
+        drop(db);
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+    }
+
+    #[test]
+    fn adds_task_columns_to_version_7_databases() {
+        let path = std::env::temp_dir().join(format!("envelope-v7-{}.db", uuid::Uuid::new_v4()));
+        let added = ["deleted_state", "deleted_with"];
+        {
+            // A version 7 database: tasks without the columns added since.
+            let db = Db::open(&path).unwrap();
+            db.write(|tx| {
+                for column in added {
+                    tx.execute_batch(&format!("ALTER TABLE tasks DROP COLUMN {column};"))?;
+                }
+                tx.execute_batch("PRAGMA user_version = 7;")?;
+                Ok(())
+            })
+            .unwrap();
+        }
+        let db = Db::open(&path).unwrap();
+        let (version, columns): (i64, i64) = db
+            .read(|c| {
+                let mut columns = 0;
+                for column in added {
+                    columns += c.query_row(
+                        "SELECT count(*) FROM pragma_table_info('tasks') WHERE name = ?",
+                        [column],
+                        |r| r.get::<_, i64>(0),
+                    )?;
+                }
+                Ok((
+                    c.query_row("PRAGMA user_version", [], |r| r.get(0))?,
+                    columns,
+                ))
+            })
+            .unwrap();
+        assert_eq!((version, columns), (SCHEMA_VERSION, added.len() as i64));
         drop(db);
         for suffix in ["", "-wal", "-shm"] {
             let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
