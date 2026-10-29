@@ -64,6 +64,8 @@ class Tasks {
   movedTo = new SvelteMap<number, number>();
   /** Ticks every minute, so "overdue" and the day groups follow the clock. */
   now = $state(Date.now());
+  /** The day the views were read on: Today and Upcoming are read again when it is over. */
+  private day = dayKey(Date.now());
   private seq = 0;
   private started = false;
   private stale = false;
@@ -139,10 +141,16 @@ class Tasks {
     api.onEvent((e) => {
       if (e.type === 'tasksChanged' || e.type === 'accountsChanged') this.refreshSoon();
     });
-    setInterval(() => (this.now = Date.now()), 60_000);
+    setInterval(() => this.tick(), 60_000);
     // Deletions waiting for their undo are carried out before the window goes.
     addEventListener('pagehide', () => [...this.deleting.values()].forEach((commit) => commit()));
     await this.refresh();
+  }
+
+  /** Follows the clock, and reads the views again on a new day (also on coming back to Tasks, in case the timer slept). */
+  tick() {
+    this.now = Date.now();
+    if (this.started && dayKey(this.now) !== this.day) this.refresh();
   }
 
   refreshSoon() {
@@ -158,6 +166,7 @@ class Tasks {
     }
     const seq = ++this.seq;
     const view = this.view;
+    this.day = dayKey(Date.now());
     try {
       const [lists, items, ...smart] = await Promise.all([
         api.tasks.lists(),

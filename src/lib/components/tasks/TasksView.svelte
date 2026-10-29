@@ -20,6 +20,7 @@
 
   onMount(() => {
     tasks.init();
+    tasks.tick();
   });
 
   const list = $derived(tasks.currentList);
