@@ -239,6 +239,8 @@ await step('a deleted task comes back with its subtasks', async () => {
   await row.waitFor({ state: 'detached', timeout: 5000 });
   await until(async () => (await count()) !== before, 'the list still counts the deleted task');
   await page.locator('.toast', { hasText: 'Task deleted' }).first().locator('.action').click();
+  // It comes back selected, ready for the keyboard.
+  await until(async () => (await row.getAttribute('aria-selected')) === 'true', 'the restored task is not selected');
   await row.click();
   await until(async () => (await subtasks()) === all, async () => `back with the subtasks ${await subtasks()}`);
   await until(async () => (await count()) === before, async () => `the list counts ${await count()}, not ${before} again`);

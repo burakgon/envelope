@@ -503,14 +503,17 @@ class Tasks {
     toasts.undoable(t('tasks.toast.deleted'), () => this.restore(task.id), UNDO_MS);
   }
 
-  /** Brings back a task deleted a moment ago, with the subtasks deleted with it. */
+  /** Brings back a task deleted a moment ago, with the subtasks deleted with it, selected again. */
   private async restore(id: number) {
+    let restored = false;
     try {
       await api.tasks.restore(id);
+      restored = true;
     } catch (e) {
       toasts.error(errorMessage(e));
     }
     await this.refresh();
+    if (restored && this.visible.some((x) => x.id === id)) this.selectedId = id;
   }
 
   /** Adds a task from quick add; one that will not show in this view is announced. */
