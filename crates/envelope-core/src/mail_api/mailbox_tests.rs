@@ -237,6 +237,16 @@ impl Fixture {
     }
 }
 
+/// The operations waiting for the server.
+impl Fixture {
+    pub(crate) fn ops(&self) -> Vec<PendingOp> {
+        self.engine
+            .db
+            .read(|c| misc::queued_ops(c, self.account))
+            .expect("ops")
+    }
+}
+
 #[tokio::test]
 async fn mark_all_read_takes_the_list_as_shown_and_can_be_undone() {
     let fx = fixture();
@@ -385,5 +395,29 @@ async fn follow_ups_can_be_done_or_come_back_later() {
     assert!(
         due.iter()
             .any(|f| f.thread_id == Some(thread) && !f.notified)
+    );
+}
+
+#[tokio::test]
+async fn not_spam_moves_back_to_the_inbox() {
+    let fx = fixture();
+    let (_, thread) = fx.message(
+        "Junk",
+        5,
+        "j@x",
+        None,
+        "friend@example.com",
+        "Photos",
+        1_000,
+        0,
+    );
+    fx.engine
+        .move_threads(&[thread], Some(fx.id("Junk")), &MoveTarget::Inbox)
+        .expect("not spam");
+    assert_eq!(fx.list(Mailbox::Folder { id: fx.id("INBOX") }), [thread]);
+    let op = fx.ops().into_iter().next();
+    assert!(
+        matches!(&op, Some(PendingOp::Move { dest_folder, items }) if dest_folder == "INBOX" && items[0].folder == "Junk"),
+        "{op:?}"
     );
 }

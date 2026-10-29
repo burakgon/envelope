@@ -988,6 +988,7 @@ impl Session {
                 for (folder, items) in by_folder {
                     self.select(&folder).await?;
                     let uids: Vec<u32> = items.iter().filter_map(|i| i.uid).collect();
+                    self.mark_junk(&folder, dest_folder, &uids).await;
                     let pairs = self.client.uid_move(&uids, dest_folder).await?;
                     // Record new UIDs so the next sync does not download them again.
                     if !pairs.is_empty() {
@@ -1094,6 +1095,35 @@ impl Session {
                 Ok(())
             }
         }
+    }
+
+    /// Tells the server's spam filter what the user decided: `$Junk` on mail
+    /// moved to Spam, `$NotJunk` on mail taken out of it (not into Trash).
+    /// Gmail learns from the move itself; servers without keywords refuse,
+    /// which must not stop the move.
+    async fn mark_junk(&mut self, source: &str, dest: &str, uids: &[u32]) {
+        if self.gmail || uids.is_empty() {
+            return;
+        }
+        let role = |role| self.role_folder(role).map(|f| f.remote_id.clone());
+        let (Some(junk), trash) = (role(FolderRole::Junk), role(FolderRole::Trash)) else {
+            return;
+        };
+        let (add, remove) = if dest == junk {
+            ("$Junk", "$NotJunk")
+        } else if source == junk && trash.as_deref() != Some(dest) {
+            ("$NotJunk", "$Junk")
+        } else {
+            return;
+        };
+        if let Err(e) = self.client.uid_store(uids, "+FLAGS.SILENT", &[add]).await {
+            tracing::debug!(account = self.id(), "{add} not stored: {e}");
+            return;
+        }
+        let _ = self
+            .client
+            .uid_store(uids, "-FLAGS.SILENT", &[remove])
+            .await;
     }
 
     async fn save_draft(&mut self, draft_id: i64) -> Result<()> {

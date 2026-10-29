@@ -15,6 +15,7 @@
     Archive, Check, CheckCircle, Clock, FileArrow, Filter, Folder, Forward, Mail, MailOpen, More, Newspaper, PanelLeft, Paperclip,
     Bell, Pen, Reply, ReplyAll, Search, ShieldAlert, Star, Tag, Trash, Users, X, Refresh, Sparkles,
     AlarmClock,
+    ShieldCheck,
   } from '../icons';
   import AccountAlerts from './AccountAlerts.svelte';
   import { t } from '../i18n';
@@ -334,7 +335,11 @@
     {#if ['gmail', 'microsoft', 'exchange'].includes(mail.accountById.get(menu.thread.accountId)?.kind ?? '')}
       <button class="menu-item" onclick={() => { moveAt = { x: menu!.x, y: menu!.y, ids, labels: true }; menu = null; }}><Tag size={15} />{mail.accountById.get(menu.thread.accountId)?.kind === 'gmail' ? t('threadList.labelMenu') : t('threadList.categorizeMenu')}<span class="hint">L</span></button>
     {/if}
-    <button class="menu-item" onclick={() => { mail.moveTo({ kind: 'junk' }, ids); menu = null; }}><ShieldAlert size={15} />{t('threadList.reportSpam')}<span class="hint">!</span></button>
+    {#if mail.isSpam(ids)}
+      <button class="menu-item" onclick={() => { mail.notSpam(ids); menu = null; }}><ShieldCheck size={15} />{t('threadList.notSpam')}<span class="hint">!</span></button>
+    {:else}
+      <button class="menu-item" onclick={() => { mail.moveTo({ kind: 'junk' }, ids); menu = null; }}><ShieldAlert size={15} />{t('threadList.reportSpam')}<span class="hint">!</span></button>
+    {/if}
     {#if mail.inFollowUp}
       <div class="divider"></div>
       <button class="menu-item" onclick={() => { mail.followUpDone(ids); menu = null; }}><Check size={15} />{t('threadList.followUpDone')}</button>

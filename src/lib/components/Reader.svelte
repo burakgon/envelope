@@ -14,6 +14,7 @@
   import {
     Archive, BellOff, Clock, Folder, Forward, ListChecks, ListPlus, Mail, MailOpen, Reply, ReplyAll, ShieldAlert, Star, Tag, Trash, Inbox,
     Check, AlarmClock,
+    ShieldCheck,
   } from '../icons';
   import { t } from '../i18n';
 
@@ -37,6 +38,7 @@
     (thread?.folderIds ?? []).map((id) => mail.folderById.get(id)).filter((f) => f && f.kind === 'label'),
   );
   const inInbox = $derived(!!thread && thread.folderIds.some((id) => mail.folderById.get(id)?.role === 'inbox'));
+  const inSpam = $derived(!!thread && mail.isSpam([thread.id]));
   /** An open task made from this conversation. */
   const linkedTask = $derived(thread ? tasks.linked.get(thread.id) : undefined);
 
@@ -76,13 +78,19 @@
           <button class="icon-btn" title={t('reader.followUpLater')} aria-label={t('reader.followUpLater')} onclick={(e) => (remindAt = rect(e))}><AlarmClock size={17} /></button>
           <span class="sep"></span>
         {/if}
+        {#if inSpam}
+          <button class="btn sm pill" title={t('reader.toolbarNotSpam', { key: '!' })} onclick={() => mail.notSpam([thread.id])}><ShieldCheck size={14} />{t('reader.notSpam')}</button>
+          <span class="sep"></span>
+        {/if}
         {#if inInbox || !mail.isInboxView}
           <button class="icon-btn" title={t('reader.toolbarArchive', { key: 'E' })} onclick={() => mail.archive([thread.id])}><Archive size={17} /></button>
         {:else}
           <button class="icon-btn" title={t('reader.toolbarMoveToInbox')} onclick={() => mail.moveTo({ kind: 'inbox' }, [thread.id])}><Inbox size={17} /></button>
         {/if}
         <button class="icon-btn" title={t('reader.toolbarDelete', { key: '#' })} onclick={() => mail.trash([thread.id])}><Trash size={17} /></button>
-        <button class="icon-btn" title={t('reader.toolbarSpam', { key: '!' })} onclick={() => mail.moveTo({ kind: 'junk' }, [thread.id])}><ShieldAlert size={17} /></button>
+        {#if !inSpam}
+          <button class="icon-btn" title={t('reader.toolbarSpam', { key: '!' })} onclick={() => mail.moveTo({ kind: 'junk' }, [thread.id])}><ShieldAlert size={17} /></button>
+        {/if}
         <span class="sep"></span>
         <button class="icon-btn" title={t('reader.toolbarSnooze', { key: 'H' })} onclick={(e) => (snoozeAt = rect(e))}><Clock size={17} /></button>
         {#if linkedTask}

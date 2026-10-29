@@ -224,6 +224,13 @@ const seeds: ThreadSeed[] = [
   T(2, ['inbox'], 'Your October statement is ready', [
     { from: P.bank, to: [P.meHome], at: now - 3 * DAY - 4 * HOUR, seen: true, text: 'Your October statement for account ending 0918 is now available in online banking.' },
   ], 'notifications'),
+  // Spam, to show "Not spam".
+  T(2, ['junk'], 'You have been selected for a $500 gift card', [
+    { from: { name: 'Rewards Center', email: 'prize@winner-rewards.test' }, to: [P.meHome], at: now - 9 * HOUR, seen: false, text: 'Congratulations! You have been selected. Claim your $500 gift card within 24 hours — supplies are limited.' },
+  ], 'notifications'),
+  T(1, ['junk'], 'Your wallet is eligible for 2,500 free tokens', [
+    { from: { name: 'Token Bonus', email: 'airdrop@token-bonus.test' }, to: [P.meWork], at: now - 1 * DAY - 3 * HOUR, seen: false, text: 'Connect your wallet today to receive 2,500 tokens. This offer expires soon.' },
+  ], 'notifications'),
   T(2, ['inbox'], 'Your Weekly Mix is here 🎧', [
     { from: P.wave, to: [P.meHome], at: now - 4 * DAY - 2 * HOUR, seen: true, unsubscribe: true, html: card(`<h2 style="margin:0 0 8px">Fresh picks for your week</h2><p>30 new songs, handpicked for you. Starting with a little synthwave for your Monday.</p>`, '#22c55e') },
   ], 'newsletters'),

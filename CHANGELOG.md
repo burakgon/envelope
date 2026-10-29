@@ -11,6 +11,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Save all… for messages with several attachments: they are saved into a folder at once, and Show in folder opens it.
 - Send asks first when an address doesn't look complete (Edit or Send anyway), and when the text mentions an attachment but nothing is attached (Attach or Send anyway), with the words for it in every interface language.
 - Links in messages show where they go in a small pill while they are pointed at or focused, and warn when their text names another site than the one they open.
+- "Not spam" in Spam (reader toolbar, context menu, command palette, and `!`, which now toggles): the conversation goes back to the inbox, and the server learns it (`$NotJunk` on IMAP servers, the move itself for Gmail, Microsoft 365 and Exchange). Reporting spam on an IMAP server sets `$Junk`.
 - Follow-up reminders can be marked Done or come back later ("Remind me again…").
 - A banner above the message list when an account needs a new sign-in (with Sign in) or keeps failing to sync (with Retry and Details); the account's entry in Settings says the same.
 

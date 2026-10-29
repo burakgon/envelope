@@ -17,6 +17,7 @@
     Archive, BellOff, BookUser, Calendar, CalendarPlus, Compose, UserPlus, Folder, Inbox, Keyboard, Mail, Moon, Refresh, Search, Settings, Sparkles, Star, Sun, Tag, Trash, Clock, Send, File, Mails,
     ListChecks, ListPlus,
     Check, AlarmClock,
+    ShieldAlert, ShieldCheck,
   } from '../icons';
 
   type Group = 'actions' | 'goTo' | 'help' | 'calendar' | 'conversation' | 'folders';
@@ -107,6 +108,9 @@
           { id: 'unread', label: t('palette.toggleRead'), group: 'conversation', icon: Mail, hint: 'U', run: () => mail.toggleRead() },
           { id: 'mute', label: t('palette.toggleMute'), group: 'conversation', icon: BellOff, hint: 'M', run: () => mail.toggleMute() },
           { id: 'add-task', label: t('tasks.palette.addToTasks'), group: 'conversation', icon: ListPlus, hint: 'T', run: () => tasks.addFromMail(mail.targets()) },
+          mail.isSpam()
+            ? { id: 'not-spam', label: t('palette.notSpam'), group: 'conversation', icon: ShieldCheck, hint: '!', keywords: t('palette.kw.notSpam'), run: () => mail.notSpam() }
+            : { id: 'spam', label: t('palette.reportSpam'), group: 'conversation', icon: ShieldAlert, hint: '!', keywords: t('palette.kw.reportSpam'), run: () => mail.moveTo({ kind: 'junk' }) },
           ...(mail.inFollowUp
             ? [
                 { id: 'follow-up-done', label: t('palette.followUpDone'), group: 'conversation', icon: Check, run: () => mail.followUpDone() } satisfies Command,

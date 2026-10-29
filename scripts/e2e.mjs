@@ -700,6 +700,33 @@ await step('account setup forgets the provider it backed out of', async () => {
   }
 });
 
+await step('Not spam brings a conversation back, and ! toggles', async () => {
+  const p = await fresh();
+  try {
+    const subject = 'You have been selected for a $500 gift card';
+    await personal(p).locator('.item', { hasText: 'Spam' }).click();
+    const row = p.locator('.row', { hasText: subject });
+    await row.click({ button: 'right' });
+    await p.locator('.menu-item', { hasText: 'Not spam' }).waitFor({ timeout: 5000 });
+    if (await p.locator('.menu-item', { hasText: 'Report spam' }).count()) throw new Error('Spam still offers Report spam');
+    await p.keyboard.press('Escape');
+    await row.click();
+    await p.locator('.reader .pill', { hasText: 'Not spam' }).waitFor({ timeout: 5000 });
+    await p.locator('body').press('!');
+    await toast(p, 'Not spam · moved to Inbox');
+    await row.waitFor({ state: 'detached', timeout: 5000 });
+    await personal(p).locator('.item', { hasText: 'Inbox' }).click();
+    // Under the inbox's All tab (it is filed as a notification).
+    await p.locator('body').press('4');
+    await row.click();
+    // In the inbox, ! reports it again.
+    await p.locator('body').press('!');
+    await toast(p, 'Marked as spam');
+  } finally {
+    await p.close();
+  }
+});
+
 await step('Mark all as read takes only the tab shown, says how many and undoes', async () => {
   const p = await fresh();
   try {

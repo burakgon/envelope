@@ -472,8 +472,11 @@ class Mail {
     }
   }
 
-  /** Moves threads; `folderName` names the destination in the confirmation ("Moved to Work"). */
-  async moveTo(target: MoveTarget, ids = this.targets(), folderName?: string) {
+  /**
+   * Moves threads; `folderName` names the destination in the confirmation ("Moved to Work"),
+   * `messages` replaces it ([one conversation, several]).
+   */
+  async moveTo(target: MoveTarget, ids = this.targets(), folderName?: string, messages?: [MessageKey, MessageKey]) {
     if (ids.length === 0) return;
     const byThread = new Map(this.items.map((th) => [th.id, th]));
     // Group by source folder (per account in unified views).
@@ -489,7 +492,7 @@ class Mail {
       const message =
         folderName != null
           ? t(count > 1 ? 'mail.movedToFolderCount' : 'mail.movedToFolder', { folder: folderName, count })
-          : t(movedMessages[target.kind][count > 1 ? 1 : 0], { count });
+          : t((messages ?? movedMessages[target.kind])[count > 1 ? 1 : 0], { count });
       toasts.undoable(message, async () => {
         for (const token of tokens) await api.undo(token);
         this.refresh();
@@ -674,6 +677,24 @@ class Mail {
     } catch (e) {
       toasts.error(errorMessage(e));
     }
+  }
+
+  /** Whether all these conversations are in Spam, where "Not spam" applies instead of "Report spam". */
+  isSpam(ids = this.targets()): boolean {
+    if (!ids.length) return false;
+    const byId = new Map(this.items.map((th) => [th.id, th]));
+    if (this.detail) byId.set(this.detail.thread.id, this.detail.thread);
+    return ids.every((id) => byId.get(id)?.folderIds.some((f) => this.folderById.get(f)?.role === 'junk'));
+  }
+
+  /** Moves conversations out of Spam into the inbox; the server learns they are not spam. */
+  notSpam(ids = this.targets()) {
+    return this.moveTo({ kind: 'inbox' }, ids, undefined, ['mail.notSpam', 'mail.notSpamCount']);
+  }
+
+  /** Report spam, or "Not spam" for conversations already in Spam (the `!` key). */
+  toggleSpam(ids = this.targets()) {
+    return this.isSpam(ids) ? this.notSpam(ids) : this.moveTo({ kind: 'junk' }, ids);
   }
 
   /** The list is Follow up: sent conversations still waiting for a reply. */

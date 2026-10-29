@@ -316,7 +316,7 @@
         if (ids.length) kbMenu = { kind: 'label', ids };
         break;
       case '!':
-        if (ids.length) mail.moveTo({ kind: 'junk' }, ids);
+        if (ids.length) mail.toggleSpam(ids);
         break;
       case 'x':
         if (mail.selectedId != null) mail.toggleCheck(mail.selectedId);
