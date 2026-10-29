@@ -111,6 +111,49 @@ await step('the interface switches language and back', async () => {
   await page.keyboard.press('Escape');
 });
 
+await step('g k opens tasks', async () => {
+  await page.locator('body').press('g');
+  await page.locator('body').press('k');
+  await visible('.tasks .quick input');
+  const rows = await page.locator('.tasks .task').count();
+  if (rows < 3) throw new Error(`only ${rows} tasks`);
+});
+
+await step('quick add understands a due date, a time and !', async () => {
+  await page.locator('body').press('c');
+  await page.locator('.quick input:focus').waitFor({ timeout: 5000 });
+  await page.keyboard.type('Call Maya tomorrow 3pm !');
+  const due = (await page.locator('.qchip.due').innerText()).trim();
+  if (!/^Tomorrow, (3:00\sPM|15:00)$/.test(due)) throw new Error(`the due chip reads "${due}"`);
+  await page.locator('.qchip.important').waitFor({ timeout: 5000 });
+  await page.keyboard.press('Enter');
+  await page.locator('.toast', { hasText: 'Added to Reminders' }).first().waitFor({ timeout: 5000 });
+  if (await page.locator('.quick input').inputValue()) throw new Error('quick add was not cleared');
+});
+
+await step('a task is completed', async () => {
+  // Due tomorrow, so it is in Upcoming.
+  await page.locator('.sidebar .item', { hasText: 'Upcoming' }).click();
+  const row = page.locator('.tasks .task', { hasText: 'Call Maya' });
+  await row.waitFor({ timeout: 5000 });
+  if ((await row.locator('.title').innerText()).trim() !== 'Call Maya') throw new Error('the title kept the date');
+  await row.locator('.check').click();
+  await page.locator('.toast', { hasText: 'Task completed' }).first().waitFor({ timeout: 5000 });
+  await row.waitFor({ state: 'detached', timeout: 5000 });
+});
+
+await step('t adds the open conversation to tasks', async () => {
+  await page.locator('body').press('g');
+  await page.locator('body').press('i');
+  await page.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+  await visible('.reader .subject-block h2');
+  await page.locator('body').press('t');
+  const toast = page.locator('.toast', { hasText: 'Added to My Tasks' }).first();
+  await toast.waitFor({ timeout: 5000 });
+  await toast.locator('.action').click();
+  await page.locator('.detail .source', { hasText: 'Q4 roadmap' }).waitFor({ timeout: 5000 });
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });
