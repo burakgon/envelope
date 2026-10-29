@@ -1063,6 +1063,69 @@ mod tests {
     }
 
     #[test]
+    fn lists_and_tasks_use_the_wire_format() {
+        let list = list_view(
+            &ListRow {
+                id: 3,
+                account_id: None,
+                kind: TaskListKind::Local,
+                remote_id: "local-1".into(),
+                name: LOCAL_LIST_NAME.into(),
+                color: "#6d5efc".into(),
+                read_only: false,
+                is_default: true,
+                sort_order: 0,
+                sync_state: Default::default(),
+            },
+            2,
+        );
+        assert_eq!(
+            serde_json::to_value(&list).ok(),
+            Some(serde_json::json!({
+                "id": 3, "accountId": null, "kind": "local", "name": "Tasks", "color": "#6d5efc",
+                "readOnly": false, "isDefault": true, "openCount": 2, "dueTimes": true,
+                "importance": true, "subtasks": true
+            }))
+        );
+        let task = Task {
+            id: 1,
+            list_id: 3,
+            parent_id: None,
+            title: "Call Maya".into(),
+            notes: String::new(),
+            due_date: Some("2026-10-30".into()),
+            due_at: Some(1_793_365_200_000),
+            completed_at: None,
+            important: true,
+            repeats: false,
+            source: Some(TaskSource {
+                message_id: "m@x".into(),
+                thread_id: Some(9),
+                account_id: Some(2),
+                subject: "Offer".into(),
+                from: None,
+            }),
+            subtask_count: 0,
+            subtasks_done: 0,
+            created_at: 1,
+            updated_at: 2,
+            pending: true,
+            error: None,
+        };
+        assert_eq!(
+            serde_json::to_value(&task).ok(),
+            Some(serde_json::json!({
+                "id": 1, "listId": 3, "parentId": null, "title": "Call Maya", "notes": "",
+                "dueDate": "2026-10-30", "dueAt": 1_793_365_200_000_i64, "completedAt": null,
+                "important": true, "repeats": false,
+                "source": { "messageId": "m@x", "threadId": 9, "accountId": 2, "subject": "Offer", "from": null },
+                "subtaskCount": 0, "subtasksDone": 0, "createdAt": 1, "updatedAt": 2,
+                "pending": true, "error": null
+            }))
+        );
+    }
+
+    #[test]
     fn due_inputs() {
         let at = 1_700_000_000_000;
         let input = |due_date: Option<Option<&str>>, due_at: Option<Option<i64>>| TaskInput {

@@ -1115,6 +1115,94 @@ async fn caldav_lists_pull_and_push() {
         kids.iter().map(|t| t.title.as_str()).collect::<Vec<_>>(),
         ["Pack"]
     );
+
+    // A disabled account's lists and tasks are out of sight.
+    fx.engine
+        .db
+        .write(|tx| {
+            tx.execute("UPDATE accounts SET enabled = 0 WHERE id = ?", [account.id])?;
+            Ok(())
+        })
+        .expect("disable");
+    assert_eq!(fx.engine.task_lists().expect("lists").len(), 1);
+    assert!(fx.titles(TaskView::All, false).await.is_empty());
+    assert!(fx.titles(TaskView::Important, false).await.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_calendar_gets_the_tasks_due_in_its_range() {
+    let fx = fixture();
+    let list = fx.local_list();
+    let today = today();
+    let tomorrow = today + Duration::days(1);
+    let timed = fx
+        .create(TaskInput {
+            due_at: Some(Some(local_at(tomorrow, 10))),
+            ..input(list, "Dentist")
+        })
+        .await;
+    fx.create(TaskInput {
+        due_date: Some(Some(day(tomorrow))),
+        ..input(list, "Send the invoice")
+    })
+    .await;
+    let done = fx
+        .create(TaskInput {
+            due_date: Some(Some(day(tomorrow))),
+            ..input(list, "Done already")
+        })
+        .await;
+    fx.engine
+        .complete_task(done.id, true)
+        .await
+        .expect("complete");
+    fx.create(TaskInput {
+        due_date: Some(Some(day(today + Duration::days(9)))),
+        ..input(list, "Next week")
+    })
+    .await;
+    fx.create(input(list, "Some day")).await;
+
+    let titles = |tasks: Vec<Task>| tasks.into_iter().map(|t| t.title).collect::<Vec<_>>();
+    let day_from = local_at(tomorrow, 0);
+    let day_to = local_at(tomorrow + Duration::days(1), 0);
+    assert_eq!(
+        titles(fx.engine.tasks_due(day_from, day_to).await.expect("due")),
+        ["Dentist", "Send the invoice"],
+        "open tasks of the day, timed ones first"
+    );
+    // Part of a day: the tasks at a time in it, and the tasks of its day.
+    assert_eq!(
+        titles(
+            fx.engine
+                .tasks_due(local_at(tomorrow, 11), local_at(tomorrow, 12))
+                .await
+                .expect("due")
+        ),
+        ["Send the invoice"]
+    );
+    assert_eq!(
+        titles(
+            fx.engine
+                .tasks_due(timed.due_at.expect("due"), local_at(tomorrow, 11))
+                .await
+                .expect("due")
+        ),
+        ["Dentist", "Send the invoice"]
+    );
+    let week = fx
+        .engine
+        .tasks_due(local_at(today, 0), local_at(today + Duration::days(14), 0))
+        .await
+        .expect("due");
+    assert_eq!(week.len(), 3);
+    assert!(
+        fx.engine
+            .tasks_due(day_to, day_from)
+            .await
+            .expect("due")
+            .is_empty()
+    );
 }
 
 /// Stores one task of a CalDAV list as a pull would.
