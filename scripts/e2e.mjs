@@ -339,6 +339,17 @@ await step('a short plain-text reply shows its text, its quote folded away', asy
   if (await frame.locator('.env-attribution', { hasText: 'wrote:' }).isVisible()) throw new Error('the line before the quote is not folded away with it');
 });
 
+await step('the message frame fits its text, growing and shrinking with the quote', async () => {
+  const frame = w.frameLocator('.reader iframe').first();
+  const height = () => w.locator('.reader iframe').first().evaluate((el) => el.getBoundingClientRect().height);
+  const short = await height();
+  if (short > 80) throw new Error(`the frame of a two-line message is ${short}px tall`);
+  await frame.locator('.env-quote-toggle').click();
+  await wUntil(async () => (await height()) > short + 20, 'the frame did not grow with the quote');
+  await frame.locator('.env-quote-toggle').click();
+  await wUntil(async () => Math.abs((await height()) - short) <= 2, async () => `the frame stayed ${await height()}px tall, not ${short}px`);
+});
+
 await w.close();
 
 await step('no page errors', async () => {

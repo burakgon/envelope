@@ -1,5 +1,32 @@
+<script lang="ts" module>
+  /** Heights messages were measured at, so that one opened again starts at its size. */
+  const heights = new Map<string, number>();
+
+  /**
+   * A first guess at a message's height before its frame has laid it out, from its text: on
+   * the low side, as growing once is less of a jump than shrinking. Quoted history is left
+   * out, as it starts folded away.
+   */
+  function estimate(html: string | null, text: string | null, width: number): number {
+    const perLine = Math.max(30, Math.floor(width / 7.6));
+    let lines = 0;
+    if (html) {
+      const own = html.split(/<blockquote|class="(?:gmail_quote|env-quote|envelope-quote)"|id="divRplyFwdMsg"/i)[0];
+      const breaks = (own.match(/<(?:p|div|br|li|tr|h[1-6])\b/gi) ?? []).length;
+      const chars = own.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').length;
+      lines = Math.ceil(chars / perLine) + Math.ceil(breaks * 0.6);
+    } else if (text) {
+      for (const line of text.split('\n')) {
+        if (/^\s*>/.test(line)) continue;
+        lines += Math.max(1, Math.ceil(line.length / perLine));
+      }
+    }
+    return Math.round(Math.min(900, Math.max(40, lines * 22.4 * 0.85 + 8)));
+  }
+</script>
+
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
   import { api } from '../api';
   import type { MessageView } from '../api';
   import { compose } from '../stores/compose.svelte';
@@ -22,7 +49,6 @@
   } = $props();
 
   let frame: HTMLIFrameElement | undefined = $state();
-  let height = $state(80);
   let observer: ResizeObserver | null = null;
 
   const prepared = $derived.by(() => {
@@ -36,6 +62,9 @@
       collapseQuotes: true,
     });
   });
+  const key = $derived(`${message.id}:${prepared.html.length}`);
+  let height = $state(untrack(() => heights.get(key) ?? estimate(message.body?.html ?? null, message.body?.text ?? message.snippet, 640)));
+  let measured = false;
 
   $effect(() => {
     onstats?.({ blocked: prepared.blockedRemote, trackers: prepared.trackers, designed: prepared.designed });
@@ -43,10 +72,29 @@
 
   function measure() {
     const doc = frame?.contentDocument;
-    if (!doc?.documentElement) return;
-    const h = Math.max(doc.documentElement.scrollHeight, doc.body?.scrollHeight ?? 0);
-    if (h > 0 && Math.abs(h - height) > 1) height = h;
+    if (!doc?.documentElement || !doc.body) return;
+    // The content's own height, which can be less than the frame's (a quote folded away
+    // again): the document's scroll height never is.
+    const h = Math.ceil(Math.max(doc.documentElement.getBoundingClientRect().height, doc.body.scrollHeight));
+    if (h <= 0) return;
+    measured = true;
+    heights.set(key, h);
+    if (Math.abs(h - height) > 1) height = h;
   }
+
+  onMount(() => {
+    // The real width makes a better guess, before the frame is drawn.
+    if (!heights.has(key) && frame?.clientWidth) height = estimate(message.body?.html ?? null, message.body?.text ?? message.snippet, frame.clientWidth);
+    // Measure as soon as the frame has laid the message out, without waiting for `load`.
+    let tries = 0;
+    const early = () => {
+      if (measured || !frame || tries++ > 60) return;
+      const doc = frame.contentDocument;
+      if (doc?.body && doc.readyState !== 'loading' && doc.URL !== 'about:blank') measure();
+      if (!measured) requestAnimationFrame(early);
+    };
+    requestAnimationFrame(early);
+  });
 
   function onLoad() {
     const doc = frame?.contentDocument;
