@@ -52,6 +52,22 @@ async function step(name, run) {
   }
 }
 const visible = (selector) => page.locator(selector).first().waitFor({ state: 'visible', timeout: 5000 });
+/** Waits for a condition the page reaches on its own; `failure` says what is wrong instead. */
+async function until(check, failure) {
+  for (const end = Date.now() + 5000; Date.now() < end; await page.waitForTimeout(100)) if (await check()) return;
+  throw new Error(typeof failure === 'function' ? await failure() : failure);
+}
+/** A value once it has stopped changing (the views are read again shortly after each change). */
+async function steady(read) {
+  let last = await read();
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(250);
+    const now = await read();
+    if (now === last) return now;
+    last = now;
+  }
+  return last;
+}
 
 await step('the inbox lists conversations', async () => {
   await page.goto(url);
@@ -209,6 +225,40 @@ await step('subtask checks are reached and ticked from the keyboard', async () =
   if (!(await check.evaluate((el) => el === document.activeElement))) throw new Error('Tab never reached the subtask\'s check');
   await page.keyboard.press('Space');
   await page.locator('.detail .sub .check[aria-label*="Wrap it"][aria-checked="true"]').waitFor({ timeout: 5000 });
+});
+
+await step('a deleted task comes back with its subtasks', async () => {
+  // Gone at once, from the list and its count; Undo brings it back with its subtasks.
+  const row = page.locator('.tasks .task', { hasText: 'Buy a birthday present for Mom' });
+  const count = () => page.locator('.sidebar .item', { hasText: 'Reminders' }).locator('.count').innerText();
+  const subtasks = () => page.locator('.detail .sub:not(.add) .sub-title').evaluateAll((els) => els.map((e) => e.value).join(', '));
+  const all = 'Order the photo book, Pick up the frame, Wrap it';
+  await until(async () => (await subtasks()) === all, async () => `the task's subtasks are ${await subtasks()}`);
+  const before = await steady(count);
+  await page.locator('.detail .icon-btn[aria-label="Delete task"]').click();
+  await row.waitFor({ state: 'detached', timeout: 5000 });
+  await until(async () => (await count()) !== before, 'the list still counts the deleted task');
+  await page.locator('.toast', { hasText: 'Task deleted' }).first().locator('.action').click();
+  await row.click();
+  await until(async () => (await subtasks()) === all, async () => `back with the subtasks ${await subtasks()}`);
+  await until(async () => (await count()) === before, async () => `the list counts ${await count()}, not ${before} again`);
+});
+
+await step('clearing completed tasks deletes as many as it says', async () => {
+  await page.locator('.tasks .ctoggle').click();
+  const done = page.locator('.tasks .task.done');
+  await done.first().waitFor({ timeout: 5000 });
+  const shown = await done.count();
+  await page.locator('.tasks .completed .clear').click();
+  const asked = await page.locator('.ask').innerText();
+  if (asked !== `Delete ${shown} completed task${shown === 1 ? '' : 's'}?`) throw new Error(`with ${shown} completed tasks it asks "${asked}"`);
+  await page.locator('.btn.danger', { hasText: 'Delete' }).click();
+  await page.locator('.toast', { hasText: `Deleted ${shown} completed task` }).first().waitFor({ timeout: 5000 });
+  await done.first().waitFor({ state: 'detached', timeout: 5000 });
+  if (await page.locator('.tasks .ctoggle').count()) throw new Error('completed tasks are still listed');
+  // The completed subtasks of a task still open stay.
+  await page.locator('.tasks .task', { hasText: 'Buy a birthday present for Mom' }).click();
+  await page.locator('.detail .sub:not(.add)').nth(2).waitFor({ timeout: 5000 });
 });
 
 await step('a confirmation and a password prompt ask in the app', async () => {
