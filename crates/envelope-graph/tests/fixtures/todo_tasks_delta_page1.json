@@ -1,0 +1,67 @@
+{
+  "@odata.context": "{{base}}/$metadata#Collection(todoTask)",
+  "@odata.nextLink": "{{base}}/me/todo/lists/AAMkList1=/tasks/delta?$skiptoken=w0vf2jHg2mBXU-I2AK0FSWl0dopNtG8u5YoM",
+  "value": [
+    {
+      "@odata.etag": "W/\"4rfRVIPi9EqXgDbc8U7HGwADLLQ9xQ==\"",
+      "importance": "high",
+      "isReminderOn": false,
+      "status": "notStarted",
+      "title": "Plan the offsite",
+      "createdDateTime": "2026-10-20T08:15:29.1925206Z",
+      "lastModifiedDateTime": "2026-10-26T09:02:11.4903939Z",
+      "hasAttachments": false,
+      "categories": [],
+      "id": "AAkALgAAAAAAHYQDEapmEc2byACqAC-EWg0AzqXX6-FeAAA=",
+      "body": {
+        "content": "Agenda first\r\nThen the venue",
+        "contentType": "text"
+      },
+      "dueDateTime": {
+        "dateTime": "2026-11-05T21:00:00.0000000",
+        "timeZone": "UTC"
+      }
+    },
+    {
+      "@odata.etag": "W/\"4rfRVIPi9EqXgDbc8U7HGwADLLQ9xg==\"",
+      "importance": "normal",
+      "isReminderOn": false,
+      "status": "completed",
+      "title": "Water the plants",
+      "createdDateTime": "2026-09-01T07:00:00.0000000Z",
+      "lastModifiedDateTime": "2026-10-27T15:20:00.0000000Z",
+      "categories": ["Home"],
+      "id": "AAkALgAAAAAAHYQDEapmEc2byACqAC-EWg0AzqXX6-FfAAA=",
+      "body": {
+        "content": "",
+        "contentType": "text"
+      },
+      "completedDateTime": {
+        "dateTime": "2026-10-27T00:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "dueDateTime": {
+        "dateTime": "2026-10-27T00:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "recurrence": {
+        "pattern": {
+          "type": "weekly",
+          "interval": 1,
+          "month": 0,
+          "dayOfMonth": 0,
+          "daysOfWeek": ["tuesday"],
+          "firstDayOfWeek": "sunday",
+          "index": "first"
+        },
+        "range": {
+          "type": "noEnd",
+          "startDate": "2026-09-01",
+          "endDate": "0001-01-01",
+          "recurrenceTimeZone": "UTC",
+          "numberOfOccurrences": 0
+        }
+      }
+    }
+  ]
+}

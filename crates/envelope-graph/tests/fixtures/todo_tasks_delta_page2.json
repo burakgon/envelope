@@ -1,0 +1,31 @@
+{
+  "@odata.context": "{{base}}/$metadata#Collection(todoTask)",
+  "@odata.deltaLink": "{{base}}/me/todo/lists/AAMkList1=/tasks/delta?$deltatoken=MoVMZ_DzHG4AhT3WE8VioVS1IXZJ-ArqK5fknOjnKFY",
+  "value": [
+    {
+      "@odata.etag": "W/\"4rfRVIPi9EqXgDbc8U7HGwADLLQ9xw==\"",
+      "importance": "low",
+      "isReminderOn": true,
+      "status": "inProgress",
+      "title": "Renew the passport",
+      "createdDateTime": "2026-10-01T10:00:00Z",
+      "lastModifiedDateTime": "2026-10-02T10:00:00Z",
+      "id": "AAkALgAAAAAAHYQDEapmEc2byACqAC-EWg0AzqXX6-FgAAA=",
+      "body": {
+        "content": "<html><body><p>Photos <b>first</b></p></body></html>",
+        "contentType": "html"
+      },
+      "reminderDateTime": {
+        "dateTime": "2026-11-01T08:00:00.0000000",
+        "timeZone": "UTC"
+      }
+    },
+    {
+      "@odata.type": "#microsoft.graph.todoTask",
+      "id": "AAkALgAAAAAAHYQDEapmEc2byACqAC-EWg0AzqXX6-FhAAA=",
+      "@removed": {
+        "reason": "deleted"
+      }
+    }
+  ]
+}

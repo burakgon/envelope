@@ -227,6 +227,19 @@ impl GraphError {
         self.status() == Some(401)
     }
 
+    /// True for `403 Forbidden`: the grant lacks the permission the request
+    /// needs (To Do answers `ErrorAccessDenied` to a grant without
+    /// `Tasks.ReadWrite`), or the item may not be changed.
+    pub fn is_forbidden(&self) -> bool {
+        self.status() == Some(403)
+    }
+
+    /// True for `412 Precondition Failed`: an `If-Match` etag no longer
+    /// matches, so the item changed on the server.
+    pub fn is_precondition_failed(&self) -> bool {
+        self.status() == Some(412)
+    }
+
     /// True when a stored delta link is no longer valid (`410 Gone`,
     /// `syncStateNotFound`, …). The caller should discard the delta link,
     /// start a new round without a cursor and reconcile local state.

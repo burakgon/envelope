@@ -18,6 +18,9 @@
 //! * **Contacts** — contact paging and per-folder delta, writes (create,
 //!   field-level update, delete), contact photos and people search, mapped
 //!   onto [`envelope_ical::Contact`].
+//! * **To Do** — task lists, per-list task delta
+//!   ([`GraphClient::todo_tasks_delta`]), task writes, steps
+//!   (`checklistItems`) and linked resources.
 //!
 //! All requests go to `/me`, the signed-in user.
 
@@ -39,6 +42,7 @@ mod messages;
 mod profile;
 pub mod recurrence;
 mod serde_util;
+mod todo;
 mod types;
 
 pub use auth::{StaticToken, TokenSource};
@@ -72,5 +76,9 @@ pub use profile::{
 pub use recurrence::{
     DayOfWeek, PatternedRecurrence, RecurrencePattern, RecurrencePatternType, RecurrenceRange,
     RecurrenceRangeType, WeekIndex,
+};
+pub use todo::{
+    ChecklistItem, ChecklistItemPatch, ENVELOPE_APPLICATION, LinkedResource, NewLinkedResource,
+    NewTodoTask, TaskStatus, TodoTask, TodoTaskList, TodoTaskPatch, WellknownListName,
 };
 pub use types::{BodyType, DateTimeTimeZone, EmailAddress, Importance, ItemBody, Recipient};

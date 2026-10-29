@@ -1,0 +1,22 @@
+{
+  "@odata.context": "{{base}}/$metadata#lists",
+  "@odata.nextLink": "{{base}}/me/todo/lists?$skip=2",
+  "value": [
+    {
+      "@odata.etag": "W/\"xzyPKP0BiUGgld+lMKXwbQAAgdhkVw==\"",
+      "displayName": "Tasks",
+      "isOwner": true,
+      "isShared": false,
+      "wellknownListName": "defaultList",
+      "id": "AAMkList1="
+    },
+    {
+      "@odata.etag": "W/\"xzyPKP0BiUGgld+lMKXwbQAAnBoTIw==\"",
+      "displayName": "Flagged email",
+      "isOwner": true,
+      "isShared": false,
+      "wellknownListName": "flaggedEmails",
+      "id": "AAMkList0="
+    }
+  ]
+}
