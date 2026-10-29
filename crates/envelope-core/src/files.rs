@@ -326,7 +326,7 @@ impl Engine {
                     attachments: body
                         .attachments
                         .into_iter()
-                        .filter(|a| !a.inline)
+                        .filter(|a| !a.inline && !envelope_smime::mime::is_smime_type(&a.mime_type))
                         .map(|a| FileAttachment {
                             part_id: a.part_id,
                             filename: a.filename,
@@ -334,7 +334,11 @@ impl Engine {
                             size: a.size,
                         })
                         .collect(),
-                    encrypted: decrypted.is_some(),
+                    // Opaque S/MIME signed data is unwrapped too, but not
+                    // encrypted.
+                    encrypted: decrypted.is_some()
+                        && crate::crypto::Protection::detect(&data)
+                            .is_some_and(crate::crypto::Protection::is_encrypted),
                 }))
             }
             Some(Kind::Calendar) => {

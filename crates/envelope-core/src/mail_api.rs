@@ -702,13 +702,18 @@ impl Engine {
 
     /// Saves a draft locally; with `upload`, also stores it on the server.
     pub fn save_draft(&self, id: Option<i64>, data: &DraftInput, upload: bool) -> Result<i64> {
-        // Encrypted drafts go to the server encrypted to the sender's key;
-        // without one they stay on this device.
+        // Encrypted drafts go to the server encrypted to the sender's key
+        // (or S/MIME certificate); without one they stay on this device.
         let upload = upload
             && (data.encrypt != Some(true)
-                || crate::sync::draft_identity(self, data)
-                    .and_then(|(from, _)| self.own_key_for(&from.email))
-                    .is_ok_and(|k| k.is_some()));
+                || crate::sync::draft_identity(self, data).is_ok_and(|(from, _)| {
+                    let email = from.email.trim().to_lowercase();
+                    match self.uses_smime(data, &email) {
+                        Ok(true) => self.can_encrypt_to_self(&email).unwrap_or(false),
+                        Ok(false) => self.own_key_for(&email).is_ok_and(|k| k.is_some()),
+                        Err(_) => false,
+                    }
+                }));
         let stored = self.db.write(|tx| {
             let stored = misc::draft_store(tx, id, data)?;
             let id = stored.id;
@@ -798,7 +803,8 @@ impl Engine {
         let encrypted = m
             .crypto
             .as_deref()
-            .is_some_and(|k| k == "encrypted" || k == "inline-encrypted");
+            .is_some_and(crate::crypto::is_encrypted_kind);
+        let smime = m.crypto.as_deref().is_some_and(|k| k.starts_with("smime-"));
         if encrypted && opened.as_ref().is_none_or(|o| o.view.body.is_none()) {
             return Err(Error::Invalid(
                 "This draft is encrypted and could not be decrypted here.".into(),
@@ -888,6 +894,7 @@ impl Engine {
             reply_to_message_id: replied,
             mode: Some(if replied.is_some() { "reply" } else { "new" }.into()),
             encrypt: encrypted.then_some(true),
+            smime: (encrypted && smime).then_some(true),
             ..Default::default()
         };
         let uid: Option<u32> = self.db.read(|c| {
@@ -1066,7 +1073,10 @@ impl Engine {
         let encrypted_original = m
             .crypto
             .as_deref()
-            .is_some_and(|k| k == "encrypted" || k == "inline-encrypted");
+            .is_some_and(crate::crypto::is_encrypted_kind);
+        // Opaque S/MIME signed content is inside the signature, as
+        // encrypted content is inside the encryption.
+        let contained = encrypted_original || m.crypto.as_deref() == Some("smime-opaque");
         if encrypted_original {
             draft.encrypt = Some(true);
         }
@@ -1139,7 +1149,7 @@ impl Engine {
                     html_escape::encode_text(&to_list)
                 );
                 let attachments = match &opened {
-                    Some(o) if encrypted_original => o.view.attachments.clone(),
+                    Some(o) if contained => o.view.attachments.clone(),
                     _ => m.attachments.clone(),
                 };
                 draft.attachments = attachments

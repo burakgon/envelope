@@ -1823,8 +1823,8 @@ async fn send_with(graph: &GraphMail, mime: &[u8], recipients: &[String]) -> Res
     let mime = with_bcc_header(mime, recipients);
     if mime.len() > MIME_LIMIT {
         // Rebuilding the message around its files would undo the OpenPGP
-        // encryption or signature.
-        if mime::is_openpgp_mime(&mime) {
+        // or S/MIME encryption or signature.
+        if mime::is_protected_mime(&mime) {
             return Err(Error::Invalid(
                 "Encrypted or signed messages larger than about 3 MB can't be sent through Microsoft 365. Remove some attachments, or send it unencrypted."
                     .into(),

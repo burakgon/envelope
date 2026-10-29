@@ -1,4 +1,5 @@
-//! Sending: which keys to encrypt to, and protecting outgoing messages.
+//! Sending: which keys (or S/MIME certificates) to encrypt to, and
+//! protecting outgoing messages.
 
 use std::collections::HashSet;
 
@@ -12,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use super::CryptoSettings;
 use super::keys::{KeyInfo, public_of};
+use super::smime::{SmimeCompose, SmimePlan};
 use crate::compose::Rendered;
 use crate::db::crypto::{self as store, KeyRow};
 use crate::db::now_ms;
@@ -48,6 +50,11 @@ pub struct ComposeCrypto {
     /// Every recipient asked for encryption.
     pub mutual: bool,
     pub settings: CryptoSettings,
+    /// The same for S/MIME.
+    pub smime: SmimeCompose,
+    /// The standard a message uses unless the composer chooses:
+    /// `openpgp` or `smime`.
+    pub standard: String,
 }
 
 fn source_rank(source: &str) -> u8 {
@@ -87,13 +94,15 @@ pub(crate) fn select_key(c: &Connection, email: &str, now: i64) -> Result<Option
 
 impl Engine {
     /// Encryption status for the composer: the sender's key and a key for
-    /// every recipient.
+    /// every recipient, the same for S/MIME certificates, and which
+    /// standard to use (`reply_to`: the message being answered).
     pub fn compose_crypto(
         &self,
         account_id: i64,
         identity_id: Option<i64>,
         from: Option<Address>,
         recipients: &[String],
+        reply_to: Option<i64>,
     ) -> Result<ComposeCrypto> {
         let draft = DraftInput {
             account_id,
@@ -131,8 +140,11 @@ impl Engine {
             });
         }
         let own_encrypts = own_info.as_ref().is_some_and(|k| k.can_encrypt);
+        let can_encrypt = own_encrypts && !list.is_empty() && missing.is_empty();
+        let smime = self.smime_compose(&from, recipients)?;
+        let standard = self.default_standard(&from, reply_to, &smime, can_encrypt)?;
         Ok(ComposeCrypto {
-            can_encrypt: own_encrypts && !list.is_empty() && missing.is_empty(),
+            can_encrypt,
             can_sign: own_info.as_ref().is_some_and(|k| k.can_sign),
             mutual: !list.is_empty() && list.iter().all(|r| r.prefer_encrypt),
             from,
@@ -141,6 +153,25 @@ impl Engine {
             recipients: list,
             missing,
             settings,
+            smime,
+            standard: standard.into(),
+        })
+    }
+
+    /// Whether OpenPGP could encrypt from `from` to every recipient.
+    pub(crate) fn pgp_can_encrypt(&self, from: &str, recipients: &[String]) -> Result<bool> {
+        let now = now_ms();
+        let own = self.own_key_for(&from.trim().to_lowercase())?;
+        if !own.is_some_and(|k| KeyInfo::from_row(&k, now).can_encrypt) || recipients.is_empty() {
+            return Ok(false);
+        }
+        self.db.read(|c| {
+            for r in recipients {
+                if select_key(c, r, now)?.is_none() {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
         })
     }
 }
@@ -155,12 +186,16 @@ pub(crate) struct Plan {
     signer: Option<(SignedSecretKey, Option<String>)>,
     gossip: Vec<String>,
     hide_subject: bool,
+    /// Protected with S/MIME instead.
+    smime: Option<SmimePlan>,
 }
 
 /// Decides how to protect a draft: encryption to every recipient and the
 /// sender (Bcc recipients without naming them), a signature, the sender's
-/// Autocrypt header. For server copies of drafts (`for_draft`), an encrypted
-/// draft is encrypted to the sender alone and nothing is signed.
+/// Autocrypt header — with OpenPGP, or S/MIME when the draft (or the
+/// default for its sender) says so. For server copies of drafts
+/// (`for_draft`), an encrypted draft is encrypted to the sender alone and
+/// nothing is signed.
 pub(crate) async fn plan_outgoing(
     engine: &Engine,
     draft: &DraftInput,
@@ -171,8 +206,16 @@ pub(crate) async fn plan_outgoing(
     let encrypt = draft.encrypt == Some(true);
     let sign = draft.sign == Some(true) && !for_draft;
     let email = from.email.trim().to_lowercase();
+    let smime = (encrypt || sign) && engine.uses_smime(draft, &email)?;
     let mut own = engine.own_key_for(&email)?;
-    if own.is_none() && !for_draft && (encrypt || sign || settings.send_autocrypt) {
+    // An address with an S/MIME certificate gets no OpenPGP key made just
+    // for the Autocrypt header: S/MIME would stop being its default.
+    let wants_key = if smime {
+        false
+    } else {
+        encrypt || sign || (settings.send_autocrypt && !engine.has_own_certificate(&email)?)
+    };
+    if own.is_none() && !for_draft && wants_key {
         let name = from.name.clone().unwrap_or_default();
         match engine.ensure_own_key(&email, &name).await {
             Ok(k) => own = Some(k),
@@ -195,6 +238,10 @@ pub(crate) async fn plan_outgoing(
             settings.encrypt_when_possible,
             &cert::public_bytes(&small)?,
         ));
+    }
+    if smime {
+        plan.smime = Some(engine.plan_smime(draft, &email, for_draft).await?);
+        return Ok(plan);
     }
     if encrypt {
         let own = own.as_ref().ok_or_else(|| {
@@ -260,6 +307,10 @@ pub(crate) async fn plan_outgoing(
 
 /// Encrypts and/or signs a rendered message according to the plan.
 pub(crate) fn apply_plan(plan: &Plan, mut rendered: Rendered) -> Result<Rendered> {
+    if let Some(smime) = plan.smime.as_ref().filter(|p| !p.is_empty()) {
+        rendered.mime = smime.apply(&rendered.mime)?;
+        return Ok(rendered);
+    }
     if plan.to.is_empty() && plan.hidden.is_empty() && plan.signer.is_none() {
         return Ok(rendered);
     }

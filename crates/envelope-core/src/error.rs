@@ -18,6 +18,9 @@ pub enum Error {
     /// An OpenPGP secret key (fingerprint) needs its passphrase.
     #[error("Your OpenPGP key is protected by a passphrase. Unlock it to continue.")]
     Locked(String),
+    /// The password of a certificate file (PKCS #12) is wrong.
+    #[error("Wrong password")]
+    BadPassword,
     #[error("{0}")]
     Other(String),
     #[error("invalid data: {0}")]
@@ -55,6 +58,28 @@ impl From<envelope_pgp::Error> for Error {
             P::NoKey | P::Invalid(_) => Error::Invalid(e.to_string()),
             P::Pgp(m) => Error::Other(format!("OpenPGP: {m}")),
         }
+    }
+}
+
+impl From<envelope_smime::Error> for Error {
+    fn from(e: envelope_smime::Error) -> Self {
+        use envelope_smime::Error as S;
+        match e {
+            S::BadPassword => Error::BadPassword,
+            S::Invalid(_) | S::Unsupported(_) | S::NoKey => {
+                Error::Invalid(sentence(&e.to_string()))
+            }
+            S::Crypto(m) => Error::Other(format!("S/MIME: {m}")),
+        }
+    }
+}
+
+/// A message starting with a capital letter.
+fn sentence(text: &str) -> String {
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
     }
 }
 

@@ -66,7 +66,7 @@ const MAX_DEPTH: usize = 8;
 
 /// Finds a trusted chain for `cert` among `pool` (intermediates from the
 /// message and remembered ones). Returns the issuers, the root last.
-pub(crate) fn verify(
+pub fn verify(
     cert: &Certificate,
     pool: &[&Certificate],
     trust: &TrustStore,
@@ -94,6 +94,28 @@ pub(crate) fn verify(
     } else {
         Err(search.problem.unwrap_or(Trust::UnknownIssuer))
     }
+}
+
+/// The authorities above `cert` found in `pool` by name, nearest first, up
+/// to (not including) a self-signed root: what to send along with a
+/// signature. Nothing is checked here.
+pub fn issuers_of(cert: &Certificate, pool: &[Certificate]) -> Vec<Certificate> {
+    let mut out: Vec<Certificate> = Vec::new();
+    let mut current = cert;
+    while out.len() < MAX_DEPTH {
+        let Some(issuer) = pool
+            .iter()
+            .find(|c| Search::names_match(current, c) && c.is_ca() && !out.contains(c))
+        else {
+            break;
+        };
+        if issuer.is_self_issued() {
+            break;
+        }
+        out.push(issuer.clone());
+        current = issuer;
+    }
+    out
 }
 
 struct Search<'a> {

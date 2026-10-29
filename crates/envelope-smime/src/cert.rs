@@ -173,7 +173,8 @@ impl Certificate {
     }
 
     /// Reads certificates: PEM (one or several), DER, or a PKCS #7
-    /// certificate bundle (`.p7b`, `.p7c`).
+    /// certificate bundle (`.p7b`, `.p7c`). Unreadable certificates in a
+    /// PEM file are left out; it is an error when none is readable.
     pub fn parse_all(data: &[u8]) -> Result<Vec<Certificate>> {
         let text = String::from_utf8_lossy(data);
         if text.contains("-----BEGIN ") {
@@ -181,19 +182,29 @@ impl Certificate {
             let mut rest: &str = &text;
             while let Some(start) = rest.find("-----BEGIN ") {
                 let block = &rest[start..];
-                let (label, der) = crate::key::pem_rfc7468_decode(block)?;
-                match label.as_str() {
-                    "CERTIFICATE" | "X509 CERTIFICATE" | "TRUSTED CERTIFICATE" => {
-                        out.push(Certificate::from_der(&der)?)
+                let next = block[11..]
+                    .find("-----BEGIN ")
+                    .map_or(block.len(), |i| i + 11);
+                if let Ok((label, der)) = crate::key::pem_rfc7468_decode(&block[..next]) {
+                    match label.as_str() {
+                        "CERTIFICATE" | "X509 CERTIFICATE" => {
+                            out.extend(Certificate::from_der(&der).ok())
+                        }
+                        // OpenSSL's trusted form: trust settings follow the
+                        // certificate.
+                        "TRUSTED CERTIFICATE" => out.extend(
+                            ber::Reader::new(&der)
+                                .any()
+                                .ok()
+                                .and_then(|first| Certificate::from_der(first.raw).ok()),
+                        ),
+                        "PKCS7" | "CMS" => {
+                            out.extend(crate::cms::certificates_of(&der).unwrap_or_default())
+                        }
+                        _ => {}
                     }
-                    "PKCS7" | "CMS" => out.extend(crate::cms::certificates_of(&der)?),
-                    _ => {}
                 }
-                let end = block
-                    .find(&format!("-----END {label}-----"))
-                    .map(|e| e + label.len() + 14)
-                    .unwrap_or(block.len());
-                rest = &block[end.min(block.len())..];
+                rest = &block[next..];
             }
             if out.is_empty() {
                 return Err(invalid("no certificate found"));
@@ -402,7 +413,8 @@ impl Certificate {
         }
     }
 
-    pub(crate) fn is_self_issued(&self) -> bool {
+    /// Issued by itself (a root, or an authority renewing its own key).
+    pub fn is_self_issued(&self) -> bool {
         self.subject_der() == self.issuer_der()
     }
 

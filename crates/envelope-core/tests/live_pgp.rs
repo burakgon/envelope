@@ -67,7 +67,7 @@ async fn encrypted_signed_mail_to_self() {
         .await
         .unwrap();
     let status = engine
-        .compose_crypto(account.id, None, None, &["alex@envelope.test".into()])
+        .compose_crypto(account.id, None, None, &["alex@envelope.test".into()], None)
         .unwrap();
     assert!(status.can_encrypt && status.can_sign, "{status:?}");
 

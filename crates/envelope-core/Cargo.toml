@@ -24,6 +24,7 @@ envelope-graph = { path = "../envelope-graph" }
 envelope-ical = { path = "../envelope-ical" }
 envelope-imap = { path = "../envelope-imap" }
 envelope-pgp = { path = "../envelope-pgp" }
+envelope-smime = { path = "../envelope-smime" }
 futures = "0.3.34"
 hickory-resolver = { version = "0.26.3", features = ["tokio"] }
 html-escape = "0.3.0"
@@ -45,6 +46,7 @@ rrule = "0.14.0"
 rusqlite = { version = "0.41.0", features = ["bundled", "serde_json", "functions"] }
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std", "tls12", "logging"] }
 rustls-pki-types = "1.15.1"
+rustls-native-certs = "0.8.5"
 rustls-platform-verifier = "0.7.1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"

@@ -430,30 +430,40 @@ pub struct BodyPlan<'a> {
     pub attachments: Vec<AttachmentMeta>,
 }
 
-/// Whether a message structure is PGP/MIME encrypted or signed (such
-/// messages are always downloaded whole: decryption and signature checks
-/// need every byte).
-pub fn has_openpgp(root: &BodyPart) -> bool {
+/// Whether a message structure is encrypted or signed with PGP/MIME or
+/// S/MIME (such messages are always downloaded whole: decryption and
+/// signature checks need every byte).
+pub fn has_protection(root: &BodyPart) -> bool {
     matches!(
         root.mime_type.as_str(),
-        "multipart/encrypted" | "multipart/signed"
-    ) || root.children.iter().any(has_openpgp)
+        "multipart/encrypted"
+            | "multipart/signed"
+            | "application/pkcs7-mime"
+            | "application/x-pkcs7-mime"
+    ) || root.children.iter().any(has_protection)
 }
 
-/// Whether a complete message is PGP/MIME encrypted or signed (judged by its
-/// top-level `Content-Type`).
-pub fn is_openpgp_mime(raw: &[u8]) -> bool {
+/// Whether a complete message is encrypted or signed with PGP/MIME or
+/// S/MIME (judged by its top-level `Content-Type`).
+pub fn is_protected_mime(raw: &[u8]) -> bool {
     let end = raw
         .windows(4)
         .position(|w| w == b"\r\n\r\n")
         .unwrap_or(raw.len().min(64 * 1024));
     let meta = MessageParser::new().parse_headers(&raw[..end]);
     meta.and_then(|m| {
-        m.content_type()
-            .map(|ct| ct.subtype().map(str::to_ascii_lowercase))
+        m.content_type().map(|ct| {
+            (
+                ct.ctype().to_ascii_lowercase(),
+                ct.subtype().unwrap_or_default().to_ascii_lowercase(),
+            )
+        })
     })
-    .flatten()
-    .is_some_and(|s| s == "encrypted" || s == "signed")
+    .is_some_and(|(ctype, subtype)| match ctype.as_str() {
+        "multipart" => subtype == "encrypted" || subtype == "signed",
+        "application" => subtype == "pkcs7-mime" || subtype == "x-pkcs7-mime",
+        _ => false,
+    })
 }
 
 /// Picks the parts to display and lists attachments.
@@ -469,12 +479,13 @@ fn part_filename(p: &BodyPart) -> Option<String> {
 
 fn walk_plan<'a>(p: &'a BodyPart, plan: &mut BodyPlan<'a>, in_attachment: bool) {
     let is_attachment = p.disposition.as_deref() == Some("attachment");
-    // OpenPGP: what an encrypted message contains is known once it is
-    // decrypted, and signatures are not attachments.
+    // OpenPGP and S/MIME: what an encrypted message contains is known once
+    // it is decrypted, and signatures are not attachments.
     if matches!(
         p.mime_type.as_str(),
         "multipart/encrypted" | "application/pgp-signature" | "application/pgp-encrypted"
-    ) {
+    ) || envelope_smime::mime::is_smime_type(&p.mime_type)
+    {
         return;
     }
     if p.is_multipart() {
@@ -700,7 +711,7 @@ mod tests {
         let plan = body_plan(&signed);
         assert!(plan.text.is_some());
         assert!(plan.attachments.is_empty());
-        assert!(has_openpgp(&signed));
+        assert!(has_protection(&signed));
         let encrypted = BodyPart {
             mime_type: "multipart/encrypted".into(),
             children: vec![
@@ -710,11 +721,28 @@ mod tests {
             ..Default::default()
         };
         assert!(body_plan(&encrypted).attachments.is_empty());
-        assert!(!has_openpgp(&leaf("1", "text/plain")));
-        assert!(is_openpgp_mime(
+        assert!(!has_protection(&leaf("1", "text/plain")));
+        assert!(is_protected_mime(
             b"Content-Type: multipart/encrypted;\r\n protocol=\"application/pgp-encrypted\"; boundary=x\r\n\r\n--x--\r\n"
         ));
-        assert!(!is_openpgp_mime(b"Content-Type: text/plain\r\n\r\nhi"));
+        assert!(!is_protected_mime(b"Content-Type: text/plain\r\n\r\nhi"));
+        // S/MIME: the encrypted message is one part; signatures are no
+        // attachments either.
+        let smime = leaf("1", "application/pkcs7-mime");
+        assert!(has_protection(&smime));
+        assert!(body_plan(&smime).attachments.is_empty());
+        let signed = BodyPart {
+            mime_type: "multipart/signed".into(),
+            children: vec![
+                leaf("1", "text/plain"),
+                leaf("2", "application/pkcs7-signature"),
+            ],
+            ..Default::default()
+        };
+        assert!(body_plan(&signed).attachments.is_empty());
+        assert!(is_protected_mime(
+            b"Content-Type: application/pkcs7-mime; smime-type=enveloped-data\r\n\r\nMIIB\r\n"
+        ));
         // The Autocrypt header counts only when there is exactly one.
         let m = meta_from_headers(b"From: a@b.c\r\nAutocrypt: addr=a@b.c; keydata=AAAA\r\n\r\n");
         assert_eq!(m.autocrypt.as_deref(), Some("addr=a@b.c; keydata=AAAA"));

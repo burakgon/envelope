@@ -336,6 +336,11 @@ pub fn run() {
             crypto::crypto_compose_status,
             crypto::crypto_lookup,
             crypto::crypto_open,
+            crypto::smime_certificates,
+            crypto::smime_import_file,
+            crypto::smime_export,
+            crypto::smime_export_file,
+            crypto::smime_delete,
         ])
         .build(tauri::generate_context!());
     match result {
