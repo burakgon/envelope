@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api } from '../api';
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import type { ThreadSummary } from '../api';
   import { compose } from '../stores/compose.svelte';
   import { mail } from '../stores/mail.svelte';
@@ -27,7 +27,9 @@
   let scrollTop = $state(0);
   let height = $state(600);
   let searchInput: HTMLInputElement | undefined = $state();
-  let query = $state('');
+  let query = $state(untrack(() => mail.search));
+  /** What this box last searched for: a search set anywhere else, or cleared by going to a folder, shows in it. */
+  let sent = untrack(() => mail.search);
   let searchFocused = $state(false);
   let menu = $state<{ x: number; y: number; thread: ThreadSummary } | null>(null);
   let snoozeAt = $state<{ x: number; y: number; ids: number[] } | null>(null);
@@ -93,9 +95,23 @@
   });
 
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
+  function search(text: string) {
+    if (searchTimer) clearTimeout(searchTimer);
+    sent = text;
+    mail.setSearch(text);
+  }
+
+  $effect(() => {
+    const now = mail.search;
+    if (now === sent) return;
+    sent = now;
+    query = now;
+    if (searchTimer) clearTimeout(searchTimer);
+  });
+
   function onSearchInput() {
     if (searchTimer) clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => mail.setSearch(query.trim()), 140);
+    searchTimer = setTimeout(() => search(query.trim()), 140);
   }
 
   let aiBusy = $state(false);
@@ -105,7 +121,7 @@
       const q = await ai.run({ kind: 'searchQuery', question: query }).promise;
       if (q.trim()) {
         query = q.trim();
-        mail.setSearch(query);
+        search(query);
       }
     } catch {
       /* keep the plain query */
@@ -116,7 +132,7 @@
 
   function clearSearch() {
     query = '';
-    mail.setSearch('');
+    search('');
     searchInput?.blur();
   }
 
@@ -125,8 +141,7 @@
       e.preventDefault();
       clearSearch();
     } else if (e.key === 'Enter') {
-      if (searchTimer) clearTimeout(searchTimer);
-      mail.setSearch(query.trim());
+      search(query.trim());
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       searchInput?.blur();

@@ -1444,6 +1444,26 @@ await step('Escape leaves a reply for the conversation, and closes it the second
   }
 });
 
+await step('the search box shows the search the list is showing', async () => {
+  const p = await fresh();
+  try {
+    const box = p.locator('.list .search input');
+    await box.fill('roadmap');
+    await p.locator('.list h1', { hasText: 'Search' }).waitFor({ timeout: 5000 });
+    // Another folder drops the search, and the box with it.
+    await p.locator('.sidebar .item', { hasText: 'Sent' }).first().click();
+    await p.locator('.list h1', { hasText: 'Sent' }).waitFor({ timeout: 5000 });
+    if (await box.inputValue()) throw new Error(`the box still reads "${await box.inputValue()}"`);
+    // A search started elsewhere (a message found in the command palette) shows in it.
+    await p.keyboard.press('Control+k');
+    await p.keyboard.type('Offsite');
+    await p.locator('.palette .row', { hasText: 'Offsite planning' }).first().click();
+    await eventually(p, async () => (await box.inputValue()) === 'Offsite', async () => `the box reads "${await box.inputValue()}"`);
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });
