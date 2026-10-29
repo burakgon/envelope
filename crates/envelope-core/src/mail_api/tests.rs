@@ -567,6 +567,7 @@ async fn new_mail_notifies_as_its_account_says() {
         is_invite: false,
         muted: false,
         snoozed_until: None,
+        thread_id: None,
     };
     let arrived = || {
         vec![

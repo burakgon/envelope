@@ -12,6 +12,7 @@
     selected,
     checked,
     onopen,
+    onwindow,
     oncontext,
     onsnooze,
   }: {
@@ -19,6 +20,8 @@
     selected: boolean;
     checked: boolean;
     onopen: (e: MouseEvent) => void;
+    /** A double click: the conversation in a window of its own. */
+    onwindow: () => void;
     oncontext: (e: MouseEvent) => void;
     onsnooze: (e: MouseEvent) => void;
   } = $props();
@@ -73,6 +76,9 @@
   draggable={!local}
   ondragstart={dragStart}
   onclick={onopen}
+  ondblclick={(e) => {
+    if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !local) onwindow();
+  }}
   oncontextmenu={oncontext}
   onkeydown={() => {}}
 >

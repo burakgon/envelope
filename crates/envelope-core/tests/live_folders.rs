@@ -242,6 +242,8 @@ async fn folders_and_spam_on_a_real_server() {
                 mailbox: Mailbox::Folder { id: folder },
                 search: None,
                 filter: ListFilter::default(),
+                sort: SortOrder::Newest,
+                messages: false,
                 offset: 0,
                 limit: 200,
             })

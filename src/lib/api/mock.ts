@@ -154,18 +154,19 @@ export function createMockApi(): Api {
   }
 
   /** Whether a conversation answers a query in the engine's words (crates/envelope-core/src/search.rs): one of its messages has to. */
-  function matches(t: T.ThreadSummary, q: string): boolean {
+  /** Whether a conversation answers a query, or (`only`) one message of it does. */
+  function matches(t: T.ThreadSummary, q: string, only?: T.MessageView): boolean {
     const terms = [...q.toLowerCase().matchAll(/(-?)(?:(\w+):)?(?:"([^"]*)"|(\S+))/g)].map(([, not, key, quoted, bare]) => ({ not: !!not, key, value: quoted ?? bare }));
     const who = (list: (T.Address | null)[]) => list.map((a) => `${a?.name ?? ''} ${a?.email ?? ''}`).join(' ').toLowerCase();
     const inFolder = (v: string) =>
       v === 'all' ||
       v === 'anywhere' ||
-      t.folderIds.some((id) => {
+      (only ?? t).folderIds.some((id) => {
         const f = data.folders.find((x) => x.id === id);
         return !!f && (f.role === v || f.name.toLowerCase() === v || f.path.toLowerCase() === v);
       });
     return messages
-      .filter((m) => m.threadId === t.id)
+      .filter((m) => (only ? m === only : m.threadId === t.id))
       .some((m) => {
         const text = `${t.subject} ${who([m.from])} ${m.body?.text ?? ''} ${(m.body?.html ?? '').replace(/<[^>]+>/g, ' ')} ${m.attachments.map((a) => a.filename).join(' ')}`.toLowerCase();
         return terms.every(({ not, key, value }) => {
@@ -218,9 +219,91 @@ export function createMockApi(): Api {
     if (q.filter?.attachments) items = items.filter((t) => t.hasAttachments);
     if (q.filter?.category) items = items.filter((t) => t.category === q.filter!.category);
     if (q.search) items = items.filter((t) => matches(t, q.search!));
-    items.sort((a, b) => b.lastDate - a.lastDate);
+    sortRows(items, q.sort, (t) => t.lastDate, threadKey);
     return { total: items.length, offset: q.offset, items: items.slice(q.offset, q.offset + q.limit) };
   }
+
+  // ----- lists in other orders, and of messages one by one --------------------------
+
+  const mine = () => new Set([...data.accounts.map((a) => a.email), ...identities.map((i) => i.email)].map((e) => e.toLowerCase()));
+  const fromMe = (m: T.MessageView) => mine().has(m.from?.email.toLowerCase() ?? '');
+  /** Where a message is kept, as a server keeps it: the user's own in Sent rather than the inbox. */
+  function place(m: T.MessageView, folderIds: number[]): number[] {
+    const inbox = role(m.accountId, 'inbox')?.id;
+    const sent = role(m.accountId, 'sent')?.id;
+    if (fromMe(m)) return [...new Set(folderIds.map((f) => (f === inbox && sent != null ? sent : f)))];
+    return folderIds.filter((f) => f !== sent);
+  }
+  for (const m of messages) m.folderIds = place(m, m.folderIds);
+  /** A conversation is wherever its messages are. */
+  function gather(threadId: number) {
+    const t = threads.find((x) => x.id === threadId);
+    const ms = messages.filter((m) => m.threadId === threadId);
+    if (t && ms.length) t.folderIds = [...new Set(ms.flatMap((m) => m.folderIds))];
+  }
+  /** How a sender sorts (the engine's sort_key): the name or address, lowercase, without accents. */
+  const sortKey = (a: T.Address | null | undefined) =>
+    (a?.name?.trim() || a?.email || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  /** Whom a conversation is with: the first sender who isn't the user. */
+  const threadKey = (t: T.ThreadSummary) => sortKey(t.participants.find((p) => !mine().has(p.email.toLowerCase())) ?? t.participants[0]);
+  function sortRows<R>(rows: R[], sort: T.SortOrder | undefined, date: (r: R) => number, key: (r: R) => string) {
+    rows.sort((a, b) => {
+      if (sort === 'oldest') return date(a) - date(b);
+      if (sort === 'sender') {
+        const [x, y] = [key(a), key(b)];
+        if (x !== y) return x < y ? -1 : 1;
+      }
+      return date(b) - date(a);
+    });
+  }
+
+  /** A message as a row of a list of messages one by one. */
+  function messageRow(m: T.MessageView): T.ThreadSummary {
+    const t = threads.find((x) => x.id === m.threadId);
+    return {
+      id: m.id, threadId: m.threadId, accountId: m.accountId, subject: m.subject, snippet: m.snippet, lastDate: m.date, messageCount: 1,
+      unreadCount: m.flags.seen || m.flags.draft ? 0 : 1, flagged: m.flags.flagged, hasAttachments: m.hasAttachments, draftCount: m.flags.draft ? 1 : 0,
+      participants: m.from ? [m.from] : [], lastSender: m.from, folderIds: [...m.folderIds], category: t?.category ?? null,
+      isInvite: m.calendarMethod === 'REQUEST', muted: t?.muted ?? false, snoozedUntil: t?.snoozedUntil ?? null,
+    };
+  }
+
+  function listMessages(q: T.ThreadQuery): T.ThreadPage {
+    const trash = data.folders.filter((f) => f.role === 'trash' || f.role === 'junk').map((f) => f.id);
+    const byThread = new Map(threads.map((t) => [t.id, t]));
+    const trashed = (m: T.MessageView) => !m.folderIds.length || m.folderIds.some((f) => trash.includes(f));
+    const snoozed = (m: T.MessageView) => !!byThread.get(m.threadId)?.snoozedUntil;
+    const inboxes = data.folders.filter((f) => f.role === 'inbox').map((f) => f.id);
+    let items = messages.filter((m) => byThread.has(m.threadId));
+    const mb = q.mailbox;
+    if (mb.kind === 'unified') {
+      const ids = data.folders.filter((f) => f.role === mb.role).map((f) => f.id);
+      items = items.filter((m) => m.folderIds.some((f) => ids.includes(f)) && !(mb.role === 'inbox' && snoozed(m)));
+    } else if (mb.kind === 'folder') {
+      items = items.filter((m) => m.folderIds.includes(mb.id) && !(inboxes.includes(mb.id) && snoozed(m)));
+    } else if (mb.kind === 'starred') {
+      items = items.filter((m) => m.flags.flagged && !trashed(m));
+    } else if (mb.kind === 'vip') {
+      items = items.filter((m) => fromVip(m) && !trashed(m));
+    } else if (mb.kind === 'snoozed') {
+      items = items.filter((m) => snoozed(m) && m.folderIds.some((f) => inboxes.includes(f)));
+    } else if (mb.kind === 'followUp') {
+      items = items.filter((m) => inFollowUp(byThread.get(m.threadId)!) && fromMe(m)).slice(0, 1);
+    } else {
+      items = items.filter((m) => !trashed(m));
+    }
+    if (q.filter?.unread) items = items.filter((m) => !m.flags.seen && !m.flags.draft);
+    if (q.filter?.starred) items = items.filter((m) => m.flags.flagged);
+    if (q.filter?.attachments) items = items.filter((m) => m.hasAttachments);
+    if (q.filter?.category) items = items.filter((m) => byThread.get(m.threadId)?.category === q.filter!.category);
+    if (q.search) items = items.filter((m) => matches(byThread.get(m.threadId)!, q.search!, m));
+    sortRows(items, q.sort, (m) => m.date, (m) => sortKey(m.from));
+    return { total: items.length, offset: q.offset, items: items.slice(q.offset, q.offset + q.limit).map(messageRow) };
+  }
+
+  /** The rows of a list, all of them: conversations, or messages one by one. */
+  const allRows = (mailbox: T.Mailbox, filter: T.ListFilter, search: string | null, one: boolean | undefined) =>
+    (one ? listMessages : list)({ mailbox, filter, search, messages: one, offset: 0, limit: 100_000 }).items;
 
   function detail(id: number): T.ThreadDetail {
     const t = threads.find((x) => x.id === id);
@@ -315,8 +398,13 @@ export function createMockApi(): Api {
     },
 
     folders: () => delay(data.folders),
-    threads: async (q) => structuredClone(list(q)),
+    threads: async (q) => structuredClone(q.messages ? listMessages(q) : list(q)),
     thread: async (id) => structuredClone(detail(id)),
+    message: async (id) => {
+      const m = messages.find((x) => x.id === id);
+      if (!m) throw { message: 'Message not found', kind: 'notFound' } satisfies T.ApiError;
+      return structuredClone({ thread: messageRow(m), messages: [m], conversation: detail(m.threadId).thread });
+    },
     loadBodies: async (ids) => structuredClone(messages.filter((m) => ids.includes(m.id))),
     setFlags: async (threadIds, messageIds, change) => {
       const targets = messages.filter((m) => threadIds.includes(m.threadId) || messageIds.includes(m.id));
@@ -337,15 +425,16 @@ export function createMockApi(): Api {
       }
       changed([...threadIds, ...targets.map((m) => m.threadId)]);
     },
-    markRead: async (mailbox, filter, search) => {
-      const ids = list({ mailbox, filter: { ...filter, unread: true }, search, offset: 0, limit: 100_000 }).items.map((t) => t.id);
-      const unread = messages.filter((m) => ids.includes(m.threadId) && !m.flags.seen && !m.flags.draft);
+    markRead: async (mailbox, filter, search, one) => {
+      const rows = allRows(mailbox, { ...filter, unread: true }, search, one);
+      const ids = rows.map((r) => r.id);
+      const unread = messages.filter((m) => (one ? ids.includes(m.id) : ids.includes(m.threadId)) && !m.flags.seen && !m.flags.draft);
       unread.forEach((m) => (m.flags.seen = true));
-      changed(ids);
+      changed(rows.map((r) => r.threadId ?? r.id));
       return { threads: ids.length, messageIds: unread.map((m) => m.id) };
     },
-    threadRefs: async (mailbox, filter, search) =>
-      list({ mailbox, filter, search, offset: 0, limit: 100_000 }).items.map((t) => ({ id: t.id, accountId: t.accountId })),
+    threadRefs: async (mailbox, filter, search, one) =>
+      allRows(mailbox, filter, search, one).map((r) => ({ id: r.id, accountId: r.accountId })),
     setFollowUp: async (threadIds, change) => {
       for (const id of threadIds) {
         if (change.kind === 'due') followUpAway.delete(id);
@@ -372,21 +461,56 @@ export function createMockApi(): Api {
         if (target.kind === 'trash' || target.kind === 'junk') t.folderIds = [];
         else t.folderIds = t.folderIds.filter((f) => f !== src);
         if (dest != null && !t.folderIds.includes(dest)) t.folderIds.push(dest);
-        messages.filter((m) => m.threadId === id).forEach((m) => (m.folderIds = [...t.folderIds]));
+        messages.filter((m) => m.threadId === id).forEach((m) => (m.folderIds = place(m, t.folderIds)));
       }
       changed(threadIds);
       return token;
     },
+    // A message's place is kept in the token under its id negated (a conversation's under its own).
+    moveMessages: async (messageIds, source, target) => {
+      const token: T.UndoToken = { accountOps: [], locations: [], flags: [], snoozed: [] };
+      const touched = new Set<number>();
+      for (const id of messageIds) {
+        const m = messages.find((x) => x.id === id);
+        if (!m) continue;
+        token.locations.push([-id, m.folderIds.map((f) => [f, null])]);
+        const kept = data.folders.filter((f) => f.role === 'sent' || f.role === 'drafts' || f.kind === 'label').map((f) => f.id);
+        let dest: number | undefined;
+        if (target.kind === 'archive') dest = role(m.accountId, 'archive')?.id ?? role(m.accountId, 'all')?.id;
+        else if (target.kind === 'trash') dest = role(m.accountId, 'trash')?.id;
+        else if (target.kind === 'junk') dest = role(m.accountId, 'junk')?.id;
+        else if (target.kind === 'inbox') dest = role(m.accountId, 'inbox')?.id;
+        else dest = target.id;
+        if (target.kind === 'trash' || target.kind === 'junk') m.folderIds = [];
+        else m.folderIds = m.folderIds.filter((f) => (source != null ? f !== source : kept.includes(f)));
+        if (dest != null && !m.folderIds.includes(dest)) m.folderIds.push(dest);
+        gather(m.threadId);
+        touched.add(m.threadId);
+      }
+      changed([...touched]);
+      return token;
+    },
     undo: async (token) => {
+      const touched = new Set<number>();
       for (const [id, locs] of token.locations) {
+        const m = id < 0 ? messages.find((x) => x.id === -id) : undefined;
+        if (m) {
+          m.folderIds = locs.map(([f]) => f);
+          gather(m.threadId);
+          touched.add(m.threadId);
+          continue;
+        }
         const t = threads.find((x) => x.id === id);
-        if (t) t.folderIds = locs.map(([f]) => f);
+        if (!t) continue;
+        t.folderIds = locs.map(([f]) => f);
+        messages.filter((x) => x.threadId === id).forEach((x) => (x.folderIds = place(x, t.folderIds)));
+        touched.add(id);
       }
       for (const [id, s] of token.snoozed) {
         const t = threads.find((x) => x.id === id);
         if (t) t.snoozedUntil = s;
       }
-      changed(token.locations.map(([id]) => id));
+      changed([...touched]);
     },
     deleteForever: async (threadIds) => {
       for (const id of threadIds) {
@@ -394,6 +518,19 @@ export function createMockApi(): Api {
         if (i >= 0) threads.splice(i, 1);
       }
       changed(threadIds);
+    },
+    deleteMessagesForever: async (messageIds) => {
+      const touched = new Set<number>();
+      for (const id of messageIds) {
+        const i = messages.findIndex((m) => m.id === id);
+        if (i < 0) continue;
+        const [m] = messages.splice(i, 1);
+        touched.add(m.threadId);
+        // A conversation goes with its last message.
+        if (!messages.some((x) => x.threadId === m.threadId)) threads.splice(threads.findIndex((t) => t.id === m.threadId), 1);
+        else gather(m.threadId);
+      }
+      changed([...touched]);
     },
     snooze: async (threadIds, until) => {
       threads.filter((t) => threadIds.includes(t.id)).forEach((t) => (t.snoozedUntil = until));
@@ -410,8 +547,20 @@ export function createMockApi(): Api {
     setLabel: async (threadIds, folderId, add) => {
       for (const t of threads.filter((x) => threadIds.includes(x.id))) {
         t.folderIds = add ? [...new Set([...t.folderIds, folderId])] : t.folderIds.filter((f) => f !== folderId);
+        for (const m of messages.filter((x) => x.threadId === t.id)) {
+          m.folderIds = add ? [...new Set([...m.folderIds, folderId])] : m.folderIds.filter((f) => f !== folderId);
+        }
       }
       changed(threadIds);
+    },
+    labelMessages: async (messageIds, folderId, add) => {
+      const touched = new Set<number>();
+      for (const m of messages.filter((x) => messageIds.includes(x.id))) {
+        m.folderIds = add ? [...new Set([...m.folderIds, folderId])] : m.folderIds.filter((f) => f !== folderId);
+        gather(m.threadId);
+        touched.add(m.threadId);
+      }
+      changed([...touched]);
     },
     folder: {
       import: async (id) => {
@@ -966,9 +1115,43 @@ export function createMockApi(): Api {
     window: {
       minimize: async () => {},
       toggleMaximize: async () => {},
-      close: async () => {},
+      // A window of its own is a page the demo opened, which may close; the main page stays.
+      close: async () => {
+        if (window.opener) window.close();
+      },
       isMaximized: async () => false,
       onResized: () => () => {},
+      setTitle: async (title) => {
+        document.title = title;
+      },
+      onCloseRequested: (cb) => {
+        const run = () => void cb();
+        addEventListener('pagehide', run);
+        return () => removeEventListener('pagehide', run);
+      },
+    },
+
+    // Windows of their own are pages of their own, with demo data of their own: they show the
+    // same conversations and drafts, but don't hand toasts over.
+    windows: {
+      open: async (kind, id) => {
+        if (kind === 'compose' && id != null) drafts.stash(id);
+        const size = kind === 'compose' ? 'width=760,height=700' : 'width=920,height=840';
+        window.open(`${location.pathname}?window=${kind}${id != null ? `&id=${id}` : ''}`, '_blank', `popup,${size}`);
+      },
+      focus: async () => false,
+      handOver: async () => false,
+      onHandOver: () => () => {},
+      // Settings are kept in the browser's storage, which tells the other pages of a change.
+      onSetting: (cb) => {
+        const listen = (e: StorageEvent) => {
+          if (e.key !== settingsKey) return;
+          const [before, after] = [JSON.parse(e.oldValue ?? '{}'), JSON.parse(e.newValue ?? '{}')];
+          for (const key of Object.keys(after)) if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) cb(key, after[key]);
+        };
+        addEventListener('storage', listen);
+        return () => removeEventListener('storage', listen);
+      },
     },
   };
   return api;

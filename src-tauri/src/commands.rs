@@ -10,7 +10,7 @@ use envelope_core::subscriptions::Subscription;
 use envelope_core::vip::Vip;
 use envelope_core::{AccountPatch, UndoToken};
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::AppState;
@@ -68,8 +68,14 @@ impl From<String> for CmdError {
 type R<T> = Result<T, CmdError>;
 
 #[tauri::command]
-pub fn app_ready(app: AppHandle, state: State<'_, AppState>) {
+pub fn app_ready(app: AppHandle, window: tauri::WebviewWindow, state: State<'_, AppState>) {
     tracing::debug!("interface ready");
+    // A window of its own (a conversation, a message being written) shows as soon as it can.
+    if window.label() != "main" {
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
     // Launched at login: stay in the tray.
     if state
         .start_hidden
@@ -298,6 +304,11 @@ pub fn thread(state: State<'_, AppState>, id: i64) -> R<ThreadDetail> {
 }
 
 #[tauri::command]
+pub fn message(state: State<'_, AppState>, id: i64) -> R<ThreadDetail> {
+    Ok(state.engine.message(id)?)
+}
+
+#[tauri::command]
 pub async fn load_bodies(state: State<'_, AppState>, ids: Vec<i64>) -> R<Vec<MessageView>> {
     Ok(state.engine.load_bodies(ids).await?)
 }
@@ -312,16 +323,21 @@ pub fn set_flags(
     Ok(state.engine.set_flags(&thread_ids, &message_ids, &change)?)
 }
 
+/// `messages`: the list shows messages one by one, and its rows are them.
 #[tauri::command]
 pub fn thread_refs(
     state: State<'_, AppState>,
     mailbox: Mailbox,
     filter: ListFilter,
     search: Option<String>,
+    messages: Option<bool>,
 ) -> R<Vec<ThreadRef>> {
-    Ok(state
-        .engine
-        .thread_refs(&mailbox, &filter, search.as_deref())?)
+    Ok(state.engine.thread_refs(
+        &mailbox,
+        &filter,
+        search.as_deref(),
+        messages.unwrap_or(false),
+    )?)
 }
 
 #[tauri::command]
@@ -330,10 +346,14 @@ pub fn mark_read(
     mailbox: Mailbox,
     filter: ListFilter,
     search: Option<String>,
+    messages: Option<bool>,
 ) -> R<MarkedRead> {
-    Ok(state
-        .engine
-        .mark_read(&mailbox, &filter, search.as_deref())?)
+    Ok(state.engine.mark_read(
+        &mailbox,
+        &filter,
+        search.as_deref(),
+        messages.unwrap_or(false),
+    )?)
 }
 
 #[tauri::command]
@@ -420,6 +440,16 @@ pub fn move_threads(
 }
 
 #[tauri::command]
+pub fn move_messages(
+    state: State<'_, AppState>,
+    message_ids: Vec<i64>,
+    source: Option<i64>,
+    target: MoveTarget,
+) -> R<UndoToken> {
+    Ok(state.engine.move_messages(&message_ids, source, &target)?)
+}
+
+#[tauri::command]
 pub fn undo(state: State<'_, AppState>, token: UndoToken) -> R<()> {
     Ok(state.engine.undo(&token)?)
 }
@@ -427,6 +457,11 @@ pub fn undo(state: State<'_, AppState>, token: UndoToken) -> R<()> {
 #[tauri::command]
 pub fn delete_forever(state: State<'_, AppState>, thread_ids: Vec<i64>) -> R<()> {
     Ok(state.engine.delete_forever(&thread_ids)?)
+}
+
+#[tauri::command]
+pub fn delete_messages_forever(state: State<'_, AppState>, message_ids: Vec<i64>) -> R<()> {
+    Ok(state.engine.delete_messages_forever(&message_ids)?)
 }
 
 #[tauri::command]
@@ -451,6 +486,16 @@ pub fn set_label(
     add: bool,
 ) -> R<()> {
     Ok(state.engine.set_label(&thread_ids, folder_id, add)?)
+}
+
+#[tauri::command]
+pub fn label_messages(
+    state: State<'_, AppState>,
+    message_ids: Vec<i64>,
+    folder_id: i64,
+    add: bool,
+) -> R<()> {
+    Ok(state.engine.label_messages(&message_ids, folder_id, add)?)
 }
 
 #[tauri::command]
@@ -892,16 +937,51 @@ pub fn settings_get(state: State<'_, AppState>) -> R<serde_json::Map<String, ser
     Ok(state.engine.settings()?)
 }
 
+/// Saves a setting; the other windows hear of it (`setting`) and follow.
 #[tauri::command]
-pub fn settings_set(state: State<'_, AppState>, key: String, value: serde_json::Value) -> R<()> {
-    Ok(state.engine.set_setting(&key, &value)?)
+pub fn settings_set(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    key: String,
+    value: serde_json::Value,
+) -> R<()> {
+    state.engine.set_setting(&key, &value)?;
+    let _ = app.emit("setting", serde_json::json!({ "key": key, "value": value }));
+    Ok(())
 }
 
 #[tauri::command]
 pub fn set_decorations(app: AppHandle, native: bool) {
-    if let Some(w) = app.get_webview_window("main") {
+    for w in app.webview_windows().values() {
         let _ = w.set_decorations(native);
     }
+}
+
+// ----- windows of their own -------------------------------------------------------
+
+/// Opens a conversation or a draft (none: a new message) in a window of its own.
+#[tauri::command]
+pub async fn window_open(
+    app: AppHandle,
+    kind: crate::windows::Kind,
+    id: Option<i64>,
+    title: String,
+) -> R<()> {
+    crate::windows::open(&app, kind, id, &title).map_err(|e| CmdError::from(e.to_string()))
+}
+
+/// Brings forward the window of its own of a conversation or a draft; false without one.
+#[tauri::command]
+pub fn window_focus(app: AppHandle, kind: crate::windows::Kind, id: i64) -> bool {
+    crate::windows::focus(&app, kind, id)
+}
+
+/// Gives the main window a toast for something done in a window of its own
+/// that is closing (with what its button does); false when the main window is
+/// not on screen to show it.
+#[tauri::command]
+pub fn window_hand_over(app: AppHandle, toast: serde_json::Value) -> bool {
+    crate::windows::main_shown(&app) && app.emit_to("main", "hand-over", toast).is_ok()
 }
 
 #[tauri::command]

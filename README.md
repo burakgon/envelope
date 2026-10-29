@@ -71,7 +71,8 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 
 ### Mail
 - **Unified inbox** across all accounts, plus per-account folders and Gmail labels (with colors), drag and drop to move or label. Create, rename, nest, recolor and delete folders and labels (Outlook categories too), and empty Trash and Spam.
-- **Conversations** threaded the way you expect, with quoted text and signatures folded away.
+- **Conversations** threaded the way you expect, with quoted text and signatures folded away — or every message on a row of its own, if you prefer.
+- **Your layout:** the reading pane on the right, below the list or off, lists sorted newest first, oldest first or by sender (each folder keeping its own order), and conversations and messages being written in windows of their own.
 - **Split inbox**: *People*, *Newsletters* and *Notifications* tabs, computed locally.
 - **Subscriptions**: every newsletter and mailing list in one list — unsubscribe, archive what they left in the inbox, or delete it all, sender by sender.
 - **VIPs**: the people who matter most get a mailbox of their own, a crown on their messages, `is:vip` in search, and can be the only mail that notifies.
@@ -188,7 +189,7 @@ Google and Microsoft sign-in need OAuth client ids, supplied at build time or ru
 | Keys | Action | Keys | Action |
 | --- | --- | --- | --- |
 | `j` / `k` | Next / previous conversation | `c` | Compose |
-| `Enter` | Open | `r` / `a` / `f` | Reply / reply all / forward |
+| `Enter` / `Shift Enter` | Open / in a new window | `r` / `a` / `f` | Reply / reply all / forward |
 | `e` | Archive | `Ctrl Enter` | Send |
 | `#` | Delete | `h` | Snooze |
 | `s` | Star | `v` / `l` | Move / label |

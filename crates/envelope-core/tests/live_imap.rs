@@ -89,6 +89,8 @@ async fn sync_read_archive_send() {
         },
         search: None,
         filter: ListFilter::default(),
+        sort: SortOrder::Newest,
+        messages: false,
         offset: 0,
         limit: 50,
     };
@@ -165,6 +167,8 @@ async fn sync_read_archive_send() {
                 mailbox: Mailbox::Everything,
                 search: Some(q.into()),
                 filter: ListFilter::default(),
+                sort: SortOrder::Newest,
+                messages: false,
                 offset: 0,
                 limit: 20,
             })
@@ -254,6 +258,8 @@ async fn sync_read_archive_send() {
         mailbox: Mailbox::Folder { id: archive_id },
         search: None,
         filter: ListFilter::default(),
+        sort: SortOrder::Newest,
+        messages: false,
         offset: 0,
         limit: 100,
     };

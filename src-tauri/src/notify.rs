@@ -149,7 +149,7 @@ pub fn new_mail(app: &AppHandle, account_id: i64, threads: &[ThreadSummary]) {
                 },
             ),
             _ => {
-                let _ = app.emit("open-thread", thread);
+                let _ = app.emit_to("main", "open-thread", thread);
                 Ok(())
             }
         };
@@ -173,7 +173,7 @@ pub fn follow_up(app: &AppHandle, thread_id: i64, subject: &str) {
         ),
         None,
         move |app| {
-            let _ = app.emit("open-thread", Some(thread_id));
+            let _ = app.emit_to("main", "open-thread", Some(thread_id));
         },
     );
 }
@@ -206,7 +206,7 @@ pub fn task_due(app: &AppHandle, task_id: i64, title: &str, due_at: i64) {
         sound(app, "alarm-clock-elapsed"),
         move |app, action| {
             if action != "complete" {
-                let _ = app.emit("open-task", task_id);
+                let _ = app.emit_to("main", "open-task", task_id);
                 return;
             }
             let Some(state) = app.try_state::<AppState>() else {
@@ -233,7 +233,7 @@ pub fn reminder(app: &AppHandle, event_id: i64, title: &str, start: i64, locatio
     };
     let sound = sound(app, "alarm-clock-elapsed");
     show(app, title.to_string(), body, sound, move |app| {
-        let _ = app.emit("open-event", event_id);
+        let _ = app.emit_to("main", "open-event", event_id);
     });
 }
 

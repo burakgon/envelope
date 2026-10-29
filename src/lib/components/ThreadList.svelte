@@ -20,7 +20,11 @@
     BookmarkPlus,
     Sliders,
     Crown,
+    LayoutPanel, Mails, PanelBottom, PanelOff, PanelRight, SortNewest, SortOldest, SortSender, PopOut,
   } from '../icons';
+  import type { SortOrder } from '../api';
+  import type { ReadingPane } from '../stores/ui.svelte';
+  import WindowControls from './WindowControls.svelte';
   import { vips } from '../stores/vips.svelte';
   import { blockSender, senderOf } from '../stores/rules.svelte';
   import { displayName } from '../utils/format';
@@ -47,7 +51,21 @@
   let remindAt = $state<{ x: number; y: number; ids: number[] } | null>(null);
   let moveAt = $state<{ x: number; y: number; ids: number[]; labels: boolean } | null>(null);
   let filterAt = $state<{ x: number; y: number } | null>(null);
+  /** The View menu: where the reading pane goes, conversations or messages, the order. */
+  let viewAt = $state<{ x: number; y: number } | null>(null);
   let resizing = $state(false);
+  let section: HTMLElement | undefined = $state();
+
+  const panes: { id: ReadingPane; label: 'view.paneRight' | 'view.paneBottom' | 'view.paneOff'; icon: typeof PanelRight }[] = [
+    { id: 'right', label: 'view.paneRight', icon: PanelRight },
+    { id: 'bottom', label: 'view.paneBottom', icon: PanelBottom },
+    { id: 'off', label: 'view.paneOff', icon: PanelOff },
+  ];
+  const sorts: { id: SortOrder; label: 'view.sortNewest' | 'view.sortOldest' | 'view.sortSender'; icon: typeof SortNewest }[] = [
+    { id: 'newest', label: 'view.sortNewest', icon: SortNewest },
+    { id: 'oldest', label: 'view.sortOldest', icon: SortOldest },
+    { id: 'sender', label: 'view.sortSender', icon: SortSender },
+  ];
 
   const rowH = $derived(ui.settings.density === 'compact' ? 54 : 76);
   const overscan = 8;
@@ -220,7 +238,7 @@
     menu = null;
     if (!th) return;
     mail.select(th.id);
-    const d = await api.thread(th.id);
+    const d = await mail.load(th.id);
     // Replies go to the newest message that is not a draft.
     const last = [...d.messages].reverse().find((m) => !m.flags.draft) ?? d.messages[d.messages.length - 1];
     if (!last) return;
@@ -245,6 +263,26 @@
     window.addEventListener('pointerup', up);
   }
 
+  /** The divider between the list and the conversation below it. */
+  function startResizeHeight(e: PointerEvent) {
+    resizing = true;
+    const startY = e.clientY;
+    const startH = ui.settings.listHeight;
+    // The conversation below keeps room to be read.
+    const room = (section?.parentElement?.clientHeight ?? innerHeight) - 200;
+    const move = (ev: PointerEvent) => {
+      ui.settings.listHeight = Math.round(Math.min(Math.max(160, room), Math.max(160, startH + ev.clientY - startY)));
+    };
+    const up = () => {
+      resizing = false;
+      ui.set('listHeight', ui.settings.listHeight);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
   function bulkRect(e: MouseEvent): { x: number; y: number } {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     return { x: r.left, y: r.bottom + 4 };
@@ -254,7 +292,15 @@
   const inSnoozed = $derived(mail.mailbox.kind === 'snoozed');
 </script>
 
-<section class="list" class:resizing class:single={ui.single} style:width={ui.single ? null : `${ui.settings.listWidth}px`}>
+<section
+  class="list"
+  class:resizing
+  class:single={ui.single}
+  class:below={ui.paneBelow}
+  bind:this={section}
+  style:width={ui.single || ui.paneBelow ? null : `${ui.settings.listWidth}px`}
+  style:height={ui.paneBelow ? `min(${ui.settings.listHeight}px, calc(100% - 200px))` : null}
+>
   <header data-tauri-drag-region>
     {#if ui.sidebarHidden}
       <button class="icon-btn" title={t('threadList.showSidebar')} onclick={() => (ui.sidebarCollapsed = false)}><PanelLeft size={17} /></button>
@@ -277,8 +323,11 @@
         <button class="icon-btn ask" title={t('threadList.askInbox')} onclick={() => { ui.askAi = ''; ui.open('ask'); }}><Sparkles size={16} /></button>
       {/if}
       <button class="icon-btn" class:active={filterActive} title={t('threadList.filter')} onclick={(e) => (filterAt = bulkRect(e))}><Filter size={16} /></button>
+      <button class="icon-btn" title={t('view.menu')} aria-label={t('view.menu')} aria-haspopup="menu" aria-expanded={!!viewAt} onclick={(e) => (viewAt = bulkRect(e))}><LayoutPanel size={16} /></button>
       <button class="icon-btn" title={t('threadList.refresh')} onclick={() => api.syncNow(null)}><Refresh size={16} /></button>
     </div>
+    <!-- The list is at the top right of the window: with the conversation below, or in its place. -->
+    {#if ui.single || ui.paneBelow}<WindowControls />{/if}
   </header>
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -352,7 +401,10 @@
         <span class="sel">{t('threadList.selectedCount', { count: mail.checked.size })}</span>
         {#if mail.moreToCheck}
           <!-- More conversations than the rows loaded: all of them, for the actions to take. -->
-          {@const all = t(mail.search ? 'threadList.selectAllFound' : 'threadList.selectAllInFolder', { count: mail.total })}
+          {@const all = t(
+            mail.byMessage ? (mail.search ? 'messages.selectAllFound' : 'messages.selectAllInFolder') : mail.search ? 'threadList.selectAllFound' : 'threadList.selectAllInFolder',
+            { count: mail.total },
+          )}
           <button class="link" title={all} onclick={() => mail.checkAll()}>{all}</button>
         {:else if mail.items.some((th) => th.id > 0 && !mail.checked.has(th.id))}
           <button class="link" title={t('threadList.selectAll')} onclick={() => mail.items.forEach((th) => th.id > 0 && mail.checked.add(th.id))}>{t('threadList.selectAll')}</button>
@@ -373,7 +425,7 @@
     bind:this={viewport}
     onscroll={() => (scrollTop = viewport?.scrollTop ?? 0)}
     role="listbox"
-    aria-label={t('threadList.conversations')}
+    aria-label={mail.byMessage ? t('messages.list') : t('threadList.conversations')}
     oncontextmenu={(e) => {
       // The Menu key with the focus on the list (not a right click on a row).
       if (e.target !== e.currentTarget) return;
@@ -405,6 +457,10 @@
               selected={mail.selectedId === th.id}
               checked={mail.checked.has(th.id)}
               onopen={(e) => open(e, th)}
+              onwindow={() => {
+                // In Drafts the click opened the draft to write on; Pop out moves it into a window.
+                if (!(mail.inDrafts && th.draftCount > 0)) mail.openWindow(th);
+              }}
               oncontext={(e) => context(e, th)}
               onsnooze={(e) => {
                 const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -416,7 +472,13 @@
       </div>
     {/if}
   </div>
-  {#if !ui.single}<div class="resizer" role="separator" aria-orientation="vertical" onpointerdown={startResize}></div>{/if}
+  {#if ui.paneBelow}
+    <div class="resizer across" role="separator" aria-orientation="horizontal" aria-label={t('view.resizeList')} onpointerdown={startResizeHeight}></div>
+  {:else if !ui.single}
+    <div class="resizer" role="separator" aria-orientation="vertical" aria-label={t('view.resizeList')} onpointerdown={startResize}></div>
+  {/if}
+  <!-- While resizing, the pointer stays over this window: a message's frame would take its events. -->
+  {#if resizing}<div class="shield" class:across={ui.paneBelow}></div>{/if}
 </section>
 
 {#if menu && menu.thread.localDraftId != null}
@@ -433,6 +495,7 @@
       <button class="menu-item" onclick={() => replyTo('replyAll')}><ReplyAll size={15} />{t('threadList.replyAll')}<span class="hint">A</span></button>
       <button class="menu-item" onclick={() => replyTo('forward')}><Forward size={15} />{t('threadList.forward')}<span class="hint">F</span></button>
       <button class="menu-item" onclick={() => replyTo('attachment')}><FileArrow size={15} />{t('message.forwardAsAttachment')}</button>
+      <button class="menu-item" onclick={() => { mail.openWindow(menu!.thread); menu = null; }}><PopOut size={15} />{t('view.openInWindow')}<span class="hint">{t('keys.shift')}+{t('keys.enter')}</span></button>
       <div class="divider"></div>
     {/if}
     {#if inSnoozed}
@@ -501,6 +564,33 @@
   </Popover>
 {/if}
 
+{#if viewAt}
+  <Popover x={viewAt.x} y={viewAt.y} onclose={() => (viewAt = null)} width={248}>
+    <div class="menu-label">{t('view.readingPane')}</div>
+    {#each panes as p (p.id)}
+      {@const on = ui.settings.readingPane === p.id}
+      <button class="menu-item" role="menuitemradio" aria-checked={on} onclick={() => { ui.set('readingPane', p.id); viewAt = null; }}>
+        <p.icon size={15} />{t(p.label)}
+        {#if on}<span class="hint"><Check size={14} /></span>{/if}
+      </button>
+    {/each}
+    <div class="divider"></div>
+    <button class="menu-item" role="menuitemcheckbox" aria-checked={!mail.byMessage} onclick={() => { mail.setGrouped(mail.byMessage); viewAt = null; }}>
+      <Mails size={15} />{t('view.groupConversations')}
+      {#if !mail.byMessage}<span class="hint"><Check size={14} /></span>{/if}
+    </button>
+    <div class="divider"></div>
+    <div class="menu-label">{t('view.sort')}</div>
+    {#each sorts as o (o.id)}
+      {@const on = mail.sort === o.id}
+      <button class="menu-item" role="menuitemradio" aria-checked={on} onclick={() => { mail.setSort(o.id); viewAt = null; }}>
+        <o.icon size={15} />{t(o.label)}
+        {#if on}<span class="hint"><Check size={14} /></span>{/if}
+      </button>
+    {/each}
+  </Popover>
+{/if}
+
 <style>
   .list {
     position: relative;
@@ -520,6 +610,15 @@
   .list.single {
     flex: 1;
     border-right: none;
+  }
+  /* Above the conversation: the width of the window, and however tall it was made. */
+  .list.below {
+    flex-shrink: 0;
+    max-width: none;
+    min-height: 160px;
+    max-height: calc(100% - 200px);
+    border-right: none;
+    border-bottom: 1px solid var(--border);
   }
   header {
     display: flex;
@@ -760,5 +859,27 @@
   .resizing .resizer {
     background: linear-gradient(to right, transparent 2px, var(--accent) 2px, var(--accent) 4px, transparent 4px);
     opacity: 0.6;
+  }
+  .shield {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    cursor: col-resize;
+  }
+  .shield.across {
+    cursor: row-resize;
+  }
+  .resizer.across {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: -3px;
+    width: 100%;
+    height: 6px;
+    cursor: row-resize;
+  }
+  .resizer.across:hover,
+  .resizing .resizer.across {
+    background: linear-gradient(to bottom, transparent 2px, var(--accent) 2px, var(--accent) 4px, transparent 4px);
   }
 </style>

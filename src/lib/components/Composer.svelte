@@ -15,13 +15,15 @@
   import TemplateMenu from './TemplateMenu.svelte';
   import LaterPicker from './LaterPicker.svelte';
   import ComposerCrypto from './ComposerCrypto.svelte';
+  import WindowControls from './WindowControls.svelte';
   import { focusAboveSignature, replaceSignature } from './editor-signature';
   import { sanitizeFragment } from '../utils/html';
   import type { Template } from '../stores/ui.svelte';
   import type { Editor as TipTap } from '@tiptap/core';
   import { ChevronDown, Clock, FileText, Maximize, Minimize, Minus, Paperclip, PopOut, Send, Sparkles, Trash, Type, X, File as FileIcon } from '../icons';
 
-  let { state: c }: { state: ComposerState } = $props();
+  /** `windowed`: the composer is a window of its own, which it fills. */
+  let { state: c, windowed = false }: { state: ComposerState; windowed?: boolean } = $props();
 
   // Split quoted history (reply/forward) from the editable part.
   function splitQuote(html: string): [string, string] {
@@ -212,14 +214,20 @@
     editorKey++;
   }
   let editorKey = $state(0);
+
+  // A window of its own is named after what is written in it.
+  $effect(() => {
+    if (windowed) api.window.setTitle(title).catch(() => {});
+  });
 </script>
 
 <div
   class="composer"
   class:inline={c.inline}
-  class:floating={!c.inline}
-  class:min={c.minimized}
-  class:max={c.maximized}
+  class:floating={!c.inline && !windowed}
+  class:windowed
+  class:min={c.minimized && !windowed}
+  class:max={c.maximized && !windowed}
   class:dragging
   role="dialog"
   aria-label={title}
@@ -229,10 +237,18 @@
   ondragleave={() => (dragging = false)}
   ondrop={onDrop}
 >
-  {#if !c.inline}
+  {#if windowed}
+    <!-- The window's own title bar: it is moved by it, and closed (saving the draft) with its buttons. -->
+    <header class="bar window-bar" data-tauri-drag-region>
+      <span class="title truncate" data-tauri-drag-region>{title}</span>
+      {#if c.saving}<span class="saved">{t('common.saving')}</span>{:else if c.savedAt}<span class="saved">{t('common.saved')}</span>{/if}
+      <WindowControls />
+    </header>
+  {:else if !c.inline}
     <header class="bar" role="presentation" ondblclick={() => (c.maximized = !c.maximized)}>
       <button class="title truncate" onclick={() => (c.minimized = !c.minimized)}>{title}</button>
       {#if c.saving}<span class="saved">{t('common.saving')}</span>{:else if c.savedAt}<span class="saved">{t('common.saved')}</span>{/if}
+      <button class="icon-btn sm" title={t('composer.popOut')} aria-label={t('composer.popOut')} onclick={() => compose.popOut(c.key)}><PopOut size={14} /></button>
       <button class="icon-btn sm" title={t('composer.minimize')} onclick={() => (c.minimized = !c.minimized)}><Minus size={15} /></button>
       <button class="icon-btn sm" title={c.maximized ? t('composer.restore') : t('composer.maximize')} onclick={() => { c.maximized = !c.maximized; c.minimized = false; }}>
         {#if c.maximized}<Minimize size={14} />{:else}<Maximize size={14} />{/if}
@@ -241,7 +257,7 @@
     </header>
   {/if}
 
-  {#if !c.minimized}
+  {#if !c.minimized || windowed}
     <div class="fields">
       {#if identities.length > 1}
         <div class="from">
@@ -339,7 +355,7 @@
       <span class="grow"></span>
       {#if c.inline}
         {#if c.saving}<span class="saved">{t('common.saving')}</span>{:else if c.savedAt}<span class="saved">{t('compose.draftSaved')}</span>{/if}
-        <button class="icon-btn" title={t('composer.popOut')} aria-label={t('composer.popOut')} onclick={() => { c.inline = false; }}><PopOut size={16} /></button>
+        <button class="icon-btn" title={t('composer.popOut')} aria-label={t('composer.popOut')} onclick={() => compose.popOut(c.key)}><PopOut size={16} /></button>
       {/if}
       <button class="icon-btn" title={t('composer.discardDraft')} aria-label={t('composer.discardDraft')} onclick={() => compose.discard(c.key)}><Trash size={17} /></button>
     </footer>
@@ -419,6 +435,17 @@
   .composer.floating.min {
     height: 42px;
     width: 300px;
+  }
+  /* A window of its own, filled. */
+  .composer.windowed {
+    height: 100vh;
+    width: 100%;
+  }
+  .window-bar {
+    padding: 0 12px 0 16px;
+  }
+  .window-bar .title {
+    min-width: 0;
   }
   .composer.floating.max {
     position: fixed;

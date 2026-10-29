@@ -1,9 +1,12 @@
 import { MediaQuery } from 'svelte/reactivity';
 import { api } from '../api';
+import type { SortOrder } from '../api';
 import { setLanguage, type LanguageSetting } from '../i18n';
 
 export type Theme = 'system' | 'light' | 'dark';
 export type Density = 'comfortable' | 'compact';
+/** Where an open conversation goes: beside the list, below it, or in its place. */
+export type ReadingPane = 'right' | 'bottom' | 'off';
 
 /** A reusable message body (with an optional subject). */
 export interface Template {
@@ -59,7 +62,11 @@ export interface Settings {
   accentHue: number;
   density: Density;
   splitInbox: boolean;
+  /** Replies are listed with what they answer; off, the list shows messages one by one. */
   conversationView: boolean;
+  readingPane: ReadingPane;
+  /** The order of each list not newest first, by `listKey`. */
+  sortOrders: Record<string, SortOrder>;
   markReadDelayMs: number; // -1 = never automatically
   undoSendSeconds: number;
   loadRemoteImages: 'ask' | 'always' | 'never';
@@ -109,6 +116,8 @@ export interface Settings {
   closeToTray: boolean;
   sidebarWidth: number;
   listWidth: number;
+  /** The list's height with the reading pane below it. */
+  listHeight: number;
   aiEnabled: boolean;
 }
 
@@ -119,6 +128,8 @@ export const defaultSettings: Settings = {
   density: 'comfortable',
   splitInbox: true,
   conversationView: true,
+  readingPane: 'right',
+  sortOrders: {},
   markReadDelayMs: 600,
   undoSendSeconds: 5,
   loadRemoteImages: 'ask',
@@ -154,13 +165,27 @@ export const defaultSettings: Settings = {
   closeToTray: false,
   sidebarWidth: 236,
   listWidth: 392,
+  listHeight: 420,
   aiEnabled: true,
 };
 
 export type View = 'mail' | 'calendar' | 'contacts' | 'tasks';
 export type Overlay = null | 'settings' | 'palette' | 'shortcuts' | 'onboarding' | 'addAccount' | 'ask' | 'subscriptions';
+/** A window: the main one, or one of its own for a conversation or a message being written. */
+export type WindowKind = 'main' | 'thread' | 'compose';
+
+/** Which window this is, from its address (`?window=thread&id=12`, see src-tauri/src/windows.rs). */
+function windowOf(): { kind: WindowKind; id: number | null } {
+  const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
+  const kind = params.get('window');
+  const id = Number(params.get('id'));
+  return { kind: kind === 'thread' || kind === 'compose' ? kind : 'main', id: Number.isInteger(id) && id > 0 ? id : null };
+}
 
 class Ui {
+  /** This window, and the conversation or draft it is for. */
+  readonly window: WindowKind;
+  readonly windowId: number | null;
   view = $state<View>('mail');
   overlay = $state<Overlay>(null);
   settingsTab = $state('general');
@@ -180,13 +205,27 @@ class Ui {
   askAi = $state('');
 
   isDark = $derived(this.settings.theme === 'dark' || (this.settings.theme === 'system' && this.systemDark));
+  /** Told of settings another window changed. */
+  private listeners = new Set<(key: keyof Settings) => void>();
+
+  constructor() {
+    const w = windowOf();
+    this.window = w.kind;
+    this.windowId = w.id;
+  }
 
   get rail(): boolean {
     return !this.wide.current;
   }
 
+  /** One pane at a time: the list, or the conversation opened from it (with no reading pane, or a narrow window). */
   get single(): boolean {
-    return !this.roomy.current;
+    return !this.roomy.current || this.settings.readingPane === 'off';
+  }
+
+  /** The open conversation is below the list (of the main window). */
+  get paneBelow(): boolean {
+    return this.window === 'main' && !this.single && this.settings.readingPane === 'bottom';
   }
 
   /** Hidden by the person, so the views offer to show it again (the rail always shows). */
@@ -214,6 +253,20 @@ class Ui {
     if (key === 'accentHue') localStorage.setItem('envelope.accent', String(value));
     if (key === 'nativeTitlebar') api.setDecorations(Boolean(value));
     if (key === 'language') setLanguage(value as LanguageSetting);
+  }
+
+  /** A setting changed in another window: this one follows. */
+  changedElsewhere(key: string, value: unknown) {
+    if (!(key in defaultSettings) || JSON.stringify(this.settings[key as keyof Settings]) === JSON.stringify(value)) return;
+    (this.settings as unknown as Record<string, unknown>)[key] = value;
+    if (key === 'language') setLanguage(value as LanguageSetting);
+    for (const listener of this.listeners) listener(key as keyof Settings);
+  }
+
+  /** Hears of settings changed in another window; returns how to stop. */
+  onChangedElsewhere(listener: (key: keyof Settings) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   open(overlay: Overlay, tab?: string) {

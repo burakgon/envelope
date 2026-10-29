@@ -106,7 +106,7 @@
     if (!s) return;
     if (s.threadId != null) {
       mail.setMailbox({ kind: 'unified', role: 'inbox' });
-      mail.select(s.threadId);
+      mail.showConversation(s.threadId);
     } else {
       // The message is gone from this computer; look for the conversation.
       ui.view = 'mail';

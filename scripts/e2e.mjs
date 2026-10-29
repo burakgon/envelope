@@ -680,12 +680,22 @@ await step('reply and forward headers are in the interface language', async () =
   await w.keyboard.press('Escape');
 });
 
-await step('an inline reply pops out into a window of its own', async () => {
+await step('an inline reply pops out into a window of its own, keeping what was written', async () => {
   await openConversation('Hafta sonu');
   await w.locator('body').press('r');
-  await w.locator('.reader .composer.inline .icon-btn[aria-label="Pop out"]').click();
-  await w.locator('.dock .composer').waitFor({ timeout: 5000 });
-  await w.locator('.dock .composer .icon-btn[aria-label="Discard draft"]').click();
+  await w.locator('.reader .composer.inline .ProseMirror').click();
+  await w.keyboard.type('Cumartesi uyar.');
+  // The demo opens it as a page of its own, as the app opens a window.
+  const [win] = await Promise.all([w.context().waitForEvent('page'), w.locator('.reader .composer.inline .icon-btn[aria-label="Pop out"]').click()]);
+  win.on('pageerror', (e) => problems.push(`window: ${e.message}`));
+  try {
+    if (!/[?&]window=compose&id=\d+/.test(win.url())) throw new Error(`it opened ${win.url()}`);
+    await win.locator('.composer.windowed .ProseMirror', { hasText: 'Cumartesi uyar.' }).waitFor({ timeout: 5000 });
+    if (await win.locator('.list, .reader').count()) throw new Error('the window shows more than the message');
+    if (await w.locator('.reader .composer.inline').count()) throw new Error('the reply stayed under the conversation');
+  } finally {
+    await win.close();
+  }
 });
 
 await w.close();
@@ -2043,6 +2053,185 @@ await step('S/MIME: certificates in Settings, a .p12 password asked in the app, 
     await panel.getByRole('button', { name: 'OpenPGP', exact: true }).click();
     if ((await panel.getByRole('button', { name: 'OpenPGP', exact: true }).getAttribute('aria-pressed')) !== 'true') throw new Error('OpenPGP could not be chosen');
     await p.keyboard.press('Escape');
+  } finally {
+    await p.close();
+  }
+});
+
+/** Picks an entry of the list's View menu. */
+async function view(p, name) {
+  await p.locator('.list header button[aria-label="View"]').click();
+  await p.getByRole('menuitemradio', { name, exact: true }).or(p.getByRole('menuitemcheckbox', { name, exact: true })).click();
+}
+
+await step('the reading pane goes below the list, or away, from the View menu, the palette and Settings', async () => {
+  const p = await fresh();
+  try {
+    const list = p.getByRole('listbox', { name: 'Conversations' });
+    // Below: the list on top across the window, the conversation under it, with a divider between.
+    await view(p, 'Bottom');
+    await p.locator('main.below').waitFor({ timeout: 5000 });
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    await p.locator('.reader .subject-block h2').waitFor({ timeout: 5000 });
+    const [top, under] = await Promise.all([p.locator('.list').boundingBox(), p.locator('.reader').boundingBox()]);
+    if (!(top.y + top.height <= under.y + 1) || top.width < 1000) throw new Error(`the list is at ${JSON.stringify(top)} and the conversation at ${JSON.stringify(under)}`);
+    const divider = p.locator('.resizer.across');
+    const d = await divider.boundingBox();
+    await p.mouse.move(d.x + d.width / 2, d.y + d.height / 2);
+    await p.mouse.down();
+    await p.mouse.move(d.x + d.width / 2, d.y + 120, { steps: 4 });
+    await p.mouse.up();
+    const taller = await p.locator('.list').boundingBox();
+    if (taller.height < top.height + 100) throw new Error(`dragging the divider left the list ${taller.height} px tall (was ${top.height})`);
+    // Off: the open conversation takes the list's place, with Back; the list fills the window.
+    await p.keyboard.press('Control+k');
+    await p.keyboard.type('reading pane off');
+    await p.locator('.palette .row .label', { hasText: /^Reading pane off$/ }).click();
+    await p.locator('.reader .back').waitFor({ timeout: 5000 });
+    if (await list.count()) throw new Error('the list stays beside the open conversation');
+    await p.keyboard.press('Escape');
+    await list.waitFor({ timeout: 5000 });
+    if (await p.locator('.reader').count()) throw new Error('the conversation stays beside the list');
+    if ((await p.locator('.list').boundingBox()).width < 1100) throw new Error('the list does not fill the window');
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    await p.locator('.reader .back').click();
+    await list.waitFor({ timeout: 5000 });
+    // Settings says so, and puts it back on the right.
+    await p.keyboard.press('Control+,');
+    await p.locator('.window .tab', { hasText: 'Appearance' }).click();
+    const pane = p.getByRole('radiogroup', { name: 'Reading pane' });
+    if ((await pane.getByRole('radio', { checked: true }).innerText()).trim() !== 'Off') throw new Error('Settings does not say the pane is off');
+    await pane.getByRole('radio', { name: 'Right' }).click();
+    await p.keyboard.press('Escape');
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    await p.locator('.reader .subject-block h2').waitFor({ timeout: 5000 });
+    if (!(await list.count())) throw new Error('the list did not come back beside the conversation');
+  } finally {
+    await p.close();
+  }
+});
+
+await step('without conversations, the list has a row per message and actions take single messages', async () => {
+  const p = await fresh();
+  try {
+    await view(p, 'Group into conversations');
+    const rows = p.getByRole('listbox', { name: 'Messages' }).locator('.row', { hasText: 'Q4 roadmap' });
+    // The conversation's messages in the inbox: Priya's two and Daniel's (the user's own reply is in Sent).
+    await p.locator('.list .search input').fill('Q4 roadmap in:inbox');
+    await eventually(p, async () => (await rows.count()) === 3, async () => `${await rows.count()} rows for the conversation's messages`);
+    await rows.first().click();
+    await p.locator('.reader .of-conversation', { hasText: 'One of 4 messages in this conversation' }).waitFor({ timeout: 5000 });
+    if ((await p.locator('.reader .msg').count()) !== 1) throw new Error('the reader shows more than the message');
+    await p.locator('body').press('e');
+    await toast(p, 'Archived');
+    await eventually(p, async () => (await rows.count()) === 2, async () => `${await rows.count()} rows after archiving one message`);
+    // Grouped again, the conversation is still in the inbox (its other messages are).
+    await view(p, 'Group into conversations');
+    await p.locator('.list .search .clear').click();
+    await p.getByRole('listbox', { name: 'Conversations' }).locator('.row', { hasText: 'Q4 roadmap' }).first().waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
+await step('a list sorts oldest first or by sender, and each folder keeps its order', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('.tabs button', { hasText: 'All' }).click();
+    const senders = () => p.locator('.list .row .from').allInnerTexts();
+    const first = () => p.locator('.list .row').first().innerText();
+    const newest = await first();
+    await view(p, 'Oldest first');
+    await eventually(p, async () => (await first()) !== newest, 'the order did not change');
+    // Another folder has an order of its own; the inbox keeps oldest first.
+    await p.locator('.sidebar .item', { hasText: 'Sent' }).first().click();
+    await p.locator('.list h1', { hasText: 'Sent' }).waitFor({ timeout: 5000 });
+    await p.locator('.list header button[aria-label="View"]').click();
+    if (!(await p.getByRole('menuitemradio', { name: 'Newest first', checked: true }).count())) throw new Error('Sent took the inbox’s order');
+    await p.keyboard.press('Escape');
+    await p.locator('body').press('g');
+    await p.locator('body').press('i');
+    await p.locator('.tabs button', { hasText: 'All' }).click();
+    await eventually(p, async () => (await first()) !== newest, 'the inbox lost its order');
+    // By sender (messages one by one, a sender to a row): alphabetically, whatever the case or accents.
+    await view(p, 'Group into conversations');
+    await view(p, 'By sender');
+    await eventually(p, async () => {
+      const names = (await senders()).map((n) => n.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''));
+      return names.length > 3 && names.every((n, i) => i === 0 || names[i - 1] <= n);
+    }, async () => `senders in the order ${(await senders()).join(', ')}`);
+  } finally {
+    await p.close();
+  }
+});
+
+/** A window of its own opened by `action` (a page of its own in the demo), its errors reported. */
+async function popup(p, action) {
+  const [win] = await Promise.all([p.context().waitForEvent('page'), action()]);
+  win.on('pageerror', (e) => problems.push(`window: ${e.message}`));
+  await win.waitForLoadState();
+  return win;
+}
+
+/** Waits for `win` to close as `action` (a key that closes it as it is pressed, perhaps) is done. */
+async function closedBy(win, action) {
+  await Promise.all([win.waitForEvent('close', { timeout: 5000 }), action().catch(() => {})]);
+}
+
+await step('a conversation opens in a window of its own: Shift+Enter, a double click, the toolbar, the palette', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    await p.locator('.reader .subject-block h2').waitFor({ timeout: 5000 });
+    const win = await popup(p, () => p.keyboard.press('Shift+Enter'));
+    if (!/[?&]window=thread&id=\d+/.test(win.url())) throw new Error(`it opened ${win.url()}`);
+    await win.locator('.reader .subject-block h2', { hasText: 'Q4 roadmap' }).waitFor({ timeout: 5000 });
+    if (await win.locator('.list, .sidebar').count()) throw new Error('the window shows more than the conversation');
+    await eventually(win, async () => (await win.title()) === 'Q4 roadmap — final review', async () => `the window is called "${await win.title()}"`);
+    // Its keys act on the conversation; Escape closes it.
+    await win.locator('body').press('s');
+    await win.locator('.reader header .icon-btn.star').waitFor({ timeout: 5000 });
+    await closedBy(win, () => win.keyboard.press('Escape'));
+    // A double click on a row, the reader's button and the palette open one too.
+    const two = await popup(p, () => p.locator('.row', { hasText: 'Offsite planning' }).first().dblclick());
+    await two.locator('.reader .subject-block h2', { hasText: 'Offsite planning' }).waitFor({ timeout: 5000 });
+    await two.close();
+    const three = await popup(p, () => p.locator('.reader header button[aria-label="Open in a new window (Shift+Enter)"]').click());
+    await three.locator('.reader .subject-block h2', { hasText: 'Offsite planning' }).waitFor({ timeout: 5000 });
+    await three.close();
+    await p.keyboard.press('Control+k');
+    await p.keyboard.type('new window');
+    const four = await popup(p, () => p.locator('.palette .row .label', { hasText: /^Open in a new window$/ }).click());
+    await four.locator('.reader .subject-block h2', { hasText: 'Offsite planning' }).waitFor({ timeout: 5000 });
+    await four.close();
+    // Without conversations, a message opens its conversation in one.
+    await view(p, 'Group into conversations');
+    await p.locator('.list .search input').fill('Q4 roadmap in:inbox');
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    const five = await popup(p, () => p.locator('.reader .of-conversation button', { hasText: 'Open the conversation' }).click());
+    await five.locator('.reader .subject-block .chip', { hasText: '4 messages' }).waitFor({ timeout: 5000 });
+    await five.close();
+  } finally {
+    await p.close();
+  }
+});
+
+await step('a new message pops out into a window of its own, and Escape puts it away', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('body').press('c');
+    await p.locator('.dock .composer .subject input').fill('Picnic');
+    const win = await popup(p, () => p.locator('.dock .composer .icon-btn[aria-label="Pop out"]').click());
+    await win.locator('.composer.windowed .subject input').waitFor({ timeout: 5000 });
+    if ((await win.locator('.composer.windowed .subject input').inputValue()) !== 'Picnic') throw new Error('the subject was lost');
+    if (await p.locator('.dock .composer').count()) throw new Error('the composer stayed in the main window');
+    await eventually(win, async () => (await win.title()) === 'Picnic', async () => `the window is called "${await win.title()}"`);
+    // A new message with nothing in it opens empty, and closes with Escape.
+    await p.locator('body').press('c');
+    const empty = await popup(p, () => p.locator('.dock .composer .icon-btn[aria-label="Pop out"]').click());
+    await empty.locator('.composer.windowed .ProseMirror').click();
+    await closedBy(empty, () => empty.keyboard.press('Escape'));
+    await win.close();
   } finally {
     await p.close();
   }

@@ -15,6 +15,7 @@
       keys: [
         ['J / K', t('shortcuts.nextPreviousConversation')],
         ['Enter / O', t('shortcuts.openConversation')],
+        ['Shift Enter', t('view.openInWindow')],
         ['Esc', t('shortcuts.closeClearSelection')],
         ['/', t('common.search')],
         ['Ctrl K', t('shortcuts.commandPalette')],

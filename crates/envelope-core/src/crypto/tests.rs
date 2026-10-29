@@ -249,6 +249,8 @@ async fn encrypted_and_signed_mail_round_trip() {
             mailbox: Mailbox::Everything,
             search: Some("aramızda".into()),
             filter: ListFilter::default(),
+            sort: SortOrder::Newest,
+            messages: false,
             offset: 0,
             limit: 10,
         })
@@ -361,6 +363,8 @@ async fn passphrases_bcc_drafts_and_kept_copies() {
             mailbox: Mailbox::Everything,
             search: Some(q.into()),
             filter: ListFilter::default(),
+            sort: SortOrder::Newest,
+            messages: false,
             offset: 0,
             limit: 10,
         })

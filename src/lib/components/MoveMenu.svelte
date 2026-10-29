@@ -11,9 +11,9 @@
   let input: HTMLInputElement | undefined = $state();
   let hi = $state(0);
 
-  const accountIds = $derived(
-    new Set([...mail.items, ...(mail.detail ? [mail.detail.thread] : [])].filter((th) => ids.includes(th.id)).map((th) => th.accountId)),
-  );
+  /** The rows moved or labeled: in the list, or open in the reader (alone in a window of its own). */
+  const rows = $derived([...mail.items, ...(mail.detail ? [mail.detail.thread] : [])].filter((th) => ids.includes(th.id)));
+  const accountIds = $derived(new Set(rows.map((th) => th.accountId)));
   /** The one account of the conversations, where a missing folder or label can be made. */
   const account = $derived(accountIds.size === 1 ? mail.accountById.get([...accountIds][0]) : undefined);
   const newKind = $derived(labels || account?.kind === 'gmail' ? 'label' : 'folder');
@@ -71,7 +71,7 @@
   </div>
   <div class="items">
     {#each options as f, i (f.id)}
-      {@const has = labels && mail.items.filter((th) => ids.includes(th.id)).every((th) => th.folderIds.includes(f.id))}
+      {@const has = labels && rows.length > 0 && rows.every((th) => th.folderIds.includes(f.id))}
       <button class="menu-item" class:highlighted={i === hi} onmouseenter={() => (hi = i)} onclick={() => pick(i)}>
         {#if f.kind === 'label'}
           <span class="sw" style:background={f.color ?? 'var(--text-3)'}></span>

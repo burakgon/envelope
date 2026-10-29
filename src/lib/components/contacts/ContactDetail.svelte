@@ -40,7 +40,7 @@
   function openThread(th: ThreadSummary) {
     ui.view = 'mail';
     mail.setSearch(primary ?? '');
-    mail.select(th.id);
+    mail.showConversation(th.id);
   }
 
   function birthday(b: string): string {

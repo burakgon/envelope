@@ -142,6 +142,8 @@ export interface ThreadSummary {
   /** Later replies skip the inbox and do not notify. */
   muted: boolean;
   snoozedUntil: number | null;
+  /** In a list of messages one by one: the row is the message `id`, and this its conversation. */
+  threadId?: number | null;
   /** Interface only: the row is a draft that is only on this computer. */
   localDraftId?: number;
 }
@@ -170,10 +172,16 @@ export interface ListFilter {
   category?: string | null;
 }
 
+/** The order of a list: by sender is by whom a conversation is with, newest first for each. */
+export type SortOrder = 'newest' | 'oldest' | 'sender';
+
 export interface ThreadQuery {
   mailbox: Mailbox;
   search?: string | null;
   filter?: ListFilter;
+  sort?: SortOrder;
+  /** Messages one by one instead of conversations. */
+  messages?: boolean;
   offset: number;
   limit: number;
 }
@@ -229,6 +237,8 @@ export interface MessageView {
 export interface ThreadDetail {
   thread: ThreadSummary;
   messages: MessageView[];
+  /** One message opened from a list of messages one by one (`thread` is its row): its conversation. */
+  conversation?: ThreadSummary | null;
 }
 
 export type MoveTarget =
@@ -250,6 +260,32 @@ export interface UndoToken {
   snoozed: [number, number | null][];
 }
 
+/** A window of its own: a conversation, or a message being written. */
+export type WindowKind = 'thread' | 'compose';
+
+/** What the button of a toast does, as data that one window can hand to another. */
+export type ToastStep =
+  /** Undo moves (archive, delete, move, spam). */
+  | { kind: 'moves'; tokens: UndoToken[] }
+  /** Undo snoozing conversations. */
+  | { kind: 'snooze'; threadIds: number[] }
+  /** Undo muting conversations (and archiving them from the inbox). */
+  | { kind: 'mute'; threadIds: number[]; tokens: UndoToken[] }
+  /** Undo sending: the message comes back to be written on (under its conversation, if that is open). */
+  | { kind: 'send'; outboxId: number; data: DraftInput; threadId?: number | null }
+  /** Undo discarding a draft. */
+  | { kind: 'discard'; data: DraftInput; threadId?: number | null }
+  /** Open a draft that was saved. */
+  | { kind: 'open'; draftId: number };
+
+/** A toast for something done in a window of its own that closed with it, for the main window to show. */
+export interface HandOver {
+  message: string;
+  step: ToastStep;
+  /** Milliseconds it shows. */
+  duration?: number;
+}
+
 /** What "Mark all as read" changed. */
 /** A conversation of a list, with its account. */
 export interface ThreadRef {
@@ -258,7 +294,7 @@ export interface ThreadRef {
 }
 
 export interface MarkedRead {
-  /** Conversations marked read. */
+  /** Conversations marked read (messages, in a list of messages one by one). */
   threads: number;
   /** Messages that were unread: marking them unread again undoes it. */
   messageIds: number[];

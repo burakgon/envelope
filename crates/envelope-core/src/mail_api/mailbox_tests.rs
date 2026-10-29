@@ -227,6 +227,8 @@ impl Fixture {
                 mailbox,
                 search: None,
                 filter: ListFilter::default(),
+                sort: SortOrder::Newest,
+                messages: false,
                 offset: 0,
                 limit: 100,
             })
@@ -314,7 +316,7 @@ async fn mark_all_read_takes_the_list_as_shown_and_can_be_undone() {
     };
     let marked = fx
         .engine
-        .mark_read(&Mailbox::Folder { id: inbox }, &filter, None)
+        .mark_read(&Mailbox::Folder { id: inbox }, &filter, None, false)
         .expect("mark");
     assert_eq!(marked.threads, 1);
     assert_eq!(
@@ -330,6 +332,7 @@ async fn mark_all_read_takes_the_list_as_shown_and_can_be_undone() {
             &Mailbox::Everything,
             &ListFilter::default(),
             Some("nothing-like-this"),
+            false,
         )
         .expect("search");
     assert_eq!(none.threads, 0);
@@ -652,6 +655,8 @@ async fn a_whole_list_is_listed_beyond_its_pages() {
             mailbox: Mailbox::Folder { id: inbox },
             search: None,
             filter: ListFilter::default(),
+            sort: SortOrder::Newest,
+            messages: false,
             offset: 0,
             limit: 1_000,
         })
@@ -659,7 +664,12 @@ async fn a_whole_list_is_listed_beyond_its_pages() {
     assert_eq!((page.items.len(), page.total), (500, 520));
     let refs = fx
         .engine
-        .thread_refs(&Mailbox::Folder { id: inbox }, &ListFilter::default(), None)
+        .thread_refs(
+            &Mailbox::Folder { id: inbox },
+            &ListFilter::default(),
+            None,
+            false,
+        )
         .expect("refs");
     assert_eq!(refs.iter().map(|r| r.id).collect::<BTreeSet<_>>(), all);
     assert!(refs.iter().all(|r| r.account_id == fx.account));
@@ -671,12 +681,17 @@ async fn a_whole_list_is_listed_beyond_its_pages() {
     };
     let refs = fx
         .engine
-        .thread_refs(&Mailbox::Folder { id: inbox }, &unread, None)
+        .thread_refs(&Mailbox::Folder { id: inbox }, &unread, None, false)
         .expect("unread");
     assert_eq!(refs.len(), 1);
     let refs = fx
         .engine
-        .thread_refs(&Mailbox::Everything, &ListFilter::default(), Some("Plan"))
+        .thread_refs(
+            &Mailbox::Everything,
+            &ListFilter::default(),
+            Some("Plan"),
+            false,
+        )
         .expect("search");
     assert_eq!(refs.iter().map(|r| r.id).collect::<Vec<_>>(), [elsewhere]);
 }

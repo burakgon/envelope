@@ -7,6 +7,7 @@ mod notify;
 mod protocol;
 mod strings;
 mod tray;
+mod windows;
 
 use envelope_core::model::EngineEvent;
 use envelope_core::{Engine, EventSink, Paths};
@@ -63,13 +64,13 @@ impl EventSink for TauriSink {
 fn handle_args(app: &AppHandle, args: &[String], cwd: &std::path::Path) {
     for arg in args.iter().skip(1) {
         if arg.starts_with("mailto:") {
-            let _ = app.emit("mailto", arg.clone());
+            let _ = app.emit_to("main", "mailto", arg.clone());
         } else if arg.starts_with("webcal:") || arg.starts_with("webcals:") {
-            let _ = app.emit("webcal", arg.clone());
+            let _ = app.emit_to("main", "webcal", arg.clone());
         } else if arg == "--compose" {
-            let _ = app.emit("mailto", "mailto:");
+            let _ = app.emit_to("main", "mailto", "mailto:");
         } else if let Some(path) = file_arg(arg, cwd) {
-            let _ = app.emit("open-file", path.to_string_lossy());
+            let _ = app.emit_to("main", "open-file", path.to_string_lossy());
         }
     }
 }
@@ -123,13 +124,15 @@ pub fn run() {
         }))
         // Size and position are restored; showing the window is left to
         // `app_ready`, so that it appears once the interface has loaded and
-        // stays in the tray when started at login.
+        // stays in the tray when started at login. Windows of their own keep
+        // one size per kind instead (windows.rs).
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(
                     tauri_plugin_window_state::StateFlags::all()
                         - tauri_plugin_window_state::StateFlags::VISIBLE,
                 )
+                .with_filter(|label| label == "main")
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
@@ -180,15 +183,23 @@ pub fn run() {
             }
             Ok(())
         })
-        .on_window_event(|window, event| {
+        .on_window_event(|window, event| match event {
             // With "keep running in the background", closing only hides the window.
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event
-                && window.label() == "main"
-                && tray::close_to_tray(window.app_handle())
+            tauri::WindowEvent::CloseRequested { api, .. }
+                if window.label() == "main" && tray::close_to_tray(window.app_handle()) =>
             {
                 api.prevent_close();
                 let _ = window.hide();
             }
+            tauri::WindowEvent::Resized(size) => windows::resized(window, *size),
+            tauri::WindowEvent::Destroyed => {
+                windows::closed(window);
+                // Envelope closes with its main window, and so do the others.
+                if window.label() == "main" {
+                    windows::close_all(window.app_handle());
+                }
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_ready,
@@ -214,6 +225,7 @@ pub fn run() {
             commands::folders,
             commands::threads,
             commands::thread,
+            commands::message,
             commands::load_bodies,
             commands::set_flags,
             commands::thread_refs,
@@ -230,11 +242,14 @@ pub fn run() {
             commands::rule_undo,
             commands::sender_threads,
             commands::move_threads,
+            commands::move_messages,
             commands::undo,
             commands::delete_forever,
+            commands::delete_messages_forever,
             commands::snooze,
             commands::mute_threads,
             commands::set_label,
+            commands::label_messages,
             commands::message_source,
             commands::unsubscribe,
             commands::drafts,
@@ -327,6 +342,9 @@ pub fn run() {
             commands::autostart_get,
             commands::autostart_set,
             commands::set_native_strings,
+            commands::window_open,
+            commands::window_focus,
+            commands::window_hand_over,
             crypto::crypto_settings_get,
             crypto::crypto_settings_set,
             crypto::crypto_own_keys,
@@ -369,7 +387,7 @@ pub fn run() {
 
 /// WebKitGTK ships with spell checking off; turn it on for the user's languages.
 #[cfg(target_os = "linux")]
-fn enable_spell_checking(window: &tauri::WebviewWindow) {
+pub(crate) fn enable_spell_checking(window: &tauri::WebviewWindow) {
     let languages = spell_languages();
     let _ = window.with_webview(move |webview| {
         use webkit2gtk::{WebContextExt, WebViewExt};

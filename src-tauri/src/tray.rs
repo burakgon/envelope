@@ -103,14 +103,14 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             "open" => crate::show_main(app),
             "compose" => {
                 crate::show_main(app);
-                let _ = app.emit("mailto", "mailto:");
+                let _ = app.emit_to("main", "mailto", "mailto:");
             }
             "sync" => {
                 if let Some(state) = app.try_state::<AppState>() {
                     state.engine.sync_now(None);
                 }
             }
-            "quit" => app.exit(0),
+            "quit" => crate::windows::quit(app),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {

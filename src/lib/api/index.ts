@@ -34,23 +34,30 @@ export interface Api {
   syncNow(accountId?: number | null): Promise<void>;
 
   folders(): Promise<T.Folder[]>;
+  /** A page of conversations, or (`query.messages`) of messages one by one. */
   threads(query: T.ThreadQuery): Promise<T.ThreadPage>;
   thread(id: number): Promise<T.ThreadDetail>;
+  /** One message from a list of messages one by one: its row, the message and its conversation. */
+  message(id: number): Promise<T.ThreadDetail>;
   loadBodies(ids: number[]): Promise<T.MessageView[]>;
   setFlags(threadIds: number[], messageIds: number[], change: T.FlagChange): Promise<void>;
-  /** Marks every unread conversation of a list (mailbox, filter, inbox tab, search) as read. */
-  markRead(mailbox: T.Mailbox, filter: T.ListFilter, search: string | null): Promise<T.MarkedRead>;
-  /** Every conversation of a list (mailbox, filter, inbox tab, search), beyond the pages loaded. */
-  threadRefs(mailbox: T.Mailbox, filter: T.ListFilter, search: string | null): Promise<T.ThreadRef[]>;
+  /** Marks every unread conversation of a list (mailbox, filter, inbox tab, search) as read; with `messages`, every unread message of a list of them. */
+  markRead(mailbox: T.Mailbox, filter: T.ListFilter, search: string | null, messages?: boolean): Promise<T.MarkedRead>;
+  /** Every conversation of a list (mailbox, filter, inbox tab, search), beyond the pages loaded; with `messages`, every message of a list of them. */
+  threadRefs(mailbox: T.Mailbox, filter: T.ListFilter, search: string | null, messages?: boolean): Promise<T.ThreadRef[]>;
   /** Done with, reminds again later, or brings back the follow-up reminders of conversations. */
   setFollowUp(threadIds: number[], change: T.FollowUpChange): Promise<void>;
   moveThreads(threadIds: number[], source: number | null, target: T.MoveTarget): Promise<T.UndoToken>;
+  /** Moves single messages, and nothing else of their conversations (a list of messages one by one). */
+  moveMessages(messageIds: number[], source: number | null, target: T.MoveTarget): Promise<T.UndoToken>;
   undo(token: T.UndoToken): Promise<void>;
   deleteForever(threadIds: number[]): Promise<void>;
+  deleteMessagesForever(messageIds: number[]): Promise<void>;
   snooze(threadIds: number[], until: number | null): Promise<void>;
   /** Mutes conversations (archiving them from the inbox) or unmutes them; muting returns the archive's undo tokens. */
   muteThreads(threadIds: number[], muted: boolean): Promise<T.UndoToken[]>;
   setLabel(threadIds: number[], folderId: number, add: boolean): Promise<void>;
+  labelMessages(messageIds: number[], folderId: number, add: boolean): Promise<void>;
 
   /**
    * Folders and labels. Changes to the folder tree reach the server at once (and fail
@@ -303,6 +310,26 @@ export interface Api {
     close(): Promise<void>;
     isMaximized(): Promise<boolean>;
     onResized(cb: () => void): () => void;
+    setTitle(title: string): Promise<void>;
+    /** Runs `cb` before this window closes, however it is closed (its button, Alt+F4, the window manager), and waits for it. */
+    onCloseRequested(cb: () => Promise<void>): () => void;
+  };
+
+  /**
+   * Windows of their own: a conversation, or a message being written. They show the same
+   * interface (`?window=thread&id=…`), hear the same engine events, and keep their size.
+   */
+  windows: {
+    /** Opens a conversation or a draft (`null`: a new message) in a window of its own, or brings it forward. */
+    open(kind: T.WindowKind, id: number | null, title: string): Promise<void>;
+    /** Brings forward the window of its own of a conversation or a draft; false without one. */
+    focus(kind: T.WindowKind, id: number): Promise<boolean>;
+    /** Gives the main window a toast for something done in this one as it closes; false when the main window isn't on screen. */
+    handOver(toast: T.HandOver): Promise<boolean>;
+    /** A toast another window handed over (heard by the main window). */
+    onHandOver(cb: (toast: T.HandOver) => void): () => void;
+    /** A setting changed, perhaps in another window. */
+    onSetting(cb: (key: string, value: unknown) => void): () => void;
   };
 }
 

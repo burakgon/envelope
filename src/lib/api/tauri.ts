@@ -58,17 +58,21 @@ export function createTauriApi(): Api {
     folders: () => invoke('folders'),
     threads: (query) => invoke('threads', { query }),
     thread: (id) => invoke('thread', { id }),
+    message: (id) => invoke('message', { id }),
     loadBodies: (ids) => invoke('load_bodies', { ids }),
     setFlags: (threadIds, messageIds, change) => invoke('set_flags', { threadIds, messageIds, change }),
-    markRead: (mailbox, filter, search) => invoke('mark_read', { mailbox, filter, search }),
-    threadRefs: (mailbox, filter, search) => invoke('thread_refs', { mailbox, filter, search }),
+    markRead: (mailbox, filter, search, messages) => invoke('mark_read', { mailbox, filter, search, messages: messages ?? false }),
+    threadRefs: (mailbox, filter, search, messages) => invoke('thread_refs', { mailbox, filter, search, messages: messages ?? false }),
     setFollowUp: (threadIds, change) => invoke('set_follow_up', { threadIds, change }),
     moveThreads: (threadIds, source, target) => invoke('move_threads', { threadIds, source, target }),
+    moveMessages: (messageIds, source, target) => invoke('move_messages', { messageIds, source, target }),
     undo: (token) => invoke('undo', { token }),
     deleteForever: (threadIds) => invoke('delete_forever', { threadIds }),
+    deleteMessagesForever: (messageIds) => invoke('delete_messages_forever', { messageIds }),
     snooze: (threadIds, until) => invoke('snooze', { threadIds, until }),
     muteThreads: (threadIds, muted) => invoke('mute_threads', { threadIds, muted }),
     setLabel: (threadIds, folderId, add) => invoke('set_label', { threadIds, folderId, add }),
+    labelMessages: (messageIds, folderId, add) => invoke('label_messages', { messageIds, folderId, add }),
     folder: {
       create: (accountId, parentId, name, label, color) => invoke('folder_create', { accountId, parentId, name, label, color: color ?? null }),
       rename: (id, name) => invoke('folder_rename', { id, name }),
@@ -262,6 +266,25 @@ export function createTauriApi(): Api {
         win.onResized(() => cb()).then((u) => (un = u));
         return () => un?.();
       },
+      setTitle: (title) => win.setTitle(title),
+      onCloseRequested: (cb) => {
+        let un: (() => void) | null = null;
+        let cancelled = false;
+        // The window closes once the promise is done (Tauri destroys it then).
+        win.onCloseRequested(() => cb()).then((u) => (cancelled ? u() : (un = u)));
+        return () => {
+          cancelled = true;
+          un?.();
+        };
+      },
+    },
+
+    windows: {
+      open: (kind, id, title) => invoke('window_open', { kind, id, title }),
+      focus: (kind, id) => invoke('window_focus', { kind, id }),
+      handOver: (toast) => invoke('window_hand_over', { toast }),
+      onHandOver: (cb) => subscribe<T.HandOver>('hand-over', cb),
+      onSetting: (cb) => subscribe<{ key: string; value: unknown }>('setting', (p) => cb(p.key, p.value)),
     },
   };
 }

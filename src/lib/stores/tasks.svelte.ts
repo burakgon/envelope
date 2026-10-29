@@ -557,7 +557,7 @@ class Tasks {
   /** Conversations being made into tasks (a second T while the first is saved adds nothing). */
   private adding = new Set<number>();
 
-  /** Makes a task of each conversation: titled with the subject, linked to its latest message. */
+  /** Makes a task of each conversation (or message, listed one by one): titled with the subject, linked to its latest message. */
   async addFromMail(threadIds: number[]) {
     await this.init();
     const made: Task[] = [];
@@ -565,13 +565,14 @@ class Tasks {
     const mine: number[] = [];
     try {
       for (const id of threadIds) {
-        const linked = this.linked.get(id);
+        // A message one by one: the task is made from it, and linked like its conversation.
+        const linked = this.linked.get(mail.threadsOf([id])[0]);
         if (linked) existing.push(linked);
         if (linked || this.adding.has(id)) continue;
         this.adding.add(id);
         mine.push(id);
         try {
-          const d = mail.detail?.thread.id === id ? mail.detail : await api.thread(id);
+          const d = mail.detail?.thread.id === id ? mail.detail : await mail.load(id);
           const list = this.listFor(d.thread.accountId);
           if (!list) {
             toasts.error(t('tasks.toast.noList'));

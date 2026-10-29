@@ -662,11 +662,12 @@ pub fn upsert_message(
             "UPDATE messages SET flags = ?, keywords = ? WHERE id = ?",
             params![meta.flags, keywords_json(&meta.keywords), id],
         )?;
-        tx.execute(
-            "INSERT INTO message_folders (folder_id, message_id, uid) VALUES (?, ?, ?)
+        tx.prepare_cached(
+            "INSERT INTO message_folders (folder_id, message_id, uid, date, sender)
+             SELECT ?1, id, ?2, date, sort_key(from_name, from_email) FROM messages WHERE id = ?3
              ON CONFLICT (folder_id, message_id) DO UPDATE SET uid = coalesce(excluded.uid, message_folders.uid)",
-            params![folder_id, id, uid],
-        )?;
+        )?
+        .execute(params![folder_id, uid, id])?;
         return Ok(Stored {
             message_id: id,
             thread_id,
@@ -714,10 +715,16 @@ pub fn upsert_message(
         ],
     )?;
     let id = tx.last_insert_rowid();
-    tx.execute(
-        "INSERT INTO message_folders (folder_id, message_id, uid) VALUES (?, ?, ?)",
-        params![folder_id, id, uid],
-    )?;
+    tx.prepare_cached(
+        "INSERT INTO message_folders (folder_id, message_id, uid, date, sender) VALUES (?, ?, ?, ?, ?)",
+    )?
+    .execute(params![
+        folder_id,
+        id,
+        uid,
+        meta.date,
+        sort_key(from_name.as_deref(), from_email.as_deref())
+    ])?;
     index_message(tx, id, None)?;
     Ok(Stored {
         message_id: id,
@@ -756,12 +763,23 @@ pub fn set_message_labels(
         }
     }
     for f in label_folders {
-        tx.execute(
-            "INSERT OR IGNORE INTO message_folders (folder_id, message_id, uid) VALUES (?, ?, NULL)",
-            params![f, message_id],
-        )?;
+        add_location(tx, *f, message_id)?;
     }
     Ok(())
+}
+
+/// Puts a message in a folder or label without a UID (a label, or a place it
+/// was moved to that the server hasn't confirmed yet), with its date and
+/// sender for the lists of that folder; nothing when it is there already.
+/// Returns whether it was added.
+pub fn add_location(tx: &Transaction<'_>, folder_id: i64, message_id: i64) -> Result<bool> {
+    Ok(tx
+        .prepare_cached(
+            "INSERT OR IGNORE INTO message_folders (folder_id, message_id, uid, date, sender)
+             SELECT ?1, id, NULL, date, sort_key(from_name, from_email) FROM messages WHERE id = ?2",
+        )?
+        .execute(params![folder_id, message_id])?
+        > 0)
 }
 
 pub fn set_message_flags(tx: &Transaction<'_>, message_id: i64, flags: i64) -> Result<()> {
@@ -956,10 +974,7 @@ pub fn set_flags_and_keywords(
 /// Makes `folder_id` the only folder (labels aside) that holds a message.
 /// Returns whether its location changed.
 pub fn set_only_folder(tx: &Transaction<'_>, message_id: i64, folder_id: i64) -> Result<bool> {
-    let added = tx.execute(
-        "INSERT OR IGNORE INTO message_folders (folder_id, message_id, uid) VALUES (?, ?, NULL)",
-        params![folder_id, message_id],
-    )?;
+    let added = add_location(tx, folder_id, message_id)? as usize;
     let removed = tx.execute(
         "DELETE FROM message_folders WHERE message_id = ?1 AND folder_id != ?2
            AND folder_id IN (SELECT id FROM folders WHERE kind != 'label')",
@@ -995,10 +1010,7 @@ pub fn set_label_folders(
     }
     for f in label_folders {
         if !current.contains(f) {
-            changed |= tx.execute(
-                "INSERT OR IGNORE INTO message_folders (folder_id, message_id, uid) VALUES (?, ?, NULL)",
-                params![f, message_id],
-            )? > 0;
+            changed |= add_location(tx, *f, message_id)?;
         }
     }
     Ok(changed)
@@ -1412,6 +1424,7 @@ pub fn refresh_threads(tx: &Transaction<'_>, thread_ids: &BTreeSet<i64>) -> Resu
             .find(|r| r.1 & Flags::DRAFT == 0 && r.4.is_some())
             .or(rows.last())
             .and_then(|r| r.4.clone().map(|e| Address::new(r.3.clone(), e)));
+        let sender = thread_sort_key(&participants, &my_addresses);
         let wrote_myself = rows
             .iter()
             .any(|r| r.4.as_ref().is_some_and(|e| my_addresses.contains(e)));
@@ -1430,7 +1443,7 @@ pub fn refresh_threads(tx: &Transaction<'_>, thread_ids: &BTreeSet<i64>) -> Resu
         tx.execute(
             "UPDATE threads SET subject = ?, snippet = ?, last_date = ?, message_count = ?, unread_count = ?,
                flagged = ?, has_attachments = ?, draft_count = ?, participants = ?, category = ?, is_invite = ?,
-               last_sender = ?
+               last_sender = ?, sender = ?
              WHERE id = ?",
             params![
                 subject,
@@ -1445,16 +1458,17 @@ pub fn refresh_threads(tx: &Transaction<'_>, thread_ids: &BTreeSet<i64>) -> Resu
                 category,
                 is_invite as i64,
                 last_sender.as_ref().map(serde_json::to_string).transpose()?,
+                sender,
                 tid
             ],
         )?;
         tx.execute("DELETE FROM thread_folders WHERE thread_id = ?", [tid])?;
         tx.execute(
-            "INSERT INTO thread_folders (folder_id, thread_id, last_date, unread)
-             SELECT mf.folder_id, ?1, ?2, sum(CASE WHEN m.flags & 9 = 0 THEN 1 ELSE 0 END)
+            "INSERT INTO thread_folders (folder_id, thread_id, last_date, unread, sender)
+             SELECT mf.folder_id, ?1, ?2, sum(CASE WHEN m.flags & 9 = 0 THEN 1 ELSE 0 END), ?3
              FROM message_folders mf JOIN messages m ON m.id = mf.message_id
              WHERE m.thread_id = ?1 GROUP BY mf.folder_id",
-            params![tid, last_date],
+            params![tid, last_date, sender],
         )?;
         let mut st =
             tx.prepare_cached("SELECT folder_id FROM thread_folders WHERE thread_id = ?")?;
@@ -1463,6 +1477,92 @@ pub fn refresh_threads(tx: &Transaction<'_>, thread_ids: &BTreeSet<i64>) -> Resu
         }
     }
     Ok(touched_folders)
+}
+
+/// How a sender sorts in lists by sender: the name (else the address),
+/// lowercase and without accents, so that "Émile" comes among the E's. It is
+/// `sort_key(name, email)` in SQL too (see `db::configure`).
+pub fn sort_key(name: Option<&str>, email: Option<&str>) -> String {
+    let clean = |s: &str| {
+        s.trim_matches(|c: char| c.is_whitespace() || matches!(c, '"' | '\''))
+            .to_string()
+    };
+    let text = name
+        .map(clean)
+        .filter(|n| !n.is_empty())
+        .or_else(|| email.map(clean))
+        .unwrap_or_default();
+    let mut key = String::with_capacity(text.len());
+    for c in text.chars().flat_map(char::to_lowercase) {
+        match c {
+            // Accents that lowercasing leaves as marks of their own (İ → i̇).
+            '\u{300}'..='\u{36f}' => {}
+            'à'..='å' | 'ā' | 'ă' | 'ą' => key.push('a'),
+            'æ' => key.push_str("ae"),
+            'ç' | 'ć' | 'ĉ' | 'ċ' | 'č' => key.push('c'),
+            'ď' | 'đ' | 'ð' => key.push('d'),
+            'è'..='ë' | 'ē' | 'ĕ' | 'ė' | 'ę' | 'ě' => key.push('e'),
+            'ĝ' | 'ğ' | 'ġ' | 'ģ' => key.push('g'),
+            'ĥ' | 'ħ' => key.push('h'),
+            'ì'..='ï' | 'ĩ' | 'ī' | 'ĭ' | 'į' | 'ı' => key.push('i'),
+            'ĵ' => key.push('j'),
+            'ķ' => key.push('k'),
+            'ĺ' | 'ļ' | 'ľ' | 'ŀ' | 'ł' => key.push('l'),
+            'ñ' | 'ń' | 'ņ' | 'ň' => key.push('n'),
+            'ò'..='ö' | 'ø' | 'ō' | 'ŏ' | 'ő' => key.push('o'),
+            'œ' => key.push_str("oe"),
+            'ŕ' | 'ŗ' | 'ř' => key.push('r'),
+            'ś' | 'ŝ' | 'ş' | 'š' | 'ș' => key.push('s'),
+            'ß' => key.push_str("ss"),
+            'ţ' | 'ť' | 'ŧ' | 'ț' => key.push('t'),
+            'þ' => key.push_str("th"),
+            'ù'..='ü' | 'ũ' | 'ū' | 'ŭ' | 'ů' | 'ű' | 'ų' => key.push('u'),
+            'ŵ' => key.push('w'),
+            'ý' | 'ÿ' | 'ŷ' => key.push('y'),
+            'ź' | 'ż' | 'ž' => key.push('z'),
+            c => key.push(c),
+        }
+    }
+    key
+}
+
+/// Whom a conversation is with, as it sorts: the first sender who isn't the
+/// user (who started it, mostly), else the user. Replies don't change it, so
+/// a list by sender keeps its order as they come in.
+fn thread_sort_key(participants: &[Address], mine: &HashSet<String>) -> String {
+    participants
+        .iter()
+        .find(|p| !mine.contains(&p.email.to_lowercase()))
+        .or(participants.first())
+        .map(|p| sort_key(p.name.as_deref(), Some(&p.email)))
+        .unwrap_or_default()
+}
+
+/// Gives the mail already here its sort keys (databases before version 13).
+pub fn fill_sort_keys(tx: &Transaction<'_>) -> Result<()> {
+    tx.execute(
+        "UPDATE message_folders SET (date, sender) =
+           (SELECT m.date, sort_key(m.from_name, m.from_email) FROM messages m WHERE m.id = message_folders.message_id)",
+        [],
+    )?;
+    let threads: Vec<(i64, i64, String)> = {
+        let mut st = tx.prepare("SELECT id, account_id, participants FROM threads")?;
+        st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+            .collect::<rusqlite::Result<_>>()?
+    };
+    let mut mine: HashMap<i64, HashSet<String>> = HashMap::new();
+    let mut thread = tx.prepare("UPDATE threads SET sender = ? WHERE id = ?")?;
+    let mut folders = tx.prepare("UPDATE thread_folders SET sender = ? WHERE thread_id = ?")?;
+    for (id, account, participants) in threads {
+        let me = match mine.entry(account) {
+            std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+            std::collections::hash_map::Entry::Vacant(e) => e.insert(identity_emails(tx, account)?),
+        };
+        let key = thread_sort_key(&parse_addrs(&participants), me);
+        thread.execute(params![key, id])?;
+        folders.execute(params![key, id])?;
+    }
+    Ok(())
 }
 
 fn identity_emails(c: &Connection, account_id: i64) -> Result<HashSet<String>> {
@@ -1555,6 +1655,7 @@ fn summary_from_row(r: &Row<'_>) -> rusqlite::Result<ThreadSummary> {
         is_invite: r.get::<_, i64>("is_invite")? != 0,
         muted: r.get::<_, i64>("muted")? != 0,
         snoozed_until: r.get("snoozed_until")?,
+        thread_id: None,
     })
 }
 
@@ -1612,81 +1713,155 @@ pub struct ListSql {
     /// A cheaper `FROM … WHERE …` for counting, when the conditions don't need
     /// the threads table (uses the same values).
     pub count_from_where: Option<String>,
+    /// The rows are messages one by one (`m`), not conversations (`t`).
+    pub messages: bool,
 }
 
-/// Builds the SQL for listing threads in a mailbox.
+impl ListSql {
+    /// The id and account of a row: `SELECT {} FROM {from_where}`.
+    pub fn id_and_account(&self) -> &'static str {
+        if self.messages {
+            "m.id, m.account_id"
+        } else {
+            "t.id, t.account_id"
+        }
+    }
+
+    /// A page of rows, in order (the values, then the limit and offset).
+    pub fn page(&self) -> String {
+        let columns = if self.messages {
+            MESSAGE_ROW_COLUMNS
+        } else {
+            SUMMARY_COLUMNS
+        };
+        format!(
+            "SELECT {columns} FROM {} ORDER BY {} LIMIT ? OFFSET ?",
+            self.from_where, self.order
+        )
+    }
+}
+
+/// Builds the SQL for listing threads in a mailbox, or with `messages` the
+/// messages one by one.
 pub fn list_sql(
     c: &Connection,
     mailbox: &Mailbox,
     filter: &ListFilter,
     search: Option<(String, Vec<rusqlite::types::Value>)>,
+    sort: SortOrder,
+    messages: bool,
 ) -> Result<ListSql> {
     let mut wheres: Vec<String> = Vec::new();
     let mut values: Vec<rusqlite::types::Value> = Vec::new();
-    let mut order = "t.last_date DESC".to_string();
-    let mut from = "threads t".to_string();
-    // Folder lists only touch `thread_folders` (and its covering index) unless a
-    // condition needs thread columns; counting them then skips the threads table.
+    // A row, its date and its sender, as a list that isn't a folder's reads them.
+    let (mut key, mut date, mut sender) = if messages {
+        ("m.id", "m.date", "sort_key(m.from_name, m.from_email)")
+    } else {
+        ("t.id", "t.last_date", "t.sender")
+    };
+    let mut from = if messages {
+        "messages m JOIN threads t ON t.id = m.thread_id"
+    } else {
+        "threads t"
+    };
+    // Folder lists only touch `thread_folders` or `message_folders` (and their
+    // covering indexes) unless a condition needs other columns; counting them
+    // then skips the other tables.
     let mut folder_only = false;
-    // Snoozed threads leave the inbox; the partial index keeps this lookup tiny.
-    const NOT_SNOOZED: &str =
-        "tf.thread_id NOT IN (SELECT id FROM threads WHERE snoozed_until IS NOT NULL)";
-
-    match mailbox {
-        Mailbox::Folder { id } => {
-            from = "thread_folders tf JOIN threads t ON t.id = tf.thread_id".into();
-            folder_only = true;
-            wheres.push("tf.folder_id = ?".into());
-            values.push((*id).into());
-            order = "tf.last_date DESC".into();
-            let role: Option<String> = c
-                .query_row("SELECT role FROM folders WHERE id = ?", [id], |r| r.get(0))
-                .optional()?
-                .flatten();
-            if role.as_deref() == Some("inbox") {
-                wheres.push(NOT_SNOOZED.into());
+    let folders: Option<Vec<i64>> = match mailbox {
+        Mailbox::Folder { id } => Some(vec![*id]),
+        // Resolve the folders up front: with a single account, `folder_id = ?`
+        // lets the (folder_id, date) indexes return rows already sorted.
+        Mailbox::Unified { role } => Some(
+            c.prepare_cached(
+                "SELECT f.id FROM folders f JOIN accounts a ON a.id = f.account_id
+                 WHERE f.role = ? AND a.enabled = 1",
+            )?
+            .query_map([role.as_str()], |r| r.get(0))?
+            .collect::<rusqlite::Result<_>>()?,
+        ),
+        _ => None,
+    };
+    if let Some(ids) = &folders {
+        folder_only = true;
+        (from, key, date, sender) = if messages {
+            (
+                "message_folders mf JOIN messages m ON m.id = mf.message_id JOIN threads t ON t.id = m.thread_id",
+                "mf.message_id",
+                "mf.date",
+                "mf.sender",
+            )
+        } else {
+            (
+                "thread_folders tf JOIN threads t ON t.id = tf.thread_id",
+                "tf.thread_id",
+                "tf.last_date",
+                "tf.sender",
+            )
+        };
+        let column = if messages {
+            "mf.folder_id"
+        } else {
+            "tf.folder_id"
+        };
+        match ids.as_slice() {
+            [] => wheres.push("0".into()),
+            [one] => {
+                wheres.push(format!("{column} = ?"));
+                values.push((*one).into());
             }
-            if filter.unread {
-                wheres.push("tf.unread > 0".into());
+            many => {
+                wheres.push(format!("{column} IN ({})", vec!["?"; many.len()].join(",")));
+                values.extend(many.iter().map(|id| rusqlite::types::Value::from(*id)));
             }
         }
-        Mailbox::Unified { role } => {
-            from = "thread_folders tf JOIN threads t ON t.id = tf.thread_id".into();
-            folder_only = true;
-            // Resolve the folders up front: with a single account, `folder_id = ?`
-            // lets the (folder_id, last_date) index return rows already sorted.
-            let ids: Vec<i64> = c
-                .prepare_cached(
-                    "SELECT f.id FROM folders f JOIN accounts a ON a.id = f.account_id
-                     WHERE f.role = ? AND a.enabled = 1",
-                )?
-                .query_map([role.as_str()], |r| r.get(0))?
-                .collect::<rusqlite::Result<_>>()?;
-            match ids.as_slice() {
-                [] => wheres.push("0".into()),
-                [one] => {
-                    wheres.push("tf.folder_id = ?".into());
-                    values.push((*one).into());
+        let inbox = match mailbox {
+            Mailbox::Folder { id } => {
+                c.query_row("SELECT role FROM folders WHERE id = ?", [id], |r| {
+                    r.get::<_, Option<String>>(0)
+                })
+                .optional()?
+                .flatten()
+                .as_deref()
+                    == Some("inbox")
+            }
+            _ => matches!(
+                mailbox,
+                Mailbox::Unified {
+                    role: FolderRole::Inbox
                 }
-                many => {
-                    wheres.push(format!(
-                        "tf.folder_id IN ({})",
-                        vec!["?"; many.len()].join(",")
-                    ));
-                    values.extend(many.iter().map(|id| rusqlite::types::Value::from(*id)));
-                }
-            }
-            order = "tf.last_date DESC".into();
-            if *role == FolderRole::Inbox {
-                wheres.push(NOT_SNOOZED.into());
-            }
-            if filter.unread {
-                wheres.push("tf.unread > 0".into());
-            }
+            ),
+        };
+        // Snoozed threads leave the inbox; the partial index keeps this lookup tiny.
+        if inbox {
+            wheres.push(if messages {
+                "mf.message_id NOT IN (SELECT sm.id FROM threads st JOIN messages sm ON sm.thread_id = st.id
+                                       WHERE st.snoozed_until IS NOT NULL)"
+                    .into()
+            } else {
+                "tf.thread_id NOT IN (SELECT id FROM threads WHERE snoozed_until IS NOT NULL)".into()
+            });
+        }
+    }
+    let mut order = match sort {
+        SortOrder::Newest => format!("{date} DESC"),
+        SortOrder::Oldest => format!("{date} ASC"),
+        SortOrder::Sender => format!("{sender}, {date} DESC"),
+    };
+    match mailbox {
+        Mailbox::Folder { .. } | Mailbox::Unified { .. } => {}
+        Mailbox::Starred if messages => {
+            wheres.push("(m.flags & 2) != 0".into());
+            wheres.push(NOT_TRASH_MESSAGE.into());
         }
         Mailbox::Starred => {
             wheres.push("t.flagged = 1".into());
             wheres.push(NOT_TRASH.into());
+        }
+        // Mail from VIPs: their messages, or the conversations with one.
+        Mailbox::Vip if messages => {
+            wheres.push(crate::vip::FROM_VIP.into());
+            wheres.push(NOT_TRASH_MESSAGE.into());
         }
         Mailbox::Vip => {
             wheres.push(format!(
@@ -1695,31 +1870,79 @@ pub fn list_sql(
             ));
             wheres.push(NOT_TRASH.into());
         }
-        Mailbox::FollowUp => {
-            wheres.push(
-                "t.id IN (SELECT m.thread_id FROM followups f
-                          JOIN messages m ON m.account_id = f.account_id AND m.message_id = f.message_id
-                          WHERE f.notified = 1)"
-                    .into(),
-            );
-        }
+        // The sent messages being followed up, or their conversations.
+        Mailbox::FollowUp => wheres.push(format!(
+            "{key} IN (SELECT {} FROM followups f
+                       JOIN messages fm ON fm.account_id = f.account_id AND fm.message_id = f.message_id
+                       WHERE f.notified = 1)",
+            if messages { "fm.id" } else { "fm.thread_id" }
+        )),
         Mailbox::Snoozed => {
             wheres.push("t.snoozed_until IS NOT NULL".into());
-            order = "t.snoozed_until ASC".into();
+            // The messages that left the inbox with their conversation.
+            if messages {
+                wheres.push(
+                    "EXISTS (SELECT 1 FROM message_folders x JOIN folders xf ON xf.id = x.folder_id
+                             WHERE x.message_id = m.id AND xf.role = 'inbox')"
+                        .into(),
+                );
+            }
+            // By when they come back, soonest first.
+            order = match sort {
+                SortOrder::Newest => format!("t.snoozed_until ASC, {date} DESC"),
+                SortOrder::Oldest => format!("t.snoozed_until DESC, {date} DESC"),
+                SortOrder::Sender => format!("{sender}, t.snoozed_until ASC"),
+            };
         }
-        Mailbox::Everything => {
-            wheres.push(NOT_TRASH.into());
-        }
+        Mailbox::Everything => wheres.push(
+            if messages {
+                NOT_TRASH_MESSAGE
+            } else {
+                NOT_TRASH
+            }
+            .into(),
+        ),
     }
-    if filter.unread && !matches!(mailbox, Mailbox::Folder { .. } | Mailbox::Unified { .. }) {
-        wheres.push("t.unread_count > 0".into());
+    if filter.unread {
+        match &folders {
+            // The unread messages of the conversations with unread mail in the
+            // folders: few, and found through the partial index on those.
+            Some(ids) if messages && !ids.is_empty() => {
+                wheres.push(format!(
+                    "mf.message_id IN (SELECT um.id FROM thread_folders utf JOIN messages um ON um.thread_id = utf.thread_id
+                                       WHERE utf.folder_id IN ({}) AND utf.unread > 0 AND (um.flags & 9) = 0)",
+                    vec!["?"; ids.len()].join(",")
+                ));
+                values.extend(ids.iter().map(|id| rusqlite::types::Value::from(*id)));
+            }
+            Some(_) if !messages => wheres.push("tf.unread > 0".into()),
+            _ if messages => {
+                wheres.push("(m.flags & 9) = 0".into());
+                folder_only = false;
+            }
+            _ => wheres.push("t.unread_count > 0".into()),
+        }
     }
     if filter.starred {
-        wheres.push("t.flagged = 1".into());
+        wheres.push(
+            if messages {
+                "(m.flags & 2) != 0"
+            } else {
+                "t.flagged = 1"
+            }
+            .into(),
+        );
         folder_only = false;
     }
     if filter.attachments {
-        wheres.push("t.has_attachments = 1".into());
+        wheres.push(
+            if messages {
+                "m.has_attachments = 1"
+            } else {
+                "t.has_attachments = 1"
+            }
+            .into(),
+        );
         folder_only = false;
     }
     if let Some(cat) = &filter.category {
@@ -1728,14 +1951,10 @@ pub fn list_sql(
         folder_only = false;
     }
     if let Some((cond, vals)) = search {
-        // Applies to the folder row's thread, so it works for counting too.
-        let column = if from.starts_with("thread_folders") {
-            "tf.thread_id"
-        } else {
-            "t.id"
-        };
+        // Applies to the folder row's thread or message, so it works for counting too.
         wheres.push(format!(
-            "{column} IN (SELECT m.thread_id FROM messages m WHERE {cond})"
+            "{key} IN (SELECT {} FROM messages m WHERE {cond})",
+            if messages { "m.id" } else { "m.thread_id" }
         ));
         values.extend(vals);
     }
@@ -1744,11 +1963,17 @@ pub fn list_sql(
     } else {
         format!(" WHERE {}", wheres.join(" AND "))
     };
+    let folder_table = if messages {
+        "message_folders mf"
+    } else {
+        "thread_folders tf"
+    };
     Ok(ListSql {
-        count_from_where: folder_only.then(|| format!("thread_folders tf{conditions}")),
+        count_from_where: folder_only.then(|| format!("{folder_table}{conditions}")),
         from_where: format!("{from}{conditions}"),
         values,
         order,
+        messages,
     })
 }
 
@@ -1756,6 +1981,47 @@ const NOT_TRASH: &str =
     "NOT EXISTS (SELECT 1 FROM thread_folders z JOIN folders zf ON zf.id = z.folder_id
      WHERE z.thread_id = t.id AND zf.role IN ('trash', 'junk'))
      AND EXISTS (SELECT 1 FROM thread_folders y WHERE y.thread_id = t.id)";
+
+const NOT_TRASH_MESSAGE: &str =
+    "NOT EXISTS (SELECT 1 FROM message_folders z JOIN folders zf ON zf.id = z.folder_id
+     WHERE z.message_id = m.id AND zf.role IN ('trash', 'junk'))
+     AND EXISTS (SELECT 1 FROM message_folders y WHERE y.message_id = m.id)";
+
+/// A message as a row of a list that shows them one by one.
+fn message_row_from_row(r: &Row<'_>) -> rusqlite::Result<ThreadSummary> {
+    let flags: i64 = r.get("flags")?;
+    let folders: Option<String> = r.get("folder_ids")?;
+    let from = r
+        .get::<_, Option<String>>("from_email")?
+        .map(|e| Address::new(r.get("from_name").ok().flatten(), e));
+    let calendar_method: Option<String> = r.get("calendar_method")?;
+    Ok(ThreadSummary {
+        id: r.get("id")?,
+        account_id: r.get("account_id")?,
+        subject: r.get("subject")?,
+        snippet: r.get("snippet")?,
+        last_date: r.get("date")?,
+        message_count: 1,
+        unread_count: (flags & (Flags::SEEN | Flags::DRAFT) == 0) as i64,
+        flagged: flags & Flags::FLAGGED != 0,
+        has_attachments: r.get::<_, i64>("has_attachments")? != 0,
+        draft_count: (flags & Flags::DRAFT != 0) as i64,
+        participants: from.clone().into_iter().collect(),
+        last_sender: from,
+        folder_ids: folders
+            .map(|f| f.split(',').filter_map(|x| x.parse().ok()).collect())
+            .unwrap_or_default(),
+        category: r.get("category")?,
+        is_invite: calendar_method.as_deref() == Some("REQUEST"),
+        muted: r.get::<_, i64>("muted")? != 0,
+        snoozed_until: r.get("snoozed_until")?,
+        thread_id: Some(r.get("thread_id")?),
+    })
+}
+
+const MESSAGE_ROW_COLUMNS: &str = "m.id, m.thread_id, m.account_id, m.subject, m.snippet, m.date, m.flags, m.has_attachments,
+    m.from_name, m.from_email, m.calendar_method, t.category, t.muted, t.snoozed_until,
+    (SELECT group_concat(folder_id) FROM message_folders x WHERE x.message_id = m.id) AS folder_ids";
 
 /// Runs a list query and returns one page.
 pub fn query_threads(c: &Connection, sql: &ListSql, offset: i64, limit: i64) -> Result<ThreadPage> {
@@ -1770,12 +2036,14 @@ pub fn query_threads(c: &Connection, sql: &ListSql, offset: i64, limit: i64) -> 
     let mut values = sql.values.clone();
     values.push(limit.into());
     values.push(offset.into());
-    let mut st = c.prepare_cached(&format!(
-        "SELECT {SUMMARY_COLUMNS} FROM {} ORDER BY {} LIMIT ? OFFSET ?",
-        sql.from_where, sql.order
-    ))?;
+    let row: fn(&Row<'_>) -> rusqlite::Result<ThreadSummary> = if sql.messages {
+        message_row_from_row
+    } else {
+        summary_from_row
+    };
+    let mut st = c.prepare_cached(&sql.page())?;
     let items = st
-        .query_map(params_from_iter(values), summary_from_row)?
+        .query_map(params_from_iter(values), row)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(ThreadPage {
         total,
@@ -1805,7 +2073,11 @@ pub fn get_thread(c: &Connection, thread_id: i64) -> Result<ThreadDetail> {
         m.attachments = attachments_of(c, m.id)?;
         m.body = body_of(c, m.id)?;
     }
-    Ok(ThreadDetail { thread, messages })
+    Ok(ThreadDetail {
+        thread,
+        messages,
+        conversation: None,
+    })
 }
 
 pub fn get_message(c: &Connection, message_id: i64) -> Result<MessageView> {
@@ -1822,6 +2094,27 @@ pub fn get_message(c: &Connection, message_id: i64) -> Result<MessageView> {
     m.attachments = attachments_of(c, m.id)?;
     m.body = body_of(c, m.id)?;
     Ok(m)
+}
+
+/// One message opened from a list of messages one by one: its row there, the
+/// message, and the conversation it is in.
+pub fn get_message_detail(c: &Connection, message_id: i64) -> Result<ThreadDetail> {
+    let row = c
+        .query_row(
+            &format!(
+                "SELECT {MESSAGE_ROW_COLUMNS} FROM messages m JOIN threads t ON t.id = m.thread_id WHERE m.id = ?"
+            ),
+            [message_id],
+            message_row_from_row,
+        )
+        .optional()?
+        .ok_or_else(|| Error::NotFound(format!("message {message_id}")))?;
+    let conversation = thread_summary(c, row.thread_id.unwrap_or_default())?;
+    Ok(ThreadDetail {
+        thread: row,
+        messages: vec![get_message(c, message_id)?],
+        conversation: Some(conversation),
+    })
 }
 
 fn message_from_row(r: &Row<'_>) -> rusqlite::Result<MessageView> {
