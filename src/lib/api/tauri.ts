@@ -90,9 +90,15 @@ export function createTauriApi(): Api {
       return Array.isArray(r) ? r : [r];
     },
     pickSavePath: async (filename) => (await saveDialog({ defaultPath: filename })) ?? null,
+    pickFolder: async (title) => {
+      const r = await openDialog({ directory: true, multiple: false, title });
+      return typeof r === 'string' ? r : null;
+    },
     attachmentOpen: (id) => invoke('attachment_open', { id }),
     attachmentSave: (id, target) => invoke('attachment_save', { id, target }),
+    attachmentsSaveAll: (ids, dir) => invoke('attachments_save_all', { ids, dir }),
     attachmentReveal: (id) => invoke('attachment_reveal', { id }),
+    revealPath: (path) => invoke('reveal_path', { path }),
     attachmentUrl: (id) => `att://localhost/file/${id}`,
     inlineUrl: (messageId, cid) => `att://localhost/inline/${messageId}/${encodeURIComponent(cid)}`,
 

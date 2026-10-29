@@ -360,9 +360,16 @@ export function createMockApi(): Api {
     stashFile: async (filename, bytes) => ({ path: `/tmp/${filename}`, filename, mimeType: 'image/png', size: bytes.length }),
     pickFiles: async () => [],
     pickSavePath: async () => null,
+    // The demo has no file system: a folder is "picked" and the files "saved" there.
+    pickFolder: async () => delay('/home/alex/Downloads', 150),
     attachmentOpen: async () => {},
     attachmentSave: async () => {},
+    attachmentsSaveAll: async (ids, dir) => {
+      const names = messages.flatMap((m) => m.attachments).filter((a) => ids.includes(a.id)).map((a) => a.filename);
+      return delay(names.map((n) => `${dir}/${n}`), 400);
+    },
     attachmentReveal: async () => {},
+    revealPath: async () => {},
     attachmentUrl: () => '',
     inlineUrl: () => '',
 

@@ -526,6 +526,60 @@ pub async fn attachment_save(state: State<'_, AppState>, id: i64, target: String
     Ok(())
 }
 
+/// Saves attachments into a folder, numbering names that are taken ("plan (2).pdf").
+/// Returns the files written.
+#[tauri::command]
+pub async fn attachments_save_all(
+    state: State<'_, AppState>,
+    ids: Vec<i64>,
+    dir: String,
+) -> R<Vec<String>> {
+    let dir = std::path::PathBuf::from(dir);
+    let mut written = Vec::with_capacity(ids.len());
+    for id in ids {
+        let source = state.engine.attachment_file(id).await?;
+        let name = source
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "attachment".into());
+        let target = free_path(&dir, &name);
+        tokio::fs::copy(&source, &target)
+            .await
+            .map_err(|e| CmdError::from(format!("could not save {name}: {e}")))?;
+        written.push(target.to_string_lossy().into_owned());
+    }
+    Ok(written)
+}
+
+/// `dir/name`, or `dir/name (2)` and so on when that is taken.
+fn free_path(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let first = dir.join(name);
+    if !first.exists() {
+        return first;
+    }
+    let path = std::path::Path::new(name);
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| name.to_string());
+    let ext = path
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    (2..)
+        .map(|n| dir.join(format!("{stem} ({n}){ext}")))
+        .find(|p| !p.exists())
+        .unwrap_or(first)
+}
+
+/// Shows a file in the file manager.
+#[tauri::command]
+pub fn reveal_path(app: AppHandle, path: String) -> R<()> {
+    app.opener()
+        .reveal_item_in_dir(path)
+        .map_err(|e| CmdError::from(e.to_string()))
+}
+
 #[tauri::command]
 pub async fn attachment_reveal(app: AppHandle, state: State<'_, AppState>, id: i64) -> R<()> {
     let path = state.engine.attachment_file(id).await?;

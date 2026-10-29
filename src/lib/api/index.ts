@@ -66,9 +66,15 @@ export interface Api {
   stashFile(filename: string, data: Uint8Array): Promise<T.FileInfo>;
   pickFiles(): Promise<string[]>;
   pickSavePath(filename: string): Promise<string | null>;
+  /** Asks for a folder; null when cancelled. */
+  pickFolder(title: string): Promise<string | null>;
   attachmentOpen(id: number): Promise<void>;
   attachmentSave(id: number, target: string): Promise<void>;
+  /** Saves attachments into a folder (names taken are numbered); returns the files written. */
+  attachmentsSaveAll(ids: number[], dir: string): Promise<string[]>;
   attachmentReveal(id: number): Promise<void>;
+  /** Shows a file in the file manager. */
+  revealPath(path: string): Promise<void>;
   attachmentUrl(id: number): string;
   inlineUrl(messageId: number, contentId: string): string;
 

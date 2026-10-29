@@ -21,7 +21,7 @@
   import { cal } from '../stores/calendar.svelte';
   import type { ExtractedEvent } from '../api';
   import { fileIconKind } from '../utils/format';
-  import { CalendarPlus, Code, Eye, FileArrow, Filter, Forward, Image, Mail, More, Pen, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
+  import { CalendarPlus, Code, Eye, FileArrow, Filter, FolderDown, Forward, Image, Mail, More, Pen, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
 
   let { message, expanded, ontoggle }: { message: MessageView; expanded: boolean; ontoggle: () => void } = $props();
 
@@ -84,7 +84,31 @@
   const images = $derived(files.filter((a) => fileIconKind(a.mimeType, a.filename) === 'image'));
   /** A draft (stored on the server): it opens in a composer instead of being replied to. */
   const isDraft = $derived(message.flags.draft);
+  let saving = $state(false);
 
+  /** Saves every attachment into a folder picked for them, then offers to show them there. */
+  async function saveAll() {
+    if (saving) return;
+    const dir = await api.pickFolder(t('message.saveAllTitle'));
+    if (!dir) return;
+    saving = true;
+    const count = files.length;
+    const progress = toasts.show(t('message.savingAll', { count }), { kind: 'progress', duration: 0 });
+    try {
+      const paths = await api.attachmentsSaveAll(files.map((a) => a.id), dir);
+      toasts.dismiss(progress);
+      toasts.show(t('message.savedAll', { count: paths.length, folder: dir.split(/[\\/]/).filter(Boolean).pop() ?? dir }), {
+        kind: 'success',
+        action: { label: t('message.showInFolder'), run: () => api.revealPath(paths[0] ?? dir).catch((e) => toasts.error(errorMessage(e))) },
+        duration: 8000,
+      });
+    } catch (e) {
+      toasts.dismiss(progress);
+      toasts.error(t('message.saveAllFailed', { error: errorMessage(e) }));
+    } finally {
+      saving = false;
+    }
+  }
 
   function nameOrMe(a: Address) {
     return mail.meEmails.has(a.email.toLowerCase()) ? t('message.recipientMe') : displayName(a);
@@ -213,7 +237,13 @@
     </div>
 
     {#if files.length}
-      <div class="files">
+      {#if files.length > 1}
+        <div class="files-head">
+          <span>{t('message.attachmentCount', { count: files.length })}</span>
+          <button class="link save-all" onclick={saveAll} disabled={saving}><FolderDown size={14} />{t('message.saveAll')}</button>
+        </div>
+      {/if}
+      <div class="files" class:headed={files.length > 1}>
         {#each files as a (a.id)}
           <AttachmentTile att={a} onpreview={(x) => (viewing = images.findIndex((i) => i.id === x.id))} />
         {/each}
@@ -483,6 +513,33 @@
     margin-top: 16px;
     padding-left: 48px;
   }
+  .files.headed {
+    margin-top: 8px;
+  }
+  .files-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding-left: 48px;
+    font-size: var(--text-sm);
+    color: var(--text-3);
+  }
+  .save-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 8px;
+    margin-left: -8px;
+    border-radius: 7px;
+  }
+  .save-all:hover {
+    background: var(--accent-softer);
+  }
+  .save-all:disabled {
+    opacity: 0.55;
+  }
   .draft-chip {
     flex-shrink: 0;
     font-size: 11px;
@@ -546,7 +603,8 @@
   }
   @media (max-width: 1100px) {
     .content,
-    .files {
+    .files,
+    .files-head {
       padding-left: 0;
     }
     .trackers {
