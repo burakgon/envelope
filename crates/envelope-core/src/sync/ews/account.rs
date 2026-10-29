@@ -471,6 +471,7 @@ impl Engine {
         }
         self.start_worker(id);
         self.calendar_wake.notify_one();
+        self.tasks_wake.notify_one();
         self.emit(EngineEvent::AccountsChanged);
         self.account(id)
     }

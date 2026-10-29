@@ -192,9 +192,10 @@ enum Done {
     Deleted,
 }
 
-/// Why an upload failed, which decides what happens to the change.
+/// Why an upload failed, which decides what happens to the change (also
+/// used by the task sync).
 #[derive(Debug)]
-enum Failure {
+pub(crate) enum Failure {
     /// Try again later (network, server trouble, rate limits).
     Transient(String),
     /// The credentials were rejected.
@@ -265,7 +266,7 @@ impl From<Error> for Failure {
     }
 }
 
-fn dav_err(e: DavError) -> Error {
+pub(crate) fn dav_err(e: DavError) -> Error {
     if e.is_transient() {
         Error::Network(e.to_string())
     } else if matches!(e, DavError::Unauthorized | DavError::TokenSource(_)) {
@@ -292,7 +293,7 @@ fn graph_err(e: envelope_graph::GraphError) -> Error {
 }
 
 /// Delay before retrying a failed upload.
-fn backoff(attempts: i64, transient: bool) -> i64 {
+pub(crate) fn backoff(attempts: i64, transient: bool) -> i64 {
     let cap = if transient { 15 * 60_000 } else { 60 * 60_000 };
     (30_000_i64 << attempts.clamp(0, 10)).min(cap)
 }

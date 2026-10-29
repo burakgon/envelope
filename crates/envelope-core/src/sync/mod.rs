@@ -8,6 +8,7 @@ mod identities;
 pub mod imap;
 pub mod outbox;
 mod subscriptions;
+pub mod tasks;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

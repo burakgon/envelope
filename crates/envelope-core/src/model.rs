@@ -623,6 +623,11 @@ pub enum EngineEvent {
     ContactsChanged {
         book_ids: Vec<i64>,
     },
+    /// Tasks in these lists changed; an empty `list_ids` means the lists
+    /// themselves changed (reload everything).
+    TasksChanged {
+        list_ids: Vec<i64>,
+    },
     OutboxChanged,
     /// A message failed to send.
     SendFailed {
@@ -640,6 +645,12 @@ pub enum EngineEvent {
     FollowUpDue {
         thread_id: i64,
         subject: String,
+    },
+    /// An open task became due at its time of day.
+    TaskDue {
+        task_id: i64,
+        title: String,
+        due_at: i64,
     },
 }
 
@@ -681,6 +692,28 @@ mod event_tests {
         assert_eq!(
             json,
             serde_json::json!({ "type": "contactsChanged", "bookIds": [4] })
+        );
+    }
+
+    #[test]
+    fn task_events_wire_format() {
+        let json = serde_json::to_value(EngineEvent::TasksChanged {
+            list_ids: vec![1, 5],
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({ "type": "tasksChanged", "listIds": [1, 5] })
+        );
+        let json = serde_json::to_value(EngineEvent::TaskDue {
+            task_id: 7,
+            title: "Call Maya".into(),
+            due_at: 1_700_000_000_000,
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({ "type": "taskDue", "taskId": 7, "title": "Call Maya", "dueAt": 1_700_000_000_000_i64 })
         );
     }
 }

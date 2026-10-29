@@ -6,6 +6,7 @@ pub mod contacts;
 pub mod crypto;
 pub mod mail;
 pub mod misc;
+pub mod tasks;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -18,9 +19,10 @@ use crate::error::{Error, Result};
 const SCHEMA: &str = concat!(
     include_str!("schema.sql"),
     include_str!("contacts.sql"),
-    include_str!("crypto.sql")
+    include_str!("crypto.sql"),
+    include_str!("tasks.sql")
 );
-const SCHEMA_VERSION: i64 = 6;
+const SCHEMA_VERSION: i64 = 7;
 
 /// Steps from one schema version to the next, applied in order to older databases.
 const MIGRATIONS: &[(i64, &str)] = &[
@@ -52,6 +54,8 @@ const MIGRATIONS: &[(i64, &str)] = &[
     ),
     // OpenPGP keys, Autocrypt peers and encrypted or signed messages.
     (5, include_str!("crypto.sql")),
+    // Task lists and tasks.
+    (7, include_str!("tasks.sql")),
 ];
 
 /// Columns added to existing tables: (version, table, column, declaration).
@@ -305,6 +309,46 @@ mod tests {
             })
             .unwrap();
         assert_eq!((version, books, has_book_id), (SCHEMA_VERSION, 0, 1));
+        drop(db);
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+    }
+
+    #[test]
+    fn migrates_version_6_to_tasks() {
+        let path = std::env::temp_dir().join(format!("envelope-v6-{}.db", uuid::Uuid::new_v4()));
+        {
+            // A version 6 database: everything but tasks.
+            let db = Db::open(&path).unwrap();
+            db.write(|tx| {
+                tx.execute_batch(
+                    "DROP TABLE tasks; DROP TABLE task_lists; PRAGMA user_version = 6;",
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        }
+        let db = Db::open(&path).unwrap();
+        let (version, lists, columns): (i64, i64, i64) = db
+            .read(|c| {
+                Ok((
+                    c.query_row("PRAGMA user_version", [], |r| r.get(0))?,
+                    c.query_row("SELECT count(*) FROM task_lists", [], |r| r.get(0))?,
+                    c.query_row(
+                        "SELECT count(*) FROM pragma_table_info('tasks')
+                         WHERE name IN ('due_at', 'local_state', 'push_error', 'source', 'notified')",
+                        [],
+                        |r| r.get(0),
+                    )?,
+                ))
+            })
+            .unwrap();
+        assert_eq!((version, lists, columns), (SCHEMA_VERSION, 0, 5));
+        let list = db
+            .write(|tx| tasks::create_local_list(tx, "Tasks", true))
+            .unwrap();
+        assert_eq!(db.read(tasks::local_default_list).unwrap(), Some(list));
         drop(db);
         for suffix in ["", "-wal", "-shm"] {
             let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));

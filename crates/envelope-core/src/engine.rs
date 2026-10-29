@@ -68,6 +68,8 @@ pub struct Inner {
     pub(crate) contacts_wake: Notify,
     /// Wakes the contact photo worker.
     pub(crate) photos_wake: Notify,
+    /// Wakes the task sync (local edits, account changes, manual sync).
+    pub(crate) tasks_wake: Notify,
     /// OpenPGP session state: unlocked passphrases, decrypted messages.
     pub(crate) crypto: crate::crypto::Session,
     pub(crate) shutdown: CancellationToken,
@@ -110,6 +112,7 @@ impl Engine {
                 calendar_wake: Notify::new(),
                 contacts_wake: Notify::new(),
                 photos_wake: Notify::new(),
+                tasks_wake: Notify::new(),
                 crypto: crate::crypto::Session::default(),
                 shutdown: CancellationToken::new(),
             }),
@@ -122,6 +125,7 @@ impl Engine {
         crate::sync::outbox::spawn_scheduler(engine.clone());
         crate::sync::calendar::spawn_scheduler(engine.clone());
         crate::sync::contacts::spawn_scheduler(engine.clone());
+        crate::sync::tasks::spawn_scheduler(engine.clone());
         crate::sync::spawn_housekeeping(engine.clone());
         Ok(engine)
     }
@@ -195,6 +199,7 @@ impl Engine {
     pub fn sync_now(&self, account_id: Option<i64>) {
         self.calendar_wake.notify_one();
         self.contacts_wake.notify_one();
+        self.tasks_wake.notify_one();
         match account_id {
             Some(id) => self.wake(id),
             None => {
@@ -361,6 +366,7 @@ impl Engine {
         self.start_worker(id);
         self.calendar_wake.notify_one();
         self.contacts_wake.notify_one();
+        self.tasks_wake.notify_one();
         self.emit(EngineEvent::AccountsChanged);
         self.account(id)
     }
@@ -424,6 +430,7 @@ impl Engine {
         self.start_worker(id);
         self.calendar_wake.notify_one();
         self.contacts_wake.notify_one();
+        self.tasks_wake.notify_one();
         self.emit(EngineEvent::AccountsChanged);
         self.account(id)
     }
@@ -505,6 +512,11 @@ impl Engine {
             }
             self.calendar_wake.notify_one();
             self.contacts_wake.notify_one();
+            self.tasks_wake.notify_one();
+            // The account's lists show or hide with it.
+            self.emit(EngineEvent::TasksChanged {
+                list_ids: Vec::new(),
+            });
         }
         self.emit(EngineEvent::AccountsChanged);
         self.account(id)
@@ -524,6 +536,9 @@ impl Engine {
             .await?;
         let _ = std::fs::remove_dir_all(self.paths.cache.join(format!("account-{id}")));
         self.emit(EngineEvent::AccountsChanged);
+        self.emit(EngineEvent::TasksChanged {
+            list_ids: Vec::new(),
+        });
         Ok(())
     }
 
