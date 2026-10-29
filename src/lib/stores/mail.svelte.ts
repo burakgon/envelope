@@ -676,6 +676,44 @@ class Mail {
     }
   }
 
+  /** The list is Follow up: sent conversations still waiting for a reply. */
+  inFollowUp = $derived(this.mailbox.kind === 'followUp' && !this.search);
+
+  /** Stops the follow-up reminders of conversations ("Done"). */
+  async followUpDone(ids = this.targets()) {
+    if (!ids.length) return;
+    if (this.inFollowUp) this.removeLocally(ids);
+    try {
+      await api.setFollowUp(ids, { kind: 'done' });
+      this.loadFollowUps();
+      toasts.undoable(t('mail.followUpDone', { count: ids.length }), () => this.followUpBack(ids));
+    } catch (e) {
+      toasts.error(errorMessage(e));
+      this.refresh();
+    }
+  }
+
+  /** Reminds again at `until` unless someone replies first. */
+  async followUpLater(until: number, ids = this.targets()) {
+    if (!ids.length) return;
+    if (this.inFollowUp) this.removeLocally(ids);
+    try {
+      await api.setFollowUp(ids, { kind: 'remindAt', at: until });
+      this.loadFollowUps();
+      const when = dateFormat({ weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(until);
+      toasts.undoable(t('mail.followUpLater', { when }), () => this.followUpBack(ids));
+    } catch (e) {
+      toasts.error(errorMessage(e));
+      this.refresh();
+    }
+  }
+
+  private async followUpBack(ids: number[]) {
+    await api.setFollowUp(ids, { kind: 'due' });
+    this.loadFollowUps();
+    this.refresh();
+  }
+
   foldersOf(accountId: number): Folder[] {
     return this.folders.filter((f) => f.accountId === accountId && !f.hidden);
   }

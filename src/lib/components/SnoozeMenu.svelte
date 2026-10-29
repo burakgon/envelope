@@ -4,7 +4,14 @@
   import { t } from '../i18n';
   import { dateFormat } from '../utils/format';
 
-  let { x, y, align = 'start', onpick, onclose }: { x: number; y: number; align?: 'start' | 'end'; onpick: (ts: number) => void; onclose: () => void } = $props();
+  let {
+    x,
+    y,
+    align = 'start',
+    title,
+    onpick,
+    onclose,
+  }: { x: number; y: number; align?: 'start' | 'end'; /** The heading (else "Snooze until"). */ title?: string; onpick: (ts: number) => void; onclose: () => void } = $props();
 
   function at(daysFromNow: number, hour: number): Date {
     const d = new Date();
@@ -38,7 +45,7 @@
 </script>
 
 <Popover {x} {y} {align} {onclose} width={260}>
-  <div class="menu-label">{t('snooze.until')}</div>
+  <div class="menu-label">{title ?? t('snooze.until')}</div>
   {#each options as o (o.id)}
     <button class="menu-item" onclick={() => onpick(o.when.getTime())}>
       <o.icon size={15} />

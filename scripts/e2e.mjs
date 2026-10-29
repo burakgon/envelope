@@ -718,6 +718,26 @@ await step('Mark all as read takes only the tab shown, says how many and undoes'
   }
 });
 
+await step('a follow-up reminder is done, or comes back later', async () => {
+  const p = await fresh();
+  try {
+    await p.locator('.sidebar .item', { hasText: 'Follow up' }).click();
+    const row = p.locator('.row', { hasText: 'Contract renewal' });
+    await row.click();
+    await p.locator('.reader .pill', { hasText: 'Done' }).click();
+    await toast(p, 'Follow-up done');
+    await row.waitFor({ state: 'detached', timeout: 5000 });
+    await p.locator('body').press('z');
+    await row.click();
+    await p.locator('.reader .icon-btn[aria-label="Remind me again…"]').click();
+    await p.locator('.menu-item', { hasText: 'Tomorrow' }).click();
+    await toast(p, 'Follow-up moved to');
+    await row.waitFor({ state: 'detached', timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('a banner asks to sign in again, and says when a server is out of reach', async () => {
   const trouble = {
     1: { state: 'offline', message: 'connection refused (os error 111)', failures: 4 },

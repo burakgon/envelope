@@ -210,6 +210,7 @@ pub fn run() {
             commands::load_bodies,
             commands::set_flags,
             commands::mark_read,
+            commands::set_follow_up,
             commands::move_threads,
             commands::undo,
             commands::delete_forever,

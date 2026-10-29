@@ -248,6 +248,9 @@ export interface MarkedRead {
   messageIds: number[];
 }
 
+/** A change to the follow-up reminders of conversations. */
+export type FollowUpChange = { kind: 'done' } | { kind: 'remindAt'; at: number } | { kind: 'due' };
+
 export interface DraftAttachment {
   filename: string;
   mimeType: string;

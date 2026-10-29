@@ -16,6 +16,7 @@
   import {
     Archive, BellOff, BookUser, Calendar, CalendarPlus, Compose, UserPlus, Folder, Inbox, Keyboard, Mail, Moon, Refresh, Search, Settings, Sparkles, Star, Sun, Tag, Trash, Clock, Send, File, Mails,
     ListChecks, ListPlus,
+    Check, AlarmClock,
   } from '../icons';
 
   type Group = 'actions' | 'goTo' | 'help' | 'calendar' | 'conversation' | 'folders';
@@ -106,9 +107,22 @@
           { id: 'unread', label: t('palette.toggleRead'), group: 'conversation', icon: Mail, hint: 'U', run: () => mail.toggleRead() },
           { id: 'mute', label: t('palette.toggleMute'), group: 'conversation', icon: BellOff, hint: 'M', run: () => mail.toggleMute() },
           { id: 'add-task', label: t('tasks.palette.addToTasks'), group: 'conversation', icon: ListPlus, hint: 'T', run: () => tasks.addFromMail(mail.targets()) },
+          ...(mail.inFollowUp
+            ? [
+                { id: 'follow-up-done', label: t('palette.followUpDone'), group: 'conversation', icon: Check, run: () => mail.followUpDone() } satisfies Command,
+                { id: 'follow-up-later', label: t('palette.followUpTomorrow'), group: 'conversation', icon: AlarmClock, run: () => mail.followUpLater(tomorrowMorning()) } satisfies Command,
+              ]
+            : []),
         ]
       : [],
   );
+
+  function tomorrowMorning(): number {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(8, 0, 0, 0);
+    return d.getTime();
+  }
 
   const folderCommands = $derived<Command[]>(
     mail.folders

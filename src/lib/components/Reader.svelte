@@ -11,12 +11,17 @@
   import LinkStatus from './LinkStatus.svelte';
   import { pgp } from '../stores/pgp.svelte';
   import { tasks } from '../stores/tasks.svelte';
-  import { Archive, BellOff, Clock, Folder, Forward, ListChecks, ListPlus, Mail, MailOpen, Reply, ReplyAll, ShieldAlert, Star, Tag, Trash, Inbox } from '../icons';
+  import {
+    Archive, BellOff, Clock, Folder, Forward, ListChecks, ListPlus, Mail, MailOpen, Reply, ReplyAll, ShieldAlert, Star, Tag, Trash, Inbox,
+    Check, AlarmClock,
+  } from '../icons';
   import { t } from '../i18n';
 
   let expanded = $state<Record<number, boolean>>({});
   let showAll = $state(false);
   let snoozeAt = $state<{ x: number; y: number } | null>(null);
+  /** "Remind me again" of a follow-up reminder. */
+  let remindAt = $state<{ x: number; y: number } | null>(null);
   let moveAt = $state<{ x: number; y: number; labels: boolean } | null>(null);
   let scroller: HTMLDivElement | undefined = $state();
   let lastThread = -1;
@@ -66,6 +71,11 @@
   <header data-tauri-drag-region>
     {#if thread}
       <div class="actions">
+        {#if mail.inFollowUp}
+          <button class="btn sm pill" title={t('reader.followUpDoneTitle')} onclick={() => mail.followUpDone([thread.id])}><Check size={14} />{t('reader.followUpDone')}</button>
+          <button class="icon-btn" title={t('reader.followUpLater')} aria-label={t('reader.followUpLater')} onclick={(e) => (remindAt = rect(e))}><AlarmClock size={17} /></button>
+          <span class="sep"></span>
+        {/if}
         {#if inInbox || !mail.isInboxView}
           <button class="icon-btn" title={t('reader.toolbarArchive', { key: 'E' })} onclick={() => mail.archive([thread.id])}><Archive size={17} /></button>
         {:else}
@@ -167,6 +177,10 @@
   {@const id = thread.id}
   <SnoozeMenu x={snoozeAt.x} y={snoozeAt.y} onclose={() => (snoozeAt = null)} onpick={(ts) => { snoozeAt = null; mail.snooze(ts, [id]); }} />
 {/if}
+{#if remindAt && thread}
+  {@const id = thread.id}
+  <SnoozeMenu x={remindAt.x} y={remindAt.y} title={t('reader.followUpRemindTitle')} onclose={() => (remindAt = null)} onpick={(ts) => { remindAt = null; mail.followUpLater(ts, [id]); }} />
+{/if}
 {#if moveAt && thread}
   <MoveMenu x={moveAt.x} y={moveAt.y} ids={[thread.id]} labels={moveAt.labels} onclose={() => (moveAt = null)} />
 {/if}
@@ -193,6 +207,18 @@
     display: flex;
     align-items: center;
     gap: 2px;
+  }
+  /* A labeled action: the one that matters most in this list (Not spam, Done). */
+  .pill {
+    height: 28px;
+    margin-right: 2px;
+    color: var(--accent-text);
+    background: var(--accent-soft);
+    box-shadow: none;
+    font-weight: 600;
+  }
+  .pill:hover {
+    background: color-mix(in oklab, var(--accent) 18%, transparent);
   }
   .sep {
     width: 1px;

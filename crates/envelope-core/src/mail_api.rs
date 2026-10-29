@@ -38,6 +38,18 @@ pub struct MarkedRead {
     pub message_ids: Vec<i64>,
 }
 
+/// A change to the follow-up reminders of conversations.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum FollowUpChange {
+    /// No more reminders ("Done").
+    Done,
+    /// Remind again at this time (unix ms) unless someone replies first.
+    RemindAt { at: i64 },
+    /// Back in Follow up, as when the reminder came due (undo).
+    Due,
+}
+
 impl Engine {
     // ----- listing -------------------------------------------------------------
 
@@ -286,6 +298,28 @@ impl Engine {
             threads: threads.len() as i64,
             message_ids,
         })
+    }
+
+    /// Follow-up reminders of conversations: done, remind again later, or
+    /// back in Follow up (to undo either).
+    pub fn set_follow_up(&self, thread_ids: &[i64], change: &FollowUpChange) -> Result<()> {
+        let ids = thread_ids.to_vec();
+        let accounts: Vec<i64> = self.db.write(|tx| {
+            match change {
+                FollowUpChange::Done => misc::followup_set(tx, &ids, misc::FOLLOWUP_DONE, None)?,
+                FollowUpChange::RemindAt { at } => {
+                    misc::followup_set(tx, &ids, misc::FOLLOWUP_WAITING, Some(*at))?
+                }
+                FollowUpChange::Due => misc::followup_set(tx, &ids, misc::FOLLOWUP_DUE, None)?,
+            };
+            Ok(mail::thread_summaries(tx, &ids)?
+                .into_iter()
+                .map(|t| t.account_id)
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect())
+        })?;
+        self.after_local_change(&accounts, &thread_ids.iter().copied().collect())
     }
 
     fn after_local_change(&self, accounts: &[i64], threads: &BTreeSet<i64>) -> Result<()> {

@@ -898,6 +898,33 @@ pub fn followups_to_check(c: &Connection, now: i64) -> Result<Vec<FollowUp>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
+/// States of a follow-up reminder (`followups.notified`): not due yet.
+pub const FOLLOWUP_WAITING: i64 = 0;
+/// Due without a reply: the conversation is in Follow up.
+pub const FOLLOWUP_DUE: i64 = 1;
+/// Dismissed ("Done"): no more reminders; forgotten once a reply comes.
+pub const FOLLOWUP_DONE: i64 = 2;
+
+/// Sets the reminder state of the messages watched in conversations, and
+/// their due time when given. Returns how many reminders changed.
+pub fn followup_set(
+    tx: &Transaction<'_>,
+    thread_ids: &[i64],
+    state: i64,
+    due_at: Option<i64>,
+) -> Result<usize> {
+    let mut st = tx.prepare_cached(
+        "UPDATE followups SET notified = ?1, due_at = coalesce(?2, due_at)
+         WHERE EXISTS (SELECT 1 FROM messages m WHERE m.thread_id = ?3
+                         AND m.account_id = followups.account_id AND m.message_id = followups.message_id)",
+    )?;
+    let mut changed = 0;
+    for t in thread_ids {
+        changed += st.execute(params![state, due_at, t])?;
+    }
+    Ok(changed)
+}
+
 pub fn followup_mark_notified(tx: &Transaction<'_>, message_id: &str) -> Result<()> {
     tx.execute(
         "UPDATE followups SET notified = 1 WHERE message_id = ?",

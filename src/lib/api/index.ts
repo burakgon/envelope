@@ -33,6 +33,8 @@ export interface Api {
   setFlags(threadIds: number[], messageIds: number[], change: T.FlagChange): Promise<void>;
   /** Marks every unread conversation of a list (mailbox, filter, inbox tab, search) as read. */
   markRead(mailbox: T.Mailbox, filter: T.ListFilter, search: string | null): Promise<T.MarkedRead>;
+  /** Done with, reminds again later, or brings back the follow-up reminders of conversations. */
+  setFollowUp(threadIds: number[], change: T.FollowUpChange): Promise<void>;
   moveThreads(threadIds: number[], source: number | null, target: T.MoveTarget): Promise<T.UndoToken>;
   undo(token: T.UndoToken): Promise<void>;
   deleteForever(threadIds: number[]): Promise<void>;

@@ -1,5 +1,6 @@
 //! IPC commands called by the UI.
 
+use envelope_core::mail_api::FollowUpChange;
 use envelope_core::mail_api::MarkedRead;
 use envelope_core::model::*;
 use envelope_core::oauth::{ClientConfig, Provider};
@@ -252,6 +253,15 @@ pub fn mark_read(
     Ok(state
         .engine
         .mark_read(&mailbox, &filter, search.as_deref())?)
+}
+
+#[tauri::command]
+pub fn set_follow_up(
+    state: State<'_, AppState>,
+    thread_ids: Vec<i64>,
+    change: FollowUpChange,
+) -> R<()> {
+    Ok(state.engine.set_follow_up(&thread_ids, &change)?)
 }
 
 #[tauri::command]

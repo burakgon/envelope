@@ -218,6 +218,25 @@ impl Fixture {
     }
 }
 
+/// The conversations a mailbox lists, newest first.
+impl Fixture {
+    pub(crate) fn list(&self, mailbox: Mailbox) -> Vec<i64> {
+        self.engine
+            .threads(&ThreadQuery {
+                mailbox,
+                search: None,
+                filter: ListFilter::default(),
+                offset: 0,
+                limit: 100,
+            })
+            .expect("list")
+            .items
+            .into_iter()
+            .map(|t| t.id)
+            .collect()
+    }
+}
+
 #[tokio::test]
 async fn mark_all_read_takes_the_list_as_shown_and_can_be_undone() {
     let fx = fixture();
@@ -305,4 +324,66 @@ async fn mark_all_read_takes_the_list_as_shown_and_can_be_undone() {
         )
         .expect("undo");
     assert_eq!(fx.unread(people), 2);
+}
+
+#[tokio::test]
+async fn follow_ups_can_be_done_or_come_back_later() {
+    let fx = fixture();
+    let (_, thread) = fx.message(
+        "Sent",
+        1,
+        "out@x",
+        None,
+        "me@example.com",
+        "Proposal",
+        1_000,
+        1,
+    );
+    let account = fx.account;
+    fx.engine
+        .db
+        .write(|tx| {
+            misc::followup_add(tx, "out@x", account, "Proposal", 1_000, 2_000)?;
+            misc::followup_mark_notified(tx, "out@x")
+        })
+        .expect("follow-up");
+    assert_eq!(fx.list(Mailbox::FollowUp), [thread]);
+
+    fx.engine
+        .set_follow_up(&[thread], &FollowUpChange::Done)
+        .expect("done");
+    assert!(fx.list(Mailbox::FollowUp).is_empty());
+    // Done stays done: no new reminder, and nothing to list.
+    let due = fx
+        .engine
+        .db
+        .read(|c| misc::followups_to_check(c, i64::MAX))
+        .expect("check");
+    assert!(due.iter().all(|f| f.notified));
+
+    fx.engine
+        .set_follow_up(&[thread], &FollowUpChange::Due)
+        .expect("undo");
+    assert_eq!(fx.list(Mailbox::FollowUp), [thread]);
+
+    let later = crate::db::now_ms() + 86_400_000;
+    fx.engine
+        .set_follow_up(&[thread], &FollowUpChange::RemindAt { at: later })
+        .expect("later");
+    assert!(fx.list(Mailbox::FollowUp).is_empty());
+    let waiting = fx
+        .engine
+        .db
+        .read(|c| misc::followups_to_check(c, later - 1))
+        .expect("check");
+    assert!(waiting.is_empty(), "not due before then");
+    let due = fx
+        .engine
+        .db
+        .read(|c| misc::followups_to_check(c, later))
+        .expect("check");
+    assert!(
+        due.iter()
+            .any(|f| f.thread_id == Some(thread) && !f.notified)
+    );
 }

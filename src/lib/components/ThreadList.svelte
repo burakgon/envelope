@@ -14,6 +14,7 @@
   import {
     Archive, Check, CheckCircle, Clock, FileArrow, Filter, Folder, Forward, Mail, MailOpen, More, Newspaper, PanelLeft, Paperclip,
     Bell, Pen, Reply, ReplyAll, Search, ShieldAlert, Star, Tag, Trash, Users, X, Refresh, Sparkles,
+    AlarmClock,
   } from '../icons';
   import AccountAlerts from './AccountAlerts.svelte';
   import { t } from '../i18n';
@@ -26,6 +27,7 @@
   let searchFocused = $state(false);
   let menu = $state<{ x: number; y: number; thread: ThreadSummary } | null>(null);
   let snoozeAt = $state<{ x: number; y: number; ids: number[] } | null>(null);
+  let remindAt = $state<{ x: number; y: number; ids: number[] } | null>(null);
   let moveAt = $state<{ x: number; y: number; ids: number[]; labels: boolean } | null>(null);
   let filterAt = $state<{ x: number; y: number } | null>(null);
   let resizing = $state(false);
@@ -333,7 +335,17 @@
       <button class="menu-item" onclick={() => { moveAt = { x: menu!.x, y: menu!.y, ids, labels: true }; menu = null; }}><Tag size={15} />{mail.accountById.get(menu.thread.accountId)?.kind === 'gmail' ? t('threadList.labelMenu') : t('threadList.categorizeMenu')}<span class="hint">L</span></button>
     {/if}
     <button class="menu-item" onclick={() => { mail.moveTo({ kind: 'junk' }, ids); menu = null; }}><ShieldAlert size={15} />{t('threadList.reportSpam')}<span class="hint">!</span></button>
+    {#if mail.inFollowUp}
+      <div class="divider"></div>
+      <button class="menu-item" onclick={() => { mail.followUpDone(ids); menu = null; }}><Check size={15} />{t('threadList.followUpDone')}</button>
+      <button class="menu-item" onclick={() => { remindAt = { x: menu!.x, y: menu!.y, ids }; menu = null; }}><AlarmClock size={15} />{t('threadList.followUpLater')}</button>
+    {/if}
   </Popover>
+{/if}
+
+{#if remindAt}
+  {@const ids = remindAt.ids}
+  <SnoozeMenu x={remindAt.x} y={remindAt.y} title={t('reader.followUpRemindTitle')} onclose={() => (remindAt = null)} onpick={(ts) => { remindAt = null; mail.followUpLater(ts, ids); }} />
 {/if}
 
 {#if snoozeAt}

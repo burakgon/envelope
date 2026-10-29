@@ -70,6 +70,16 @@ export function createMockApi(): Api {
     queued: () => new Set([...outbox.values()].map((o) => o.draftId).filter((id): id is number => id != null)),
   });
 
+  // ----- follow-up reminders: the demo has one conversation waiting for a reply -------
+
+  /** Conversations taken out of Follow up, and when they come back (null: done). */
+  const followUpAway = new Map<number, number | null>();
+  const inFollowUp = (t: T.ThreadSummary) => {
+    if (!/contract renewal/i.test(t.subject)) return false;
+    const away = followUpAway.get(t.id);
+    return away === undefined || (away != null && away <= Date.now());
+  };
+
   function changed(threadIds: number[]) {
     recount();
     const accountIds = new Set(threads.filter((t) => threadIds.includes(t.id)).map((t) => t.accountId));
@@ -105,7 +115,7 @@ export function createMockApi(): Api {
     } else if (mb.kind === 'snoozed') {
       items = items.filter((t) => t.snoozedUntil);
     } else if (mb.kind === 'followUp') {
-      items = items.filter((t) => /contract renewal/i.test(t.subject)).slice(0, 1);
+      items = items.filter(inFollowUp).slice(0, 1);
     } else {
       const trash = data.folders.filter((f) => f.role === 'trash' || f.role === 'junk').map((f) => f.id);
       items = items.filter((t) => !t.folderIds.some((f) => trash.includes(f)) && t.folderIds.length > 0);
@@ -226,6 +236,13 @@ export function createMockApi(): Api {
       unread.forEach((m) => (m.flags.seen = true));
       changed(ids);
       return { threads: ids.length, messageIds: unread.map((m) => m.id) };
+    },
+    setFollowUp: async (threadIds, change) => {
+      for (const id of threadIds) {
+        if (change.kind === 'due') followUpAway.delete(id);
+        else followUpAway.set(id, change.kind === 'remindAt' ? change.at : null);
+      }
+      changed(threadIds);
     },
     moveThreads: async (threadIds, source, target) => {
       const token: T.UndoToken = { accountOps: [], locations: [], flags: [], snoozed: [] };
