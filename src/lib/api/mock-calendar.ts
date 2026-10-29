@@ -70,6 +70,21 @@ export const series: Series[] = [
   S({ calendarId: 2, title: 'Dentist', start: at(today, 6, 16), minutes: 45, location: 'Nişantaşı' }),
   S({ calendarId: 3, title: 'Dinner at Mom’s', start: at(monday, 6, 19), minutes: 120 }),
   S({ calendarId: 4, title: 'Republic Day', rrule: 'FREQ=YEARLY', start: new Date(today.getFullYear() - 3, 9, 29), minutes: 24 * 60, allDay: true }),
+  // Alex's meeting with Maya, who proposed another time; and Kenji's invitation.
+  S({
+    calendarId: 1, title: 'Onboarding walkthrough', start: at(today, 2, 15), minutes: 30, conference: 'https://meet.lumen.dev/onboarding',
+    attendees: [
+      { email: 'alex@lumen.dev', name: 'Alex Morgan', partstat: 'accepted', role: 'chair', rsvp: false },
+      { email: 'maya@northwind.design', name: 'Maya Chen', partstat: 'tentative', role: 'required', rsvp: true },
+    ],
+  }),
+  S({
+    calendarId: 1, title: 'Tokyo office tour', start: at(today, 9, 10), minutes: 90, location: 'Shibuya Scramble Square, 31F', myStatus: 'needsAction',
+    attendees: [
+      { email: 'kenji@tanaka.jp', name: 'Kenji Tanaka', partstat: 'accepted', role: 'chair', rsvp: false },
+      { email: 'alex@lumen.dev', name: 'Alex Morgan', partstat: 'needsAction', role: 'required', rsvp: true },
+    ],
+  }),
 ];
 
 // Weekly series began a while ago, so earlier weeks aren't empty.
@@ -270,14 +285,55 @@ export function respond(eventId: number, status: T.PartStat) {
   if (s) s.myStatus = status;
 }
 
-export function invite(): T.InviteInfo {
-  const s = series.find((x) => x.title === 'Product sync')!;
-  const next = occurrences(Date.now() - DAY, Date.now() + 8 * DAY).find((o) => o.eventId === s.id)!;
+/** Who sent the invitations in the demo mail, by the title of their event. */
+const inviters: Record<string, T.Address> = {
+  'Product sync': { name: 'Daniel Okafor', email: 'daniel@lumen.dev' },
+  'Tokyo office tour': { name: 'Kenji Tanaka', email: 'kenji@tanaka.jp' },
+};
+
+/** The invitation to the event titled `title` (the product sync for any other). */
+export function invite(title: string): T.InviteInfo {
+  const s = series.find((x) => x.title === title && inviters[x.title]) ?? series.find((x) => x.title === 'Product sync')!;
+  const next = s.rrule
+    ? occurrences(Date.now() - DAY, Date.now() + 8 * DAY).find((o) => o.eventId === s.id)!
+    : { start: s.start.getTime(), end: s.start.getTime() + s.minutes * 60_000 };
   return {
     method: 'REQUEST', uid: `demo-${s.id}`, summary: s.title, start: next.start, end: next.end, allDay: false,
-    location: s.location ?? null, description: s.description ?? null, organizer: { name: 'Daniel Okafor', email: 'daniel@lumen.dev' },
-    attendees: team.map((a) => ({ name: a.name, email: a.email })), myStatus: s.myStatus ?? 'needsAction', eventId: s.id, conferenceUrl: s.conference ?? null, recurring: true,
+    location: s.location ?? null, description: s.description ?? null, organizer: inviters[s.title],
+    attendees: (s.attendees ?? team).map((a) => ({ name: a.name, email: a.email })), myStatus: s.myStatus ?? 'needsAction', eventId: s.id, conferenceUrl: s.conference ?? null,
+    recurring: !!s.rrule,
+    // As in Outlook: a new time for a single meeting, not for a whole series.
+    canPropose: !s.rrule,
   };
+}
+
+/** The new times proposed in the demo mail, by the title of their event. */
+const proposals: Record<string, { from: T.Address; start: number; end: number; comment: string }> = {
+  'Onboarding walkthrough': {
+    from: { name: 'Maya Chen', email: 'maya@northwind.design' },
+    start: at(today, 2, 16, 30).getTime(),
+    end: at(today, 2, 17).getTime(),
+    comment: 'Could we start at 16:30? I’m with a client until four.',
+  },
+};
+
+/** The proposal for the event titled `title`, against the event as it stands. */
+export function proposal(title: string): T.ProposalInfo {
+  const p = proposals[title] ?? proposals['Onboarding walkthrough'];
+  const s = series.find((x) => x.title === title);
+  const current = s ? { start: s.start.getTime(), end: s.start.getTime() + s.minutes * 60_000 } : null;
+  return {
+    uid: s ? `demo-${s.id}` : 'demo-gone', summary: title, attendee: p.from, status: 'tentative', start: p.start, end: p.end, allDay: false,
+    currentStart: current?.start ?? null, currentEnd: current?.end ?? null, comment: p.comment, eventId: s?.id ?? null,
+    state: !current ? 'gone' : current.start === p.start && current.end === p.end ? 'current' : 'open',
+  };
+}
+
+/** Moves the event titled `title` to the time proposed for it. */
+export function acceptProposal(title: string) {
+  const s = series.find((x) => x.title === title);
+  const p = proposals[title];
+  if (s && p) move(s.id, null, 'all', p.start, p.end);
 }
 
 /** Made-up but stable busy times for other people in the demo; the user's own come from the calendar. */

@@ -16,7 +16,8 @@
 //!   DST-correct wall-clock times.
 //! * [`mutate`]: creating calendars and editing existing calendar text
 //!   (upsert, delete an occurrence, "this and following").
-//! * [`itip`]: RFC 5546 invitations, replies and cancellations.
+//! * [`itip`]: RFC 5546 invitations, replies, cancellations and proposals
+//!   for a new time.
 //! * [`todo`]: tasks (`VTODO`): reading, writing, editing stored ones in
 //!   place and moving repeating ones to their next occurrence.
 //! * [`vcard`]: vCard 2.1/3.0/4.0 parsing and vCard 3.0 writing.
@@ -96,8 +97,9 @@ pub use events::{
     parse_calendar_bytes, parse_calendar_with, parse_events,
 };
 pub use itip::{
-    ItipMessage, ItipMethod, build_cancel, build_cancel_at, build_reply, build_reply_at,
-    build_request, build_request_at, my_partstat, parse_itip,
+    ItipMessage, ItipMethod, build_cancel, build_cancel_at, build_counter, build_counter_at,
+    build_decline_counter, build_decline_counter_at, build_reply, build_reply_at, build_request,
+    build_request_at, my_partstat, parse_itip,
 };
 pub use model::*;
 pub use mutate::{

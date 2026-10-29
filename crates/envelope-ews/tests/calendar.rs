@@ -265,3 +265,44 @@ async fn answers_meeting_requests() {
     assert!(bodies[0].contains(r#"<m:CreateItem MessageDisposition="SendAndSaveCopy"><m:Items><t:AcceptItem><t:Body BodyType="Text">See you there</t:Body><t:ReferenceItemId Id="AAMkADk1-mr-1"/></t:AcceptItem>"#));
     assert!(bodies[1].contains(r#"MessageDisposition="SaveOnly""#));
 }
+
+#[tokio::test]
+async fn proposes_new_meeting_times_from_exchange_2013_sp1_on() {
+    let (server, client) = setup().await;
+    on(
+        &server,
+        "<t:TentativelyAcceptItem>",
+        soap_ok("create_item_sent.xml"),
+    )
+    .await;
+    let at = |h: u32| Utc.with_ymd_and_hms(2026, 11, 5, h, 0, 0).single().unwrap();
+    client
+        .propose_new_time(
+            &ItemId::new("AAMkADk1-mr-1"),
+            MeetingResponse::Tentative,
+            at(11),
+            at(12),
+            Some("Could we meet later?"),
+        )
+        .await
+        .unwrap();
+    let sent = bodies(&server).await;
+    assert!(sent[0].contains(r#"<t:RequestServerVersion Version="Exchange2013_SP1"/>"#));
+    assert!(sent[0].contains(r#"<m:CreateItem MessageDisposition="SendAndSaveCopy"><m:Items><t:TentativelyAcceptItem><t:Body BodyType="Text">Could we meet later?</t:Body><t:ReferenceItemId Id="AAMkADk1-mr-1"/><t:ProposedStart>2026-11-05T11:00:00Z</t:ProposedStart><t:ProposedEnd>2026-11-05T12:00:00Z</t:ProposedEnd></t:TentativelyAcceptItem>"#));
+    // Older servers don't know the elements; nothing is sent to them.
+    client.set_version(envelope_ews::ExchangeVersion::Exchange2013);
+    let refused = client
+        .propose_new_time(
+            &ItemId::new("AAMkADk1-mr-1"),
+            MeetingResponse::Decline,
+            at(11),
+            at(12),
+            None,
+        )
+        .await;
+    assert!(matches!(
+        refused,
+        Err(envelope_ews::EwsError::InvalidInput(_))
+    ));
+    assert_eq!(bodies(&server).await.len(), 1);
+}

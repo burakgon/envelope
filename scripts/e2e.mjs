@@ -1459,6 +1459,66 @@ await step('the work week view shows Monday to Friday, from its key and the pale
 });
 await z.close();
 
+await step('an invitation proposes a new time, answering maybe; a whole series offers none', async () => {
+  const p = await fresh();
+  try {
+    // The weekly product sync takes no proposal as a whole.
+    await openIn(p, 'Product sync');
+    const card = p.locator('.reader .invite');
+    await card.locator('.act', { hasText: 'Maybe' }).waitFor({ timeout: 5000 });
+    if (await card.locator('.act', { hasText: 'Propose new time' }).count()) throw new Error('a whole series offers a new time');
+    // Kenji's tour does: the popover starts at the invitation's time, and the end keeps the length.
+    await openIn(p, 'Tokyo office tour');
+    await card.locator('.act', { hasText: 'Propose new time…' }).click();
+    const pop = p.locator('.popover .propose');
+    await pop.waitFor({ timeout: 5000 });
+    const [start, end] = [pop.locator('.times input').first(), pop.locator('.times input').last()];
+    if ((await start.inputValue()) !== '10:00 AM' || (await end.inputValue()) !== '11:30 AM') throw new Error(`it starts at ${await start.inputValue()} – ${await end.inputValue()}`);
+    if (!(await pop.innerText()).includes('Kenji Tanaka gets the proposal, with Maybe as your answer.')) throw new Error(`the popover says: ${await pop.innerText()}`);
+    await start.fill('2:00 PM');
+    await start.press('Enter');
+    await eventually(p, async () => (await end.inputValue()) === '3:30 PM', async () => `the end stayed at ${await end.inputValue()}`);
+    await pop.locator('textarea').fill('Could we make it the afternoon?');
+    await pop.locator('button', { hasText: 'Send proposal' }).click();
+    await toast(p, 'New time proposed to Kenji Tanaka');
+    await pop.waitFor({ state: 'detached', timeout: 5000 });
+    await card.locator('.act.on', { hasText: 'Maybe' }).waitFor({ timeout: 5000 });
+    const line = card.locator('.line', { hasText: 'You proposed' });
+    await line.waitFor({ timeout: 5000 });
+    if (!/2:00\sPM\s–\s3:30\sPM/.test(await line.innerText())) throw new Error(`the card says "${await line.innerText()}"`);
+  } finally {
+    await p.close();
+  }
+});
+
+await step('accepting a proposed new time moves the meeting in the calendar', async () => {
+  const p = await fresh();
+  try {
+    await openIn(p, 'Onboarding walkthrough');
+    const card = p.locator('.reader .proposal');
+    const proposed = card.locator('.line', { hasText: 'Proposed:' });
+    await proposed.waitFor({ timeout: 5000 });
+    const text = await card.innerText();
+    for (const part of ['from Maya Chen', 'Could we start at 16:30?']) if (!text.includes(part)) throw new Error(`the card lacks "${part}": ${text}`);
+    if (!/4:30\sPM\s–\s5:00\sPM/.test(await proposed.innerText())) throw new Error(`it proposes "${await proposed.innerText()}"`);
+    if (!/3:00\sPM\s–\s3:30\sPM/.test(await card.locator('.line', { hasText: 'Now:' }).innerText())) throw new Error('the current time is missing');
+    await card.locator('.act', { hasText: 'Accept' }).click();
+    await toast(p, 'Moved to the new time');
+    await card.locator('.note', { hasText: 'The event is at this time now.' }).waitFor({ timeout: 5000 });
+    if (await card.locator('.act', { hasText: 'Decline' }).count()) throw new Error('the proposal can still be answered');
+    // The calendar (opened from the card, at the proposed day) has it at the proposed time.
+    await card.locator('.act', { hasText: 'Calendar' }).click();
+    await p.locator('.grid-wrap').waitFor({ timeout: 5000 });
+    await p.getByRole('tab', { name: 'Agenda', exact: true }).click();
+    const row = p.locator('.agenda .row', { hasText: 'Onboarding walkthrough' });
+    await row.waitFor({ timeout: 5000 });
+    const when = (await row.locator('.when').innerText()).trim();
+    if (!/^4:30\sPM\s–\s5:00\sPM$/.test(when)) throw new Error(`the calendar has it at ${when}`);
+  } finally {
+    await p.close();
+  }
+});
+
 /** Whether the focus is inside `locator`'s element. */
 const holdsFocus = (locator) => locator.evaluate((el) => el.contains(document.activeElement));
 

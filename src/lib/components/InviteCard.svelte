@@ -7,7 +7,8 @@
   import { errorMessage, toasts } from '../stores/toasts.svelte';
   import { dateFormat, displayName, timeOf } from '../utils/format';
   import { t } from '../i18n';
-  import { CalendarDays, CheckCircle, MapPin, Repeat, Users, Video, Warning } from '../icons';
+  import { CalendarDays, CheckCircle, Clock, MapPin, Repeat, Users, Video, Warning } from '../icons';
+  import ProposeTime from './ProposeTime.svelte';
 
   let { message }: { message: MessageView } = $props();
 
@@ -15,6 +16,10 @@
   let failed = $state(false);
   let busy = $state<PartStat | null>(null);
   let conflicts = $state<Occurrence[] | null>(null);
+  /** Where the popover proposing another time opens. */
+  let proposing = $state<{ x: number; y: number } | null>(null);
+  /** The time proposed here. */
+  let proposed = $state<{ start: number; end: number } | null>(null);
 
   const cancelled = $derived((info?.method ?? message.calendarMethod) === 'CANCEL');
   const fallbackTitle = $derived(message.subject.replace(/^(invitation|updated invitation|einladung|davet):\s*/i, ''));
@@ -35,12 +40,13 @@
   });
 
   const date = $derived(info ? new Date(info.start) : null);
-  const when = $derived.by(() => {
-    if (!info) return '';
-    const day = dateFormat({ weekday: 'long', month: 'long', day: 'numeric' }).format(info.start);
-    if (info.allDay) return t('invite.whenAllDay', { date: day });
-    return t('invite.whenTime', { date: day, start: timeOf(info.start), end: timeOf(info.end) });
-  });
+  /** A time span as the card writes it: the day, and the times unless it is all day. */
+  function span(start: number, end: number, allDay: boolean): string {
+    const day = dateFormat({ weekday: 'long', month: 'long', day: 'numeric' }).format(start);
+    if (allDay) return t('invite.whenAllDay', { date: day });
+    return t('invite.whenTime', { date: day, start: timeOf(start), end: timeOf(end) });
+  }
+  const when = $derived(info ? span(info.start, info.end, info.allDay) : '');
 
   async function respond(status: PartStat) {
     if (!info || busy) return;
@@ -68,6 +74,11 @@
     } catch (e) {
       toasts.error(errorMessage(e));
     }
+  }
+
+  function propose(e: MouseEvent) {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    proposing = proposing ? null : { x: r.left, y: r.bottom + 4 };
   }
 
   function show() {
@@ -112,6 +123,9 @@
             <div class="line free"><CheckCircle size={13} /><span>{t('invite.free')}</span></div>
           {/if}
         {/if}
+        {#if proposed}
+          <div class="line"><Clock size={13} /><span class="truncate">{t('invite.youProposed', { when: span(proposed.start, proposed.end, false) })}</span></div>
+        {/if}
       </div>
     </div>
     <div class="actions">
@@ -126,6 +140,9 @@
         <button class="act" class:on={info.myStatus === 'accepted'} disabled={!!busy} onclick={() => respond('accepted')}>{t('invite.rsvpYes')}</button>
         <button class="act" class:on={info.myStatus === 'tentative'} disabled={!!busy} onclick={() => respond('tentative')}>{t('invite.rsvpMaybe')}</button>
         <button class="act" class:on={info.myStatus === 'declined'} disabled={!!busy} onclick={() => respond('declined')}>{t('invite.rsvpNo')}</button>
+        {#if info.canPropose}
+          <button class="act ghost propose" class:open={!!proposing} disabled={!!busy} onclick={propose}><Clock size={14} />{t('invite.propose')}</button>
+        {/if}
         <span class="grow"></span>
         {#if info.conferenceUrl}
           <button class="act join" onclick={() => api.openUrl(info!.conferenceUrl!)}><Video size={14} />{t('invite.join')}</button>
@@ -142,6 +159,21 @@
       <div class="title">{fallbackTitle}</div>
     </div>
   </div>
+{/if}
+
+{#if proposing && info}
+  <ProposeTime
+    messageId={message.id}
+    {info}
+    x={proposing.x}
+    y={proposing.y}
+    onclose={() => (proposing = null)}
+    onsent={(status, start, end) => {
+      info!.myStatus = status;
+      proposed = { start, end };
+      proposing = null;
+    }}
+  />
 {/if}
 
 <style>
@@ -305,7 +337,8 @@
     box-shadow: none;
     color: var(--text-2);
   }
-  .act.ghost:hover {
+  .act.ghost:hover,
+  .act.ghost.open {
     background: var(--bg-hover);
     color: var(--text);
   }

@@ -238,6 +238,10 @@ export function createTauriApi(): Api {
       respond: (eventId, status, comment) => invoke('event_respond', { eventId, status, comment: comment ?? null }),
       invite: (messageId) => invoke('invite_info', { messageId }),
       respondInvite: (messageId, status, comment) => invoke('invite_respond', { messageId, status, comment: comment ?? null }),
+      proposeTime: (messageId, status, start, end, comment) => invoke('invite_propose', { messageId, status, start, end, comment: comment ?? null }),
+      proposal: (messageId) => invoke('proposal_info', { messageId }),
+      acceptProposal: (messageId) => invoke('proposal_accept', { messageId }),
+      declineProposal: (messageId, comment) => invoke('proposal_decline', { messageId, comment: comment ?? null }),
       freeBusy: (calendarId, emails, from, to) => invoke('free_busy', { calendarId, emails, from, to }),
     },
 

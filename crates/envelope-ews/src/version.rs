@@ -121,6 +121,12 @@ impl ExchangeVersion {
     pub(crate) fn has_2010_sp1_features(self) -> bool {
         self >= ExchangeVersion::Exchange2010Sp1
     }
+
+    /// Whether attendees can propose a new meeting time with their answer
+    /// (`ProposedStart` and `ProposedEnd`, Exchange 2013 SP1 and later).
+    pub fn has_new_time_proposals(self) -> bool {
+        self >= ExchangeVersion::Exchange2013Sp1
+    }
 }
 
 impl fmt::Display for ExchangeVersion {
@@ -217,6 +223,9 @@ mod tests {
         assert!(ExchangeVersion::Exchange2010Sp1.has_2010_sp1_features());
         assert!(!ExchangeVersion::Exchange2010.has_2010_sp1_features());
         assert!(ExchangeVersion::Exchange2010.has_2010_features());
+        assert!(ExchangeVersion::Exchange2013Sp1.has_new_time_proposals());
+        assert!(ExchangeVersion::Exchange2016.has_new_time_proposals());
+        assert!(!ExchangeVersion::Exchange2013.has_new_time_proposals());
     }
 
     #[test]

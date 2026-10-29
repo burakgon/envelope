@@ -1076,7 +1076,7 @@ pub fn ai_cancel(state: State<'_, AppState>, run_id: String) {
 // ----- calendar ----------------------------------------------------------------------
 
 use envelope_core::calendar::{
-    CalendarView, EditScope, EventDetail, EventInput, InviteInfo, Occurrence,
+    CalendarView, EditScope, EventDetail, EventInput, InviteInfo, Occurrence, ProposalInfo,
 };
 use envelope_core::envelope_ical::{EventTime, PartStat};
 
@@ -1203,6 +1203,40 @@ pub async fn invite_respond(
         .engine
         .respond_invite(message_id, status, comment)
         .await?)
+}
+
+#[tauri::command]
+pub async fn invite_propose(
+    state: State<'_, AppState>,
+    message_id: i64,
+    status: PartStat,
+    start: i64,
+    end: i64,
+    comment: Option<String>,
+) -> R<PartStat> {
+    Ok(state
+        .engine
+        .propose_invite_time(message_id, status, start, end, comment)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn proposal_info(state: State<'_, AppState>, message_id: i64) -> R<ProposalInfo> {
+    Ok(state.engine.proposal_info(message_id).await?)
+}
+
+#[tauri::command]
+pub async fn proposal_accept(state: State<'_, AppState>, message_id: i64) -> R<()> {
+    Ok(state.engine.accept_proposal(message_id).await?)
+}
+
+#[tauri::command]
+pub async fn proposal_decline(
+    state: State<'_, AppState>,
+    message_id: i64,
+    comment: Option<String>,
+) -> R<()> {
+    Ok(state.engine.decline_proposal(message_id, comment).await?)
 }
 
 // ----- contacts ----------------------------------------------------------------------

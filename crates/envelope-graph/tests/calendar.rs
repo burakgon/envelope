@@ -766,6 +766,61 @@ async fn deletes_cancels_and_responds() {
 }
 
 #[tokio::test]
+async fn proposes_new_times() {
+    let (server, client, _) = setup().await;
+    let at = |h: u32| {
+        Utc.with_ymd_and_hms(2026, 11, 5, h, 0, 0)
+            .single()
+            .expect("time")
+    };
+    for (action, comment) in [
+        ("tentativelyAccept", "Could we meet later?"),
+        ("decline", ""),
+    ] {
+        Mock::given(method("POST"))
+            .and(path(format!("/v1.0/me/events/AAMkEvent=/{action}")))
+            .and(json_body(json!({
+                "comment": comment,
+                "sendResponse": true,
+                "proposedNewTime": {
+                    "start": {"dateTime": "2026-11-05T11:00:00", "timeZone": "UTC"},
+                    "end": {"dateTime": "2026-11-05T12:00:00", "timeZone": "UTC"}
+                }
+            })))
+            .respond_with(ResponseTemplate::new(202))
+            .expect(1)
+            .mount(&server)
+            .await;
+    }
+    client
+        .propose_new_time(
+            "AAMkEvent=",
+            EventResponse::TentativelyAccept,
+            at(11),
+            at(12),
+            Some("Could we meet later?"),
+        )
+        .await
+        .expect("tentative with a new time");
+    client
+        .propose_new_time("AAMkEvent=", EventResponse::Decline, at(11), at(12), None)
+        .await
+        .expect("declined with a new time");
+    // Accepting carries no proposal, and a proposal has to end after it starts.
+    for (response, start, end) in [
+        (EventResponse::Accept, at(11), at(12)),
+        (EventResponse::TentativelyAccept, at(12), at(11)),
+    ] {
+        assert!(matches!(
+            client
+                .propose_new_time("AAMkEvent=", response, start, end, None)
+                .await,
+            Err(envelope_graph::GraphError::InvalidInput(_))
+        ));
+    }
+}
+
+#[tokio::test]
 async fn reads_free_busy() {
     let (server, client, _) = setup().await;
     Mock::given(method("POST"))

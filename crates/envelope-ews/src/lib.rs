@@ -209,6 +209,13 @@ mod send_bounds {
             SendCancellations::SendToNone,
         ));
         assert_send(client.respond_to_meeting(&ids[0], MeetingResponse::Accept, None, true));
+        assert_send(client.propose_new_time(
+            &ids[0],
+            MeetingResponse::Tentative,
+            Utc::now(),
+            Utc::now(),
+            None,
+        ));
         assert_send(client.find_contacts(DistinguishedFolder::Contacts, 0, 10));
         assert_send(client.task_folders());
         assert_send(client.sync_tasks(DistinguishedFolder::Tasks, None, 512));

@@ -1,5 +1,7 @@
 //! Calendar API used by the UI: calendars, occurrences in a range, editing,
-//! invitations and reminders.
+//! invitations, proposals for a new time and reminders.
+
+mod proposals;
 
 use std::collections::HashMap;
 
@@ -16,6 +18,8 @@ use crate::db::{mail, now_ms};
 use crate::engine::Engine;
 use crate::error::{Error, Result};
 use crate::model::{Address, EngineEvent};
+
+pub use proposals::{ProposalInfo, ProposalState};
 
 /// The user's time zone.
 pub fn local_tz() -> Tz {
@@ -790,7 +794,8 @@ impl Engine {
     ) -> Result<()> {
         let row = self.db.read(|c| cdb::get_event(c, event_id))?;
         let cal = self.db.read(|c| cdb::get_calendar(c, row.calendar_id))?;
-        crate::sync::calendar::write_respond(self, &cal, &row, status, comment.as_deref()).await?;
+        crate::sync::calendar::write_respond(self, &cal, &row, status, comment.as_deref(), true)
+            .await?;
         self.emit(EngineEvent::CalendarChanged {
             calendar_ids: vec![cal.id],
         });
@@ -845,6 +850,10 @@ pub struct InviteInfo {
     pub event_id: Option<i64>,
     pub conference_url: Option<String>,
     pub recurring: bool,
+    /// Whether a new time can be proposed: for a single event or one
+    /// occurrence that someone else organizes and takes proposals for,
+    /// through a server that can send them.
+    pub can_propose: bool,
 }
 
 impl Engine {
@@ -871,12 +880,7 @@ impl Engine {
     pub async fn invite_info(&self, message_id: i64) -> Result<InviteInfo> {
         let (ics, _) = self.invite_ics(message_id).await?;
         let itip = envelope_ical::parse_itip(&ics).map_err(|e| Error::Other(e.to_string()))?;
-        let event = itip
-            .events
-            .iter()
-            .find(|e| e.recurrence_id.is_none())
-            .or(itip.events.first())
-            .ok_or_else(|| Error::NotFound("event".into()))?;
+        let event = invited_event(&itip)?;
         let me = self.my_emails()?;
         let existing = self.db.read(|c| cdb::rows_by_uid(c, &event.uid))?;
         let my_status = existing
@@ -889,10 +893,12 @@ impl Engine {
             .map(|a| a.partstat);
         let start = envelope_ical::to_utc(&event.start, &itip.tz, local_tz()).timestamp_millis();
         let end = envelope_ical::to_utc(&event.end, &itip.tz, local_tz()).timestamp_millis();
+        let can_propose = self.takes_proposal(message_id, &itip, event, &existing, &me)?;
         Ok(InviteInfo {
             method: itip
                 .method
-                .map(|m| format!("{m:?}").to_uppercase())
+                .as_ref()
+                .map(|m| m.as_str().to_string())
                 .unwrap_or_else(|| "REQUEST".into()),
             uid: event.uid.clone(),
             summary: event.summary.clone(),
@@ -914,6 +920,7 @@ impl Engine {
             event_id: existing.first().map(|r| r.id),
             conference_url: event.conference_url.clone(),
             recurring: event.is_recurring(),
+            can_propose,
         })
     }
 
@@ -964,33 +971,58 @@ impl Engine {
             .await?;
         }
         if status != PartStat::Declined {
-            // Put it on the user's calendar.
-            let calendars = self.db.read(cdb::list_calendars)?;
-            let target = calendars
-                .iter()
-                .find(|c| c.account_id == Some(account_id) && c.is_default && !c.read_only)
-                .or_else(|| {
-                    calendars
-                        .iter()
-                        .find(|c| c.account_id == Some(account_id) && !c.read_only)
-                })
-                .or_else(|| calendars.iter().find(|c| !c.read_only));
-            if let Some(cal) = target {
-                for mut event in itip.events.clone() {
-                    for a in event.attendees.iter_mut() {
-                        if a.email.eq_ignore_ascii_case(&my_email) {
-                            a.partstat = status;
-                        }
-                    }
-                    crate::sync::calendar::write_create(self, cal, &event, false).await?;
-                }
-                self.emit(EngineEvent::CalendarChanged {
-                    calendar_ids: vec![cal.id],
-                });
-            }
+            self.file_invitation(account_id, &itip, &my_email, status)
+                .await?;
         }
         Ok(())
     }
+
+    /// Puts an answered invitation on the user's calendar (the default one
+    /// of the account it came to, or one of this computer when no account
+    /// has calendars), with `my_email`'s answer `status`.
+    async fn file_invitation(
+        &self,
+        account_id: i64,
+        itip: &envelope_ical::ItipMessage,
+        my_email: &str,
+        status: PartStat,
+    ) -> Result<()> {
+        self.ensure_local_calendar()?;
+        let calendars = self.db.read(cdb::list_calendars)?;
+        let target = calendars
+            .iter()
+            .find(|c| c.account_id == Some(account_id) && c.is_default && !c.read_only)
+            .or_else(|| {
+                calendars
+                    .iter()
+                    .find(|c| c.account_id == Some(account_id) && !c.read_only)
+            })
+            .or_else(|| calendars.iter().find(|c| !c.read_only));
+        if let Some(cal) = target {
+            for mut event in itip.events.clone() {
+                for a in event.attendees.iter_mut() {
+                    if a.email.eq_ignore_ascii_case(my_email) {
+                        a.partstat = status;
+                    }
+                }
+                crate::sync::calendar::write_create(self, cal, &event, false).await?;
+            }
+            self.emit(EngineEvent::CalendarChanged {
+                calendar_ids: vec![cal.id],
+            });
+        }
+        Ok(())
+    }
+}
+
+/// The event an invitation is about: the event or series (its `VEVENT`
+/// without `RECURRENCE-ID`), else the first occurrence it carries.
+fn invited_event(itip: &envelope_ical::ItipMessage) -> Result<&Event> {
+    itip.events
+        .iter()
+        .find(|e| e.recurrence_id.is_none())
+        .or(itip.events.first())
+        .ok_or_else(|| Error::NotFound("event".into()))
 }
 
 /// Last time reminders were checked (unix ms), shared by the scheduler.

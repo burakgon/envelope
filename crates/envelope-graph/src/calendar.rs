@@ -600,6 +600,41 @@ impl GraphClient {
         self.send_empty(&request).await
     }
 
+    /// Tentatively accepts or declines a meeting invitation and proposes
+    /// that it moves to `start`–`end`: the organizer gets the answer with
+    /// the proposal (`proposedNewTime`). Graph takes proposals only for
+    /// meetings that allow them ([`GraphEvent::allow_new_time_proposals`]),
+    /// and never with an acceptance.
+    pub async fn propose_new_time(
+        &self,
+        event_id: &str,
+        response: EventResponse,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        comment: Option<&str>,
+    ) -> Result<(), GraphError> {
+        if response == EventResponse::Accept {
+            return Err(GraphError::InvalidInput(
+                "a new time goes with a tentative answer or a decline, not an acceptance".into(),
+            ));
+        }
+        if end <= start {
+            return Err(GraphError::InvalidInput(
+                "the proposed time ends before it starts".into(),
+            ));
+        }
+        let request =
+            GraphRequest::post(["me", "events", event_id, response.as_str()]).json(&json!({
+                "comment": comment.unwrap_or_default(),
+                "sendResponse": true,
+                "proposedNewTime": {
+                    "start": DateTimeTimeZone::utc(start),
+                    "end": DateTimeTimeZone::utc(end),
+                },
+            }))?;
+        self.send_empty(&request).await
+    }
+
     /// Free/busy information for up to 20 addresses over `window` (less than
     /// 62 days), with `interval_minutes` (5–1440) per availability digit.
     /// Not available for personal Microsoft accounts.

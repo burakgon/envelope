@@ -1092,11 +1092,23 @@ export function createMockApi(): Api {
         cal.respond(id, status);
         emit({ type: 'calendarChanged', calendarIds: [] });
       },
-      invite: async () => cal.invite(),
-      respondInvite: async (_m, status) => {
-        cal.respond(cal.invite().eventId!, status);
+      invite: async (m) => cal.invite(data.calendarEvents.get(m) ?? ''),
+      respondInvite: async (m, status) => {
+        cal.respond(cal.invite(data.calendarEvents.get(m) ?? '').eventId!, status);
         emit({ type: 'calendarChanged', calendarIds: [] });
       },
+      proposeTime: async (m, status) => {
+        const answer: T.PartStat = status === 'declined' ? 'declined' : 'tentative';
+        cal.respond(cal.invite(data.calendarEvents.get(m) ?? '').eventId!, answer);
+        emit({ type: 'calendarChanged', calendarIds: [] });
+        return answer;
+      },
+      proposal: async (m) => cal.proposal(data.calendarEvents.get(m) ?? ''),
+      acceptProposal: async (m) => {
+        cal.acceptProposal(data.calendarEvents.get(m) ?? '');
+        emit({ type: 'calendarChanged', calendarIds: [] });
+      },
+      declineProposal: async () => {},
       freeBusy: async (_calendarId, emails, from, to) =>
         cal.freeBusy(emails, from, to, new Set(data.accounts.map((a) => a.email.toLowerCase()))),
     },
