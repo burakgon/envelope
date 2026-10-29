@@ -401,7 +401,8 @@
         {:else if row.kind === 'thread' && rows[i - 1]?.kind !== 'thread'}
           <div class="group">{t('palette.groupMessages')}</div>
         {/if}
-        <button class="row" class:hi={i === hi} data-i={i} onmouseenter={() => (hi = i)} onclick={() => run(row)}>
+        <!-- The pointer moving picks a row; rows appearing under a resting pointer don't, or Enter would run the row under it instead of the best match. -->
+        <button class="row" class:hi={i === hi} data-i={i} onpointermove={() => (hi = i)} onclick={() => run(row)}>
           {#if row.kind === 'cmd'}
             <span class="ico"><row.cmd.icon size={16} /></span>
             <span class="label truncate">{row.cmd.label}</span>

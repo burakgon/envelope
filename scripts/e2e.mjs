@@ -1050,6 +1050,23 @@ await step('mail marked important shows a red mark, and the composer marks a mes
   }
 });
 
+await step('Enter in the palette runs the best match, wherever the mouse pointer rests', async () => {
+  const p = await fresh();
+  try {
+    await p.keyboard.press('Control+k');
+    const palette = p.locator('.palette');
+    await palette.waitFor({ timeout: 5000 });
+    // The pointer rests over the rows; the list changes under it as the query is typed.
+    const box = await palette.locator('.row').nth(3).boundingBox();
+    await p.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await p.keyboard.type('Manage subscriptions');
+    await p.keyboard.press('Enter');
+    await p.locator('[role="dialog"] h3', { hasText: 'Subscriptions' }).waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('blocking a sender moves their mail to Spam; Privacy unblocks', async () => {
   const p = await fresh();
   try {
