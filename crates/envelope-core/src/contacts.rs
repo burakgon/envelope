@@ -19,6 +19,7 @@ use crate::error::{Error, Result};
 use crate::model::EngineEvent;
 
 pub mod csv;
+pub mod groups;
 
 /// Name of the address book used when no account can store contacts.
 pub const LOCAL_BOOK_NAME: &str = "On this computer";
@@ -502,7 +503,9 @@ pub fn apply_input(old: &Contact, input: &ContactInput) -> Result<Contact> {
 }
 
 /// Takes `local`'s changes relative to `base` over `server`: a field the
-/// user changed wins, every other field is the server's.
+/// user changed wins, every other field is the server's. A group's members
+/// are merged one by one: those added here join the server's, those taken
+/// out here leave them.
 pub fn merge3(base: &Contact, local: &Contact, server: &Contact) -> Contact {
     let mut out = server.clone();
     macro_rules! take_local_changes {
@@ -527,6 +530,15 @@ pub fn merge3(base: &Contact, local: &Contact, server: &Contact) -> Contact {
         birthday,
         photo
     );
+    if local.members != base.members {
+        out.members
+            .retain(|m| local.members.contains(m) || !base.members.contains(m));
+        for member in &local.members {
+            if !base.members.contains(member) && !out.members.contains(member) {
+                out.members.push(member.clone());
+            }
+        }
+    }
     out
 }
 
@@ -958,6 +970,8 @@ impl Engine {
                         cdb::mark_deleted(tx, other.id)?;
                     }
                 }
+                // The groups they were in have the contact kept instead.
+                groups::replace_members(tx, &book, &gone, keep)?;
                 Ok((book.id, gone.len(), remote))
             })
             .await?;

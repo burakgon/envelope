@@ -7,13 +7,19 @@
 //! `local_state` and pushed here. Uploads are conditional (etags) where the
 //! server supports it; when the server copy changed meanwhile, the user's
 //! changes are merged field by field into the new server copy.
+//!
+//! Contact groups come along: CardDAV group cards both ways (new ones in
+//! the address book's style), Google's labels and Exchange's personal
+//! distribution lists read-only.
 
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 use envelope_dav::{AddressBook, DavClient, DavError, DavObject, NewAddressBook, Precondition};
 use envelope_ical::Contact;
-use envelope_ical::vcard::{contact_to_vcard, parse_vcard_with_kind, upsert_contact};
+use envelope_ical::vcard::{
+    GroupStyle, contact_to_vcard, group_to_vcard, parse_vcard_with_kind, upsert_contact,
+};
 use futures::StreamExt as _;
 
 use super::calendar::{dav_client_at, google_client, graph_client};
@@ -421,9 +427,12 @@ async fn carddav_sync(
     let mut changed = Vec::new();
     let account_id = account.id;
     for book in engine.db.read(|c| cdb::account_books(c, account_id))? {
+        let style = engine
+            .db
+            .read(|c| crate::contacts::groups::book_style(c, &book))?;
         let pushed = push_book(engine, &book, |row, photo| {
             let book = book.clone();
-            async move { carddav_push(client, &book, &row, photo).await }
+            async move { carddav_push(client, &book, &row, photo, style).await }
         })
         .await?;
         if pushed {
@@ -696,12 +705,14 @@ fn pushed_vcard(href: &str, etag: Option<String>, card: String, sent: &Contact) 
     }
 }
 
-/// Uploads one change to a CardDAV server.
+/// Uploads one change to a CardDAV server. New groups are written in
+/// `group_style`, the address book's.
 async fn carddav_push(
     client: &DavClient,
     book: &BookRow,
     row: &ContactRow,
     photo: Option<Photo>,
+    group_style: GroupStyle,
 ) -> std::result::Result<Done, Failure> {
     if row.local_state == cdb::DELETED {
         if let Some(href) = &row.remote_id {
@@ -724,7 +735,11 @@ async fn carddav_push(
     let mut etag = row.etag.clone();
 
     if row.local_state == cdb::CREATED || base_raw.trim().is_empty() {
-        let card = contact_to_vcard(&local);
+        let card = if row.is_group {
+            group_to_vcard(&local, group_style)
+        } else {
+            contact_to_vcard(&local)
+        };
         match client.put(&href, &card, Precondition::IfNoneMatch).await {
             Ok(etag) => {
                 return Ok(Done::Saved(Box::new(pushed_vcard(
@@ -838,7 +853,64 @@ async fn google_sync(
     if pull && google_pull(engine, client, &book).await? {
         changed.push(book.id);
     }
+    if pull {
+        match google_labels(engine, client, &book).await {
+            Ok(true) => changed.push(book.id),
+            Ok(false) => {}
+            Err(e) if e.is_transient() || e.is_auth() => return Err(e),
+            Err(e) => tracing::warn!("contact labels of {} could not be read: {e}", book.name),
+        }
+    }
     Ok(changed)
+}
+
+/// Stores the user's contact labels as groups of the Google address book
+/// (read-only: their people by resource name). Returns whether any changed.
+async fn google_labels(
+    engine: &Engine,
+    client: &envelope_google::GoogleClient,
+    book: &BookRow,
+) -> Result<bool> {
+    let labels = client.contact_groups().await.map_err(google_err)?;
+    let book_id = book.id;
+    engine
+        .db
+        .write_async(move |tx| {
+            let stored: HashMap<String, Contact> = cdb::book_groups(tx, book_id)?
+                .into_iter()
+                .filter_map(|g| Some((g.remote_id?, g.contact)))
+                .collect();
+            let mut changed = false;
+            for label in &labels {
+                let group = Contact {
+                    uid: label.resource_name.clone(),
+                    name: label.name.clone(),
+                    members: label.members.clone(),
+                    ..Contact::default()
+                };
+                if stored.get(&label.resource_name) == Some(&group) {
+                    continue;
+                }
+                let item = SyncedContact {
+                    remote_id: label.resource_name.clone(),
+                    etag: label.etag.clone(),
+                    uid: label.resource_name.clone(),
+                    contact: group,
+                    base: None,
+                    photo: PhotoChange::Keep,
+                    is_group: true,
+                };
+                cdb::upsert_synced(tx, book_id, &item)?;
+                changed = true;
+            }
+            for remote_id in stored.keys() {
+                if !labels.iter().any(|l| l.resource_name == *remote_id) {
+                    changed |= cdb::delete_synced(tx, book_id, remote_id)?;
+                }
+            }
+            Ok(changed)
+        })
+        .await
 }
 
 fn synced_google(contact: envelope_google::GoogleContact) -> SyncedContact {
@@ -918,7 +990,16 @@ async fn google_pull(
         if full {
             let swept = engine
                 .db
-                .write_async(move |tx| cdb::sweep(tx, book_id, &seen))
+                .write_async(move |tx| {
+                    // Labels are synced on their own (google_labels).
+                    let mut seen = seen;
+                    seen.extend(
+                        cdb::book_groups(tx, book_id)?
+                            .into_iter()
+                            .filter_map(|g| g.remote_id),
+                    );
+                    cdb::sweep(tx, book_id, &seen)
+                })
                 .await?;
             any |= swept > 0;
         }
@@ -1550,10 +1631,8 @@ async fn ews_sync(engine: &Engine, account: &AccountRow, pull: bool) -> Result<V
             .await
             .map_err(super::ews::ews_error)?;
         let count = page.items.len() as u32;
+        // Contact groups (personal distribution lists) come along, read-only.
         for c in page.items {
-            if c.is_group {
-                continue;
-            }
             let Some(id) = c.id else {
                 continue;
             };
@@ -1584,14 +1663,20 @@ async fn ews_sync(engine: &Engine, account: &AccountRow, pull: bool) -> Result<V
             let Some(id) = c.id.clone() else {
                 continue;
             };
+            let (contact, base) = if c.is_group {
+                let (group, names) = ews_group(&c, &id.id);
+                (group, Some(names))
+            } else {
+                (ews_contact(&c, &id.id), None)
+            };
             items.push(SyncedContact {
                 remote_id: id.id.clone(),
                 etag: id.change_key.clone(),
                 uid: id.id.clone(),
-                contact: ews_contact(&c, &id.id),
-                base: None,
+                contact,
+                base,
                 photo: PhotoChange::Keep,
-                is_group: false,
+                is_group: c.is_group,
             });
         }
     }
@@ -1693,7 +1778,35 @@ fn ews_contact(c: &envelope_ews::Contact, id: &str) -> Contact {
                 preferred: false,
             })
             .collect(),
+        members: Vec::new(),
     }
+}
+
+/// An Exchange contact group in the shared model: its members by address
+/// (`mailto:`), and their names as Exchange has them (stored as the group's
+/// `base`, for members that are not contacts).
+fn ews_group(c: &envelope_ews::Contact, id: &str) -> (Contact, String) {
+    let members = c.member_addresses();
+    let names: Vec<crate::model::Address> = members
+        .iter()
+        .filter_map(|m| Some(crate::model::Address::new(m.name.clone(), m.email.clone()?)))
+        .collect();
+    let group = Contact {
+        uid: id.to_owned(),
+        name: [&c.display_name, &c.file_as]
+            .into_iter()
+            .flatten()
+            .map(|n| n.trim())
+            .find(|n| !n.is_empty())
+            .unwrap_or_default()
+            .to_owned(),
+        members: names
+            .iter()
+            .map(|a| envelope_ical::vcard::member_for_email(&a.email))
+            .collect(),
+        ..Contact::default()
+    };
+    (group, serde_json::to_string(&names).unwrap_or_default())
 }
 
 /// An Exchange postal address in the shared model.

@@ -1,10 +1,13 @@
 <script lang="ts">
   import { api } from '../api';
-  import type { Address, ContactSuggestion } from '../api';
+  import type { Address, ContactSuggestion, GroupSuggestion } from '../api';
   import { displayName } from '../utils/format';
   import { t } from '../i18n';
   import Avatar from './Avatar.svelte';
-  import { X } from '../icons';
+  import { UsersRound, X } from '../icons';
+
+  /** A suggestion: a person's address, or a contact group (all its people at once). */
+  type Suggestion = { person: ContactSuggestion; group?: undefined } | { group: GroupSuggestion; person?: undefined };
 
   let {
     label,
@@ -25,7 +28,7 @@
 
   let text = $state('');
   let input: HTMLInputElement | undefined = $state();
-  let suggestions = $state<ContactSuggestion[]>([]);
+  let suggestions = $state<Suggestion[]>([]);
   let hi = $state(0);
   let focused = $state(false);
   let selectedChip = $state<number | null>(null);
@@ -53,7 +56,13 @@
 
   function add(list: Address[]) {
     const existing = new Set(value.map((a) => a.email.toLowerCase()));
-    const fresh = list.filter((a) => !existing.has(a.email.toLowerCase()));
+    // Each address once, also within the list (a group's people can share one).
+    const fresh: Address[] = [];
+    for (const a of list) {
+      if (existing.has(a.email.toLowerCase())) continue;
+      existing.add(a.email.toLowerCase());
+      fresh.push(a);
+    }
     if (fresh.length) {
       value = [...value, ...fresh];
       onchange?.();
@@ -93,15 +102,22 @@
       return;
     }
     timer = setTimeout(async () => {
-      const res = await api.suggestContacts(q);
+      const [people, groups] = await Promise.all([api.suggestContacts(q), api.suggestGroups(q).catch(() => [])]);
       const taken = new Set(value.map((a) => a.email.toLowerCase()));
-      suggestions = res.filter((s) => !taken.has(s.email.toLowerCase())).slice(0, 6);
+      // Groups first (at most two), unless everyone in them is there already.
+      const lists: Suggestion[] = groups
+        .filter((g) => g.addresses.some((a) => !taken.has(a.email.toLowerCase())))
+        .slice(0, 2)
+        .map((group) => ({ group }));
+      const persons: Suggestion[] = people.filter((s) => !taken.has(s.email.toLowerCase())).map((person) => ({ person }));
+      suggestions = [...lists, ...persons].slice(0, 6);
       hi = 0;
     }, 70);
   }
 
-  function pick(s: ContactSuggestion) {
-    add([{ email: s.email, name: s.name }]);
+  /** Adds a person's address, or every address of a group. */
+  function pick(s: Suggestion) {
+    add(s.group ? s.group.addresses : [{ email: s.person.email, name: s.person.name }]);
     input?.focus();
   }
 
@@ -176,13 +192,20 @@
   {@render children?.()}
   {#if suggestions.length && focused}
     <div class="suggest popover" role="listbox">
-      {#each suggestions as s, i (s.email)}
+      {#each suggestions as s, i (s.group ? `group ${s.group.id}` : s.person.email)}
         <button class="opt" class:hi={i === hi} role="option" aria-selected={i === hi} onmouseenter={() => (hi = i)} onmousedown={(e) => { e.preventDefault(); pick(s); }}>
-          <Avatar person={{ email: s.email, name: s.name }} size={26} />
-          <span class="who">
-            <span class="n">{s.name ?? s.email}</span>
-            {#if s.name}<span class="e">{s.email}</span>{/if}
-          </span>
+          {#if s.group}
+            <span class="group"><UsersRound size={15} /></span>
+            <span class="who">
+              <span class="n">{s.group.name}<span class="count">{` · ${t('groups.peopleCount', { count: s.group.count })}`}</span></span>
+            </span>
+          {:else}
+            <Avatar person={{ email: s.person.email, name: s.person.name }} size={26} />
+            <span class="who">
+              <span class="n">{s.person.name ?? s.person.email}</span>
+              {#if s.person.name}<span class="e">{s.person.email}</span>{/if}
+            </span>
+          {/if}
         </button>
       {/each}
     </div>
@@ -282,6 +305,21 @@
   }
   .e {
     font-size: var(--text-sm);
+    color: var(--text-3);
+  }
+  /* A contact group: its icon where a person has a face, and how many people it holds. */
+  .group {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    color: var(--accent-text);
+    background: var(--accent-soft);
+  }
+  .count {
+    font-weight: 400;
     color: var(--text-3);
   }
 </style>
