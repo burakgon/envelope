@@ -349,6 +349,13 @@
       <button class="icon-btn" title={t('composer.attachFiles')} onclick={attach}><Paperclip size={17} /></button>
       <button class="icon-btn" class:active={showFormat} title={t('composer.formatting')} onclick={() => (showFormat = !showFormat)}><Type size={17} /></button>
       <button class="icon-btn" title={t('composer.templates')} onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); tplMenu = { x: r.left, y: r.top - 8 }; }}><FileText size={17} /></button>
+      <button
+        class="icon-btn importance"
+        class:on={c.data.importance === 1}
+        aria-pressed={c.data.importance === 1}
+        title={t('importance.high')}
+        aria-label={t('importance.high')}
+        onclick={() => { c.data.importance = c.data.importance === 1 ? 0 : 1; changed(); }}>!</button>
       <button class="icon-btn ai" title={t('composer.writeWithAi')} onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); aiMenu = { x: r.left, y: r.top }; }}><Sparkles size={17} /></button>
       <ComposerCrypto state={c} onchange={changed} bind:this={cryptoBar} />
 
@@ -384,6 +391,13 @@
         <button
           class:on={(c.data.followUpDays ?? null) === days}
           onclick={() => { c.data.followUpDays = days as number | null; changed(); }}>{label}</button>
+      {/each}
+    </div>
+    <div class="divider"></div>
+    <div class="menu-label">{t('composer.importance')}</div>
+    <div class="followup">
+      {#each [[-1, t('importance.lowShort')], [0, t('importance.normal')], [1, t('importance.highShort')]] as [value, label] (value)}
+        <button class:on={(c.data.importance ?? 0) === value} onclick={() => { c.data.importance = value as number; changed(); }}>{label}</button>
       {/each}
     </div>
     <div class="divider"></div>
@@ -653,6 +667,15 @@
     height: 32px;
     padding: 0 7px;
     margin-left: 1px;
+  }
+  /* High importance: a red "!" when on, as Outlook marks it. */
+  .importance {
+    font-size: 16px;
+    font-weight: 800;
+  }
+  .importance.on {
+    color: var(--red);
+    background: var(--red-soft);
   }
   .ai {
     color: var(--accent-text);

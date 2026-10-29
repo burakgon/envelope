@@ -1023,6 +1023,31 @@ await step('a newer version is announced in the sidebar, and the notice can be p
   }
 });
 
+await step('mail marked important shows a red mark, and the composer marks a message important', async () => {
+  const p = await fresh();
+  try {
+    const row = p.locator('.row', { hasText: 'Q4 roadmap — final review' });
+    await row.locator('.important').waitFor({ timeout: 5000 });
+    if ((await p.locator('.row .important').count()) !== 1) throw new Error(`${await p.locator('.row .important').count()} rows are marked important`);
+    await row.click();
+    await p.locator('.reader .card .importance', { hasText: 'High importance' }).waitFor({ timeout: 5000 });
+    // A new message, marked important from the footer, then low from the send menu.
+    await p.locator('body').press('c');
+    const composer = p.locator('.composer');
+    await composer.waitFor({ timeout: 5000 });
+    const toggle = composer.locator('button.importance');
+    await toggle.click();
+    if ((await toggle.getAttribute('aria-pressed')) !== 'true') throw new Error('the importance toggle is not on');
+    await composer.locator('button[aria-label="Send later"], .send-more').first().click();
+    const high = p.locator('.popover .followup button', { hasText: 'High' });
+    if (!(await high.evaluate((el) => el.classList.contains('on')))) throw new Error('High is not chosen in the send menu');
+    await p.locator('.popover .followup button', { hasText: 'Low' }).click();
+    if ((await toggle.getAttribute('aria-pressed')) !== 'false') throw new Error('Low importance left the toggle on');
+  } finally {
+    await p.close();
+  }
+});
+
 await step('blocking a sender moves their mail to Spam; Privacy unblocks', async () => {
   const p = await fresh();
   try {

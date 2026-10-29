@@ -488,3 +488,54 @@ async fn folder_lists_come_in_order_from_an_index() {
         }
     }
 }
+
+#[tokio::test]
+async fn a_message_marked_important_marks_its_row() {
+    let fx = fixture();
+    let inbox = Mailbox::Folder { id: fx.id("INBOX") };
+    let (first, thread) = from_named(
+        &fx,
+        "INBOX",
+        1,
+        "a@x",
+        None,
+        ("Maya", "maya@example.com"),
+        1_000,
+        0,
+    );
+    let (reply, _) = from_named(
+        &fx,
+        "INBOX",
+        2,
+        "b@x",
+        Some("a@x"),
+        ("Sam", "sam@example.com"),
+        2_000,
+        0,
+    );
+    let row = |messages: bool, id: i64| {
+        fx.engine
+            .threads(&query(inbox.clone(), SortOrder::Newest, messages))
+            .expect("list")
+            .items
+            .into_iter()
+            .find(|t| t.id == id)
+            .expect("row")
+            .important
+    };
+    assert!(!row(false, thread));
+    // As sync stores the header of a message marked important.
+    fx.engine
+        .db
+        .write(|tx| {
+            tx.execute("UPDATE messages SET importance = 1 WHERE id = ?", [first])?;
+            Ok(())
+        })
+        .unwrap();
+    assert!(row(false, thread), "the conversation");
+    assert!(row(true, first), "the message");
+    assert!(!row(true, reply), "the other message");
+    let opened = fx.engine.thread(thread).expect("thread");
+    let importance: Vec<i64> = opened.messages.iter().map(|m| m.importance).collect();
+    assert_eq!(importance, [1, 0]);
+}

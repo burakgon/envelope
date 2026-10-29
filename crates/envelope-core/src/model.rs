@@ -393,6 +393,9 @@ pub struct ThreadSummary {
     /// `id`, and this is its conversation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thread_id: Option<i64>,
+    /// A sender marked a message of it as important (high importance).
+    #[serde(default)]
+    pub important: bool,
 }
 
 /// A page of the message list.
@@ -523,6 +526,9 @@ pub struct MessageView {
     /// `inline-signed`; S/MIME: `smime-encrypted`, `smime-signed` or
     /// `smime-opaque` (see `Engine::open_message`).
     pub crypto: Option<String>,
+    /// How important the sender marked it: 1 high, -1 low, 0 normal.
+    #[serde(default)]
+    pub importance: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -606,6 +612,8 @@ pub struct DraftInput {
     /// Use S/MIME rather than OpenPGP; unset: the default for the sender
     /// and the conversation.
     pub smime: Option<bool>,
+    /// How important it is marked: 1 high, -1 low, 0 normal.
+    pub importance: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

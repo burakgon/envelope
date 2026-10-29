@@ -103,6 +103,8 @@ interface MsgSeed {
   attachments?: { filename: string; mimeType: string; size: number }[];
   unsubscribe?: boolean;
   invite?: boolean;
+  /** Marked high (1) or low (-1) importance by its sender. */
+  importance?: number;
   /** A draft stored on the server (written on another computer, say). */
   draft?: boolean;
 }
@@ -131,7 +133,7 @@ const seeds: ThreadSeed[] = [
     { from: P.priya, to: [P.meWork, P.daniel], at: now - 2 * DAY - 5 * HOUR, text: 'Hi both,\n\nAttached is the draft Q4 roadmap. The big bets are offline search, the new composer and calendar sharing.\n\nCan we lock priorities by Thursday?\n\nPriya', attachments: [{ filename: 'Q4-Roadmap.pdf', mimeType: 'application/pdf', size: 482_113 }] },
     { from: P.daniel, to: [P.priya, P.meWork], at: now - 2 * DAY - 2 * HOUR, text: "Looks solid. I'd move calendar sharing to Q1 — the sync rewrite has to land first.\n\nDaniel" },
     { from: P.meWork, to: [P.priya, P.daniel], at: now - 1 * DAY - 20 * HOUR, text: "Agree with Daniel. Offline search is the one users keep asking for, let's make it the headline.\n\nAlex" },
-    { from: P.priya, to: [P.meWork, P.daniel], at: now - 47 * MIN, seen: false, text: "Great — updated the doc with both of your notes. Final review tomorrow at 10:00, I'll send an invite.\n\nPriya" },
+    { from: P.priya, to: [P.meWork, P.daniel], at: now - 47 * MIN, seen: false, importance: 1, text: "Great — updated the doc with both of your notes. Final review tomorrow at 10:00, I'll send an invite.\n\nPriya" },
   ]),
   T(1, ['inbox'], 'Invitation: Product sync @ Thu 10:00', [
     { from: P.daniel, to: [P.meWork, P.priya, P.sofia], at: now - 2 * HOUR, seen: false, invite: true, text: 'Daniel Okafor has invited you to Product sync.\nThursday 10:00 – 10:45 · meet.lumen.dev/product-sync' },
@@ -285,6 +287,7 @@ for (const s of seeds) {
       unsubscribe: m.unsubscribe ? { url: 'https://example.test/unsubscribe', mailto: null, oneClick: true } : null,
       calendarMethod: m.invite ? 'REQUEST' : null,
       isAuto: s.category === 'notifications',
+      importance: m.importance ?? 0,
     };
     return view;
   });
@@ -298,6 +301,7 @@ for (const s of seeds) {
     flagged: msgs.some((m) => m.flags.flagged), hasAttachments: msgs.some((m) => m.hasAttachments),
     draftCount: msgs.filter((m) => m.flags.draft).length, participants: senders, lastSender: last.from, folderIds: [...new Set(folderIds)], category: s.category ?? 'people',
     isInvite: msgs.some((m) => m.calendarMethod === 'REQUEST'), muted: false, snoozedUntil: null,
+    important: msgs.some((m) => (m.importance ?? 0) > 0),
   });
 }
 

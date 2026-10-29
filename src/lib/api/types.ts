@@ -144,6 +144,8 @@ export interface ThreadSummary {
   snoozedUntil: number | null;
   /** In a list of messages one by one: the row is the message `id`, and this its conversation. */
   threadId?: number | null;
+  /** A sender marked a message of it as important (high importance). */
+  important?: boolean;
   /** Interface only: the row is a draft that is only on this computer. */
   localDraftId?: number;
 }
@@ -232,6 +234,8 @@ export interface MessageView {
   isAuto: boolean;
   /** OpenPGP or S/MIME content, opened with `api.crypto.open`. */
   crypto?: CryptoKind | null;
+  /** How important the sender marked it: 1 high, -1 low, 0 normal. */
+  importance?: number;
 }
 
 export interface ThreadDetail {
@@ -351,6 +355,8 @@ export interface DraftInput {
   sign?: boolean | null;
   /** S/MIME rather than OpenPGP; unset: the default for the sender and the conversation. */
   smime?: boolean | null;
+  /** How important it is marked: 1 high, -1 low, 0 normal. */
+  importance?: number;
 }
 
 export interface Draft {

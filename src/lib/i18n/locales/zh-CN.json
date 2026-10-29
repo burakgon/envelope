@@ -235,6 +235,12 @@
   "updates.checkDesc": "Envelope 每天会询问 GitHub 一次是否有更新的版本，不会发送任何关于你或你的邮件的信息。",
   "updates.checkNow": "立即检查",
 
+  "importance.high": "重要性 - 高",
+  "importance.low": "重要性 - 低",
+  "importance.highShort": "高",
+  "importance.normal": "普通",
+  "importance.lowShort": "低",
+
   "outbox.toRecipients": "发送至 {recipients}",
   "outbox.toNobody": "无收件人",
   "outbox.notSent": "未发送：{error}",
@@ -571,6 +577,7 @@
   "composer.followUpDays": "{count, plural, other {# 天}}",
   "composer.followUpWeeks": "{count, plural, other {# 周}}",
   "composer.requestReadReceipt": "请求已读回执",
+  "composer.importance": "重要性",
 
   "recipients.remove": "移除 {email}",
 

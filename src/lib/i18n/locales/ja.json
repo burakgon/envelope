@@ -235,6 +235,12 @@
   "updates.checkDesc": "1 日に 1 回、新しいバージョンが出ているかを GitHub に問い合わせます。あなたやメールに関する情報は送信されません。",
   "updates.checkNow": "今すぐ確認",
 
+  "importance.high": "重要度 - 高",
+  "importance.low": "重要度 - 低",
+  "importance.highShort": "高",
+  "importance.normal": "標準",
+  "importance.lowShort": "低",
+
   "outbox.toRecipients": "宛先：{recipients}",
   "outbox.toNobody": "宛先なし",
   "outbox.notSent": "送信失敗：{error}",
@@ -571,6 +577,7 @@
   "composer.followUpDays": "{count, plural, other {# 日後}}",
   "composer.followUpWeeks": "{count, plural, other {# 週間後}}",
   "composer.requestReadReceipt": "開封確認を要求",
+  "composer.importance": "重要度",
 
   "recipients.remove": "{email} を削除",
 

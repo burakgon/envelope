@@ -508,6 +508,8 @@ pub struct MessageMeta {
     pub calendar_method: Option<String>,
     /// The `Autocrypt` header (only when the message has exactly one).
     pub autocrypt: Option<String>,
+    /// How important the sender marked it: 1 high, -1 low, 0 normal.
+    pub importance: i64,
 }
 
 /// Result of storing a message.
@@ -684,8 +686,9 @@ pub fn upsert_message(
     tx.execute(
         "INSERT INTO messages (account_id, thread_id, remote_id, message_id, in_reply_to, refs, subject,
             from_name, from_email, to_json, cc_json, bcc_json, reply_to_json, date, snippet, flags, keywords,
-            size, has_attachments, structure, list_unsubscribe, unsubscribe_post, list_id, is_auto, calendar_method)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            size, has_attachments, structure, list_unsubscribe, unsubscribe_post, list_id, is_auto, calendar_method,
+            importance)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         params![
             account_id,
             thread_id,
@@ -712,6 +715,7 @@ pub fn upsert_message(
             meta.list_id,
             meta.is_auto as i64,
             meta.calendar_method,
+            meta.importance,
         ],
     )?;
     let id = tx.last_insert_rowid();
@@ -1656,12 +1660,14 @@ fn summary_from_row(r: &Row<'_>) -> rusqlite::Result<ThreadSummary> {
         muted: r.get::<_, i64>("muted")? != 0,
         snoozed_until: r.get("snoozed_until")?,
         thread_id: None,
+        important: r.get::<_, i64>("important")? != 0,
     })
 }
 
 const SUMMARY_COLUMNS: &str = "t.id, t.account_id, t.subject, t.snippet, t.last_date, t.message_count, t.unread_count,
     t.flagged, t.has_attachments, t.draft_count, t.participants, t.last_sender, t.category, t.is_invite, t.muted, t.snoozed_until,
-    (SELECT group_concat(folder_id) FROM thread_folders x WHERE x.thread_id = t.id) AS folder_ids";
+    (SELECT group_concat(folder_id) FROM thread_folders x WHERE x.thread_id = t.id) AS folder_ids,
+    EXISTS (SELECT 1 FROM messages i WHERE i.thread_id = t.id AND i.importance > 0) AS important";
 
 pub fn thread_summary(c: &Connection, thread_id: i64) -> Result<ThreadSummary> {
     c.query_row(
@@ -2016,12 +2022,15 @@ fn message_row_from_row(r: &Row<'_>) -> rusqlite::Result<ThreadSummary> {
         muted: r.get::<_, i64>("muted")? != 0,
         snoozed_until: r.get("snoozed_until")?,
         thread_id: Some(r.get("thread_id")?),
+        important: r.get::<_, i64>("important")? != 0,
     })
 }
 
-const MESSAGE_ROW_COLUMNS: &str = "m.id, m.thread_id, m.account_id, m.subject, m.snippet, m.date, m.flags, m.has_attachments,
+const MESSAGE_ROW_COLUMNS: &str =
+    "m.id, m.thread_id, m.account_id, m.subject, m.snippet, m.date, m.flags, m.has_attachments,
     m.from_name, m.from_email, m.calendar_method, t.category, t.muted, t.snoozed_until,
-    (SELECT group_concat(folder_id) FROM message_folders x WHERE x.message_id = m.id) AS folder_ids";
+    (SELECT group_concat(folder_id) FROM message_folders x WHERE x.message_id = m.id) AS folder_ids,
+    m.importance > 0 AS important";
 
 /// Runs a list query and returns one page.
 pub fn query_threads(c: &Connection, sql: &ListSql, offset: i64, limit: i64) -> Result<ThreadPage> {
@@ -2152,6 +2161,7 @@ fn message_from_row(r: &Row<'_>) -> rusqlite::Result<MessageView> {
         calendar_method: r.get("calendar_method")?,
         is_auto: r.get::<_, i64>("is_auto")? != 0,
         crypto: r.get("crypto_kind")?,
+        importance: r.get("importance")?,
     })
 }
 

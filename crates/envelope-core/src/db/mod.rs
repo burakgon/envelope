@@ -27,7 +27,7 @@ const SCHEMA: &str = concat!(
     include_str!("vips.sql"),
     include_str!("smime.sql")
 );
-const SCHEMA_VERSION: i64 = 13;
+const SCHEMA_VERSION: i64 = 14;
 
 /// Steps from one schema version to the next, applied in order to older databases.
 const MIGRATIONS: &[(i64, &str)] = &[
@@ -84,6 +84,8 @@ const NEW_COLUMNS: &[(i64, &str, &str, &str)] = &[
     (13, "thread_folders", "sender", "TEXT"),
     (13, "message_folders", "date", "INTEGER"),
     (13, "message_folders", "sender", "TEXT"),
+    // How important the sender marked a message.
+    (14, "messages", "importance", "INTEGER NOT NULL DEFAULT 0"),
 ];
 const MAX_READERS: usize = 6;
 
@@ -245,6 +247,11 @@ fn migrate(conn: &Connection) -> Result<()> {
             mail::fill_sort_keys(&tx)?;
             tx.execute_batch(include_str!("sort.sql"))?;
             tx.commit()?;
+        }
+        if version < 14 {
+            conn.execute_batch(
+                "CREATE INDEX IF NOT EXISTS messages_important ON messages(thread_id) WHERE importance > 0;",
+            )?;
         }
     }
     conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))?;

@@ -235,6 +235,12 @@
   "updates.checkDesc": "Une fois par jour, Envelope demande à GitHub si une version plus récente est sortie. Rien sur vous ni sur vos messages n’est envoyé.",
   "updates.checkNow": "Rechercher maintenant",
 
+  "importance.high": "Importance haute",
+  "importance.low": "Importance faible",
+  "importance.highShort": "Haute",
+  "importance.normal": "Normale",
+  "importance.lowShort": "Faible",
+
   "outbox.toRecipients": "à {recipients}",
   "outbox.toNobody": "sans destinataire",
   "outbox.notSent": "Non envoyé : {error}",
@@ -571,6 +577,7 @@
   "composer.followUpDays": "{count, plural, one {# jour} other {# jours}}",
   "composer.followUpWeeks": "{count, plural, one {# semaine} other {# semaines}}",
   "composer.requestReadReceipt": "Demander un accusé de lecture",
+  "composer.importance": "Importance",
 
   "recipients.remove": "Retirer {email}",
 

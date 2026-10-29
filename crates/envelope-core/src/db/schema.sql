@@ -117,13 +117,15 @@ CREATE TABLE IF NOT EXISTS messages (
     unsubscribe_post  INTEGER NOT NULL DEFAULT 0,
     list_id           TEXT,
     is_auto           INTEGER NOT NULL DEFAULT 0,
-    calendar_method   TEXT                  -- iTIP METHOD when the message carries an invitation
+    calendar_method   TEXT,                 -- iTIP METHOD when the message carries an invitation
+    importance        INTEGER NOT NULL DEFAULT 0  -- as the sender marked it: 1 high, -1 low
 );
 CREATE INDEX IF NOT EXISTS messages_thread ON messages(thread_id, date);
 CREATE INDEX IF NOT EXISTS messages_msgid ON messages(account_id, message_id);
 CREATE INDEX IF NOT EXISTS messages_remote ON messages(account_id, remote_id);
 CREATE INDEX IF NOT EXISTS messages_body ON messages(account_id, body_state, date DESC);
 CREATE INDEX IF NOT EXISTS messages_from ON messages(from_email);
+CREATE INDEX IF NOT EXISTS messages_important ON messages(thread_id) WHERE importance > 0;
 CREATE INDEX IF NOT EXISTS messages_reply ON messages(account_id, in_reply_to) WHERE in_reply_to IS NOT NULL;
 
 -- Server locations of a message: one row per IMAP folder copy or Gmail label.

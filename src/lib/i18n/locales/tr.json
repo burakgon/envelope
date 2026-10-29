@@ -235,6 +235,12 @@
   "updates.checkDesc": "Envelope günde bir kez GitHub’a daha yeni bir sürüm olup olmadığını sorar. Sizinle ya da postalarınızla ilgili hiçbir bilgi gönderilmez.",
   "updates.checkNow": "Şimdi denetle",
 
+  "importance.high": "Yüksek önem derecesi",
+  "importance.low": "Düşük önem derecesi",
+  "importance.highShort": "Yüksek",
+  "importance.normal": "Normal",
+  "importance.lowShort": "Düşük",
+
   "outbox.toRecipients": "alıcı: {recipients}",
   "outbox.toNobody": "alıcı yok",
   "outbox.notSent": "Gönderilemedi: {error}",
@@ -571,6 +577,7 @@
   "composer.followUpDays": "{count, plural, one {# gün} other {# gün}}",
   "composer.followUpWeeks": "{count, plural, one {# hafta} other {# hafta}}",
   "composer.requestReadReceipt": "Okundu bilgisi iste",
+  "composer.importance": "Önem derecesi",
 
   "recipients.remove": "{email} adresini kaldır",
 

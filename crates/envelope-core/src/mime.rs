@@ -8,7 +8,41 @@ use crate::model::{Address, Flags, UnsubscribeInfo};
 
 /// Header fields requested during header synchronization.
 pub const SYNC_HEADER_FIELDS: &str = "DATE FROM SENDER REPLY-TO TO CC BCC SUBJECT MESSAGE-ID IN-REPLY-TO REFERENCES \
-     LIST-UNSUBSCRIBE LIST-UNSUBSCRIBE-POST LIST-ID AUTO-SUBMITTED CONTENT-TYPE AUTOCRYPT";
+     LIST-UNSUBSCRIBE LIST-UNSUBSCRIBE-POST LIST-ID AUTO-SUBMITTED CONTENT-TYPE AUTOCRYPT \
+     IMPORTANCE X-PRIORITY X-MSMAIL-PRIORITY PRIORITY";
+
+/// How important the sender marked a message: 1 high, -1 low, 0 normal.
+/// `Importance` (Outlook and most programs) wins over `X-Priority` (1–2
+/// high, 4–5 low), `X-MSMail-Priority` and `Priority` (`urgent`).
+pub fn importance(get: impl Fn(&str) -> Option<String>) -> i64 {
+    let value = |name: &str| {
+        get(name)
+            .map(|v| v.trim().to_ascii_lowercase())
+            .filter(|v| !v.is_empty())
+    };
+    if let Some(v) = value("Importance") {
+        return match v.as_str() {
+            "high" => 1,
+            "low" => -1,
+            _ => 0,
+        };
+    }
+    if let Some(v) = value("X-Priority") {
+        return match v.chars().next() {
+            Some('1' | '2') => 1,
+            Some('4' | '5') => -1,
+            _ => 0,
+        };
+    }
+    match value("X-MSMail-Priority")
+        .or_else(|| value("Priority"))
+        .as_deref()
+    {
+        Some("high" | "urgent") => 1,
+        Some("low" | "non-urgent") => -1,
+        _ => 0,
+    }
+}
 
 fn addresses(list: Option<mail_parser::AddressList<'_>>) -> Vec<Address> {
     let Some(list) = list else {
@@ -52,6 +86,11 @@ pub fn meta_from_message(msg: &Message<'_>) -> MessageMeta {
         .get("List-Id")
         .map(|h| String::from_utf8_lossy(h.raw_value()).trim().to_string())
         .filter(|s| !s.is_empty());
+    let importance = importance(|name| {
+        headers
+            .get(name)
+            .map(|h| String::from_utf8_lossy(h.raw_value()).into_owned())
+    });
     let is_auto = headers.get("Auto-Submitted").is_some_and(|h| {
         let v = String::from_utf8_lossy(h.raw_value())
             .trim()
@@ -108,6 +147,7 @@ pub fn meta_from_message(msg: &Message<'_>) -> MessageMeta {
         calendar_method,
         has_attachments: likely_attachments,
         autocrypt,
+        importance,
         ..Default::default()
     }
 }
@@ -636,6 +676,25 @@ pub fn parse_unsubscribe(header: &str, one_click: bool) -> UnsubscribeInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn importance_from_headers() {
+        let of = |headers: &str| {
+            meta_from_headers(format!("From: a@b.test\r\n{headers}").as_bytes()).importance
+        };
+        assert_eq!(of("Importance: High\r\n"), 1);
+        assert_eq!(of("Importance: low\r\n"), -1);
+        assert_eq!(of("X-Priority: 1 (Highest)\r\n"), 1);
+        assert_eq!(of("X-Priority: 2\r\n"), 1);
+        assert_eq!(of("X-Priority: 3 (Normal)\r\n"), 0);
+        assert_eq!(of("X-Priority: 5 (Lowest)\r\n"), -1);
+        assert_eq!(of("X-MSMail-Priority: High\r\n"), 1);
+        assert_eq!(of("Priority: urgent\r\n"), 1);
+        assert_eq!(of("Priority: non-urgent\r\n"), -1);
+        // Importance wins when they disagree.
+        assert_eq!(of("Importance: normal\r\nX-Priority: 1\r\n"), 0);
+        assert_eq!(of("Subject: Hello\r\n"), 0);
+    }
 
     #[test]
     fn headers_to_meta() {

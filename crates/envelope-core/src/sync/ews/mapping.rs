@@ -114,6 +114,11 @@ pub(super) fn message_meta(m: &ews::Message) -> MessageMeta {
         flags |= Flags::DRAFT;
     }
     MessageMeta {
+        importance: match m.importance {
+            Some(ews::Importance::High) => 1,
+            Some(ews::Importance::Low) => -1,
+            _ => 0,
+        },
         remote_id: Some(m.id.id.clone()),
         remote_thread_id: m.conversation_id.clone().filter(|c| !c.trim().is_empty()),
         message_id: m

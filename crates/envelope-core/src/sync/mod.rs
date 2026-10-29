@@ -310,6 +310,19 @@ pub(crate) async fn render_draft(
         allow_no_recipients: for_draft,
         ..Default::default()
     };
+    // Marked important or not, in the headers mail programs read (Outlook
+    // reads `Importance`, many others `X-Priority`).
+    match draft.importance {
+        1 => out.extra_headers.extend([
+            ("Importance".to_string(), "high".to_string()),
+            ("X-Priority".to_string(), "1 (Highest)".to_string()),
+        ]),
+        -1 => out.extra_headers.extend([
+            ("Importance".to_string(), "low".to_string()),
+            ("X-Priority".to_string(), "5 (Lowest)".to_string()),
+        ]),
+        _ => {}
+    }
     // OpenPGP: the sender's key in an Autocrypt header, encryption and
     // signatures as the composer asked.
     let plan = crate::crypto::plan_outgoing(engine, draft, &out.from, for_draft).await?;

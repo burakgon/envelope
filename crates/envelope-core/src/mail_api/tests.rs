@@ -568,6 +568,7 @@ async fn new_mail_notifies_as_its_account_says() {
         muted: false,
         snoozed_until: None,
         thread_id: None,
+        important: false,
     };
     let arrived = || {
         vec![
@@ -601,4 +602,44 @@ async fn new_mail_notifies_as_its_account_says() {
     }
     engine.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The headers of a draft as it would be sent, and the whole message.
+async fn rendered_with(f: &Fixture, importance: i64) -> (String, Vec<u8>) {
+    let draft = DraftInput {
+        account_id: f.account,
+        to: vec![Address::new(None, "sam@example.com")],
+        subject: "Contract".into(),
+        html: "<p>Please sign today.</p>".into(),
+        importance,
+        ..Default::default()
+    };
+    let rendered = crate::sync::render_draft(&f.engine, &draft, false)
+        .await
+        .unwrap();
+    let text = String::from_utf8_lossy(&rendered.mime).into_owned();
+    let head = text.split("\r\n\r\n").next().unwrap_or("").to_string();
+    (head, rendered.mime)
+}
+
+#[tokio::test]
+async fn importance_goes_out_in_the_headers_and_comes_back_in() {
+    let f = Fixture::new();
+    let (high, mime) = rendered_with(&f, 1).await;
+    assert!(high.contains("Importance: high"), "{high}");
+    assert!(high.contains("X-Priority: 1 (Highest)"), "{high}");
+    // Stored as received, the message says it is important.
+    let id = f.store(f.inbox, 7, &mime, false);
+    let stored = f.engine.db.read(|c| mail::get_message(c, id)).unwrap();
+    assert_eq!(stored.importance, 1);
+    let (low, _) = rendered_with(&f, -1).await;
+    assert!(
+        low.contains("Importance: low") && low.contains("X-Priority: 5 (Lowest)"),
+        "{low}"
+    );
+    let (normal, _) = rendered_with(&f, 0).await;
+    assert!(
+        !normal.contains("Importance:") && !normal.contains("X-Priority:"),
+        "{normal}"
+    );
 }

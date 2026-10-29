@@ -265,6 +265,7 @@ export function createMockApi(): Api {
       unreadCount: m.flags.seen || m.flags.draft ? 0 : 1, flagged: m.flags.flagged, hasAttachments: m.hasAttachments, draftCount: m.flags.draft ? 1 : 0,
       participants: m.from ? [m.from] : [], lastSender: m.from, folderIds: [...m.folderIds], category: t?.category ?? null,
       isInvite: m.calendarMethod === 'REQUEST', muted: t?.muted ?? false, snoozedUntil: t?.snoozedUntil ?? null,
+      important: (m.importance ?? 0) > 0,
     };
   }
 

@@ -111,6 +111,7 @@
       {#if local}<span class="here" title={t('threadRow.onlyHere')} aria-label={t('threadRow.onlyHere')}><CloudOff size={13} /></span>{/if}
       <span class="spacer"></span>
       <span class="meta">
+        {#if thread.important}<span class="important" title={t('importance.high')} aria-label={t('importance.high')}>!</span>{/if}
         {#if thread.isInvite}<Calendar size={13} />{/if}
         {#if thread.hasAttachments}<Paperclip size={13} />{/if}
         {#if thread.snoozedUntil}<Clock size={13} />{/if}
@@ -351,6 +352,13 @@
   }
   .compact .line .snippet::before {
     content: '— ';
+  }
+  /* Marked important by its sender, as Outlook shows it. */
+  .important {
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--red);
   }
   .place {
     flex-shrink: 0;

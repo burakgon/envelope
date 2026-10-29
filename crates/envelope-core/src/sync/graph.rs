@@ -258,6 +258,11 @@ fn message_meta(m: &Message) -> MessageMeta {
         keywords.push(mail::OTHER_INBOX_KEYWORD.to_string());
     }
     MessageMeta {
+        importance: match m.importance {
+            envelope_graph::Importance::High => 1,
+            envelope_graph::Importance::Low => -1,
+            _ => 0,
+        },
         remote_id: Some(m.id.clone()),
         remote_thread_id: m.conversation_id.clone().filter(|c| !c.is_empty()),
         message_id: m.internet_message_id.as_deref().and_then(clean_message_id),
