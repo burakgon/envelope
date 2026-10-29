@@ -59,6 +59,8 @@ export interface Settings {
   defaultReply: 'reply' | 'replyAll';
   notifications: boolean;
   calendarNotifications: boolean;
+  /** Notify when a task due at a time of day comes due. */
+  taskNotifications: boolean;
   nativeTitlebar: boolean;
   showAvatars: boolean;
   previewLines: number;
@@ -96,6 +98,7 @@ export const defaultSettings: Settings = {
   defaultReply: 'reply',
   notifications: true,
   calendarNotifications: true,
+  taskNotifications: true,
   nativeTitlebar: false,
   showAvatars: true,
   previewLines: 1,

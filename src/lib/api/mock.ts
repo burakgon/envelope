@@ -377,6 +377,7 @@ export function createMockApi(): Api {
     onWebcal: () => () => {},
     onOpenFile: () => () => {},
     onOpenThread: () => () => {},
+    onOpenTask: () => () => {},
 
     autoReply: {
       get: async (accountId) => ({

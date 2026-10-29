@@ -58,6 +58,10 @@ class Tasks {
   private deleting = new SvelteMap<number, () => void>();
   /** Quick add should take the focus (once it is on screen). */
   focusAdd = $state(false);
+  /** A task just added, shown and briefly highlighted. */
+  fresh = $state<number | null>(null);
+  /** Moved tasks get a new id on most services: the new id of an old one. */
+  movedTo = new SvelteMap<number, number>();
   /** Ticks every minute, so "overdue" and the day groups follow the clock. */
   now = $state(Date.now());
   private seq = 0;
@@ -314,8 +318,11 @@ class Tasks {
     } else if (i >= 0) {
       if (keep) this.items[i] = task;
       else this.items.splice(i, 1);
-    } else if (keep) {
-      this.items = [task, ...this.items];
+    } else if (keep && typeof this.view === 'object') {
+      // New in a list: after its open tasks, where the engine puts it. In the other views
+      // the refresh that follows every change puts it in its place.
+      const at = this.items.findIndex((x) => x.completedAt != null);
+      this.items.splice(at < 0 ? this.items.length : at, 0, task);
     }
     if (this.detail?.id === task.id) this.detail = task;
     const s = this.subtasks.findIndex((x) => x.id === task.id);
@@ -343,6 +350,7 @@ class Tasks {
     this.put({ ...task, listId: input.listId, title: input.title, notes: input.notes ?? '', dueDate, dueAt: input.dueAt ?? null, important: !!input.important });
     try {
       const saved = await api.tasks.update(task.id, input);
+      if (saved.id !== task.id) this.renumber(task.id, saved.id);
       this.put(saved);
       return saved;
     } catch (e) {
@@ -350,6 +358,17 @@ class Tasks {
       this.put(task);
       this.refreshSoon();
       return null;
+    }
+  }
+
+  /** A moved task came back with a new id: the selection and the detail panel go with it. */
+  private renumber(from: number, to: number) {
+    this.movedTo.set(from, to);
+    this.items = this.items.filter((x) => x.id !== from);
+    if (this.selectedId === from) this.selectedId = to;
+    if (this.openId === from) {
+      this.openId = to;
+      this.loadDetail(to);
     }
   }
 
@@ -475,7 +494,10 @@ class Tasks {
     try {
       const task = await api.tasks.create(input);
       this.put(task);
-      if (!this.belongs(task)) {
+      if (this.belongs(task)) {
+        this.fresh = task.id;
+        setTimeout(() => this.fresh === task.id && (this.fresh = null), 1600);
+      } else {
         const list = this.listById.get(task.listId);
         const message = task.dueDate
           ? t('tasks.toast.addedToDue', { list: listName(list), when: dueLabel(task) })

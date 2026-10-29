@@ -81,6 +81,8 @@ export interface Api {
   /** A message or calendar file was opened with Envelope. */
   onOpenFile(cb: (path: string) => void): () => void;
   onOpenThread(cb: (threadId: number | null) => void): () => void;
+  /** A task's notification was clicked. */
+  onOpenTask(cb: (taskId: number) => void): () => void;
 
   calendar: {
     list(): Promise<T.CalendarInfo[]>;
@@ -172,11 +174,14 @@ export interface Api {
     /** A task's subtasks by position, completed ones included. */
     subtasks(id: number): Promise<T.Task[]>;
     create(input: T.TaskInput): Promise<T.Task>;
-    /** Saves a task; a different `listId` moves it. */
+    /**
+     * Saves a task (fields left out keep their value). A different `listId` moves it, and
+     * unless both lists are local the moved task has a new id: go on with the one returned.
+     */
     update(id: number, input: T.TaskInput): Promise<T.Task>;
-    /** A repeating task comes back open with its next due date. */
+    /** A repeating task with a due date on a CalDAV list comes back open with its next one. */
     complete(id: number, completed: boolean): Promise<T.Task>;
-    /** Moves a task before another in its list (null: to the end). */
+    /** Moves a task before another in its list (null: to the end). New tasks go to the end. */
     reorder(id: number, beforeId: number | null): Promise<void>;
     /** Deletes a task and its subtasks. */
     remove(id: number): Promise<void>;

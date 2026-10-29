@@ -107,7 +107,7 @@ add(2, 'Send onboarding notes to Maya', {
 add(2, 'Review the release v0.1 checklist (#151)', { due: -1 });
 add(2, 'Prepare for the Q4 roadmap review', { due: 1, notes: 'Offline search is the headline; calendar sharing moves to Q1.' });
 add(2, 'Pick a system design question for the Rust interviews', { due: 2 });
-add(2, 'Write the weekly update', { due: daysToFriday, every: 7 });
+add(2, 'Write the weekly update', { due: daysToFriday });
 add(2, 'Book the balloon ride for the offsite', { due: 7 });
 add(2, 'Expense the Lumen Cloud receipt');
 add(2, 'Merge the design tokens v2', { done: 1 });
@@ -252,18 +252,25 @@ function writable(listId: number): StoredList {
   return l;
 }
 
-/** Applies an input with the rules of the target list: a time only where it keeps times, importance only where it has it. */
+/**
+ * Applies an input with the rules of the target list: a time only where it keeps times, importance
+ * only where it has it. A field left out keeps its value, `null` clears it; a day alone clears the time.
+ */
 function apply(t: Stored, input: T.TaskInput, list: StoredList) {
   t.title = input.title.trim() || t.title || 'Untitled';
-  t.notes = input.notes ?? t.notes;
+  if (input.notes !== undefined) t.notes = input.notes;
   if (input.dueAt != null) {
     t.dueDate = ymd(new Date(input.dueAt));
-    t.dueAt = list.dueTimes ? input.dueAt : null;
-  } else {
-    t.dueDate = input.dueDate ?? null;
+    t.dueAt = input.dueAt;
+  } else if (input.dueDate !== undefined) {
+    t.dueDate = input.dueDate;
+    t.dueAt = null;
+  } else if (input.dueAt === null) {
     t.dueAt = null;
   }
-  t.important = list.importance && !!input.important;
+  if (!list.dueTimes) t.dueAt = null;
+  if (input.important !== undefined) t.important = !!input.important;
+  if (!list.importance) t.important = false;
 }
 
 export function create(input: T.TaskInput): T.Task {
@@ -274,9 +281,9 @@ export function create(input: T.TaskInput): T.Task {
     if (!list.subtasks) throw invalid('This list has no subtasks');
     if (parent.parentId != null) throw invalid('Subtasks cannot have subtasks');
   }
+  // New tasks go to the end of their list, or of their parent's subtasks.
   const siblings = tasks.filter((t) => t.listId === input.listId && t.parentId === parentId);
-  // New tasks go to the top of a list; subtasks to the end of their parent's.
-  const position = parentId == null ? Math.min(0, ...siblings.map((s) => s.position)) - 1 : Math.max(-1, ...siblings.map((s) => s.position)) + 1;
+  const position = Math.max(-1, ...siblings.map((s) => s.position)) + 1;
   const now = Date.now();
   const t: Stored = {
     id: seq++, listId: input.listId, parentId, title: '', notes: '', dueDate: null, dueAt: null, completedAt: null, important: false,
@@ -300,10 +307,19 @@ export function update(id: number, input: T.TaskInput): T.Task {
   if (input.listId !== t.listId) {
     if (t.parentId != null) throw invalid('Subtasks stay in the list of their task');
     const target = tasks.filter((x) => x.listId === input.listId && x.parentId == null);
-    t.position = Math.min(0, ...target.map((x) => x.position)) - 1;
-    for (const c of tasks.filter((x) => x.parentId === t.id)) c.listId = input.listId;
+    t.position = Math.max(-1, ...target.map((x) => x.position)) + 1;
+    const children = tasks.filter((x) => x.parentId === t.id);
+    // Moved to another service (or account) the task is a new one there, with a new id.
+    if (listOf(t.listId).kind !== 'local' || list.kind !== 'local') {
+      t.id = seq++;
+      for (const c of children) c.id = seq++;
+    }
+    for (const c of children) {
+      c.parentId = t.id;
+      c.listId = input.listId;
+    }
     t.listId = input.listId;
-    if (!list.subtasks) for (const c of tasks.filter((x) => x.parentId === t.id)) tasks.splice(tasks.indexOf(c), 1);
+    if (!list.subtasks) for (const c of children) tasks.splice(tasks.indexOf(c), 1);
   }
   apply(t, input, list);
   touch(t);
@@ -326,8 +342,9 @@ function advance(t: Stored) {
 
 export function complete(id: number, completed: boolean): T.Task {
   const t = find(id);
-  writable(t.listId);
-  if (completed && t.repeats) advance(t);
+  const list = writable(t.listId);
+  // Only CalDAV keeps the rule that moves a task on; elsewhere it is simply done.
+  if (completed && t.repeats && list.kind === 'caldav' && t.dueDate) advance(t);
   else t.completedAt = completed ? Date.now() : null;
   touch(t);
   return view(t);

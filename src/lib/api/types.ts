@@ -405,6 +405,7 @@ export interface Task {
 
 export type TaskView = { list: number } | 'today' | 'upcoming' | 'important' | 'all';
 
+/** For `task_update` a field left out keeps its value and `null` clears it; `title` and `listId` are always needed. */
 export interface TaskInput {
   listId: number;
   parentId?: number | null;
@@ -482,6 +483,8 @@ export type EngineEvent =
   | { type: 'contactsChanged'; bookIds: number[] }
   /** Tasks or lists changed; an empty `listIds` means the lists themselves changed. */
   | { type: 'tasksChanged'; listIds: number[] }
+  /** A task due at a time of day came due (the desktop shell shows the notification). */
+  | { type: 'taskDue'; taskId: number; title: string; dueAt: number }
   | { type: 'followUpDue'; threadId: number; subject: string }
   | { type: 'outboxChanged' }
   | { type: 'sendFailed'; outboxId: number; error: string }

@@ -42,7 +42,8 @@
   $effect(() => {
     const cur = task;
     if (!cur) return;
-    if (shown && shown.id !== cur.id) {
+    // Moved to another list, a task may come back with a new id: it is still the one being edited.
+    if (shown && shown.id !== cur.id && tasks.movedTo.get(shown.id) !== cur.id) {
       commit(shown);
       editing = null;
     }
@@ -242,7 +243,11 @@
         {#if task.repeats}
           <div class="field">
             <span class="ico"><Repeat size={16} /></span>
-            <div class="text"><span>{t('tasks.detail.repeats')}</span><small>{t('tasks.detail.repeatsHint')}</small></div>
+            <div class="text">
+              <span>{t('tasks.detail.repeats')}</span>
+              <!-- Only CalDAV moves a task on to its next date; elsewhere it is simply done. -->
+              {#if list?.kind === 'caldav' && task.dueDate}<small>{t('tasks.detail.repeatsHint')}</small>{/if}
+            </div>
           </div>
         {/if}
 

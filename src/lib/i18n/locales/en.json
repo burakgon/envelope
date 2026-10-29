@@ -1126,6 +1126,8 @@
   "tasks.keySpace": "Space",
   "tasks.settings.showInCalendar": "Show tasks",
   "tasks.settings.showInCalendarDesc": "Open tasks with a due date appear on their day.",
+  "tasks.settings.notifications": "Task reminders",
+  "tasks.settings.notificationsDesc": "Notify when a task due at a time of day comes due.",
   "tasks.calendar.open": "Open in Tasks",
   "tasks.calendar.due": "Due",
 

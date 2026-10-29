@@ -451,6 +451,10 @@
             <div class="txt"><b>{t('settings.calendar.eventReminders')}</b><span>{t('settings.calendar.eventRemindersDesc')}</span></div>
             <Toggle checked={ui.settings.calendarNotifications} onchange={(v) => ui.set('calendarNotifications', v)} />
           </div>
+          <div class="row">
+            <div class="txt"><b>{t('tasks.settings.notifications')}</b><span>{t('tasks.settings.notificationsDesc')}</span></div>
+            <Toggle checked={ui.settings.taskNotifications} label={t('tasks.settings.notifications')} onchange={(v) => ui.set('taskNotifications', v)} />
+          </div>
         </div>
       {:else if ui.settingsTab === 'privacy'}
         <h2>{t('settings.tab.privacy')}</h2>

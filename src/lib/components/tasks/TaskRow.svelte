@@ -36,6 +36,7 @@
   class:selected
   class:done
   class:completing
+  class:fresh={tasks.fresh === task.id}
   id="task-{task.id}"
   role="option"
   aria-selected={selected}
@@ -101,6 +102,16 @@
   }
   .task.selected {
     background: var(--bg-selected);
+  }
+  /* Just added: a moment of color to find it by. */
+  .task.fresh {
+    animation: fresh 1.4s var(--ease) both;
+  }
+  @keyframes fresh {
+    from,
+    30% {
+      background: var(--accent-soft);
+    }
   }
   .body {
     flex: 1;

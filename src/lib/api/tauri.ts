@@ -107,6 +107,7 @@ export function createTauriApi(): Api {
     onWebcal: (cb) => subscribe<string>('webcal', cb),
     onOpenFile: (cb) => subscribe<string>('open-file', cb),
     onOpenThread: (cb) => subscribe<number | null>('open-thread', cb),
+    onOpenTask: (cb) => subscribe<number>('open-task', cb),
 
     autoReply: {
       get: (accountId) => invoke('auto_reply_get', { accountId }),

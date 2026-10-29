@@ -35,6 +35,13 @@
     return tasks.view === 'today' ? dateFormat({ weekday: 'long', month: 'long', day: 'numeric' }).format(tasks.now) : '';
   });
 
+  // A task just added comes into view (at the end of a list, or wherever its date puts it).
+  $effect(() => {
+    const id = tasks.fresh;
+    if (id == null || !tasks.visible.some((x) => x.id === id)) return;
+    tick().then(() => document.getElementById(`task-${id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  });
+
   // Keep the task the keyboard is on in view.
   $effect(() => {
     const id = tasks.selectedId;

@@ -88,12 +88,14 @@
         mail.select(id);
       }
     });
+    const offTask = api.onOpenTask((id) => tasks.reveal(id));
     const offResize = api.window.onResized(async () => (ui.maximized = await api.window.isMaximized()));
     return () => {
       offMailto();
       offFile();
       offWebcal();
       offOpen();
+      offTask();
       offResize();
     };
   });
