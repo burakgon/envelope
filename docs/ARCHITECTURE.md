@@ -22,7 +22,7 @@ Everything the interface shows comes from one SQLite database (`envelope.db` in 
 
 - **Mail:** `accounts`, `folders`, `messages`, `message_folders` (a message can sit in several folders, as with Gmail labels), `threads` and `thread_folders`. Thread rows keep precomputed aggregates (unread count, participants, last date, category), so a message list is one indexed query, even with hundreds of thousands of messages.
 - **Bodies** are compressed with zstd and indexed for full-text search with FTS5.
-- **Calendars, contacts and tasks** have their own tables (`calendars`, `events`, `address_books`, `contacts`, `task_lists`, `tasks`); OpenPGP keys and per-message encryption state live in `crypto.sql`, S/MIME certificates in `smime.sql`.
+- **Calendars, contacts and tasks** have their own tables (`calendars`, `events`, `address_books`, `contacts`, `task_lists`, `tasks`); OpenPGP keys and per-message encryption state live in `crypto.sql`, S/MIME certificates in `smime.sql`, VIP senders in `vips.sql`.
 - **Schema changes** go in `db/mod.rs`: a list of migrations by version, and a list of columns added to existing tables (checked before they are added).
 
 Attachments and inline pictures are fetched on demand, cached on disk, and served to the interface through the `att://` protocol (`src-tauri/src/protocol.rs`).
@@ -39,7 +39,9 @@ Each account runs its own worker (`sync::run_account`), chosen by kind:
 
 Calendars (`sync/calendar.rs`: CalDAV, Google, Graph, EWS), contacts (`sync/contacts.rs`: CardDAV, Google People, Graph, EWS), tasks (`sync/tasks/`: one `TaskService` per kind of server — CalDAV, Google Tasks, Microsoft To Do, EWS) and subscribed calendars (`sync/subscriptions.rs`) sync alongside. The outbox (`sync/outbox.rs`) sends queued mail when its undo delay or scheduled time has passed. A housekeeping loop brings snoozed conversations back and raises follow-up reminders.
 
-New mail runs through the user's rules (`rules.rs`) before anything is notified; replies in muted conversations skip the inbox there too.
+New mail runs through the user's rules (`rules.rs`) before anything is notified; replies in muted conversations skip the inbox there too. Each account then decides what notifies — all new mail, people only, VIPs only (`vip.rs`) or nothing — before the shell shows it.
+
+A few views are queries over what is already stored rather than synced data of their own: the VIPs mailbox and `is:vip` (`vip.rs`), the senders of list mail in Subscriptions (`subscriptions.rs`), and the birthdays of the address books for the calendar (`birthdays.rs`). The only request Envelope makes on its own, besides the user's servers and AI provider, is the daily check for a newer release (`updates.rs`), which can be turned off.
 
 ## Local first
 
