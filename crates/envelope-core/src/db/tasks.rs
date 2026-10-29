@@ -923,11 +923,12 @@ pub fn resolve_parents(tx: &Transaction<'_>, list_id: i64) -> Result<()> {
 }
 
 /// Tasks of a list with local changes due to be pushed, parents before
-/// their subtasks.
+/// their subtasks, each in list order (servers that place a task after the
+/// one before it end up in the same order as here).
 pub fn dirty_rows(c: &Connection, list_id: i64) -> Result<Vec<TaskRow>> {
     let mut st = c.prepare_cached(&format!(
         "SELECT {TASK_COLUMNS} FROM tasks t WHERE t.list_id = ? AND t.local_state != 0 AND t.push_after <= ?
-         ORDER BY t.parent_id IS NOT NULL, t.id"
+         ORDER BY t.parent_id IS NOT NULL, t.position, t.created_at, t.id"
     ))?;
     let rows = st.query_map(params![list_id, now_ms()], task_from_row)?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
