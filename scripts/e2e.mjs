@@ -1464,6 +1464,32 @@ await step('the search box shows the search the list is showing', async () => {
   }
 });
 
+await step('another folder closes a conversation it does not list, and keeps one it does', async () => {
+  const p = await fresh();
+  try {
+    const subject = p.locator('.reader .subject-block h2');
+    // Starred lists the starred conversation that is open: it stays.
+    await p.locator('.row', { hasText: 'New onboarding flow' }).first().click();
+    await subject.waitFor({ timeout: 5000 });
+    await p.locator('body').press('g');
+    await p.locator('body').press('s');
+    await p.locator('.list h1', { hasText: 'Starred' }).waitFor({ timeout: 5000 });
+    await p.waitForTimeout(400);
+    if (!(await subject.innerText()).includes('New onboarding flow')) throw new Error('the conversation Starred lists was closed');
+    // Spam doesn't: it goes, and so does one an inbox tab doesn't list.
+    await personal(p).locator('.item', { hasText: 'Spam' }).click();
+    await p.locator('.reader .placeholder').waitFor({ timeout: 5000 });
+    await p.locator('body').press('g');
+    await p.locator('body').press('i');
+    await p.locator('.row', { hasText: 'Q4 roadmap' }).first().click();
+    await subject.waitFor({ timeout: 5000 });
+    await p.locator('body').press('2');
+    await p.locator('.reader .placeholder').waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

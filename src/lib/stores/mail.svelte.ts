@@ -108,6 +108,8 @@ class Mail {
   detailLoading = $state(false);
 
   private seq = 0;
+  /** How often a conversation was selected: one opened during a folder change keeps it open. */
+  private selections = 0;
   private markReadTimer: ReturnType<typeof setTimeout> | null = null;
 
   meEmails = $derived(new Set([...this.accounts.map((a) => a.email), ...this.identities.map((i) => i.email)].map((e) => e.toLowerCase())));
@@ -317,6 +319,7 @@ class Mail {
   }
 
   setMailbox(mb: Mailbox) {
+    const selections = this.selections;
     this.mailbox = mb;
     this.search = '';
     this.filter = {};
@@ -325,7 +328,17 @@ class Mail {
     this.items = [];
     this.loading = true;
     ui.view = 'mail';
-    this.refresh();
+    this.refresh().then(() => this.closeUnlisted(selections));
+  }
+
+  /**
+   * After going to another folder or inbox tab: the conversation that was open beside the list
+   * closes unless the list has it (or another one was opened meanwhile).
+   */
+  private closeUnlisted(selections: number) {
+    const id = this.selectedId;
+    if (id == null || this.selections !== selections || this.loading) return;
+    if (!this.items.some((t) => t.id === id)) this.select(null);
   }
 
   setSearch(q: string) {
@@ -338,10 +351,11 @@ class Mail {
   }
 
   setCategory(c: string | null) {
+    const selections = this.selections;
     this.category = c;
     this.items = [];
     this.loading = true;
-    this.refresh();
+    this.refresh().then(() => this.closeUnlisted(selections));
   }
 
   setFilter(f: ListFilter) {
@@ -359,6 +373,7 @@ class Mail {
   // ----- selection & reading ---------------------------------------------------
 
   select(id: number | null, opts: { open?: boolean } = {}) {
+    this.selections++;
     this.selectedId = id;
     this.anchorId = id;
     // A draft only on this computer has no conversation to read: it opens in a composer.
