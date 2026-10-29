@@ -6,7 +6,7 @@
   import { ui } from '../../stores/ui.svelte';
   import { t } from '../../i18n';
   import { addDays, atTime, capitalize, dayKey, dueDay, relativeDay } from '../../utils/due';
-  import { messageDate } from '../../utils/format';
+  import { composing, messageDate } from '../../utils/format';
   import DatePicker from '../calendar/DatePicker.svelte';
   import TimePicker from '../calendar/TimePicker.svelte';
   import MiniMonth from '../calendar/MiniMonth.svelte';
@@ -121,7 +121,7 @@
 
   function key(e: KeyboardEvent) {
     const field = (e.target as HTMLElement).closest('input, textarea');
-    if (e.key === 'Escape' && field) {
+    if (e.key === 'Escape' && field && !composing(e)) {
       // Leaving a field keeps what was typed and goes back to the list; a second Escape closes the panel.
       e.stopPropagation();
       (field as HTMLElement).blur();
@@ -174,7 +174,7 @@
             commit(task);
           }}
           onkeydown={(e) => {
-            if (e.key === 'Enter' && !e.isComposing) {
+            if (e.key === 'Enter' && !composing(e)) {
               e.preventDefault();
               titleEl?.blur();
             }
@@ -316,7 +316,7 @@
                   const v = (e.currentTarget as HTMLInputElement).value.trim();
                   if (v && v !== s.title) tasks.save(s, { title: v });
                 }}
-                onkeydown={(e) => e.key === 'Enter' && !e.isComposing && (e.currentTarget as HTMLInputElement).blur()}
+                onkeydown={(e) => e.key === 'Enter' && !composing(e) && (e.currentTarget as HTMLInputElement).blur()}
               />
               {#if !readOnly}
                 <button class="icon-btn sm remove" title={t('tasks.detail.removeSubtask')} aria-label={t('tasks.detail.removeSubtask')} onclick={() => tasks.remove(s)}><X size={13} /></button>
@@ -332,7 +332,7 @@
                 aria-label={t('tasks.detail.addSubtask')}
                 bind:value={newSub}
                 onkeydown={(e) => {
-                  if (e.key === 'Enter' && !e.isComposing) {
+                  if (e.key === 'Enter' && !composing(e)) {
                     e.preventDefault();
                     addSubtask();
                   }

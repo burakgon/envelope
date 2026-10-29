@@ -8,7 +8,7 @@
   import { intlLocale, t, type MessageKey } from '../../i18n';
   import { parseQuickAdd } from '../../utils/quickadd';
   import { addDays, atTime, dayKey, dueLabel, relativeDay } from '../../utils/due';
-  import { timeOf } from '../../utils/format';
+  import { composing, timeOf } from '../../utils/format';
   import Popover from '../Popover.svelte';
   import { CalendarDays, Check, ChevronDown, Plus, Star, X } from '../../icons';
 
@@ -71,7 +71,9 @@
   }
 
   function key(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.isComposing) {
+    // Enter and Escape choose or drop the text of an input method while it is composing.
+    if (composing(e)) return;
+    if (e.key === 'Enter') {
       e.preventDefault();
       submit();
     } else if (e.key === 'Escape') {

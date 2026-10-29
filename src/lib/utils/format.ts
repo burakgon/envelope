@@ -164,6 +164,14 @@ export function modKey(): string {
   return isMac ? '⌘' : t('keys.ctrl');
 }
 
+/**
+ * A key that belongs to an input method (Japanese, Chinese…) rather than the app: Enter that
+ * picks the text. WebKit may end the composition first, and the keydown then says 229.
+ */
+export function composing(e: KeyboardEvent): boolean {
+  return e.isComposing || e.keyCode === 229;
+}
+
 /** The preview the engine stores for encrypted mail it keeps no decrypted copy of (crypto/mod.rs). */
 const ENCRYPTED_SNIPPET = 'Encrypted message';
 
