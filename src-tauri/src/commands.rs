@@ -1,7 +1,7 @@
 //! IPC commands called by the UI.
 
 use envelope_core::mail_api::FollowUpChange;
-use envelope_core::mail_api::MarkedRead;
+use envelope_core::mail_api::{MarkedRead, ThreadRef};
 use envelope_core::model::*;
 use envelope_core::oauth::{ClientConfig, Provider};
 use envelope_core::rules::{MailRule, RuleMatches, RuleUndo};
@@ -296,6 +296,18 @@ pub fn set_flags(
     change: FlagChange,
 ) -> R<()> {
     Ok(state.engine.set_flags(&thread_ids, &message_ids, &change)?)
+}
+
+#[tauri::command]
+pub fn thread_refs(
+    state: State<'_, AppState>,
+    mailbox: Mailbox,
+    filter: ListFilter,
+    search: Option<String>,
+) -> R<Vec<ThreadRef>> {
+    Ok(state
+        .engine
+        .thread_refs(&mailbox, &filter, search.as_deref())?)
 }
 
 #[tauri::command]

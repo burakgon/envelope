@@ -104,6 +104,8 @@
   "threadList.clearSelection": "Seçimi temizle",
   "threadList.selectedCount": "{count, plural, one {# seçili} other {# seçili}}",
   "threadList.selectAll": "Tümünü seç",
+  "threadList.selectAllInFolder": "Bu klasördeki {count, plural, one {# konuşmanın} other {# konuşmanın}} tümünü seç",
+  "threadList.selectAllFound": "Bulunan {count, plural, one {# konuşmanın} other {# konuşmanın}} tümünü seç",
   "threadList.archive": "Arşivle",
   "threadList.markRead": "Okundu olarak işaretle",
   "threadList.star": "Yıldızla",

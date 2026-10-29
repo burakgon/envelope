@@ -625,3 +625,58 @@ async fn blocking_moves_only_conversations_the_sender_alone_wrote() {
             .contains(&alone)
     );
 }
+
+#[tokio::test]
+async fn a_whole_list_is_listed_beyond_its_pages() {
+    let fx = fixture();
+    let inbox = fx.id("INBOX");
+    // More conversations than the largest page a list asks for (500).
+    let mut all = BTreeSet::new();
+    for i in 0..520u32 {
+        let (_, thread) = fx.message(
+            "INBOX",
+            i + 1,
+            &format!("r{i}@x"),
+            None,
+            "shop@example.com",
+            &format!("Receipt {i}"),
+            1_000 + i64::from(i),
+            if i == 7 { 0 } else { Flags::SEEN },
+        );
+        all.insert(thread);
+    }
+    let (_, elsewhere) = fx.message("Work", 1, "w@x", None, "boss@example.com", "Plan", 5_000, 0);
+    let page = fx
+        .engine
+        .threads(&ThreadQuery {
+            mailbox: Mailbox::Folder { id: inbox },
+            search: None,
+            filter: ListFilter::default(),
+            offset: 0,
+            limit: 1_000,
+        })
+        .expect("page");
+    assert_eq!((page.items.len(), page.total), (500, 520));
+    let refs = fx
+        .engine
+        .thread_refs(&Mailbox::Folder { id: inbox }, &ListFilter::default(), None)
+        .expect("refs");
+    assert_eq!(refs.iter().map(|r| r.id).collect::<BTreeSet<_>>(), all);
+    assert!(refs.iter().all(|r| r.account_id == fx.account));
+    assert!(!refs.iter().any(|r| r.id == elsewhere));
+    // The filter and the search narrow it as they narrow the list.
+    let unread = ListFilter {
+        unread: true,
+        ..Default::default()
+    };
+    let refs = fx
+        .engine
+        .thread_refs(&Mailbox::Folder { id: inbox }, &unread, None)
+        .expect("unread");
+    assert_eq!(refs.len(), 1);
+    let refs = fx
+        .engine
+        .thread_refs(&Mailbox::Everything, &ListFilter::default(), Some("Plan"))
+        .expect("search");
+    assert_eq!(refs.iter().map(|r| r.id).collect::<Vec<_>>(), [elsewhere]);
+}

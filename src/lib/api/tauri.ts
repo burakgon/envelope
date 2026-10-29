@@ -60,6 +60,7 @@ export function createTauriApi(): Api {
     loadBodies: (ids) => invoke('load_bodies', { ids }),
     setFlags: (threadIds, messageIds, change) => invoke('set_flags', { threadIds, messageIds, change }),
     markRead: (mailbox, filter, search) => invoke('mark_read', { mailbox, filter, search }),
+    threadRefs: (mailbox, filter, search) => invoke('thread_refs', { mailbox, filter, search }),
     setFollowUp: (threadIds, change) => invoke('set_follow_up', { threadIds, change }),
     moveThreads: (threadIds, source, target) => invoke('move_threads', { threadIds, source, target }),
     undo: (token) => invoke('undo', { token }),

@@ -104,6 +104,8 @@
   "threadList.clearSelection": "Limpar seleção",
   "threadList.selectedCount": "{count, plural, one {# selecionada} other {# selecionadas}}",
   "threadList.selectAll": "Selecionar tudo",
+  "threadList.selectAllInFolder": "Selecionar {count, plural, one {a # conversa} other {as # conversas}} desta pasta",
+  "threadList.selectAllFound": "Selecionar {count, plural, one {a # conversa encontrada} other {as # conversas encontradas}}",
   "threadList.archive": "Arquivar",
   "threadList.markRead": "Marcar como lida",
   "threadList.star": "Adicionar estrela",

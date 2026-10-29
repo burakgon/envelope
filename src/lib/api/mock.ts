@@ -305,6 +305,8 @@ export function createMockApi(): Api {
       changed(ids);
       return { threads: ids.length, messageIds: unread.map((m) => m.id) };
     },
+    threadRefs: async (mailbox, filter, search) =>
+      list({ mailbox, filter, search, offset: 0, limit: 100_000 }).items.map((t) => ({ id: t.id, accountId: t.accountId })),
     setFollowUp: async (threadIds, change) => {
       for (const id of threadIds) {
         if (change.kind === 'due') followUpAway.delete(id);

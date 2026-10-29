@@ -1490,6 +1490,34 @@ await step('another folder closes a conversation it does not list, and keeps one
   }
 });
 
+await step('select all offers every conversation of the folder, and archiving takes them all', async () => {
+  // More receipts than a page of the list loads.
+  const p = await fresh({ 'envelope.demo.bulk': '220' });
+  try {
+    await personal(p).locator('.item', { hasText: 'Receipts' }).click();
+    await p.locator('.row', { hasText: 'Receipt #' }).first().waitFor({ timeout: 5000 });
+    await p.keyboard.press('Control+a');
+    const all = p.locator('.bulk .link', { hasText: /^Select all \d+ conversations in this folder$/ });
+    await all.waitFor({ timeout: 5000 });
+    const count = Number((await all.innerText()).match(/\d+/)[0]);
+    const selected = p.locator('.bulk .sel');
+    const checked = Number((await selected.innerText()).match(/\d+/)[0]);
+    if (!(checked < count) || count < 220) throw new Error(`${checked} of ${count} are checked before asking for all`);
+    await all.click();
+    await selected.filter({ hasText: `${count} selected` }).waitFor({ timeout: 5000 });
+    await p.locator('body').press('e');
+    await toast(p, `Archived · ${count} conversations`);
+    await eventually(p, async () => (await p.locator('.row').count()) === 0, 'Receipts still lists conversations');
+    // Undo brings every one back.
+    await p.locator('.toast', { hasText: 'Archived' }).first().locator('.action').click();
+    await p.locator('.row', { hasText: 'Receipt #' }).first().waitFor({ timeout: 5000 });
+    await p.keyboard.press('Control+a');
+    await all.waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

@@ -242,16 +242,15 @@ class Mail {
 
   // ----- list ------------------------------------------------------------------
 
-  private query(offset: number, limit: number) {
+  /** The list as it is shown: the mailbox (every one while searching), its filter and inbox tab, the search. */
+  private shown(): { mailbox: Mailbox; filter: ListFilter; search: string | null } {
     const filter: ListFilter = { ...this.filter };
     if (this.splitActive && this.category) filter.category = this.category;
-    return api.threads({
-      mailbox: this.search ? { kind: 'everything' } : this.mailbox,
-      search: this.search || null,
-      filter,
-      offset,
-      limit,
-    });
+    return { mailbox: this.search ? { kind: 'everything' } : this.mailbox, filter, search: this.search || null };
+  }
+
+  private query(offset: number, limit: number) {
+    return api.threads({ ...this.shown(), offset, limit });
   }
 
   /** A draft was saved or discarded here: Drafts, if on screen, lists it as it is now. */
@@ -382,6 +381,26 @@ class Mail {
     if (id == null) this.detail = null;
   }
 
+  /** Every row loaded is checked, and the list has more than were loaded: "Select all N" offers them. */
+  moreToCheck = $derived(
+    this.total > this.items.length && this.items.length > 0 && this.items.every((t) => t.id < 0 || this.checked.has(t.id)) && this.checked.size < this.total,
+  );
+  /** The accounts of conversations checked beyond the rows loaded (actions take them out of their account's folder). */
+  private accountOf = new Map<number, number>();
+
+  /** Checks every conversation of the list as it is shown, not only the rows loaded so far. */
+  async checkAll() {
+    try {
+      const { mailbox, filter, search } = this.shown();
+      for (const r of await api.threadRefs(mailbox, filter, search)) {
+        this.accountOf.set(r.id, r.accountId);
+        this.checked.add(r.id);
+      }
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+  }
+
   toggleCheck(id: number) {
     if (this.checked.has(id)) this.checked.delete(id);
     else this.checked.add(id);
@@ -470,13 +489,13 @@ class Mail {
 
   // ----- actions -------------------------------------------------------------------
 
-  /** Source folder of a thread for "move" style actions in the current view. */
-  private sourceFor(t: ThreadSummary | undefined): number | null {
+  /** Source folder of a thread (of this account) for "move" style actions in the current view. */
+  private sourceFor(accountId: number | undefined): number | null {
     if (this.search) return null;
     const mb = this.mailbox;
     if (mb.kind === 'folder') return mb.id;
-    if (mb.kind === 'unified' && t) {
-      return this.folders.find((f) => f.accountId === t.accountId && f.role === mb.role)?.id ?? null;
+    if (mb.kind === 'unified' && accountId != null) {
+      return this.folders.find((f) => f.accountId === accountId && f.role === mb.role)?.id ?? null;
     }
     return null;
   }
@@ -505,7 +524,7 @@ class Mail {
     // Group by source folder (per account in unified views).
     const groups = new Map<number | null, number[]>();
     for (const id of ids) {
-      const s = this.sourceFor(byThread.get(id));
+      const s = this.sourceFor(byThread.get(id)?.accountId ?? this.accountOf.get(id));
       groups.set(s, [...(groups.get(s) ?? []), id]);
     }
     this.removeLocally(ids);
@@ -688,10 +707,7 @@ class Mail {
    * messages unread again.
    */
   async markAllRead(folder?: Folder) {
-    const mailbox: Mailbox = folder ? { kind: 'folder', id: folder.id } : this.search ? { kind: 'everything' } : this.mailbox;
-    const filter: ListFilter = folder ? {} : { ...this.filter };
-    if (!folder && this.splitActive && this.category) filter.category = this.category;
-    const search = folder ? null : this.search || null;
+    const { mailbox, filter, search } = folder ? { mailbox: { kind: 'folder', id: folder.id } as Mailbox, filter: {}, search: null } : this.shown();
     try {
       const done = await api.markRead(mailbox, filter, search);
       if (!done.threads) {
@@ -712,7 +728,13 @@ class Mail {
     if (!ids.length) return false;
     const byId = new Map(this.items.map((th) => [th.id, th]));
     if (this.detail) byId.set(this.detail.thread.id, this.detail.thread);
-    return ids.every((id) => byId.get(id)?.folderIds.some((f) => this.folderById.get(f)?.role === 'junk'));
+    // Conversations checked beyond the rows loaded are in the list being shown.
+    const mb = this.mailbox;
+    const inSpam = !this.search && ((mb.kind === 'folder' && this.folderById.get(mb.id)?.role === 'junk') || (mb.kind === 'unified' && mb.role === 'junk'));
+    return ids.every((id) => {
+      const th = byId.get(id);
+      return th ? th.folderIds.some((f) => this.folderById.get(f)?.role === 'junk') : inSpam && this.accountOf.has(id);
+    });
   }
 
   /** Moves conversations out of Spam into the inbox; the server learns they are not spam. */

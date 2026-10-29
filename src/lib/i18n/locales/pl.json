@@ -104,6 +104,8 @@
   "threadList.clearSelection": "Wyczyść zaznaczenie",
   "threadList.selectedCount": "{count, plural, one {# zaznaczony} few {# zaznaczone} many {# zaznaczonych} other {# zaznaczonego}}",
   "threadList.selectAll": "Zaznacz wszystko",
+  "threadList.selectAllInFolder": "Zaznacz {count, plural, one {# wątek} few {wszystkie # wątki} many {wszystkie # wątków} other {wszystkie # wątku}} w tym folderze",
+  "threadList.selectAllFound": "Zaznacz {count, plural, one {# znaleziony wątek} few {wszystkie # znalezione wątki} many {wszystkie # znalezionych wątków} other {wszystkie # znalezionego wątku}}",
   "threadList.archive": "Archiwizuj",
   "threadList.markRead": "Oznacz jako przeczytane",
   "threadList.star": "Oznacz gwiazdką",

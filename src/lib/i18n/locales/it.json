@@ -104,6 +104,8 @@
   "threadList.clearSelection": "Annulla selezione",
   "threadList.selectedCount": "{count, plural, one {# selezionata} other {# selezionate}}",
   "threadList.selectAll": "Seleziona tutto",
+  "threadList.selectAllInFolder": "Seleziona {count, plural, one {la # conversazione} other {tutte le # conversazioni}} di questa cartella",
+  "threadList.selectAllFound": "Seleziona {count, plural, one {la # conversazione trovata} other {tutte le # conversazioni trovate}}",
   "threadList.archive": "Archivia",
   "threadList.markRead": "Segna come letto",
   "threadList.star": "Aggiungi a Speciali",

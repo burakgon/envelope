@@ -215,6 +215,7 @@ pub fn run() {
             commands::thread,
             commands::load_bodies,
             commands::set_flags,
+            commands::thread_refs,
             commands::mark_read,
             commands::set_follow_up,
             commands::folder_create,

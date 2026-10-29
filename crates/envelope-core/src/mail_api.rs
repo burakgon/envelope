@@ -38,6 +38,14 @@ pub struct MarkedRead {
     pub message_ids: Vec<i64>,
 }
 
+/// A conversation of a list, with its account (the folder an action takes it out of depends on it).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadRef {
+    pub id: i64,
+    pub account_id: i64,
+}
+
 /// A change to the follow-up reminders of conversations.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
@@ -249,6 +257,36 @@ impl Engine {
         })?;
         self.after_local_change(&per_account.keys().copied().collect::<Vec<_>>(), &threads)?;
         Ok(())
+    }
+
+    /// Every conversation of a list (the mailbox with its filter, inbox tab and
+    /// search, as the list shows it), not only the pages loaded: "Select all"
+    /// of a whole folder acts on these.
+    pub fn thread_refs(
+        &self,
+        mailbox: &Mailbox,
+        filter: &ListFilter,
+        search: Option<&str>,
+    ) -> Result<Vec<ThreadRef>> {
+        let search = search
+            .filter(|s| !s.trim().is_empty())
+            .and_then(crate::search::compile);
+        self.db.read(|c| {
+            let sql = mail::list_sql(c, mailbox, filter, search)?;
+            let mut st = c.prepare(&format!(
+                "SELECT DISTINCT t.id, t.account_id FROM {}",
+                sql.from_where
+            ))?;
+            let refs = st
+                .query_map(rusqlite::params_from_iter(sql.values.iter()), |r| {
+                    Ok(ThreadRef {
+                        id: r.get(0)?,
+                        account_id: r.get(1)?,
+                    })
+                })?
+                .collect::<rusqlite::Result<_>>()?;
+            Ok(refs)
+        })
     }
 
     /// Marks every unread conversation of a list as read: the mailbox with its

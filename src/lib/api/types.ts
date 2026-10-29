@@ -249,6 +249,12 @@ export interface UndoToken {
 }
 
 /** What "Mark all as read" changed. */
+/** A conversation of a list, with its account. */
+export interface ThreadRef {
+  id: number;
+  accountId: number;
+}
+
 export interface MarkedRead {
   /** Conversations marked read. */
   threads: number;

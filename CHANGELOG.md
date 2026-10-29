@@ -29,6 +29,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - A time zone for each event (Time zone, beside All day): times are typed in that zone, every kind of calendar keeps it, and the event's popover gives its times there when the zone is not this computer's.
 - A second time zone in the day and week views (Settings → Calendar), with an hour column of its own.
 - A work week view, Monday to Friday (`x`, or from the command palette).
+- Select all (Ctrl+A, or the link in the selection bar) offers “Select all N conversations in this folder” — or of the search — when there are more than the list has loaded; archiving, deleting, moving, marking read and the other actions then take every one of them.
 - Reading with the keyboard: Space and Page Down scroll the open conversation, and Space at its end opens the next unread one; Shift+Space and Page Up scroll back, Home and End go to its top and end; `n` and `p` go from message to message and `;` unfolds them all. In a reply under a conversation, Escape goes back to the conversation and a second Escape closes the reply, keeping the draft. The shortcuts sheet and the command palette list them.
 
 ### Changed

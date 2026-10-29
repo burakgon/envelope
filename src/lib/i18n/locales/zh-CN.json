@@ -104,6 +104,8 @@
   "threadList.clearSelection": "取消选择",
   "threadList.selectedCount": "{count, plural, other {已选择 # 项}}",
   "threadList.selectAll": "全选",
+  "threadList.selectAllInFolder": "选择此文件夹中的全部{count, plural, other { # 个会话}}",
+  "threadList.selectAllFound": "选择找到的全部{count, plural, other { # 个会话}}",
   "threadList.archive": "归档",
   "threadList.markRead": "标为已读",
   "threadList.star": "加星标",

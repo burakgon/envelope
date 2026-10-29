@@ -104,6 +104,8 @@
   "threadList.clearSelection": "Clear selection",
   "threadList.selectedCount": "{count, plural, one {# selected} other {# selected}}",
   "threadList.selectAll": "Select all",
+  "threadList.selectAllInFolder": "Select all {count, plural, one {# conversation} other {# conversations}} in this folder",
+  "threadList.selectAllFound": "Select all {count, plural, one {# conversation} other {# conversations}} found",
   "threadList.archive": "Archive",
   "threadList.markRead": "Mark read",
   "threadList.star": "Star",

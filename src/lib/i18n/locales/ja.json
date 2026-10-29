@@ -104,6 +104,8 @@
   "threadList.clearSelection": "選択を解除",
   "threadList.selectedCount": "{count, plural, other {# 件選択中}}",
   "threadList.selectAll": "すべて選択",
+  "threadList.selectAllInFolder": "このフォルダの{count, plural, other {# 件のスレッド}}をすべて選択",
+  "threadList.selectAllFound": "見つかった{count, plural, other {# 件のスレッド}}をすべて選択",
   "threadList.archive": "アーカイブ",
   "threadList.markRead": "既読にする",
   "threadList.star": "スターを付ける",

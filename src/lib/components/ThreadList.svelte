@@ -284,7 +284,13 @@
       <!-- Side by side when they fit, stacked when a translation is longer. -->
       <span class="sel-box">
         <span class="sel">{t('threadList.selectedCount', { count: mail.checked.size })}</span>
-        <button class="link" title={t('threadList.selectAll')} onclick={() => mail.items.forEach((th) => th.id > 0 && mail.checked.add(th.id))}>{t('threadList.selectAll')}</button>
+        {#if mail.moreToCheck}
+          <!-- More conversations than the rows loaded: all of them, for the actions to take. -->
+          {@const all = t(mail.search ? 'threadList.selectAllFound' : 'threadList.selectAllInFolder', { count: mail.total })}
+          <button class="link" title={all} onclick={() => mail.checkAll()}>{all}</button>
+        {:else if mail.items.some((th) => th.id > 0 && !mail.checked.has(th.id))}
+          <button class="link" title={t('threadList.selectAll')} onclick={() => mail.items.forEach((th) => th.id > 0 && mail.checked.add(th.id))}>{t('threadList.selectAll')}</button>
+        {/if}
       </span>
       <span class="spacer"></span>
       <button class="icon-btn sm" title={t('threadList.archive')} onclick={() => mail.archive()}><Archive size={15} /></button>

@@ -250,6 +250,15 @@ for (let i = 0; i < 46; i++) {
   ]));
 }
 
+// Screenshots and tests: `sessionStorage['envelope.demo.bulk']` files that many receipts in Receipts,
+// more than a page of the list holds.
+const bulk = Number(globalThis.sessionStorage?.getItem('envelope.demo.bulk') ?? 0);
+for (let i = 0; i < bulk; i++) {
+  seeds.push(T(2, ['Receipts'], `Receipt #${4100 + i}`, [
+    { from: P.pay, to: [P.meHome], at: now - (12 + i * 0.05) * DAY, seen: true, text: `Thanks for your payment. Receipt #${4100 + i} is attached to your Paystream account.` },
+  ], 'notifications'));
+}
+
 export const threads: ThreadSummary[] = [];
 export const messages: MessageView[] = [];
 
