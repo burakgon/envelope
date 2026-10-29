@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:GetFolderResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:GetFolderResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:Folders>
+            <t:TasksFolder>
+              <t:FolderId Id="tasks-id" ChangeKey="BAAAABYAAAAtasks"/>
+              <t:ParentFolderId Id="root-id" ChangeKey="AQAAAA=="/>
+              <t:FolderClass>IPF.Task</t:FolderClass>
+              <t:DisplayName>Tasks</t:DisplayName>
+              <t:TotalCount>12</t:TotalCount>
+              <t:ChildFolderCount>2</t:ChildFolderCount>
+            </t:TasksFolder>
+          </m:Folders>
+        </m:GetFolderResponseMessage>
+      </m:ResponseMessages>
+    </m:GetFolderResponse>
+  </s:Body>
+</s:Envelope>

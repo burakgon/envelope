@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:FindFolderResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:FindFolderResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:RootFolder IndexedPagingOffset="4" TotalItemsInView="4" IncludesLastItemInRange="true">
+            <t:Folders>
+              <t:TasksFolder>
+                <t:FolderId Id="archive-id" ChangeKey="BAAAABYAAAAarch"/>
+                <t:ParentFolderId Id="work-id" ChangeKey="BAAAABYAAAAwork"/>
+                <t:FolderClass>IPF.Task</t:FolderClass>
+                <t:DisplayName>Done 2025</t:DisplayName>
+                <t:TotalCount>40</t:TotalCount>
+                <t:ChildFolderCount>0</t:ChildFolderCount>
+              </t:TasksFolder>
+              <t:TasksFolder>
+                <t:FolderId Id="work-id" ChangeKey="BAAAABYAAAAwork"/>
+                <t:ParentFolderId Id="tasks-id" ChangeKey="BAAAABYAAAAtasks"/>
+                <t:FolderClass>IPF.Task</t:FolderClass>
+                <t:DisplayName>Work</t:DisplayName>
+                <t:TotalCount>7</t:TotalCount>
+                <t:ChildFolderCount>1</t:ChildFolderCount>
+              </t:TasksFolder>
+              <t:Folder>
+                <t:FolderId Id="notes-id"/>
+                <t:ParentFolderId Id="tasks-id"/>
+                <t:FolderClass>IPF.StickyNote</t:FolderClass>
+                <t:DisplayName>Scribbles</t:DisplayName>
+              </t:Folder>
+              <t:TasksFolder>
+                <t:FolderId Id="hidden-id"/>
+                <t:ParentFolderId Id="tasks-id"/>
+                <t:FolderClass>IPF.Task</t:FolderClass>
+                <t:DisplayName>Sync Issues</t:DisplayName>
+                <t:ExtendedProperty><t:ExtendedFieldURI PropertyTag="0x10f4" PropertyType="Boolean"/><t:Value>true</t:Value></t:ExtendedProperty>
+              </t:TasksFolder>
+            </t:Folders>
+          </m:RootFolder>
+        </m:FindFolderResponseMessage>
+      </m:ResponseMessages>
+    </m:FindFolderResponse>
+  </s:Body>
+</s:Envelope>

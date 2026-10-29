@@ -100,6 +100,9 @@ pub(crate) struct SoapRequest {
     pub(crate) operation: &'static str,
     pub(crate) body: String,
     pub(crate) idempotent: bool,
+    /// Windows id of the time zone sent as `TimeZoneContext` with this
+    /// request, instead of the client's.
+    pub(crate) time_zone: Option<String>,
 }
 
 impl SoapRequest {
@@ -109,6 +112,7 @@ impl SoapRequest {
             operation,
             body,
             idempotent: true,
+            time_zone: None,
         }
     }
 
@@ -118,7 +122,15 @@ impl SoapRequest {
             operation,
             body,
             idempotent: false,
+            time_zone: None,
         }
+    }
+
+    /// Sends the request in the given time zone (a Windows id), which
+    /// Exchange uses for the dates of tasks and for times without an offset.
+    pub(crate) fn in_time_zone(mut self, windows_id: impl Into<String>) -> Self {
+        self.time_zone = Some(windows_id.into());
+        self
     }
 }
 
@@ -264,8 +276,9 @@ impl EwsClientBuilder {
 
     /// Sends a `TimeZoneContext` header with the given Windows time zone id
     /// (`W. Europe Standard Time`). Not needed for this crate's operations,
-    /// which exchange times in UTC and name zones explicitly; requires
-    /// Exchange 2010 or later.
+    /// which exchange times in UTC and name zones explicitly (the task
+    /// operations send the zone they are given instead); requires Exchange
+    /// 2010 or later.
     pub fn time_zone_context(mut self, windows_zone_id: impl Into<String>) -> Self {
         self.time_zone_context = Some(windows_zone_id.into());
         self
@@ -430,6 +443,7 @@ impl EwsClient {
             operation: "Raw",
             body: operation_xml.to_owned(),
             idempotent: read_only,
+            time_zone: None,
         };
         let (_, text) = self.call_inner(&request).await?;
         Ok(text)
@@ -516,7 +530,10 @@ impl EwsClient {
     fn http_request(&self, request: &SoapRequest) -> Result<HttpRequest, EwsError> {
         let version = self.version();
         let time_zone = if version.has_2010_features() {
-            self.inner.time_zone_context.as_deref()
+            request
+                .time_zone
+                .as_deref()
+                .or(self.inner.time_zone_context.as_deref())
         } else {
             None
         };
@@ -807,6 +824,16 @@ mod tests {
         let body = String::from_utf8_lossy(&request.body).into_owned();
         assert!(body.contains(r#"<t:RequestServerVersion Version="Exchange2013_SP1"/>"#));
         assert!(body.contains(r#"<t:TimeZoneDefinition Id="UTC"/>"#));
+        // A request can name its own zone.
+        let request = client
+            .http_request(
+                &SoapRequest::read("GetItem", "<m:GetItem/>".into())
+                    .in_time_zone("Turkey Standard Time"),
+            )
+            .unwrap();
+        let body = String::from_utf8_lossy(&request.body).into_owned();
+        assert!(body.contains(r#"<t:TimeZoneDefinition Id="Turkey Standard Time"/>"#));
+        assert!(!body.contains(r#"Id="UTC""#));
         // Exchange 2007 does not know TimeZoneContext.
         client.set_version(ExchangeVersion::Exchange2007Sp1);
         let request = client

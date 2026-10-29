@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:SyncFolderItemsResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:SyncFolderItemsResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:SyncState>H4sIAAAAAAAEAO29B2AcSZYlJi9tasks2</m:SyncState>
+          <m:IncludesLastItemInRange>true</m:IncludesLastItemInRange>
+          <m:Changes>
+            <t:Update>
+              <t:Task>
+                <t:ItemId Id="AAMkTask1" ChangeKey="EwAAABYAAAD4"/>
+                <t:ItemClass>IPM.Task</t:ItemClass>
+              </t:Task>
+            </t:Update>
+            <t:Delete>
+              <t:ItemId Id="AAMkTask9" ChangeKey="EwAAABYAAAD5"/>
+            </t:Delete>
+          </m:Changes>
+        </m:SyncFolderItemsResponseMessage>
+      </m:ResponseMessages>
+    </m:SyncFolderItemsResponse>
+  </s:Body>
+</s:Envelope>

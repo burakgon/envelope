@@ -178,6 +178,15 @@ impl Folder {
                 .is_some_and(|c| c.starts_with(FOLDER_CLASS_CONTACTS))
     }
 
+    /// True for task folders.
+    pub fn is_tasks(&self) -> bool {
+        self.kind == FolderKind::Tasks
+            || self
+                .folder_class
+                .as_deref()
+                .is_some_and(|c| c.starts_with(FOLDER_CLASS_TASKS))
+    }
+
     /// Parses a folder element (`Folder`, `CalendarFolder`, ...).
     pub(crate) fn from_element(element: &Element) -> Option<Folder> {
         let kind = FolderKind::parse(&element.name)?;

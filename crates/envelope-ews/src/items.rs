@@ -487,9 +487,26 @@ impl EwsClient {
         batch_size: usize,
         parse: impl Fn(&Element) -> Option<T>,
     ) -> Result<Vec<Result<T, ResponseError>>, EwsError> {
+        self.get_items_in_zone(ids, shape, batch_size, None, parse)
+            .await
+    }
+
+    /// Like [`get_items_with`](Self::get_items_with), with the requests sent
+    /// in the given time zone (a Windows id) when there is one.
+    pub(crate) async fn get_items_in_zone<T>(
+        &self,
+        ids: &[ItemRef],
+        shape: &ItemShape,
+        batch_size: usize,
+        time_zone: Option<&str>,
+        parse: impl Fn(&Element) -> Option<T>,
+    ) -> Result<Vec<Result<T, ResponseError>>, EwsError> {
         let mut results = Vec::with_capacity(ids.len());
         for chunk in ids.chunks(batch_size.max(1)) {
-            let request = SoapRequest::read("GetItem", get_item_request(chunk, shape));
+            let mut request = SoapRequest::read("GetItem", get_item_request(chunk, shape));
+            if let Some(zone) = time_zone {
+                request = request.in_time_zone(zone);
+            }
             let response = self.call(&request).await?;
             let messages = soap::each(&response)?;
             if messages.len() != chunk.len() {

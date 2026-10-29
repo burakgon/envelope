@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:SyncFolderItemsResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:SyncFolderItemsResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:SyncState>H4sIAAAAAAAEAO29B2AcSZYlJi9tasks1</m:SyncState>
+          <m:IncludesLastItemInRange>false</m:IncludesLastItemInRange>
+          <m:Changes>
+            <t:Create>
+              <t:Task>
+                <t:ItemId Id="AAMkTask1" ChangeKey="EwAAABYAAAD1"/>
+                <t:ItemClass>IPM.Task</t:ItemClass>
+              </t:Task>
+            </t:Create>
+            <t:Create>
+              <t:Task>
+                <t:ItemId Id="AAMkTask2" ChangeKey="EwAAABYAAAD2"/>
+                <t:ItemClass>IPM.Task</t:ItemClass>
+              </t:Task>
+            </t:Create>
+            <t:Create>
+              <t:Message>
+                <t:ItemId Id="AAMkNote1" ChangeKey="CQAAABYAAAD3"/>
+                <t:ItemClass>IPM.Note</t:ItemClass>
+              </t:Message>
+            </t:Create>
+          </m:Changes>
+        </m:SyncFolderItemsResponseMessage>
+      </m:ResponseMessages>
+    </m:SyncFolderItemsResponse>
+  </s:Body>
+</s:Envelope>

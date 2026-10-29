@@ -31,6 +31,10 @@
 //!   from `RRULE`) and Windows ↔ IANA time zones ([`timezone`]).
 //! * **Contacts** — contact folder paging and name resolution for address
 //!   autocompletion.
+//! * **Tasks** — the Tasks folder and the task folders below it, task sync
+//!   ([`EwsClient::sync_tasks`] for the changes, [`EwsClient::get_tasks`]
+//!   for the fields) and creating, changing and deleting tasks, with their
+//!   dates kept as days in the user's time zone.
 //! * **Notifications** — streaming subscriptions
 //!   ([`EwsClient::get_streaming_events`]). Polling with
 //!   `SyncFolderItems` stays the source of truth; notifications only
@@ -102,6 +106,7 @@ mod ntlm;
 mod oof;
 pub mod recurrence;
 mod soap;
+mod tasks;
 pub mod timezone;
 mod transport;
 mod types;
@@ -147,6 +152,7 @@ pub use notifications::{
 };
 pub use oof::{ExternalAudience, OofSettings, OofState};
 pub use recurrence::{DayOfWeek, DayOfWeekIndex, Recurrence, RecurrencePattern, RecurrenceRange};
+pub use tasks::{NewTask, Task, TaskStatus, TaskSyncPage, TaskUpdate, task_properties};
 pub use types::{
     BaseShape, Body, BodyType, DistinguishedFolder, FolderId, FolderRef, Importance, ItemId,
     ItemKind, ItemRef, ItemShape, Mailbox, PropertyPath, Sensitivity, format_datetime, parse_date,
@@ -204,6 +210,17 @@ mod send_bounds {
         ));
         assert_send(client.respond_to_meeting(&ids[0], MeetingResponse::Accept, None, true));
         assert_send(client.find_contacts(DistinguishedFolder::Contacts, 0, 10));
+        assert_send(client.task_folders());
+        assert_send(client.sync_tasks(DistinguishedFolder::Tasks, None, 512));
+        assert_send(client.get_tasks(ids, chrono_tz::Tz::UTC));
+        assert_send(client.get_task(&ids[0], chrono_tz::Tz::UTC));
+        assert_send(client.create_task(
+            DistinguishedFolder::Tasks,
+            &NewTask::default(),
+            chrono_tz::Tz::UTC,
+        ));
+        assert_send(client.update_task(&ids[0], &TaskUpdate::default(), chrono_tz::Tz::UTC));
+        assert_send(client.delete_task(&ids[0], DeleteType::MoveToDeletedItems));
         assert_send(client.resolve_names("x", ResolveScope::ActiveDirectory, false));
         assert_send(client.subscribe_streaming(&[], &[]));
         assert_send(client.get_streaming_events(&[], 1));
@@ -220,6 +237,7 @@ mod send_bounds {
         shareable::<Auth>();
         shareable::<Message>();
         shareable::<CalendarItem>();
+        shareable::<Task>();
         shareable::<Folder>();
         sendable::<EwsError>();
         sendable::<Autodiscover>();

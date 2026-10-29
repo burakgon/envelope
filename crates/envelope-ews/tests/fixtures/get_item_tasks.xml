@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Header>
+    <h:ServerVersionInfo MajorVersion="15" MinorVersion="2" MajorBuildNumber="1544" MinorBuildNumber="4" Version="V2017_07_11" xmlns:h="http://schemas.microsoft.com/exchange/services/2006/types" xmlns="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>
+  </s:Header>
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <m:GetItemResponse xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+      <m:ResponseMessages>
+        <m:GetItemResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:Items>
+            <t:Task>
+              <t:ItemId Id="AAMkTask1" ChangeKey="EwAAABYAAAD4"/>
+              <t:ParentFolderId Id="tasks-id" ChangeKey="AQAAAA=="/>
+              <t:ItemClass>IPM.Task</t:ItemClass>
+              <t:Subject>Renew the lease</t:Subject>
+              <t:Body BodyType="Text" IsTruncated="false">Call the landlord first&#13;
+Then sign</t:Body>
+              <t:Importance>High</t:Importance>
+              <t:Categories><t:String>Home</t:String></t:Categories>
+              <t:DateTimeCreated>2026-10-20T07:12:00Z</t:DateTimeCreated>
+              <t:ReminderDueBy>2026-11-05T06:00:00Z</t:ReminderDueBy>
+              <t:ReminderIsSet>true</t:ReminderIsSet>
+              <t:DueDate>2026-11-06T00:00:00+03:00</t:DueDate>
+              <t:IsComplete>false</t:IsComplete>
+              <t:IsRecurring>true</t:IsRecurring>
+              <t:PercentComplete>50</t:PercentComplete>
+              <t:StartDate>2026-11-02T00:00:00+03:00</t:StartDate>
+              <t:Status>InProgress</t:Status>
+              <t:LastModifiedTime>2026-10-27T09:30:00Z</t:LastModifiedTime>
+            </t:Task>
+          </m:Items>
+        </m:GetItemResponseMessage>
+        <m:GetItemResponseMessage ResponseClass="Error">
+          <m:MessageText>The specified object was not found in the store.</m:MessageText>
+          <m:ResponseCode>ErrorItemNotFound</m:ResponseCode>
+          <m:DescriptiveLinkKey>0</m:DescriptiveLinkKey>
+          <m:Items/>
+        </m:GetItemResponseMessage>
+        <m:GetItemResponseMessage ResponseClass="Success">
+          <m:ResponseCode>NoError</m:ResponseCode>
+          <m:Items>
+            <t:Task>
+              <t:ItemId Id="AAMkTask3" ChangeKey="EwAAABYAAAD6"/>
+              <t:ItemClass>IPM.Task</t:ItemClass>
+              <t:Subject>File the receipts</t:Subject>
+              <t:Body BodyType="Text"/>
+              <t:Importance>Normal</t:Importance>
+              <t:CompleteDate>2026-10-28T00:00:00+03:00</t:CompleteDate>
+              <t:IsComplete>true</t:IsComplete>
+              <t:IsRecurring>false</t:IsRecurring>
+              <t:PercentComplete>100</t:PercentComplete>
+              <t:Status>Completed</t:Status>
+              <t:LastModifiedTime>2026-10-28T14:05:00Z</t:LastModifiedTime>
+            </t:Task>
+          </m:Items>
+        </m:GetItemResponseMessage>
+      </m:ResponseMessages>
+    </m:GetItemResponse>
+  </s:Body>
+</s:Envelope>
