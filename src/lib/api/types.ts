@@ -553,6 +553,8 @@ export type EngineEvent =
   | { type: 'mailChanged'; accountId: number; folderIds: number[]; threadIds: number[] }
   | { type: 'syncStatus'; accountId: number; sync: SyncState }
   | { type: 'newMail'; accountId: number; threads: ThreadSummary[] }
+  /** Messages are being imported into a folder: how many so far. */
+  | { type: 'importProgress'; folderId: number; done: number }
   | { type: 'calendarChanged'; calendarIds: number[] }
   | { type: 'contactsChanged'; bookIds: number[] }
   /** Tasks or lists changed; an empty `listIds` means the lists themselves changed. */
@@ -828,6 +830,15 @@ export type OpenedFile =
   | ({ kind: 'message' } & FileMessage)
   | { kind: 'calendar'; path: string; name: string | null; events: FileEvent[] }
   | { kind: 'contacts'; path: string; contacts: FileContact[] };
+
+/** What importing messages into a folder did. */
+export interface MessagesImported {
+  added: number;
+  /** Already in the account (same Message-ID). */
+  skipped: number;
+  /** Refused by the server. */
+  refused: number;
+}
 
 export interface ImportResult {
   added: number;

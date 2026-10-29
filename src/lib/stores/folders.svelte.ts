@@ -202,6 +202,29 @@ export async function setFolderColor(f: Folder, color: string | null) {
 }
 
 /** Empties Trash or Spam for good after asking, with how many conversations go. */
+/** Uploads the messages of mbox files (Thunderbird's local folders, archives) and saved messages into a folder. */
+export async function importInto(f: Folder) {
+  const folder = folderName(f);
+  const paths = await api.pickFiles(t('folders.importTitle', { folder }));
+  if (!paths.length) return;
+  const progress = toasts.show(t('folders.importing', { folder }), { kind: 'progress', duration: 0 });
+  const off = api.onEvent((e) => {
+    if (e.type === 'importProgress' && e.folderId === f.id) toasts.update(progress, { message: t('folders.importingCount', { count: e.done, folder }) });
+  });
+  try {
+    const done = await api.folder.import(f.id, paths);
+    const parts = [t('folders.imported', { count: done.added, folder })];
+    if (done.skipped) parts.push(t('folders.alreadyThere', { count: done.skipped }));
+    if (done.refused) parts.push(t('folders.refusedByServer', { count: done.refused }));
+    toasts.show(parts.join(' · '), { kind: 'success', duration: 7000 });
+  } catch (e) {
+    toasts.error(errorMessage(e));
+  } finally {
+    off();
+    toasts.dismiss(progress);
+  }
+}
+
 export async function emptyFolder(f: Folder) {
   // Counted afresh: the list may have just changed.
   await mail.loadFolders();

@@ -1056,6 +1056,20 @@ await step('duplicate contacts are found and merged into the fuller one', async 
   }
 });
 
+await step('messages from an mbox file are imported into a folder', async () => {
+  const p = await open();
+  try {
+    await p.goto(url);
+    await p.locator('.row').first().waitFor({ state: 'visible', timeout: 5000 });
+    await p.locator('.sidebar .item', { hasText: 'Receipts' }).first().click({ button: 'right' });
+    await p.locator('.menu-item', { hasText: 'Import messages' }).click();
+    await p.locator('.toast', { hasText: 'Importing into Receipts' }).first().waitFor({ timeout: 5000 });
+    await p.locator('.toast', { hasText: '62 messages imported into Receipts · 3 were already there' }).first().waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('no page errors', async () => {
   if (problems.length) throw new Error(problems.join('; '));
 });

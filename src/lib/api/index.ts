@@ -63,6 +63,8 @@ export interface Api {
     setColor(id: number, color: string | null): Promise<void>;
     /** Deletes everything in Trash or Spam for good; returns how many conversations went. */
     empty(id: number): Promise<number>;
+    /** Uploads the messages of mbox files and saved messages (.eml) into the folder, as read mail. */
+    import(id: number, paths: string[]): Promise<T.MessagesImported>;
   };
 
   /** Mail rules run on mail that is already here. */
@@ -98,7 +100,8 @@ export interface Api {
 
   fileInfo(paths: string[]): Promise<T.FileInfo[]>;
   stashFile(filename: string, data: Uint8Array): Promise<T.FileInfo>;
-  pickFiles(): Promise<string[]>;
+  /** Asks for files (to attach, unless `title` says otherwise); none when cancelled. */
+  pickFiles(title?: string): Promise<string[]>;
   pickSavePath(filename: string): Promise<string | null>;
   /** Asks for a folder; null when cancelled. */
   pickFolder(title: string): Promise<string | null>;

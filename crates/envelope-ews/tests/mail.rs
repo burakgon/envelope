@@ -400,7 +400,10 @@ async fn sends_and_saves_mime_messages() {
     assert!(bodies[0].contains(r#"<t:DistinguishedFolderId Id="sentitems"/>"#));
     assert!(bodies[1].contains(r#"<t:DistinguishedFolderId Id="drafts"/>"#));
     assert!(bodies[1].contains("<t:Value>9</t:Value>"));
-    assert!(bodies[2].contains("<t:IsRead>true</t:IsRead>"));
+    // Imported as read, and not as a draft.
+    assert!(
+        bodies[2].contains(r#"PropertyTag="0x0e07" PropertyType="Integer"/><t:Value>1</t:Value>"#)
+    );
     assert!(client.send_mime(b"").await.is_err());
 }
 

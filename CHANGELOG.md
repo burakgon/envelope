@@ -23,6 +23,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Account settings after setup (the gear beside each account in Settings → Accounts): the sender name, how much mail is kept on this computer, whether a copy of sent mail is saved, and for IMAP and Exchange accounts the servers, user names, sign-in method, calendar and address book addresses, self-signed certificates and a new password. Test connection signs in with the changes; saving changed servers signs in first, so a typo can't replace working settings (Save anyway is offered).
 - Contacts: Import contacts… and Export contacts… in the Contacts view's menu. Imports read vCard files and the CSV exports of Gmail, Outlook and Thunderbird (in UTF-8, UTF-16 or Windows-1252, with commas, semicolons or tabs), show who is in the file and leave out people already in an address book; exports write the address book shown, or all of them, as one vCard file with photos. Envelope also opens .csv contact lists from the file manager.
 - Find duplicates… in the Contacts view's menu: people who are in an address book more than once (the same e-mail address, phone number however it's written, or full name) are listed with the fullest contact chosen to keep; merging adds what the others know to it — e-mail addresses, numbers, postal addresses, web sites, notes, a photo — and deletes them, on the server too.
+- Import messages… in a folder's menu puts the mail of mbox files (Thunderbird's local folders, archives, Google Takeout) and saved messages (.eml) into that folder on the server, as read mail with its original date, leaving out messages the account has already; IMAP, Gmail and Exchange accounts (Microsoft 365 doesn't take messages from apps).
 - Adding an account lists the accounts already set up on this computer in Thunderbird (also its Flatpak and Snap versions), Evolution, Geary and GNOME Online Accounts; choosing one fills in its address, name and servers, so only the password (or the Google or Microsoft sign-in) is left.
 
 ### Changed
@@ -38,6 +39,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 
 ### Fixed
 - A short plain-text reply was hidden together with the quote below it.
+- Messages Envelope saved into an Exchange folder from MIME could show as drafts.
 - An event's popover could run off the bottom of the window once its guests had loaded.
 - An address still being typed when Send was pressed was left out.
 - Account setup no longer keeps the password and servers of a provider you went back from: they are cleared, servers are detected again when the address moves to another domain, and Google or Microsoft sign-in is no longer offered an address of another provider.

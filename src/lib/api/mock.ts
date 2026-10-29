@@ -373,6 +373,13 @@ export function createMockApi(): Api {
       changed(threadIds);
     },
     folder: {
+      import: async (id) => {
+        for (const done of [25, 50]) {
+          await delay(null, 250);
+          emit({ type: 'importProgress', folderId: id, done });
+        }
+        return delay({ added: 62, skipped: 3, refused: 0 }, 250);
+      },
       create: async (accountId, parentId, name, label, color) => {
         const account = data.accounts.find((a) => a.id === accountId);
         if (!account) throw invalid('No such account');
@@ -607,7 +614,8 @@ export function createMockApi(): Api {
 
     fileInfo: async (paths) => paths.map((p) => ({ path: p, filename: p.split('/').pop() ?? p, mimeType: 'application/octet-stream', size: 1024 })),
     stashFile: async (filename, bytes) => ({ path: `/tmp/${filename}`, filename, mimeType: 'image/png', size: bytes.length }),
-    pickFiles: async () => [],
+    // Asked for anything but attachments: the demo's Downloads hold an archive to import.
+    pickFiles: async (title) => (title ? delay(['/home/alex/Downloads/Archive.mbox'], 150) : []),
     pickSavePath: async () => null,
     // The demo has no file system: a folder is "picked" and the files "saved" there.
     pickFolder: async () => delay('/home/alex/Downloads', 150),

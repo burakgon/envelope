@@ -74,6 +74,7 @@ export function createTauriApi(): Api {
       remove: (id) => invoke('folder_delete', { id }),
       setColor: (id, color) => invoke('folder_color', { id, color }),
       empty: (id) => invoke('folder_empty', { id }),
+      import: (id, paths) => invoke('folder_import', { id, paths }),
     },
     rules: {
       matches: (rule, limit) => invoke('rule_matches', { rule, limit }),
@@ -101,8 +102,8 @@ export function createTauriApi(): Api {
 
     fileInfo: (paths) => invoke('file_info', { paths }),
     stashFile: (filename, data) => invoke('stash_file', { filename, data: Array.from(data) }),
-    pickFiles: async () => {
-      const r = await openDialog({ multiple: true, directory: false, title: t('composer.attachFiles') });
+    pickFiles: async (title) => {
+      const r = await openDialog({ multiple: true, directory: false, title: title ?? t('composer.attachFiles') });
       if (!r) return [];
       return Array.isArray(r) ? r : [r];
     },

@@ -2,6 +2,9 @@
 //! Evolution, Geary and GNOME Online Accounts — offered when adding an
 //! account. Addresses, names and servers are taken over; passwords are not
 //! (each program keeps them encrypted its own way), so the user signs in.
+//! Their mail comes over through [`mailbox`].
+
+pub mod mailbox;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};

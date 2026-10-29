@@ -554,8 +554,12 @@ pub(crate) fn create_mime_request(mime: &[u8], disposition: &MimeDisposition) ->
             PropertyPath::extended_tag(PR_MESSAGE_FLAGS, "Integer").write(&mut w);
             w.text_element("t:Value", &flags).end("t:ExtendedProperty");
         }
+        // Without its message flags an item saved from MIME is a draft.
         MimeDisposition::Import { is_read, .. } => {
-            w.text_element("t:IsRead", if *is_read { "true" } else { "false" });
+            let flags = if *is_read { MSGFLAG_READ } else { 0 }.to_string();
+            w.start("t:ExtendedProperty", &[]);
+            PropertyPath::extended_tag(PR_MESSAGE_FLAGS, "Integer").write(&mut w);
+            w.text_element("t:Value", &flags).end("t:ExtendedProperty");
         }
         MimeDisposition::SendAndSaveCopy(_) | MimeDisposition::SendOnly => {}
     }
@@ -1036,7 +1040,8 @@ mod tests {
                 is_read: true,
             },
         );
-        assert!(import.contains("</t:MimeContent><t:IsRead>true</t:IsRead></t:Message>"));
+        // Read, and not a draft: no MSGFLAG_UNSENT.
+        assert!(import.contains(r#"</t:MimeContent><t:ExtendedProperty><t:ExtendedFieldURI PropertyTag="0x0e07" PropertyType="Integer"/><t:Value>1</t:Value></t:ExtendedProperty></t:Message>"#), "{import}");
         let only = create_mime_request(mime, &MimeDisposition::SendOnly);
         assert!(!only.contains("SavedItemFolderId"));
 

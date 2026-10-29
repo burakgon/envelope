@@ -5,9 +5,9 @@
   import Popover from './Popover.svelte';
   import { mail } from '../stores/mail.svelte';
   import {
-    deleteFolder, emptyFolder, isCategory, isFixed, labelColors, newFolder, renameFolder, setFolderColor,
+    deleteFolder, emptyFolder, importInto, isCategory, isFixed, labelColors, newFolder, renameFolder, setFolderColor,
   } from '../stores/folders.svelte';
-  import { Check, CheckCircle, FolderPlus, Pen, Plus, Trash, X } from '../icons';
+  import { Check, CheckCircle, FolderPlus, Pen, Plus, Trash, Upload, X } from '../icons';
   import { t } from '../i18n';
 
   let { x, y, account, folder, onclose }: { x: number; y: number; account: Account; folder: Folder | null; onclose: () => void } = $props();
@@ -54,6 +54,10 @@
       {/if}
       <div class="divider"></div>
       <button class="menu-item" disabled={folder.unreadCount === 0} onclick={() => run(() => mail.markAllRead(folder))}><CheckCircle size={15} />{t('threadList.markAllRead')}</button>
+      <!-- Microsoft 365 takes no messages from apps. -->
+      {#if account.kind !== 'microsoft' && !isCategory(folder) && folder.selectable}
+        <button class="menu-item" onclick={() => run(() => importInto(folder))}><Upload size={15} />{t('folders.importMessages')}</button>
+      {/if}
       {#if empties}
         <button class="menu-item danger" onclick={() => run(() => emptyFolder(folder))}>
           <Trash size={15} />{t(folder.role === 'trash' ? 'folders.emptyTrash' : 'folders.emptySpam')}

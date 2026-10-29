@@ -120,6 +120,16 @@ pub async fn discover(email: String) -> R<Discovery> {
 }
 
 #[tauri::command]
+pub async fn folder_import(
+    state: State<'_, AppState>,
+    id: i64,
+    paths: Vec<String>,
+) -> R<envelope_core::import::mailbox::MessagesImported> {
+    let paths: Vec<std::path::PathBuf> = paths.into_iter().map(Into::into).collect();
+    Ok(state.engine.import_messages(id, &paths).await?)
+}
+
+#[tauri::command]
 pub async fn contacts_duplicates(
     state: State<'_, AppState>,
 ) -> R<Vec<Vec<envelope_core::contacts::ContactSummary>>> {

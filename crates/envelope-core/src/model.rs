@@ -685,6 +685,11 @@ pub enum EngineEvent {
         account_id: i64,
         sync: SyncState,
     },
+    /// Messages are being imported into a folder: how many so far.
+    ImportProgress {
+        folder_id: i64,
+        done: usize,
+    },
     /// New unread mail arrived in an inbox (for notifications).
     NewMail {
         account_id: i64,
