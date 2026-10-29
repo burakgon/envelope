@@ -253,6 +253,7 @@
   "message.copySenderAddress": "Copia indirizzo del mittente",
   "message.addressCopied": "Indirizzo copiato",
   "message.editDraft": "Modifica bozza",
+  "message.forwardAsAttachment": "Inoltra come allegato",
   "message.addToCalendar": "Aggiungi al calendario",
   "message.lookingForEvents": "Ricerca di eventi…",
   "message.noEventsFound": "Nessuna data o evento trovato in questo messaggio",

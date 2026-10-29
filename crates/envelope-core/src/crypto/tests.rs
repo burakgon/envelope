@@ -190,6 +190,7 @@ async fn encrypted_and_signed_mail_round_trip() {
         size: 7,
         path: Some(file.to_string_lossy().into_owned()),
         attachment_id: None,
+        message_id: None,
         content_id: None,
         inline: false,
     });
@@ -699,6 +700,7 @@ async fn encrypted_message_files_open_decrypted() {
         size: 13,
         path: Some(file.to_string_lossy().into_owned()),
         attachment_id: None,
+        message_id: None,
         content_id: None,
         inline: false,
     });

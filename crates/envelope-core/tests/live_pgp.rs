@@ -86,6 +86,7 @@ async fn encrypted_signed_mail_to_self() {
             size: 40,
             path: Some(file.to_string_lossy().into_owned()),
             attachment_id: None,
+            message_id: None,
             content_id: None,
             inline: false,
         }],

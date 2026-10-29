@@ -253,6 +253,7 @@
   "message.copySenderAddress": "Copier l’adresse de l’expéditeur",
   "message.addressCopied": "Adresse copiée",
   "message.editDraft": "Modifier le brouillon",
+  "message.forwardAsAttachment": "Transférer en pièce jointe",
   "message.addToCalendar": "Ajouter au calendrier",
   "message.lookingForEvents": "Recherche d’événements…",
   "message.noEventsFound": "Aucune date ni aucun événement trouvé dans ce message",

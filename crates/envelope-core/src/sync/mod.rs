@@ -274,12 +274,19 @@ pub(crate) async fn render_draft(
         } else if let Some(id) = a.attachment_id {
             let path = engine.attachment_file(id).await?;
             tokio::fs::read(path).await?
+        } else if let Some(id) = a.message_id {
+            // Forwarded as an attachment: the message as it arrived.
+            engine.message_source_bytes(id).await?
         } else {
             continue;
         };
         attachments.push(FilePart {
             filename: a.filename.clone(),
-            mime_type: a.mime_type.clone(),
+            mime_type: if a.message_id.is_some() && a.path.is_none() && a.attachment_id.is_none() {
+                "message/rfc822".to_string()
+            } else {
+                a.mime_type.clone()
+            },
             data,
             content_id: if a.inline { a.content_id.clone() } else { None },
         });

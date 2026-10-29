@@ -21,7 +21,7 @@
   import { cal } from '../stores/calendar.svelte';
   import type { ExtractedEvent } from '../api';
   import { fileIconKind } from '../utils/format';
-  import { CalendarPlus, Code, Eye, Filter, Forward, Image, Mail, More, Pen, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
+  import { CalendarPlus, Code, Eye, FileArrow, Filter, Forward, Image, Mail, More, Pen, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy } from '../icons';
 
   let { message, expanded, ontoggle }: { message: MessageView; expanded: boolean; ontoggle: () => void } = $props();
 
@@ -253,6 +253,7 @@
       <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'reply'); }}><Reply size={15} />{t('reader.reply')}</button>
       <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'replyAll'); }}><ReplyAll size={15} />{t('reader.replyAll')}</button>
       <button class="menu-item" onclick={() => { menu = null; compose.reply(message.id, 'forward', false); }}><Forward size={15} />{t('reader.forward')}</button>
+      <button class="menu-item" onclick={() => { menu = null; compose.forwardAsAttachment(message); }}><FileArrow size={15} />{t('message.forwardAsAttachment')}</button>
     {/if}
     <div class="divider"></div>
     <button class="menu-item" onclick={() => { menu = null; mail.markMessageRead(message, !message.flags.seen); }}>

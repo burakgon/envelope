@@ -749,6 +749,7 @@ impl Engine {
                 size: a.size,
                 path: Some(target.to_string_lossy().into_owned()),
                 attachment_id: None,
+                message_id: None,
                 content_id: a.content_id.clone(),
                 inline: a.inline && cid.is_some(),
             });
@@ -1034,6 +1035,7 @@ impl Engine {
                         size: a.size,
                         path: None,
                         attachment_id: Some(a.id),
+                        message_id: None,
                         content_id: None,
                         inline: false,
                     })

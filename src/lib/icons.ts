@@ -139,3 +139,4 @@ export { default as FontSize } from '@lucide/svelte/icons/a-large-small';
 export { default as Highlighter } from '@lucide/svelte/icons/highlighter';
 export { default as ImagePlus } from '@lucide/svelte/icons/image-plus';
 export { default as RemoveFormatting } from '@lucide/svelte/icons/remove-formatting';
+export { default as FileArrow } from '@lucide/svelte/icons/file-symlink';

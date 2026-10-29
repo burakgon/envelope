@@ -487,6 +487,18 @@ await step('Send asks about an address that looks wrong and a missing attachment
   await closeComposer();
 });
 
+await step('a message is forwarded as an attachment, and all attachments are saved', async () => {
+  await openConversation('Photos from the weekend');
+  await w.locator('.reader .card .icon-btn[aria-label="More"]').first().click();
+  await w.locator('.popover .menu-item', { hasText: 'Forward as attachment' }).click();
+  await w.locator('.dock .composer .att', { hasText: '.eml' }).waitFor({ timeout: 5000 });
+  await w.locator('.dock .composer .icon-btn[aria-label="Discard draft"]').click();
+  await w.locator('.reader .save-all').click();
+  const saved = w.locator('.toast', { hasText: 'Saved 3 attachments' });
+  await saved.waitFor({ timeout: 5000 });
+  if ((await saved.locator('.action').innerText()).trim() !== 'Show in folder') throw new Error('no way to show the saved files');
+});
+
 await step('deleting forever in Trash asks first, with the count', async () => {
   await openConversation('Tokyo office visit');
   await w.locator('body').press('#');

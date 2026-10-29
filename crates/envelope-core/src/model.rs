@@ -481,6 +481,9 @@ pub struct DraftAttachment {
     /// Existing attachment (forwarding).
     #[serde(default)]
     pub attachment_id: Option<i64>,
+    /// A whole message, attached as `message/rfc822` (forwarding as an attachment).
+    #[serde(default)]
+    pub message_id: Option<i64>,
     /// Content-ID for inline images.
     #[serde(default)]
     pub content_id: Option<String>,

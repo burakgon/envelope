@@ -245,6 +245,8 @@ export interface DraftAttachment {
   size: number;
   path?: string | null;
   attachmentId?: number | null;
+  /** A whole message, attached as `message/rfc822` (forwarded as an attachment). */
+  messageId?: number | null;
   contentId?: string | null;
   inline?: boolean;
 }

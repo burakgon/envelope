@@ -253,6 +253,7 @@
   "message.copySenderAddress": "差出人のアドレスをコピー",
   "message.addressCopied": "アドレスをコピーしました",
   "message.editDraft": "下書きを編集",
+  "message.forwardAsAttachment": "添付ファイルとして転送",
   "message.addToCalendar": "カレンダーに追加",
   "message.lookingForEvents": "予定を探しています…",
   "message.noEventsFound": "このメッセージに日時や予定は見つかりませんでした",

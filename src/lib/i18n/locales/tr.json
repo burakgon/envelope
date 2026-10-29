@@ -253,6 +253,7 @@
   "message.copySenderAddress": "Gönderenin adresini kopyala",
   "message.addressCopied": "Adres kopyalandı",
   "message.editDraft": "Taslağı düzenle",
+  "message.forwardAsAttachment": "Ek olarak ilet",
   "message.addToCalendar": "Takvime ekle",
   "message.lookingForEvents": "Etkinlikler aranıyor…",
   "message.noEventsFound": "Bu iletide tarih veya etkinlik bulunamadı",

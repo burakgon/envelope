@@ -224,11 +224,35 @@ pub fn render(out: &Outgoing) -> Result<Rendered> {
     })
 }
 
-/// An attached file.
+/// An attached file. A message (forwarded as an attachment) goes as it is, as
+/// RFC 2046 wants of `message/rfc822`, unless its lines are too long for that.
 fn file_part(a: &FilePart) -> mail_builder::mime::MimePart<'static> {
     use mail_builder::mime::{BodyPart, MimePart};
+    if a.mime_type.eq_ignore_ascii_case("message/rfc822") {
+        let data = crlf(&a.data);
+        if data.split(|b| *b == b'\n').all(|line| line.len() <= 999) {
+            let encoding = if data.is_ascii() { "7bit" } else { "8bit" };
+            return MimePart::new("message/rfc822", BodyPart::Binary(data.into()))
+                .attachment(a.filename.clone())
+                .transfer_encoding(encoding);
+        }
+    }
     MimePart::new(a.mime_type.clone(), BodyPart::Binary(a.data.clone().into()))
         .attachment(a.filename.clone())
+}
+
+/// Line ends as mail wants them.
+fn crlf(data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(data.len() + data.len() / 40);
+    let mut prev = 0u8;
+    for &b in data {
+        if b == b'\n' && prev != b'\r' {
+            out.push(b'\r');
+        }
+        out.push(b);
+        prev = b;
+    }
+    out
 }
 
 /// Pictures written into the text as `data:` URLs (pasted or inserted) become
@@ -339,6 +363,39 @@ mod tests {
         let s = String::from_utf8_lossy(&r.mime);
         assert!(s.contains("multipart/related"), "{s}");
         assert!(s.contains(&format!("Content-ID: <{cid}>")), "{s}");
+    }
+
+    #[test]
+    fn forwards_a_message_as_an_attachment() {
+        let original = render(&Outgoing {
+            from: Address::new(Some("Elif".into()), "elif@example.com"),
+            to: vec![Address::new(None, "alex@envelope.test")],
+            subject: "Plan".into(),
+            html: "<p>Cumartesi 11</p>".into(),
+            ..Default::default()
+        })
+        .unwrap();
+        let r = render(&Outgoing {
+            from: Address::new(None, "alex@envelope.test"),
+            to: vec![Address::new(None, "noah@example.com")],
+            subject: "Fwd: Plan".into(),
+            html: "<p>See below.</p>".into(),
+            attachments: vec![FilePart {
+                filename: "Plan.eml".into(),
+                mime_type: "message/rfc822".into(),
+                data: original.mime.clone(),
+                content_id: None,
+            }],
+            ..Default::default()
+        })
+        .unwrap();
+        let s = String::from_utf8_lossy(&r.mime);
+        // Not base64: RFC 2046 wants a message part as it is.
+        assert!(s.contains("Content-Type: message/rfc822"), "{s}");
+        assert!(s.contains("Content-Transfer-Encoding: 7bit"), "{s}");
+        assert!(s.contains("Subject: Plan"), "{s}");
+        let (_, body) = crate::mime::parse_full(&r.mime).unwrap();
+        assert!(body.html.unwrap().contains("See below."));
     }
 
     #[test]

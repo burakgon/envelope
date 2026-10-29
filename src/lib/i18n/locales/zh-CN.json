@@ -253,6 +253,7 @@
   "message.copySenderAddress": "复制发件人地址",
   "message.addressCopied": "地址已复制",
   "message.editDraft": "编辑草稿",
+  "message.forwardAsAttachment": "作为附件转发",
   "message.addToCalendar": "添加到日历",
   "message.lookingForEvents": "正在查找日程…",
   "message.noEventsFound": "此邮件中未找到日期或日程",

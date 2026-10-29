@@ -172,6 +172,21 @@ class Compose {
     }
   }
 
+  /** Forwards a message as an attachment (`message/rfc822`), in a new message. */
+  forwardAsAttachment(m: MessageView) {
+    const subject = m.subject.trim();
+    const name = (subject || t('common.noSubject')).replace(/[\\/:*?"<>|\n\r]+/g, ' ').trim().slice(0, 80);
+    const signature = this.signatureOf({ accountId: m.accountId });
+    this.new({
+      accountId: m.accountId,
+      html: signature ? `<p></p><div class="envelope-signature">${signature}</div>` : '',
+      subject: /^fwd?:/i.test(subject) ? subject : `Fwd: ${subject}`,
+      attachments: [{ filename: `${name}.eml`, mimeType: 'message/rfc822', size: m.size, messageId: m.id }],
+      replyToMessageId: m.id,
+      mode: 'forward',
+    });
+  }
+
   /** Opens a draft for editing (or brings its composer forward): inline under its conversation when that is open. */
   async openDraft(draft: number | Draft, opts: { threadId?: number | null } = {}) {
     const id = typeof draft === 'number' ? draft : draft.id;

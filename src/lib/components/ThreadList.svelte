@@ -12,7 +12,7 @@
   import MoveMenu from './MoveMenu.svelte';
   import EmptyState from './EmptyState.svelte';
   import {
-    Archive, Check, CheckCircle, Clock, Filter, Folder, Forward, Mail, MailOpen, More, Newspaper, PanelLeft, Paperclip,
+    Archive, Check, CheckCircle, Clock, FileArrow, Filter, Folder, Forward, Mail, MailOpen, More, Newspaper, PanelLeft, Paperclip,
     Bell, Pen, Reply, ReplyAll, Search, ShieldAlert, Star, Tag, Trash, Users, X, Refresh, Sparkles,
   } from '../icons';
   import { t } from '../i18n';
@@ -148,7 +148,7 @@
     return mail.checked.has(menu.thread.id) ? [...mail.checked] : [menu.thread.id];
   }
 
-  async function replyTo(mode: 'reply' | 'replyAll' | 'forward') {
+  async function replyTo(mode: 'reply' | 'replyAll' | 'forward' | 'attachment') {
     const th = menu?.thread;
     menu = null;
     if (!th) return;
@@ -156,7 +156,9 @@
     const d = await api.thread(th.id);
     // Replies go to the newest message that is not a draft.
     const last = [...d.messages].reverse().find((m) => !m.flags.draft) ?? d.messages[d.messages.length - 1];
-    if (last) compose.reply(last.id, mode, mode !== 'forward', last.date);
+    if (!last) return;
+    if (mode === 'attachment') compose.forwardAsAttachment(last);
+    else compose.reply(last.id, mode, mode !== 'forward', last.date);
   }
 
   function startResize(e: PointerEvent) {
@@ -309,6 +311,7 @@
       <button class="menu-item" onclick={() => replyTo('reply')}><Reply size={15} />{t('threadList.reply')}<span class="hint">R</span></button>
       <button class="menu-item" onclick={() => replyTo('replyAll')}><ReplyAll size={15} />{t('threadList.replyAll')}<span class="hint">A</span></button>
       <button class="menu-item" onclick={() => replyTo('forward')}><Forward size={15} />{t('threadList.forward')}<span class="hint">F</span></button>
+      <button class="menu-item" onclick={() => replyTo('attachment')}><FileArrow size={15} />{t('message.forwardAsAttachment')}</button>
       <div class="divider"></div>
     {/if}
     {#if inSnoozed}
