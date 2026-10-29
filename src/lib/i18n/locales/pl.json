@@ -189,6 +189,7 @@
   "search.renameTitle": "Zmień nazwę wyszukiwania",
   "search.deleteItem": "Usuń",
   "search.deleted": "Usunięto „{name}”",
+  "search.unsave": "Usuń „{name}” z zapisanych wyszukiwań",
 
   "vip.added": "{name} jest teraz VIP-em",
   "vip.removed": "{name} nie jest już VIP-em",

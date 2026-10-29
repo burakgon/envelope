@@ -16,9 +16,11 @@ export interface SearchOptions {
   within: string;
   /** A folder's path to search in, or '' for all mail. */
   folder: string;
+  /** The account the folder is in, by address; '' for every account's. */
+  account: string;
 }
 
-export const noOptions: SearchOptions = { from: '', to: '', subject: '', words: '', attachment: false, unread: false, starred: false, vip: false, within: '', folder: '' };
+export const noOptions: SearchOptions = { from: '', to: '', subject: '', words: '', attachment: false, unread: false, starred: false, vip: false, within: '', folder: '', account: '' };
 
 /** A value as an operator takes it: quoted when it holds spaces or quotes. */
 function value(text: string): string {
@@ -38,8 +40,40 @@ export function buildQuery(o: SearchOptions): string {
   if (o.vip) parts.push('is:vip');
   if (o.within) parts.push(`newer_than:${o.within}`);
   if (o.folder.trim()) parts.push(`in:${value(o.folder)}`);
+  if (o.account.trim()) parts.push(`account:${value(o.account)}`);
   if (o.words.trim()) parts.push(o.words.trim());
   return parts.join(' ');
+}
+
+/** The options a query asks for, the reverse of `buildQuery`: what they can't hold goes into the words. */
+export function parseQuery(query: string): SearchOptions {
+  const o: SearchOptions = { ...noOptions };
+  const words: string[] = [];
+  for (const m of query.matchAll(/(-?)(\w+):("[^"]*"|\S+)|"[^"]*"|\S+/g)) {
+    const [token, not, key, raw] = m;
+    const v = raw?.replace(/^"|"$/g, '') ?? '';
+    const k = key?.toLowerCase();
+    const set = (field: 'from' | 'to' | 'subject' | 'folder' | 'account') => {
+      if (o[field]) return false;
+      o[field] = v;
+      return true;
+    };
+    const placed =
+      !not &&
+      ((k === 'from' && set('from')) ||
+        (k === 'to' && set('to')) ||
+        (k === 'subject' && set('subject')) ||
+        (k === 'in' && set('folder')) ||
+        (k === 'account' && set('account')) ||
+        (k === 'has' && v.toLowerCase() === 'attachment' && (o.attachment = true)) ||
+        (k === 'is' && v.toLowerCase() === 'unread' && (o.unread = true)) ||
+        (k === 'is' && v.toLowerCase() === 'starred' && (o.starred = true)) ||
+        (k === 'is' && v.toLowerCase() === 'vip' && (o.vip = true)) ||
+        (k === 'newer_than' && ['7d', '1m', '1y'].includes(v) && !o.within && (o.within = v)));
+    if (!placed) words.push(token);
+  }
+  o.words = words.join(' ');
+  return o;
 }
 
 /** An address operator being typed at the end of a query (`… from:ma`): its key and what follows it. */

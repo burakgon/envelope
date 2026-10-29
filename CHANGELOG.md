@@ -5,7 +5,7 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 ## [Unreleased]
 
 ### Added
-- Search options under the search box (the sliders button beside it): from, to, subject, words, a date range, the folder on screen, and attachments, unread or starred. They write the query in the search language, so it can be read, changed and saved.
+- Search options under the search box (the sliders button beside it): from, to, subject, words, a period (the last week, month or year), the folder on screen (in its own account, with the new `account:` operator), and attachments, unread, starred or from a VIP. They write the query in the search language, so it can be read, changed and saved, and they open on the search in the box to change it.
 - Saved searches: Save search beside a search keeps it in the sidebar under a name, where a click runs it again; right-click, Shift+F10 or the Menu key renames or deletes it (with Undo).
 - Recent searches below the empty search box, and people from the address books and recent mail after `from:`, `to:` or `cc:`; the Down arrow goes into them.
 - Search results show the folder each conversation is in.

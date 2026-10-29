@@ -7,7 +7,8 @@
   import { mail, roleLabel } from '../stores/mail.svelte';
   import { forgetSearch } from '../stores/searches.svelte';
   import { ui } from '../stores/ui.svelte';
-  import { addressAtEnd, buildQuery, completeAddress, noOptions, type SearchOptions } from '../utils/searchquery';
+  import { untrack } from 'svelte';
+  import { addressAtEnd, buildQuery, completeAddress, noOptions, parseQuery, type SearchOptions } from '../utils/searchquery';
   import { Clock, X } from '../icons';
   import Avatar from './Avatar.svelte';
 
@@ -15,12 +16,15 @@
     query,
     building,
     onpick,
+    open = $bindable(false),
   }: {
     query: string;
     /** The search options are open. */
     building: boolean;
     /** Puts a query in the box; with `run`, searches it at once. */
     onpick: (query: string, run: boolean) => void;
+    /** Whether the panel shows anything (people, recent searches or the options). */
+    open?: boolean;
   } = $props();
 
   const address = $derived(addressAtEnd(query));
@@ -40,13 +44,33 @@
   });
 
   let options = $state<SearchOptions>({ ...noOptions });
-  /** The folder on screen, offered as the place to search: by role for the standard ones (`in:sent`), else by path. */
+  // Opened, the options show the search in the box, to change it.
+  $effect(() => {
+    if (building) options = parseQuery(untrack(() => query));
+  });
+  /**
+   * The folder on screen, offered as the place to search: by role for the standard ones (`in:sent`),
+   * else by path, and in its own account (`account:`) unless it is every account's inbox.
+   */
   const here = $derived.by(() => {
     const box = mail.mailbox;
-    if (box.kind === 'unified') return { value: box.role, name: roleLabel(box.role) };
+    if (box.kind === 'unified') return { folder: box.role, account: '', label: mail.mailboxTitle };
     const f = box.kind === 'folder' ? mail.folderById.get(box.id) : undefined;
-    return f ? { value: f.role || f.path, name: f.role ? roleLabel(f.role) : f.name } : null;
+    if (!f) return null;
+    const account = mail.accountById.get(f.accountId);
+    const name = f.role ? roleLabel(f.role) : f.name;
+    return {
+      folder: f.role || f.path,
+      account: account?.email ?? '',
+      label: t('search.thisFolder', { folder: mail.multiAccount && account ? `${name} (${account.label ?? account.email})` : name }),
+    };
   });
+  /** Where the options search: '' all mail, 'here' the folder on screen, 'other' a folder typed in the query. */
+  const place = $derived(!options.folder ? '' : here && options.folder === here.folder && options.account === here.account ? 'here' : 'other');
+  function choosePlace(value: string) {
+    options.folder = value === 'here' && here ? here.folder : '';
+    options.account = value === 'here' && here ? here.account : '';
+  }
   const within = [
     { value: '', label: 'search.anyTime' },
     { value: '7d', label: 'search.lastWeek' },
@@ -57,6 +81,11 @@
   const recent = $derived(query.trim() ? [] : ui.settings.recentSearches);
   const showPeople = $derived(!building && people.length > 0);
   const showRecent = $derived(!building && !showPeople && recent.length > 0);
+  $effect(() => {
+    open = showPeople || showRecent || building;
+    // Gone, it shows nothing.
+    return () => (open = false);
+  });
 
   let panel: HTMLDivElement | undefined = $state();
   /** Arrows move between the panel's buttons and fields; up from the first goes back to the box. */
@@ -81,7 +110,7 @@
 
 {#if showPeople || showRecent || building}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="panel" bind:this={panel} onkeydown={key}>
+  <div class="panel" id="search-panel" tabindex="-1" bind:this={panel} onkeydown={key}>
     {#if showPeople}
       <div class="head">{t('search.people')}</div>
       {#each people as p (p.email)}
@@ -113,12 +142,13 @@
               {#each within as w (w.value)}<option value={w.value}>{t(w.label)}</option>{/each}
             </select>
           </label>
-          {#if here}
+          {#if here || place === 'other'}
             <label class="field">
               <span>{t('search.where')}</span>
-              <select class="input" bind:value={options.folder}>
+              <select class="input" value={place} onchange={(e) => choosePlace((e.currentTarget as HTMLSelectElement).value)}>
                 <option value="">{t('search.allMail')}</option>
-                <option value={here.value}>{t('search.thisFolder', { folder: here.name })}</option>
+                {#if here}<option value="here">{here.label}</option>{/if}
+                {#if place === 'other'}<option value="other">{t('search.thisFolder', { folder: options.folder })}</option>{/if}
               </select>
             </label>
           {/if}

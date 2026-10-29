@@ -189,6 +189,7 @@
   "search.renameTitle": "Kayıtlı aramayı yeniden adlandır",
   "search.deleteItem": "Sil",
   "search.deleted": "“{name}” silindi",
+  "search.unsave": "“{name}” aramasını kayıtlı aramalardan kaldır",
 
   "vip.added": "{name} artık VIP",
   "vip.removed": "{name} artık VIP değil",

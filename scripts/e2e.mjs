@@ -1782,6 +1782,47 @@ await step('the search options write a query; results say where they are and the
   }
 });
 
+await step('the search panel goes with the focus, Escape keeps what was typed, and the options read the search', async () => {
+  const p = await fresh();
+  try {
+    const box = p.locator('.list .search input');
+    const panel = p.locator('.list .search .panel');
+    // Open options close when a conversation is opened (one below them).
+    await p.locator('.list .search .opts').click();
+    await panel.waitFor({ timeout: 5000 });
+    await p.locator('.row').nth(7).click();
+    await panel.waitFor({ state: 'detached', timeout: 5000 });
+    // Escape puts the suggestions away first, keeping the text.
+    await box.fill('roadmap from:may');
+    await panel.locator('.item', { hasText: 'Maya Chen' }).waitFor({ timeout: 5000 });
+    await box.press('Escape');
+    await panel.waitFor({ state: 'detached', timeout: 5000 });
+    if ((await box.inputValue()) !== 'roadmap from:may') throw new Error(`Escape left "${await box.inputValue()}"`);
+    await box.press('Escape');
+    if (await box.inputValue()) throw new Error('the second Escape kept the search');
+    // The options open on the search in the box.
+    await box.fill('from:priya has:attachment budget');
+    await box.press('Enter');
+    await p.locator('.list .search .opts').click();
+    if ((await panel.locator('label.field', { hasText: 'From' }).locator('input').inputValue()) !== 'priya') throw new Error('From is not filled from the search');
+    if ((await panel.locator('label.field', { hasText: 'Has the words' }).locator('input').inputValue()) !== 'budget') throw new Error('the words are not filled from the search');
+    if (!(await panel.locator('label', { hasText: 'Has attachment' }).locator('input').isChecked())) throw new Error('Has attachment is not ticked');
+    await p.keyboard.press('Escape');
+    // A saved search shows as saved, and is not saved twice.
+    await p.locator('.list .tools button[aria-label="Save search"]').click();
+    const prompt = p.locator('[role="dialog"] input');
+    await prompt.fill('Budget files');
+    await p.keyboard.press('Enter');
+    const saved = p.locator('.list .tools button[aria-label="Remove “Budget files” from saved searches"]');
+    await saved.waitFor({ timeout: 5000 });
+    await saved.click();
+    await toast(p, 'Deleted “Budget files”');
+    await p.locator('.list .tools button[aria-label="Save search"]').waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('from: in the search box suggests people, and picking one completes it', async () => {
   const p = await fresh();
   try {

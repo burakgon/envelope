@@ -189,6 +189,7 @@
   "search.renameTitle": "保存した検索の名前を変更",
   "search.deleteItem": "削除",
   "search.deleted": "「{name}」を削除しました",
+  "search.unsave": "「{name}」を保存した検索から削除",
 
   "vip.added": "{name} を VIP に追加しました",
   "vip.removed": "{name} を VIP から外しました",

@@ -476,7 +476,7 @@
           <button
             class="item"
             class:active={mail.search === saved.query}
-            title={saved.query}
+            title={`${saved.name} — ${saved.query}`}
             onclick={() => runSearch(saved.query)}
             oncontextmenu={(e) => openSearchMenu(e, saved)}
             onkeydown={(e) => openSearchMenu(e, saved)}

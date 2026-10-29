@@ -166,7 +166,7 @@ check('long addresses are shortened in the middle', shorten('https://example.com
 
 // ----- search queries -------------------------------------------------------------------
 
-const { buildQuery, addressAtEnd, completeAddress, noOptions } = await import(new URL('utils/searchquery.ts', src).href);
+const { buildQuery, parseQuery, addressAtEnd, completeAddress, noOptions } = await import(new URL('utils/searchquery.ts', src).href);
 
 const query = (o) => buildQuery({ ...noOptions, ...o });
 check('no options, no query', query({}), '');
@@ -174,6 +174,15 @@ check('options in the engine\'s words', query({ from: 'maya', attachment: true, 
 check('a value with spaces is quoted', query({ from: ' Maya Chen ', subject: 'Q3 "plan"' }), 'from:"Maya Chen" subject:"Q3 plan"');
 check('every option', query({ to: 'sam', unread: true, starred: true, vip: true, folder: 'inbox' }), 'to:sam is:unread is:starred is:vip in:inbox');
 check('a folder path with spaces', query({ folder: '[Gmail]/Sent Mail' }), 'in:"[Gmail]/Sent Mail"');
+check('one account\'s folder', query({ folder: 'inbox', account: 'alex@work.test' }), 'in:inbox account:alex@work.test');
+const options = { ...noOptions, from: 'Maya Chen', to: 'sam', subject: 'Q3 plan', words: 'budget draft', attachment: true, unread: true, starred: true, vip: true, within: '1m', folder: 'inbox', account: 'alex@work.test' };
+check('a query reads back into its options', parseQuery(buildQuery(options)), options);
+check('what the options can\'t hold goes into the words', parseQuery('from:maya older_than:2y -from:sam label:Travel "exact words" is:read'), {
+  ...noOptions,
+  from: 'maya',
+  words: 'older_than:2y -from:sam label:Travel "exact words" is:read',
+});
+check('a second from: stays in the words', parseQuery('from:maya from:sam').words, 'from:sam');
 check('an address being typed', addressAtEnd('budget from:ma'), { key: 'from', text: 'ma' });
 check('a negated one, just begun', addressAtEnd('-to:'), { key: 'to', text: '' });
 check('in any case', addressAtEnd('CC:sam'), { key: 'cc', text: 'sam' });

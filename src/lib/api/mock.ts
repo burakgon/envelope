@@ -179,6 +179,7 @@ export function createMockApi(): Api {
             : key === 'cc' ? who(m.cc).includes(value)
             : key === 'subject' ? m.subject.toLowerCase().includes(value)
             : key === 'in' || key === 'label' ? inFolder(value)
+            : key === 'account' ? [data.accounts.find((a) => a.id === m.accountId)].some((a) => !!a && (a.email.toLowerCase() === value || (a.label ?? '').toLowerCase() === value))
             : key === 'newer_than' ? since == null || m.date >= Date.now() - since
             : key === 'older_than' ? since == null || m.date < Date.now() - since
             : key === 'after' ? !(Date.parse(value) > m.date)

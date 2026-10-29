@@ -189,6 +189,7 @@
   "search.renameTitle": "重命名已保存的搜索",
   "search.deleteItem": "删除",
   "search.deleted": "已删除“{name}”",
+  "search.unsave": "从已保存的搜索中移除“{name}”",
 
   "vip.added": "已将 {name} 设为 VIP",
   "vip.removed": "{name} 已不再是 VIP",

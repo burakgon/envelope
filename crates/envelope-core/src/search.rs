@@ -4,6 +4,7 @@
 //! `words`, `"exact phrase"`, `-exclude`, `a OR b`, `from:`, `to:`, `cc:`,
 //! `subject:`, `filename:`, `has:attachment`, `has:invite`, `is:unread`,
 //! `is:read`, `is:starred`, `is:draft`, `is:replied`, `is:vip`, `in:<folder>`,
+//! `account:<address or name>`,
 //! `label:<name>`, `before:YYYY-MM-DD`, `after:YYYY-MM-DD`, `older_than:7d`,
 //! `newer_than:2w`, `larger:5M`, `smaller:100K`.
 
@@ -98,6 +99,7 @@ const KNOWN_KEYS: &[&str] = &[
     "is",
     "in",
     "label",
+    "account",
     "before",
     "after",
     "older_than",
@@ -268,6 +270,20 @@ pub fn compile(query: &str) -> Option<(String, Vec<Value>)> {
                             )
                         }
                     }
+                    // One account's mail, by its address or its name in the sidebar.
+                    "account" => {
+                        let v = value.to_lowercase();
+                        values.push(Value::Text(v.clone()));
+                        values.push(Value::Text(v));
+                        (
+                            Some(
+                                "m.account_id IN (SELECT id FROM accounts
+                                  WHERE lower(email) = ? OR lower(coalesce(label, '')) = ?)"
+                                    .into(),
+                            ),
+                            None,
+                        )
+                    }
                     "before" | "older" => match parse_date(value) {
                         Some(ts) => {
                             values.push(Value::Integer(ts));
@@ -387,6 +403,13 @@ mod tests {
         assert!(sql.contains("m.date >= ?"));
         assert!(sql.contains("m.size > ?"));
         assert!(v.contains(&Value::Integer(2 * 1024 * 1024)));
+    }
+
+    #[test]
+    fn one_account() {
+        let (sql, v) = compile("in:inbox account:Alex@Work.test").unwrap();
+        assert!(sql.contains("m.account_id IN"));
+        assert!(v.contains(&Value::Text("alex@work.test".into())));
     }
 
     #[test]

@@ -189,6 +189,7 @@
   "search.renameTitle": "Renomear pesquisa",
   "search.deleteItem": "Excluir",
   "search.deleted": "“{name}” excluída",
+  "search.unsave": "Remover “{name}” das pesquisas salvas",
 
   "vip.added": "{name} agora é VIP",
   "vip.removed": "{name} não é mais VIP",

@@ -26,7 +26,8 @@ export function forgetSearch(query: string) {
 /** Keeps the search on screen in the sidebar, under a name asked for. */
 export async function saveSearch(query = mail.search) {
   const q = query.trim();
-  if (!q) return;
+  // Each search once: the one saved already stays as it is.
+  if (!q || ui.settings.savedSearches.some((s) => s.query === q)) return;
   const name = await dialogs.prompt({ title: t('search.saveTitle'), message: t('search.saveMessage'), value: q, confirmLabel: t('common.save') });
   if (!name?.trim()) return;
   const saved: SavedSearch = { id: crypto.randomUUID(), name: name.trim(), query: q };

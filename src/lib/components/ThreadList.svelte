@@ -18,6 +18,7 @@
     ShieldCheck,
     Ban,
     BookmarkPlus,
+    BookmarkCheck,
     Sliders,
     Crown,
     LayoutPanel, Mails, PanelBottom, PanelOff, PanelRight, SortNewest, SortOldest, SortSender, PopOut,
@@ -30,7 +31,7 @@
   import { displayName } from '../utils/format';
   import AccountAlerts from './AccountAlerts.svelte';
   import SearchPanel from './SearchPanel.svelte';
-  import { rememberSearch, saveSearch } from '../stores/searches.svelte';
+  import { deleteSearch, rememberSearch, saveSearch } from '../stores/searches.svelte';
   import { t } from '../i18n';
 
   let viewport: HTMLDivElement | undefined = $state();
@@ -45,6 +46,10 @@
   let searchWithin = $state(false);
   /** The search options are open below the box. */
   let building = $state(false);
+  /** The panel below the box shows something. */
+  let panelOpen = $state(false);
+  /** Escape put the panel away; typing brings it back. */
+  let hushed = $state(false);
   let searchArea: HTMLDivElement | undefined = $state();
   let menu = $state<{ x: number; y: number; thread: ThreadSummary } | null>(null);
   let snoozeAt = $state<{ x: number; y: number; ids: number[] } | null>(null);
@@ -141,6 +146,7 @@
   });
 
   function onSearchInput() {
+    hushed = false;
     if (searchTimer) clearTimeout(searchTimer);
     searchTimer = setTimeout(() => search(query.trim()), 140);
   }
@@ -185,7 +191,11 @@
   function onSearchKey(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault();
-      clearSearch();
+      // First the suggestions go, keeping what was typed; then the search.
+      if (panelOpen && !hushed) {
+        hushed = true;
+        building = false;
+      } else clearSearch();
     } else if (e.key === 'Enter') {
       search(query.trim());
       rememberSearch(query);
@@ -315,7 +325,12 @@
     </div>
     <div class="tools">
       {#if mail.search}
-        <button class="icon-btn" title={t('search.save')} aria-label={t('search.save')} onclick={() => saveSearch()}><BookmarkPlus size={16} /></button>
+        {@const saved = ui.settings.savedSearches.find((s) => s.query === mail.search.trim())}
+        {#if saved}
+          <button class="icon-btn active" title={t('search.unsave', { name: saved.name })} aria-label={t('search.unsave', { name: saved.name })} onclick={() => deleteSearch(saved)}><BookmarkCheck size={16} /></button>
+        {:else}
+          <button class="icon-btn" title={t('search.save')} aria-label={t('search.save')} onclick={() => saveSearch()}><BookmarkPlus size={16} /></button>
+        {/if}
       {:else if mail.splitActive && mail.category === 'newsletters'}
         <button class="icon-btn" title={t('subscriptions.manage')} aria-label={t('subscriptions.manage')} onclick={() => ui.open('subscriptions')}><Newspaper size={16} /></button>
       {/if}
@@ -337,7 +352,12 @@
     bind:this={searchArea}
     onfocusin={() => (searchWithin = true)}
     onfocusout={(e) => {
-      if (!searchArea?.contains(e.relatedTarget as Node)) searchWithin = false;
+      // Leaving the box and its panel puts the panel away, the options too.
+      if (!searchArea?.contains(e.relatedTarget as Node)) {
+        searchWithin = false;
+        building = false;
+        hushed = false;
+      }
     }}
     onkeydown={(e) => {
       if (e.key === 'Escape' && building) {
@@ -358,6 +378,8 @@
       placeholder={t('threadList.searchMail')}
       spellcheck="false"
       aria-label={t('threadList.searchMail')}
+      aria-expanded={panelOpen && (!hushed || building)}
+      aria-controls="search-panel"
     />
     {#if query && ai.ready && /\s/.test(query.trim()) && !/\w+:/.test(query)}
       <button class="ai-search" title={t('threadList.aiSearchTitle')} onclick={aiSearch} disabled={aiBusy}><Sparkles size={13} />{aiBusy ? '…' : t('threadList.aiSearchButton')}</button>
@@ -370,6 +392,7 @@
       title={t('search.options')}
       onclick={() => {
         building = !building;
+        hushed = false;
         if (!building) searchInput?.focus();
       }}><Sliders size={13} /></button>
     {#if query}
@@ -377,7 +400,7 @@
     {:else}
       <span class="kbd">/</span>
     {/if}
-    {#if searchWithin || building}<SearchPanel {query} {building} onpick={pick} />{/if}
+    {#if (searchWithin && !hushed) || building}<SearchPanel {query} {building} onpick={pick} bind:open={panelOpen} />{/if}
   </div>
 
   <AccountAlerts />
