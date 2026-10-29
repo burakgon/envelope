@@ -220,6 +220,11 @@
   "subscriptions.deleteMessage": "{count, plural, one {# wątek trafi do Kosza.} few {# wątki trafią do Kosza.} many {# wątków trafi do Kosza.} other {# wątku trafi do Kosza.}}",
   "subscriptions.deleted": "{count, plural, one {Przeniesiono # wątek do Kosza} few {Przeniesiono # wątki do Kosza} many {Przeniesiono # wątków do Kosza} other {Przeniesiono # wątku do Kosza}}",
 
+  "birthdays.title": "Urodziny: {name}",
+  "birthdays.calendar": "Urodziny",
+  "birthdays.turns": "{age, plural, one {Kończy # rok} few {Kończy # lata} many {Kończy # lat} other {Kończy # roku}}",
+  "birthdays.openContact": "Otwórz kontakt",
+
   "outbox.toRecipients": "do: {recipients}",
   "outbox.toNobody": "brak odbiorców",
   "outbox.notSent": "Nie wysłano: {error}",
@@ -644,6 +649,7 @@
   "calendar.header.nextPeriod": "Następny okres",
   "calendar.header.nextPeriodTooltip": "Następny okres ({key})",
   "calendar.header.upcoming": "Nadchodzące",
+  "calendar.weekNumber": "Tydzień {week}",
   "calendar.view.day": "Dzień",
   "calendar.view.dayTooltip": "Dzień ({key})",
   "calendar.view.workWeek": "Tydzień roboczy",
@@ -904,6 +910,8 @@
   "settings.rules.stop": "Zatrzymaj tutaj — nie stosuj kolejnych reguł do pasujących wiadomości",
   "settings.rules.save": "Zapisz regułę",
   "settings.calendar.weekStart": "Pierwszy dzień tygodnia",
+  "settings.calendar.weekNumbers": "Numery tygodni",
+  "settings.calendar.weekNumbersDesc": "Pokazuj numer każdego tygodnia (ISO 8601) w kalendarzu.",
   "settings.calendar.defaultCalendar": "Domyślny kalendarz",
   "settings.calendar.defaultCalendarDesc": "Kalendarz, do którego trafiają nowe wydarzenia.",
   "settings.calendar.noCalendars": "Brak kalendarzy",

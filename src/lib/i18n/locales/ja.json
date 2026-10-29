@@ -220,6 +220,11 @@
   "subscriptions.deleteMessage": "{count, plural, other {# 件のスレッドがゴミ箱に移動します。}}",
   "subscriptions.deleted": "{count, plural, other {# 件のスレッドをゴミ箱に移動しました}}",
 
+  "birthdays.title": "{name}の誕生日",
+  "birthdays.calendar": "誕生日",
+  "birthdays.turns": "{age} 歳になります",
+  "birthdays.openContact": "連絡先を開く",
+
   "outbox.toRecipients": "宛先：{recipients}",
   "outbox.toNobody": "宛先なし",
   "outbox.notSent": "送信失敗：{error}",
@@ -644,6 +649,7 @@
   "calendar.header.nextPeriod": "次へ",
   "calendar.header.nextPeriodTooltip": "次へ（{key}）",
   "calendar.header.upcoming": "今後の予定",
+  "calendar.weekNumber": "第 {week} 週",
   "calendar.view.day": "日",
   "calendar.view.dayTooltip": "日（{key}）",
   "calendar.view.workWeek": "稼働日",
@@ -904,6 +910,8 @@
   "settings.rules.stop": "ここで停止（一致したメッセージには以降のルールを適用しない）",
   "settings.rules.save": "ルールを保存",
   "settings.calendar.weekStart": "週の開始日",
+  "settings.calendar.weekNumbers": "週番号",
+  "settings.calendar.weekNumbersDesc": "カレンダーに各週の番号 (ISO 8601) を表示します。",
   "settings.calendar.defaultCalendar": "デフォルトのカレンダー",
   "settings.calendar.defaultCalendarDesc": "新しい予定の追加先です。",
   "settings.calendar.noCalendars": "カレンダーがありません",

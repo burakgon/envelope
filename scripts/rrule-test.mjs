@@ -179,6 +179,37 @@ check('zone names', [tz.zoneName(NY, 'longGeneric'), tz.zoneName('Asia/Tokyo', '
 check('zone labels', ['America/Argentina/Buenos_Aires', 'UTC', 'Etc/GMT+12'].map(tz.zoneLabel), ['Buenos Aires (GMT-3)', 'UTC', 'GMT-12']);
 check('the list has places and UTC, no fixed offsets', tz.zoneChoices().filter((z) => z.id.startsWith('Etc/') || !z.id.includes('/')).map((z) => z.id), ['UTC']);
 
+// ----- week numbers and birthdays ---------------------------------------------------------
+
+const { isoWeek, weekOfRow } = await import(new URL('utils/weeks.ts', src).href);
+const { birthdayOccurrences, ageIn } = await import(new URL('utils/birthdays.ts', src).href);
+const { t: tx } = await import(i18n);
+
+const at = (y, m, d) => new Date(y, m - 1, d);
+check('a week in the middle of the year', isoWeek(at(2026, 10, 30)), 44);
+check('January 1 can belong to the last week of the year before', [isoWeek(at(2027, 1, 1)), isoWeek(at(2021, 1, 3))], [53, 53]);
+check('December 31 can belong to week 1', isoWeek(at(2024, 12, 31)), 1);
+check('a week starting on Sunday counts as its Monday', [weekOfRow(at(2026, 10, 25)), weekOfRow(at(2026, 10, 26))], [44, 44]);
+check('a week starting on Saturday too', weekOfRow(at(2026, 10, 24)), 44);
+
+const people = [
+  { contactId: 1, name: 'Maya Chen', date: '1992-04-15' },
+  { contactId: 2, name: 'Kenji Tanaka', date: '--02-29' },
+];
+const days = (from, to) => birthdayOccurrences(people, from.getTime(), to.getTime()).map((o) => [o.title, o.startDate, o.endDate]);
+check('birthdays in a range, all day', days(at(2026, 4, 1), at(2026, 5, 1)), [['Maya Chen’s birthday', '2026-04-15', '2026-04-16']]);
+check('February 29 falls on the 28th in other years', [days(at(2027, 2, 1), at(2027, 3, 1)), days(at(2028, 2, 1), at(2028, 3, 1))], [
+  [['Kenji Tanaka’s birthday', '2027-02-28', '2027-03-01']],
+  [['Kenji Tanaka’s birthday', '2028-02-29', '2028-03-01']],
+]);
+check('a range across new year', days(at(2026, 12, 20), at(2027, 4, 20)).map(([, d]) => d), ['2027-04-15', '2027-02-28']);
+check('the age turned, when the year is known', [ageIn(people[0], 2026), ageIn(people[1], 2026)], [34, null]);
+globalThis.lang = 'de';
+check('in the interface language', days(at(2026, 4, 1), at(2026, 5, 1))[0][0], 'Geburtstag von Maya Chen');
+globalThis.lang = 'pl';
+check('Polish ages', [1, 3, 34].map((age) => tx('birthdays.turns', { age })), ['Kończy 1 rok', 'Kończy 3 lata', 'Kończy 34 lata']);
+globalThis.lang = 'en';
+
 if (failed) {
   console.log(`\n${failed} of ${checks} check(s) failed`);
   process.exit(1);

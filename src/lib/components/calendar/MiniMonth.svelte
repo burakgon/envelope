@@ -1,5 +1,7 @@
 <script lang="ts">
   import { cal, addDays, sameDay, startOfWeek } from '../../stores/calendar.svelte';
+  import { weekOfRow } from '../../utils/weeks';
+  import { ui } from '../../stores/ui.svelte';
   import { ChevronLeft, ChevronRight } from '../../icons';
   import { t } from '../../i18n';
   import { dateFormat } from '../../utils/format';
@@ -48,10 +50,15 @@
     <button class="icon-btn sm" aria-label={t('calendar.miniMonth.previousMonth')} onclick={() => offset--}><ChevronLeft size={15} /></button>
     <button class="icon-btn sm" aria-label={t('calendar.miniMonth.nextMonth')} onclick={() => offset++}><ChevronRight size={15} /></button>
   </div>
-  <div class="grid">
+  <div class="grid" class:weeks={ui.settings.calendarWeekNumbers}>
+    {#if ui.settings.calendarWeekNumbers}<span class="wd"></span>{/if}
     {#each weekdays as w, i (i)}<span class="wd">{w}</span>{/each}
-    {#each days as d (d.getTime())}
+    {#each days as d, i (d.getTime())}
       {@const ms = d.getTime()}
+      {#if ui.settings.calendarWeekNumbers && i % 7 === 0}
+        {@const week = weekOfRow(d)}
+        <span class="wk" title={t('calendar.weekNumber', { week })}>{week}</span>
+      {/if}
       <button
         class="d"
         class:other={d.getMonth() !== shown.getMonth()}
@@ -84,6 +91,17 @@
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     row-gap: 1px;
+  }
+  .grid.weeks {
+    grid-template-columns: auto repeat(7, 1fr);
+  }
+  .wk {
+    display: grid;
+    place-items: center;
+    padding-right: 4px;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-4);
   }
   .wd {
     text-align: center;

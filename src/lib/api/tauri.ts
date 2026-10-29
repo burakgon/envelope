@@ -217,6 +217,7 @@ export function createTauriApi(): Api {
       refresh: (id) => invoke('calendar_refresh', { id }),
       unsubscribe: (id) => invoke('calendar_unsubscribe', { id }),
       occurrences: (from, to) => invoke('occurrences', { from, to }),
+      birthdays: () => invoke('birthdays'),
       detail: (eventId, recurrenceId) => invoke('event_detail', { eventId, recurrenceId }),
       create: (input) => invoke('event_create', { input }),
       update: (eventId, recurrenceId, scope, input) => invoke('event_update', { eventId, recurrenceId, scope, input }),

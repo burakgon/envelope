@@ -250,6 +250,7 @@ pub fn run() {
             commands::identities,
             commands::identity_save,
             commands::identity_delete,
+            commands::birthdays,
             commands::subscriptions,
             commands::archive_from_inbox,
             commands::vips,

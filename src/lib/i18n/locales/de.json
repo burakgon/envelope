@@ -220,6 +220,11 @@
   "subscriptions.deleteMessage": "{count, plural, one {# Konversation kommt in den Papierkorb.} other {# Konversationen kommen in den Papierkorb.}}",
   "subscriptions.deleted": "{count, plural, one {# Konversation in den Papierkorb verschoben} other {# Konversationen in den Papierkorb verschoben}}",
 
+  "birthdays.title": "Geburtstag von {name}",
+  "birthdays.calendar": "Geburtstage",
+  "birthdays.turns": "Wird {age}",
+  "birthdays.openContact": "Kontakt öffnen",
+
   "outbox.toRecipients": "an {recipients}",
   "outbox.toNobody": "an niemanden",
   "outbox.notSent": "Nicht gesendet: {error}",
@@ -644,6 +649,7 @@
   "calendar.header.nextPeriod": "Weiter",
   "calendar.header.nextPeriodTooltip": "Weiter ({key})",
   "calendar.header.upcoming": "Demnächst",
+  "calendar.weekNumber": "KW {week}",
   "calendar.view.day": "Tag",
   "calendar.view.dayTooltip": "Tag ({key})",
   "calendar.view.workWeek": "Arbeitswoche",
@@ -904,6 +910,8 @@
   "settings.rules.stop": "Hier stoppen — keine weiteren Regeln auf passende Nachrichten anwenden",
   "settings.rules.save": "Regel speichern",
   "settings.calendar.weekStart": "Woche beginnt am",
+  "settings.calendar.weekNumbers": "Kalenderwochen",
+  "settings.calendar.weekNumbersDesc": "Zeigt die Nummer jeder Woche (ISO 8601) im Kalender.",
   "settings.calendar.defaultCalendar": "Standardkalender",
   "settings.calendar.defaultCalendarDesc": "Kalender für neue Termine.",
   "settings.calendar.noCalendars": "Keine Kalender",

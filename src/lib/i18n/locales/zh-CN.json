@@ -220,6 +220,11 @@
   "subscriptions.deleteMessage": "{count, plural, other {# 个会话将移到“已删除”。}}",
   "subscriptions.deleted": "{count, plural, other {已将 # 个会话移到“已删除”}}",
 
+  "birthdays.title": "{name}的生日",
+  "birthdays.calendar": "生日",
+  "birthdays.turns": "满 {age} 岁",
+  "birthdays.openContact": "打开联系人",
+
   "outbox.toRecipients": "发送至 {recipients}",
   "outbox.toNobody": "无收件人",
   "outbox.notSent": "未发送：{error}",
@@ -644,6 +649,7 @@
   "calendar.header.nextPeriod": "下一时段",
   "calendar.header.nextPeriodTooltip": "下一时段（{key}）",
   "calendar.header.upcoming": "近期日程",
+  "calendar.weekNumber": "第 {week} 周",
   "calendar.view.day": "日",
   "calendar.view.dayTooltip": "日视图（{key}）",
   "calendar.view.workWeek": "工作周",
@@ -904,6 +910,8 @@
   "settings.rules.stop": "到此为止——匹配的邮件不再执行后续规则",
   "settings.rules.save": "保存规则",
   "settings.calendar.weekStart": "每周起始日",
+  "settings.calendar.weekNumbers": "周数",
+  "settings.calendar.weekNumbersDesc": "在日历中显示每周的周数（ISO 8601）。",
   "settings.calendar.defaultCalendar": "默认日历",
   "settings.calendar.defaultCalendarDesc": "新日程默认添加到此日历。",
   "settings.calendar.noCalendars": "无日历",

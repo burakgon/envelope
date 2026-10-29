@@ -220,6 +220,11 @@
   "subscriptions.deleteMessage": "{count, plural, one {# conversation sera placée dans la corbeille.} other {# conversations seront placées dans la corbeille.}}",
   "subscriptions.deleted": "{count, plural, one {# conversation placée dans la corbeille} other {# conversations placées dans la corbeille}}",
 
+  "birthdays.title": "Anniversaire de {name}",
+  "birthdays.calendar": "Anniversaires",
+  "birthdays.turns": "{age, plural, one {# an} other {# ans}}",
+  "birthdays.openContact": "Ouvrir le contact",
+
   "outbox.toRecipients": "à {recipients}",
   "outbox.toNobody": "sans destinataire",
   "outbox.notSent": "Non envoyé : {error}",
@@ -644,6 +649,7 @@
   "calendar.header.nextPeriod": "Suivant",
   "calendar.header.nextPeriodTooltip": "Suivant ({key})",
   "calendar.header.upcoming": "À venir",
+  "calendar.weekNumber": "Semaine {week}",
   "calendar.view.day": "Jour",
   "calendar.view.dayTooltip": "Jour ({key})",
   "calendar.view.workWeek": "Semaine de travail",
@@ -904,6 +910,8 @@
   "settings.rules.stop": "S’arrêter ici — ne pas appliquer les règles suivantes aux messages concernés",
   "settings.rules.save": "Enregistrer la règle",
   "settings.calendar.weekStart": "Premier jour de la semaine",
+  "settings.calendar.weekNumbers": "Numéros de semaine",
+  "settings.calendar.weekNumbersDesc": "Affiche le numéro de chaque semaine (ISO 8601) dans le calendrier.",
   "settings.calendar.defaultCalendar": "Calendrier par défaut",
   "settings.calendar.defaultCalendarDesc": "Où sont ajoutés les nouveaux événements.",
   "settings.calendar.noCalendars": "Aucun calendrier",

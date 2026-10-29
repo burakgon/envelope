@@ -404,6 +404,14 @@ export interface ContactPage {
   items: ContactSummary[];
 }
 
+/** A person's birthday, from the address books. */
+export interface Birthday {
+  contactId: number;
+  name: string;
+  /** `YYYY-MM-DD`, or `--MM-DD` when the year is not known. */
+  date: string;
+}
+
 /** A sender of newsletters or other list mail. */
 export interface Subscription {
   /** In lowercase. */

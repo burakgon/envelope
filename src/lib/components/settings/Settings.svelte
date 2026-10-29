@@ -323,6 +323,10 @@
             </select>
           </div>
           <div class="row">
+            <div class="txt"><b>{t('settings.calendar.weekNumbers')}</b><span>{t('settings.calendar.weekNumbersDesc')}</span></div>
+            <Toggle label={t('settings.calendar.weekNumbers')} checked={ui.settings.calendarWeekNumbers} onchange={(v) => ui.set('calendarWeekNumbers', v)} />
+          </div>
+          <div class="row">
             <div class="txt"><b>{t('settings.calendar.showDeclined')}</b></div>
             <Toggle label={t('settings.calendar.showDeclined')} checked={ui.settings.showDeclined} onchange={(v) => { ui.set('showDeclined', v); cal.load(); }} />
           </div>

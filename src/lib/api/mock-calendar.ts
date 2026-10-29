@@ -69,7 +69,6 @@ export const series: Series[] = [
   S({ calendarId: 2, title: 'Flight IST → BER', start: at(today, 16, 9, 40), minutes: 135, location: 'Istanbul Airport (IST)', description: 'Seat 12A · Booking SKY7Q2' }),
   S({ calendarId: 2, title: 'Dentist', start: at(today, 6, 16), minutes: 45, location: 'Nişantaşı' }),
   S({ calendarId: 3, title: 'Dinner at Mom’s', start: at(monday, 6, 19), minutes: 120 }),
-  S({ calendarId: 3, title: 'Mom’s birthday 🎂', start: at(today, 9, 0), minutes: 24 * 60, allDay: true }),
   S({ calendarId: 4, title: 'Republic Day', rrule: 'FREQ=YEARLY', start: new Date(today.getFullYear() - 3, 9, 29), minutes: 24 * 60, allDay: true }),
 ];
 

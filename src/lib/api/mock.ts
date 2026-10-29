@@ -891,6 +891,7 @@ export function createMockApi(): Api {
         emit({ type: 'calendarChanged', calendarIds: [id] });
       },
       occurrences: async (from, to) => cal.occurrences(from, to),
+      birthdays: async () => people.contacts.filter((c) => c.birthday).map((c) => ({ contactId: c.id!, name: c.name, date: c.birthday! })),
       detail: async (eventId, rid) => cal.detail(eventId, rid),
       create: async (input) => {
         const id = cal.create(input);

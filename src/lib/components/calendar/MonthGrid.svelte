@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Occurrence, Task } from '../../api';
   import { cal, DAY, addDays, sameDay, span, startOfWeek } from '../../stores/calendar.svelte';
+  import { weekOfRow } from '../../utils/weeks';
+  import { ui } from '../../stores/ui.svelte';
   import { t } from '../../i18n';
   import { dateFormat, timeOf } from '../../utils/format';
   import { dayDate, dueDay } from '../../utils/due';
@@ -70,7 +72,7 @@
     {#each weekdays as w, i (i)}<div>{w}</div>{/each}
   </div>
   <div class="cells">
-    {#each days as d (d.getTime())}
+    {#each days as d, i (d.getTime())}
       {@const list = itemsOf(d.getTime())}
       {@const today = sameDay(d, Date.now())}
       <div
@@ -85,6 +87,10 @@
         ondrop={() => drop(d)}
       >
         <button class="num" class:today onclick={() => { cal.view = 'day'; cal.goto(d.getTime()); }}>{d.getDate()}</button>
+        {#if ui.settings.calendarWeekNumbers && i % 7 === 0}
+          {@const week = weekOfRow(d)}
+          <span class="wk" title={t('calendar.weekNumber', { week })}>{week}</span>
+        {/if}
         <div class="events">
           {#each list.slice(0, 4) as it (it.o ? it.o.key : `task-${it.task.id}`)}
             {#if it.task}
@@ -152,6 +158,7 @@
     min-height: 0;
   }
   .cell {
+    position: relative;
     border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
     padding: 4px;
@@ -169,6 +176,16 @@
   }
   .cell.over {
     background: var(--accent-softer);
+  }
+  /* The week's number, in the corner of its first day. */
+  .wk {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 10.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-3);
   }
   .num {
     align-self: flex-start;

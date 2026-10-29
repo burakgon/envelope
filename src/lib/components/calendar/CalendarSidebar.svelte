@@ -2,6 +2,8 @@
   import { api } from '../../api';
   import type { CalendarInfo } from '../../api';
   import { cal, addDays, span } from '../../stores/calendar.svelte';
+  import { BIRTHDAY_COLOR } from '../../utils/birthdays';
+  import { ui } from '../../stores/ui.svelte';
   import { mail } from '../../stores/mail.svelte';
   import { errorMessage, toasts } from '../../stores/toasts.svelte';
   import { t } from '../../i18n';
@@ -104,6 +106,33 @@
 {:else}
   <div class="none">{t('calendar.sidebar.empty')}</div>
 {/each}
+
+{#if cal.birthdays.length}
+  {@const open = !collapsed.contacts}
+  {@const shown = ui.settings.calendarBirthdays}
+  <div class="group">
+    <button class="ghead" onclick={() => (collapsed.contacts = open)}>
+      <span class="truncate">{t('sidebar.modeContacts')}</span>
+      <span class="chev" class:closed={!open}><ChevronDown size={13} /></span>
+    </button>
+    {#if open}
+      <div class="cal-row">
+        <button
+          class="toggle"
+          role="checkbox"
+          aria-checked={shown}
+          onclick={() => {
+            ui.set('calendarBirthdays', !shown);
+            cal.load();
+          }}
+        >
+          <span class="box" class:on={shown} style:--c={BIRTHDAY_COLOR}>{#if shown}<Check size={11} strokeWidth={3} />{/if}</span>
+          <span class="name truncate">{t('birthdays.calendar')}</span>
+        </button>
+      </div>
+    {/if}
+  </div>
+{/if}
 
 <button class="subscribe" onclick={() => (cal.subscribing = '')}><Plus size={13} />{t('calendar.sidebar.subscribe')}</button>
 

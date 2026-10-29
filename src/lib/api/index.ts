@@ -153,6 +153,8 @@ export interface Api {
     refresh(id: number): Promise<void>;
     unsubscribe(id: number): Promise<void>;
     occurrences(from: number, to: number): Promise<T.Occurrence[]>;
+    /** The birthdays in the address books, someone in two books once. */
+    birthdays(): Promise<T.Birthday[]>;
     detail(eventId: number, recurrenceId: T.EventTime | null): Promise<T.EventDetail>;
     create(input: T.EventInput): Promise<number>;
     update(eventId: number, recurrenceId: T.EventTime | null, scope: T.EditScope, input: T.EventInput): Promise<void>;

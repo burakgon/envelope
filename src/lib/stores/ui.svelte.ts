@@ -91,6 +91,10 @@ export interface Settings {
   rules: MailRule[];
   /** New-mail notifications play the desktop's new-mail sound. */
   notificationSound: boolean;
+  /** The calendar shows the birthdays from the address books. */
+  calendarBirthdays: boolean;
+  /** The calendar shows week numbers (ISO 8601). */
+  calendarWeekNumbers: boolean;
   /** Senders unsubscribed from in Subscriptions, by address, with when. */
   unsubscribed: Record<string, number>;
   /** Searches kept in the sidebar. */
@@ -136,6 +140,8 @@ export const defaultSettings: Settings = {
   templates: [],
   notificationSound: true,
   unsubscribed: {},
+  calendarBirthdays: true,
+  calendarWeekNumbers: false,
   savedSearches: [],
   recentSearches: [],
   rules: [],

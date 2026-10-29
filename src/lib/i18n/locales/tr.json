@@ -220,6 +220,11 @@
   "subscriptions.deleteMessage": "{count, plural, one {# konuşma Çöp Kutusu’na taşınacak.} other {# konuşma Çöp Kutusu’na taşınacak.}}",
   "subscriptions.deleted": "{count, plural, one {# konuşma Çöp Kutusu’na taşındı} other {# konuşma Çöp Kutusu’na taşındı}}",
 
+  "birthdays.title": "Doğum günü: {name}",
+  "birthdays.calendar": "Doğum günleri",
+  "birthdays.turns": "{age} yaşına giriyor",
+  "birthdays.openContact": "Kişiyi aç",
+
   "outbox.toRecipients": "alıcı: {recipients}",
   "outbox.toNobody": "alıcı yok",
   "outbox.notSent": "Gönderilemedi: {error}",
@@ -644,6 +649,7 @@
   "calendar.header.nextPeriod": "Sonraki",
   "calendar.header.nextPeriodTooltip": "Sonraki ({key})",
   "calendar.header.upcoming": "Yaklaşanlar",
+  "calendar.weekNumber": "{week}. hafta",
   "calendar.view.day": "Gün",
   "calendar.view.dayTooltip": "Gün ({key})",
   "calendar.view.workWeek": "İş haftası",
@@ -904,6 +910,8 @@
   "settings.rules.stop": "Burada dur — eşleşen iletilere sonraki kuralları uygulama",
   "settings.rules.save": "Kuralı kaydet",
   "settings.calendar.weekStart": "Haftanın ilk günü",
+  "settings.calendar.weekNumbers": "Hafta numaraları",
+  "settings.calendar.weekNumbersDesc": "Takvimde her haftanın numarası (ISO 8601) gösterilir.",
   "settings.calendar.defaultCalendar": "Varsayılan takvim",
   "settings.calendar.defaultCalendarDesc": "Yeni etkinlikler bu takvime eklenir.",
   "settings.calendar.noCalendars": "Takvim yok",

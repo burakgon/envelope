@@ -404,6 +404,47 @@ async function closeComposer() {
   await w.locator('.dock .composer').waitFor({ state: 'detached', timeout: 5000 });
 }
 
+await step('birthdays from the contacts appear in the calendar, and week numbers on request', async () => {
+  const day = await open(new Date(2026, 10, 2, 9, 0));
+  try {
+    await day.goto(url);
+    await day.locator('.row').first().waitFor({ state: 'visible', timeout: 5000 });
+    await day.keyboard.press('Control+k');
+    await day.locator('.palette input').waitFor({ timeout: 5000 });
+    await day.keyboard.type('calendar');
+    await day.keyboard.press('Enter');
+    await day.locator('.grid-wrap').waitFor({ timeout: 5000 });
+    await day.getByRole('tab', { name: 'Month', exact: true }).click();
+    // Linda Morgan (born 1961) has her birthday on November 6.
+    const linda = day.locator('.month .item', { hasText: 'Linda Morgan’s birthday' });
+    await linda.waitFor({ timeout: 5000 });
+    await linda.click();
+    const pop = day.locator('.popover', { hasText: 'Turns 65' });
+    await pop.waitFor({ timeout: 5000 });
+    await pop.locator('.menu-item', { hasText: 'Open contact' }).click();
+    await day.locator('.contacts h2', { hasText: 'Linda Morgan' }).waitFor({ timeout: 5000 });
+    // The Birthdays calendar can be hidden.
+    await day.locator('.sidebar .seg [role="tab"], .sidebar [role="tab"]', { hasText: 'Calendar' }).first().click();
+    await linda.waitFor({ timeout: 5000 });
+    const toggle = day.getByRole('checkbox', { name: 'Birthdays' });
+    await toggle.click();
+    await linda.waitFor({ state: 'detached', timeout: 5000 });
+    await toggle.click();
+    await linda.waitFor({ timeout: 5000 });
+    // Week numbers: in the corner of each week's first day, and above the week view.
+    if (await day.locator('.month .wk').count()) throw new Error('week numbers show before they are turned on');
+    await day.keyboard.press('Control+,');
+    await day.locator('.window .tab', { hasText: 'Calendar' }).click();
+    await day.getByRole('switch', { name: 'Week numbers' }).click();
+    await day.keyboard.press('Escape');
+    await eventually(day, async () => (await day.locator('.month .wk').allInnerTexts()).join(' ') === '44 45 46 47 48 49', async () => `the weeks read ${(await day.locator('.month .wk').allInnerTexts()).join(' ')}`);
+    await day.getByRole('tab', { name: 'Week', exact: true }).click();
+    await day.locator('.calendar header .week-no', { hasText: 'Week 45' }).waitFor({ timeout: 5000 });
+  } finally {
+    await day.close();
+  }
+});
+
 await step('the agenda puts a task due at a time among the events, in time order', async () => {
   // A Thursday morning: the standup (9:30) and the product sync (10:00) come before
   // the call due at 18:30.

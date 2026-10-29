@@ -7,6 +7,7 @@
 
 pub mod ai;
 pub mod auto_reply;
+pub mod birthdays;
 pub mod calendar;
 pub mod compose;
 pub mod contacts;

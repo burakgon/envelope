@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import type { Occurrence } from '../../api';
   import { cal, addDays, startOfDay } from '../../stores/calendar.svelte';
+  import { BIRTHDAYS } from '../../utils/birthdays';
+  import { isoWeek, weekOfRow } from '../../utils/weeks';
   import type { CalView } from '../../stores/calendar.svelte';
   import { ui } from '../../stores/ui.svelte';
   import { t, type MessageKey } from '../../i18n';
@@ -10,6 +12,7 @@
   import MonthGrid from './MonthGrid.svelte';
   import Agenda from './Agenda.svelte';
   import EventPopover from './EventPopover.svelte';
+  import BirthdayPopover from './BirthdayPopover.svelte';
   import { ChevronLeft, ChevronRight, PanelLeft, Plus, Spinner } from '../../icons';
 
   let popover = $state.raw<{ key: string; rect: DOMRect } | null>(null);
@@ -39,6 +42,10 @@
   }
 
   const timeGrid = $derived(cal.view === 'day' || cal.view === 'workweek' || cal.view === 'week');
+  /** The number of the week on screen, in the day and week views when week numbers are on. */
+  const week = $derived(
+    ui.settings.calendarWeekNumbers && timeGrid ? (cal.view === 'day' ? isoWeek(cal.range[0]) : weekOfRow(new Date(cal.range[0]))) : null,
+  );
 
   let wheelLock = 0;
   function onWheel(e: WheelEvent) {
@@ -63,6 +70,7 @@
       <button class="icon-btn" aria-label={t('calendar.header.nextPeriod')} title={t('calendar.header.nextPeriodTooltip', { key: 'J' })} onclick={() => cal.step(1)}><ChevronRight size={18} /></button>
     </div>
     <h1 data-tauri-drag-region title={cal.title}>{cal.title}</h1>
+    {#if week != null}<span class="week-no">{t('calendar.weekNumber', { week })}</span>{/if}
     {#if cal.loading}<span class="spin"><Spinner size={14} /></span>{/if}
     <span class="grow" data-tauri-drag-region></span>
     <div class="seg" role="tablist">
@@ -89,7 +97,11 @@
 
 {#if popover && popOcc}
   {#key popover.key}
-    <EventPopover occurrence={popOcc} rect={popover.rect} onclose={() => (popover = null)} />
+    {#if popOcc.calendarId === BIRTHDAYS}
+      <BirthdayPopover occurrence={popOcc} rect={popover.rect} onclose={() => (popover = null)} />
+    {:else}
+      <EventPopover occurrence={popOcc} rect={popover.rect} onclose={() => (popover = null)} />
+    {/if}
   {/key}
 {/if}
 
@@ -114,6 +126,15 @@
   }
   .nav {
     display: flex;
+  }
+  .week-no {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text-2);
+    background: var(--bg-active);
   }
   h1 {
     min-width: 0;

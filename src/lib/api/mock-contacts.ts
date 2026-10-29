@@ -7,6 +7,13 @@ export const books: T.ContactBook[] = [
   { id: 2, accountId: 2, kind: 'carddav', name: 'iCloud', readOnly: false },
 ];
 
+/** Mom's birthday: nine days from now, when the demo calendar has her birthday dinner. */
+const momsBirthday = (() => {
+  const d = new Date();
+  d.setDate(d.getDate() + 9);
+  return `1961-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+})();
+
 let seq = 1;
 const C = (bookId: number, name: string, email: string, more: Partial<T.Contact> = {}): T.Contact => {
   const [givenName, ...rest] = name.split(' ');
@@ -39,7 +46,7 @@ export const contacts: T.Contact[] = [
   C(1, 'Kenji Tanaka', 'kenji@tanaka.jp', { organization: 'Tanaka & Co.', title: 'Partner' }),
   C(2, 'Elif Yılmaz', 'elif@yilmaz.family', { emails: [{ value: 'elif@yilmaz.family', label: 'home' }], phones: [{ value: '+90 555 210 44 90', label: 'mobile' }], birthday: '1992-06-21' }),
   C(2, 'Noah Williams', 'noah.w@fastmail.test', { emails: [{ value: 'noah.w@fastmail.test', label: 'home' }] }),
-  C(2, 'Linda Morgan', 'linda.morgan@icloud.test', { emails: [{ value: 'linda.morgan@icloud.test', label: 'home' }], phones: [{ value: '+1 503 555 0199', label: 'home' }], notes: 'Mom 💛', birthday: '1961-11-06' }),
+  C(2, 'Linda Morgan', 'linda.morgan@icloud.test', { emails: [{ value: 'linda.morgan@icloud.test', label: 'home' }], phones: [{ value: '+1 503 555 0199', label: 'home' }], notes: 'Mom 💛', birthday: momsBirthday }),
   C(2, 'Hannah Becker', 'hannah.becker@mail.test', { title: 'Landlord', phones: [{ value: '+49 151 2345 6789', label: 'mobile' }] }),
   C(2, 'Arjun Patel', 'arjun@patel.dev', { organization: 'Freelance', title: 'iOS developer' }),
   C(2, 'Zoe Garcia', 'zoe.garcia@umbrella.org', { organization: 'Umbrella', title: 'Researcher' }),

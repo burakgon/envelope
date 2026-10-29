@@ -1,5 +1,6 @@
 //! IPC commands called by the UI.
 
+use envelope_core::birthdays::Birthday;
 use envelope_core::mail_api::FollowUpChange;
 use envelope_core::mail_api::{MarkedRead, ThreadRef};
 use envelope_core::model::*;
@@ -553,6 +554,11 @@ pub fn identity_save(state: State<'_, AppState>, identity: Identity) -> R<i64> {
 #[tauri::command]
 pub fn identity_delete(state: State<'_, AppState>, id: i64) -> R<()> {
     Ok(state.engine.delete_identity(id)?)
+}
+
+#[tauri::command]
+pub fn birthdays(state: State<'_, AppState>) -> R<Vec<Birthday>> {
+    Ok(state.engine.birthdays()?)
 }
 
 #[tauri::command]

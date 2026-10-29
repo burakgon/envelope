@@ -1,5 +1,6 @@
 import { api } from '../api';
-import type { CalendarInfo, EditScope, EventInput, ExtractedEvent, Occurrence, Task } from '../api';
+import type { Birthday, CalendarInfo, EditScope, EventInput, ExtractedEvent, Occurrence, Task } from '../api';
+import { birthdayOccurrences } from '../utils/birthdays';
 import { t } from '../i18n';
 import { dateFormat } from '../utils/format';
 import { tasks } from './tasks.svelte';
@@ -60,6 +61,8 @@ class Cal {
   occurrences = $state<Occurrence[]>([]);
   /** Open tasks due in the range, shown on their day (unless turned off in the settings). */
   dueTasks = $state<Task[]>([]);
+  /** The birthdays of the address books, shown in the Birthdays calendar (unless turned off). */
+  birthdays = $state<Birthday[]>([]);
   loading = $state(false);
   editor = $state<EditorState | null>(null);
   scopeAsk = $state<{ title: string; resolve: (s: EditScope | null) => void } | null>(null);
@@ -121,9 +124,19 @@ class Cal {
       } else if (e.type === 'tasksChanged') {
         this.loadTasks();
       }
+      if (e.type === 'contactsChanged' || e.type === 'accountsChanged') this.loadBirthdays();
     });
     await this.loadCalendars();
-    await this.load();
+    await this.loadBirthdays();
+  }
+
+  async loadBirthdays() {
+    try {
+      this.birthdays = await api.calendar.birthdays();
+    } catch {
+      this.birthdays = [];
+    }
+    this.load();
   }
 
   async loadCalendars() {
@@ -141,7 +154,8 @@ class Cal {
     this.loadTasks();
     try {
       const list = await api.calendar.occurrences(from - DAY, to + DAY);
-      if (seq === this.seq) this.occurrences = ui.settings.showDeclined ? list : list.filter((o) => o.myStatus !== 'declined');
+      const birthdays = ui.settings.calendarBirthdays ? birthdayOccurrences(this.birthdays, from - DAY, to + DAY) : [];
+      if (seq === this.seq) this.occurrences = [...(ui.settings.showDeclined ? list : list.filter((o) => o.myStatus !== 'declined')), ...birthdays];
     } catch (e) {
       toasts.error(errorMessage(e));
     } finally {

@@ -88,7 +88,8 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - Desktop notifications with Archive and Mark as Read buttons and the desktop's new-mail sound — for all new mail, only mail from people, only VIPs, or nothing, per account — an unread badge, `mailto:` handling, **Save all** for attachments, and saved messages (`.eml`), calendar files (`.ics`) and contact cards (`.vcf`, `.csv`) open straight from your file manager.
 
 ### Calendar
-- Day, work week, week, month and agenda views; mini month; per-calendar visibility and colors; a second time zone beside the hours.
+- Day, work week, week, month and agenda views; mini month; per-calendar visibility and colors; a second time zone beside the hours; week numbers if you count in them.
+- **Birthdays** from your address books in a calendar of their own, with the age each one turns.
 - Drag to create, drag to move (across days), drag to resize; double-click in month view to add.
 - Recurring events with editing scopes (*this event*, *this and following*, *all events*), and custom repeats: every so many days, weeks, months or years, several weekdays, "the second Tuesday" or "the last Friday", until a date or a number of times.
 - Events in a time zone of their own, kept by every provider.
