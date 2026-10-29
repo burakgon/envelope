@@ -44,6 +44,13 @@ pub const CONTACTS_OTHER_READONLY: &str = "https://www.googleapis.com/auth/conta
 /// vacation responder (`users/me/settings/vacation`).
 pub const GMAIL_SETTINGS_BASIC: &str = "https://www.googleapis.com/auth/gmail.settings.basic";
 
+/// `https://www.googleapis.com/auth/tasks` — create, edit, organise and
+/// delete all the user's tasks.
+///
+/// Needed for every Tasks API request: task lists and tasks, reading and
+/// writing (the narrower `tasks.readonly` allows listing only).
+pub const TASKS: &str = "https://www.googleapis.com/auth/tasks";
+
 /// `https://mail.google.com/` — full mailbox access.
 ///
 /// Not used by this crate's own requests except `users/me/profile`, which
@@ -52,10 +59,12 @@ pub const GMAIL_SETTINGS_BASIC: &str = "https://www.googleapis.com/auth/gmail.se
 /// works with the same token.
 pub const MAIL: &str = "https://mail.google.com/";
 
-/// Every scope this crate's Calendar, People and send-as requests need.
-pub const ALL: [&str; 4] = [
+/// Every scope this crate's Calendar, People, send-as and Tasks requests
+/// need.
+pub const ALL: [&str; 5] = [
     CALENDAR,
     CONTACTS,
     CONTACTS_OTHER_READONLY,
     GMAIL_SETTINGS_BASIC,
+    TASKS,
 ];

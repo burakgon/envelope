@@ -130,6 +130,29 @@ impl Error {
     pub fn is_forbidden(&self) -> bool {
         self.status() == Some(403) && !self.is_rate_limited()
     }
+
+    /// True when the access token does not carry the OAuth scope the API
+    /// needs (`403` with `insufficientPermissions` or
+    /// `ACCESS_TOKEN_SCOPE_INSUFFICIENT`), as for accounts authorised before
+    /// Envelope asked for that scope. Nothing but signing in again helps, so
+    /// callers skip the feature quietly.
+    pub fn is_insufficient_scope(&self) -> bool {
+        self.api_error().is_some_and(|e| {
+            e.status == 403
+                && (e.has_reason("insufficientPermissions")
+                    || e.has_reason("ACCESS_TOKEN_SCOPE_INSUFFICIENT"))
+        })
+    }
+
+    /// True when the API is not enabled for the OAuth client's Google Cloud
+    /// project (`403` with `accessNotConfigured` or `SERVICE_DISABLED`): a
+    /// setup problem of the client registration, not of the account.
+    pub fn is_api_disabled(&self) -> bool {
+        self.api_error().is_some_and(|e| {
+            e.status == 403
+                && (e.has_reason("accessNotConfigured") || e.has_reason("SERVICE_DISABLED"))
+        })
+    }
 }
 
 /// An error response from a Google API.
@@ -379,6 +402,26 @@ mod tests {
             ensure_page_progress(Some("p2"), Some("p2"), "events.list"),
             Err(Error::InvalidResponse(_))
         ));
+    }
+
+    #[test]
+    fn missing_scopes_and_disabled_apis_are_recognised() {
+        let scope = br#"{"error":{"code":403,"message":"Request had insufficient authentication scopes.","errors":[{"message":"Insufficient Permission","domain":"global","reason":"insufficientPermissions"}],"status":"PERMISSION_DENIED","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT","domain":"googleapis.com","metadata":{"service":"tasks.googleapis.com"}}]}}"#;
+        let err = Error::from_api(ApiError::from_response(403, scope), false);
+        assert!(err.is_insufficient_scope());
+        assert!(err.is_forbidden());
+        assert!(!err.is_api_disabled());
+        assert!(!err.is_rate_limited());
+
+        let disabled = br#"{"error":{"code":403,"message":"Google Tasks API has not been used in project 1234 before or it is disabled.","errors":[{"message":"Google Tasks API has not been used in project 1234 before or it is disabled.","domain":"usageLimits","reason":"accessNotConfigured"}],"status":"PERMISSION_DENIED","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"SERVICE_DISABLED","domain":"googleapis.com"}]}}"#;
+        let err = Error::from_api(ApiError::from_response(403, disabled), false);
+        assert!(err.is_api_disabled());
+        assert!(!err.is_insufficient_scope());
+
+        let read_only = br#"{"error":{"code":403,"message":"Forbidden","errors":[{"domain":"global","reason":"forbidden","message":"Forbidden"}]}}"#;
+        let err = Error::from_api(ApiError::from_response(403, read_only), false);
+        assert!(err.is_forbidden());
+        assert!(!err.is_insufficient_scope() && !err.is_api_disabled());
     }
 
     #[test]

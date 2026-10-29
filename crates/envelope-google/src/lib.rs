@@ -1,4 +1,4 @@
-//! Google Calendar, People and Gmail-settings client for Envelope.
+//! Google Calendar, People, Gmail-settings and Tasks client for Envelope.
 //!
 //! Mail itself is synchronised over IMAP elsewhere; this crate covers the
 //! Google-specific REST APIs a mail and calendar client needs on top of that:
@@ -17,6 +17,9 @@
 //!   delete, photos).
 //! * **Gmail API settings** — send-as aliases (display names, reply-to,
 //!   signatures) and the account profile.
+//! * **Tasks API v1** — task lists and tasks, pulled page by page in full
+//!   or incrementally ([`GoogleClient::task_changes`], with a JSON-storable
+//!   [`TaskCursor`]), and task writes (insert / patch / delete / move).
 //!
 //! Authentication is delegated to a [`TokenSource`]; the OAuth scopes needed
 //! are listed in [`scopes`]. Every request goes through one HTTP layer that
@@ -60,6 +63,7 @@ mod html;
 pub mod people;
 pub mod scopes;
 mod serde_util;
+pub mod tasks;
 
 pub use auth::{StaticToken, TokenSource};
 pub use calendar::{
@@ -74,3 +78,7 @@ pub use client::{ClientConfig, GoogleClient, RetryPolicy};
 pub use error::{ApiError, Error, Result};
 pub use gmail::{GmailProfile, SendAsAlias, SmtpRelay, VacationSettings, VerificationStatus};
 pub use people::{ContactPage, ContactSource, ContactSync, GoogleContact};
+pub use tasks::{
+    GoogleTask, GoogleTaskList, NewTask, TaskChanges, TaskCursor, TaskLink, TaskPage, TaskPatch,
+    TaskPosition, TaskQuery, TaskStatus,
+};

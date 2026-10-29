@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use reqwest::header::{self, HeaderMap};
 use reqwest::{Method, StatusCode};
 use serde::Serialize;
@@ -22,6 +23,7 @@ use crate::error::{ApiError, Error, Result};
 const DEFAULT_CALENDAR_BASE_URL: &str = "https://www.googleapis.com/calendar/v3";
 const DEFAULT_PEOPLE_BASE_URL: &str = "https://people.googleapis.com/v1";
 const DEFAULT_GMAIL_BASE_URL: &str = "https://gmail.googleapis.com/gmail/v1";
+const DEFAULT_TASKS_BASE_URL: &str = "https://tasks.googleapis.com/tasks/v1";
 
 /// Exponential-backoff policy for transient failures.
 ///
@@ -88,6 +90,8 @@ pub struct ClientConfig {
     pub people_base_url: String,
     /// Base URL of the Gmail API (default `https://gmail.googleapis.com/gmail/v1`).
     pub gmail_base_url: String,
+    /// Base URL of the Tasks API (default `https://tasks.googleapis.com/tasks/v1`).
+    pub tasks_base_url: String,
     /// Retry behaviour for transient failures.
     pub retry: RetryPolicy,
     /// `User-Agent` header. Google only compresses responses when the user
@@ -107,6 +111,7 @@ impl Default for ClientConfig {
             calendar_base_url: DEFAULT_CALENDAR_BASE_URL.to_owned(),
             people_base_url: DEFAULT_PEOPLE_BASE_URL.to_owned(),
             gmail_base_url: DEFAULT_GMAIL_BASE_URL.to_owned(),
+            tasks_base_url: DEFAULT_TASKS_BASE_URL.to_owned(),
             retry: RetryPolicy::default(),
             user_agent: format!("envelope-mail/{} (gzip)", env!("CARGO_PKG_VERSION")),
             timeout: Duration::from_secs(60),
@@ -116,15 +121,16 @@ impl Default for ClientConfig {
 }
 
 impl ClientConfig {
-    /// Points all three APIs at one server, using the same path layout as
-    /// Google (`{root}/calendar/v3`, `{root}/v1`, `{root}/gmail/v1`).
-    /// Intended for tests against a local mock server.
+    /// Points all APIs at one server, using the same path layout as Google
+    /// (`{root}/calendar/v3`, `{root}/v1`, `{root}/gmail/v1`,
+    /// `{root}/tasks/v1`). Intended for tests against a local mock server.
     pub fn with_api_root(root: &str) -> Self {
         let root = root.trim_end_matches('/');
         ClientConfig {
             calendar_base_url: format!("{root}/calendar/v3"),
             people_base_url: format!("{root}/v1"),
             gmail_base_url: format!("{root}/gmail/v1"),
+            tasks_base_url: format!("{root}/tasks/v1"),
             ..ClientConfig::default()
         }
     }
@@ -136,6 +142,7 @@ pub(crate) enum Service {
     Calendar,
     People,
     Gmail,
+    Tasks,
 }
 
 /// A request description that can be replayed for retries.
@@ -219,7 +226,7 @@ impl<'a> ApiRequest<'a> {
     }
 }
 
-/// Client for the Google Calendar, People and Gmail settings APIs.
+/// Client for the Google Calendar, People, Gmail settings and Tasks APIs.
 ///
 /// Cheap to clone (all clones share one connection pool, token source and
 /// caches). Every public async method returns a `Send` future.
@@ -234,6 +241,7 @@ struct Inner {
     calendar_base: Url,
     people_base: Url,
     gmail_base: Url,
+    tasks_base: Url,
     retry: RetryPolicy,
     floating_time_zone: Option<String>,
     palette: OnceCell<Arc<ColorPalette>>,
@@ -248,6 +256,7 @@ impl fmt::Debug for GoogleClient {
             .field("calendar_base", &self.inner.calendar_base.as_str())
             .field("people_base", &self.inner.people_base.as_str())
             .field("gmail_base", &self.inner.gmail_base.as_str())
+            .field("tasks_base", &self.inner.tasks_base.as_str())
             .field("retry", &self.inner.retry)
             .finish_non_exhaustive()
     }
@@ -284,6 +293,7 @@ impl GoogleClient {
                 calendar_base: parse_base_url(&config.calendar_base_url)?,
                 people_base: parse_base_url(&config.people_base_url)?,
                 gmail_base: parse_base_url(&config.gmail_base_url)?,
+                tasks_base: parse_base_url(&config.tasks_base_url)?,
                 retry: config.retry,
                 floating_time_zone: config.floating_time_zone,
                 palette: OnceCell::new(),
@@ -307,6 +317,16 @@ impl GoogleClient {
     /// Sends a request with token refresh and retries; returns the body of a
     /// successful response.
     pub(crate) async fn execute(&self, request: &ApiRequest<'_>) -> Result<Bytes> {
+        self.execute_dated(request).await.map(|(body, _)| body)
+    }
+
+    /// Like [`execute`](Self::execute), and also returns when Google sent the
+    /// successful response by its own clock (the `Date` header), for
+    /// requests whose time serves as a watermark (`updatedMin`).
+    pub(crate) async fn execute_dated(
+        &self,
+        request: &ApiRequest<'_>,
+    ) -> Result<(Bytes, Option<DateTime<Utc>>)> {
         let url = self.url(request)?;
         let retry = &self.inner.retry;
         let mut attempt = 0u32;
@@ -323,14 +343,15 @@ impl GoogleClient {
                 Ok(response) => {
                     let status = response.status();
                     let retry_after = retry_after(response.headers());
+                    let date = server_date(response.headers());
                     response
                         .bytes()
                         .await
-                        .map(|body| (status, retry_after, body))
+                        .map(|body| (status, retry_after, date, body))
                 }
                 Err(err) => Err(err),
             };
-            let (status, retry_after, body) = match outcome {
+            let (status, retry_after, date, body) = match outcome {
                 Ok(parts) => parts,
                 Err(err) => {
                     if attempt < retry.max_retries && retryable_transport(&err, request) {
@@ -357,7 +378,7 @@ impl GoogleClient {
                 "Google API request"
             );
             if status.is_success() {
-                return Ok(body);
+                return Ok((body, date));
             }
             let error = ApiError::from_response(status.as_u16(), &body);
             if status == StatusCode::UNAUTHORIZED && !token_refreshed {
@@ -412,6 +433,7 @@ impl GoogleClient {
             Service::Calendar => self.inner.calendar_base.clone(),
             Service::People => self.inner.people_base.clone(),
             Service::Gmail => self.inner.gmail_base.clone(),
+            Service::Tasks => self.inner.tasks_base.clone(),
         };
         {
             let mut segments = url
@@ -501,6 +523,14 @@ fn retry_after(headers: &HeaderMap) -> Option<Duration> {
         .map(Duration::from_secs)
 }
 
+/// The `Date` header, an HTTP date such as `Wed, 21 Oct 2015 07:28:00 GMT`.
+fn server_date(headers: &HeaderMap) -> Option<DateTime<Utc>> {
+    let value = headers.get(header::DATE)?.to_str().ok()?;
+    DateTime::parse_from_rfc2822(value.trim())
+        .ok()
+        .map(|date| date.with_timezone(&Utc))
+}
+
 fn random_u64() -> u64 {
     // Each `RandomState` is seeded with fresh per-process randomness, which is
     // plenty for backoff jitter and avoids a dependency on a RNG crate.
@@ -580,6 +610,22 @@ mod tests {
             client.url(&people).expect("url").as_str(),
             "http://127.0.0.1:9/v1/people:searchContacts"
         );
+    }
+
+    #[test]
+    fn reads_the_server_date() {
+        let mut headers = HeaderMap::new();
+        assert_eq!(server_date(&headers), None);
+        headers.insert(
+            header::DATE,
+            header::HeaderValue::from_static("Wed, 28 Oct 2026 10:15:00 GMT"),
+        );
+        assert_eq!(
+            server_date(&headers).map(|d| d.to_rfc3339()),
+            Some("2026-10-28T10:15:00+00:00".to_owned())
+        );
+        headers.insert(header::DATE, header::HeaderValue::from_static("soon"));
+        assert_eq!(server_date(&headers), None);
     }
 
     #[test]
