@@ -405,6 +405,19 @@ async fn edits_keep_what_they_leave_out() {
     );
     assert!(!timed.important);
     assert_eq!(timed.notes, "");
+    // Clearing only the time keeps the day.
+    let untimed = fx
+        .engine
+        .update_task(
+            call.id,
+            TaskInput {
+                due_at: Some(None),
+                ..input(list, "Call Maya back")
+            },
+        )
+        .await
+        .expect("update");
+    assert_eq!((untimed.due_date, untimed.due_at), (Some(day(today)), None));
     let cleared = fx
         .engine
         .update_task(

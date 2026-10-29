@@ -186,7 +186,8 @@ pub enum TaskView {
 ///
 /// When updating, fields left out keep their value and `null` clears it.
 /// Giving only `dueDate` makes the task due on that day without a time;
-/// `dueAt` sets both.
+/// `dueAt` sets both, and `dueAt: null` alone keeps the day without the
+/// time.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskInput {
@@ -243,9 +244,15 @@ fn parse_day(text: &str) -> Result<String> {
 }
 
 /// The due date an input asks for: `None` when it leaves the due date
-/// alone, else `(due_date, due_at)`. Times are kept to the second, as
-/// servers store them; lists without times on due dates keep only the day.
-fn due_change(input: &TaskInput, due_times: bool) -> Result<Option<(Option<String>, Option<i64>)>> {
+/// alone, else `(due_date, due_at)`. Clearing only the time keeps
+/// `current_day`, the day the task is due now. Times are kept to the
+/// second, as servers store them; lists without times on due dates keep
+/// only the day.
+fn due_change(
+    input: &TaskInput,
+    due_times: bool,
+    current_day: Option<&str>,
+) -> Result<Option<(Option<String>, Option<i64>)>> {
     let due = match (&input.due_at, &input.due_date) {
         (Some(Some(at)), _) => {
             let at = at - at.rem_euclid(1000);
@@ -253,7 +260,7 @@ fn due_change(input: &TaskInput, due_times: bool) -> Result<Option<(Option<Strin
         }
         (_, Some(Some(day))) => Some((Some(parse_day(day)?), None)),
         (_, Some(None)) => Some((None, None)),
-        (Some(None), None) => None,
+        (Some(None), None) => Some((current_day.map(str::to_owned), None)),
         (None, None) => None,
     };
     Ok(due.map(|(day, at)| (day, at.filter(|_| due_times))))
@@ -454,7 +461,7 @@ fn create_task_tx(tx: &rusqlite::Transaction<'_>, input: &TaskInput) -> Result<(
     if title.is_empty() {
         return Err(Error::Invalid("Give the task a title.".into()));
     }
-    let (due_date, due_at) = due_change(input, features.due_times)?.unwrap_or_default();
+    let (due_date, due_at) = due_change(input, features.due_times, None)?.unwrap_or_default();
     let fields = TaskFields {
         title,
         notes: clean_notes(input.notes.as_deref().unwrap_or("")),
@@ -502,7 +509,7 @@ fn apply_edits(
     if let Some(notes) = &input.notes {
         fields.notes = clean_notes(notes);
     }
-    if let Some((day, at)) = due_change(input, features.due_times)? {
+    if let Some((day, at)) = due_change(input, features.due_times, fields.due_date.as_deref())? {
         fields.due_date = day;
         fields.due_at = at;
     }
@@ -1133,25 +1140,35 @@ mod tests {
             due_at,
             ..TaskInput::default()
         };
+        let now = Some("2026-02-01");
         assert_eq!(
-            due_change(&input(None, Some(Some(at))), true).ok(),
+            due_change(&input(None, Some(Some(at))), true, now).ok(),
             Some(Some((Some(local_day(at)), Some(at))))
         );
         assert_eq!(
-            due_change(&input(None, Some(Some(at))), false).ok(),
+            due_change(&input(None, Some(Some(at))), false, now).ok(),
             Some(Some((Some(local_day(at)), None))),
             "lists without times keep the day"
         );
         assert_eq!(
-            due_change(&input(Some(Some("2026-03-01")), None), true).ok(),
+            due_change(&input(Some(Some("2026-03-01")), None), true, now).ok(),
             Some(Some((Some("2026-03-01".into()), None))),
             "only a day clears the time"
         );
         assert_eq!(
-            due_change(&input(Some(None), Some(None)), true).ok(),
+            due_change(&input(Some(None), Some(None)), true, now).ok(),
             Some(Some((None, None)))
         );
-        assert_eq!(due_change(&input(None, None), true).ok(), Some(None));
-        assert!(due_change(&input(Some(Some("tomorrow")), None), true).is_err());
+        assert_eq!(
+            due_change(&input(None, Some(None)), true, now).ok(),
+            Some(Some((Some("2026-02-01".into()), None))),
+            "clearing only the time keeps the day"
+        );
+        assert_eq!(
+            due_change(&input(None, Some(None)), true, None).ok(),
+            Some(Some((None, None)))
+        );
+        assert_eq!(due_change(&input(None, None), true, now).ok(), Some(None));
+        assert!(due_change(&input(Some(Some("tomorrow")), None), true, now).is_err());
     }
 }
