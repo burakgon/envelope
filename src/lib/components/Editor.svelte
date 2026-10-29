@@ -76,7 +76,8 @@
         },
       },
       onUpdate: ({ editor }) => onupdate(editor.getHTML()),
-      onTransaction: () => tick++,
+      // Also while the composer is being taken down: removing the focused editor blurs it.
+      onTransaction: () => untrack(() => tick++),
     });
     editorRef = editor;
   });
