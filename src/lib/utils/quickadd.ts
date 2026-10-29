@@ -3,7 +3,7 @@
 // The words come from Intl (relative days, weekday names, the clock's day periods and hour
 // words), so every language Intl knows works without a word list of its own.
 
-import { addDays, dayKey } from './due';
+import { addDays, atTime, dayKey } from './due';
 
 export interface QuickAdd {
   /** What remains as the title. */
@@ -220,7 +220,7 @@ export function parseQuickAdd(text: string, o: QuickAddOptions): QuickAdd {
         minutes = found.minutes;
         spans.push(found);
         // Only a time: today if it is still ahead, else tomorrow.
-        if (!date) date = new Date(`${today}T00:00:00`).getTime() + minutes * 60_000 > now ? today : addDays(today, 1);
+        if (!date) date = atTime(today, minutes) > now ? today : addDays(today, 1);
       }
     }
   }

@@ -61,10 +61,10 @@ export function dueLabel(task: Pick<Task, 'dueDate' | 'dueAt'>, only: 'day' | 't
   return t('time.dateAt', { date: day, time });
 }
 
-/** The moment a task is late after: its time, or the end of its day. */
+/** The moment a task is late after: its time, or the end of its day (not always 24 hours after its start). */
 export function dueMoment(task: Pick<Task, 'dueDate' | 'dueAt'>): number | null {
   if (!task.dueDate) return null;
-  return task.dueAt ?? dayDate(task.dueDate).getTime() + 86_400_000 - 1;
+  return task.dueAt ?? dayDate(addDays(task.dueDate, 1)).getTime() - 1;
 }
 
 /** How a due date stands: late, due today, or later. */
