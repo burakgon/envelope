@@ -330,6 +330,10 @@ async fn exchange_tasks_pull_push_and_pull_again() {
     );
     let plants = remote_row(&fx, tasks.id, "T4");
     assert!(plants.important && plants.repeats);
+    // Exchange keeps no order Envelope could change.
+    assert!(!TaskListKind::Ews.features().reorder);
+    let moved = fx.engine.reorder_task(plants.id, Some(lease.id)).await;
+    assert!(matches!(moved, Err(Error::Invalid(_))), "{moved:?}");
 
     // Local changes of every kind.
     fx.engine

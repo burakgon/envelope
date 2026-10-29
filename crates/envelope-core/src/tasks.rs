@@ -55,6 +55,8 @@ pub struct ListFeatures {
     pub importance: bool,
     /// Subtasks.
     pub subtasks: bool,
+    /// An order of the tasks that Envelope can change.
+    pub reorder: bool,
 }
 
 impl TaskListKind {
@@ -82,18 +84,21 @@ impl TaskListKind {
     /// What lists of this kind can store. Google Tasks has due days only
     /// and no importance, Microsoft To Do keeps the time in reminders
     /// rather than on the due date, and Exchange task folders have no
-    /// subtasks.
+    /// subtasks. Neither To Do nor Exchange lets an order be written (To Do
+    /// keeps the order of steps, but puts them back in it on the next
+    /// pull).
     pub fn features(self) -> ListFeatures {
-        let (due_times, importance, subtasks) = match self {
-            TaskListKind::Local | TaskListKind::Caldav => (true, true, true),
-            TaskListKind::Google => (false, false, true),
-            TaskListKind::Graph => (false, true, true),
-            TaskListKind::Ews => (false, true, false),
+        let (due_times, importance, subtasks, reorder) = match self {
+            TaskListKind::Local | TaskListKind::Caldav => (true, true, true, true),
+            TaskListKind::Google => (false, false, true, true),
+            TaskListKind::Graph => (false, true, true, false),
+            TaskListKind::Ews => (false, true, false, false),
         };
         ListFeatures {
             due_times,
             importance,
             subtasks,
+            reorder,
         }
     }
 }
@@ -116,6 +121,8 @@ pub struct TaskList {
     pub due_times: bool,
     pub importance: bool,
     pub subtasks: bool,
+    /// The order of its tasks can be changed.
+    pub reorder: bool,
 }
 
 /// The message a task was made from.
@@ -283,6 +290,7 @@ fn list_view(list: &ListRow, open_count: i64) -> TaskList {
         due_times: features.due_times,
         importance: features.importance,
         subtasks: features.subtasks,
+        reorder: features.reorder,
     }
 }
 
@@ -683,6 +691,11 @@ fn reorder_task_tx(
     let row = live_task(tx, id)?;
     let list = tdb::get_list(tx, row.list_id)?;
     writable(&list)?;
+    if !list.kind.features().reorder {
+        return Err(Error::Invalid(
+            "The order of the tasks in this list can't be changed.".into(),
+        ));
+    }
     if before == Some(row.id) {
         return Ok(Written::of(&list, false));
     }
@@ -1091,7 +1104,7 @@ mod tests {
             Some(serde_json::json!({
                 "id": 3, "accountId": null, "kind": "local", "name": "Tasks", "color": "#6d5efc",
                 "readOnly": false, "isDefault": true, "openCount": 2, "dueTimes": true,
-                "importance": true, "subtasks": true
+                "importance": true, "subtasks": true, "reorder": true
             }))
         );
         let task = Task {

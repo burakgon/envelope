@@ -362,6 +362,8 @@ export interface TaskList {
   dueTimes: boolean;
   importance: boolean;
   subtasks: boolean;
+  /** Tasks can be reordered (Microsoft To Do and Exchange keep their own order). */
+  reorder: boolean;
 }
 
 /** The message a task was made from. */

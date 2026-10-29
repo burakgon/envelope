@@ -23,12 +23,12 @@ const invalid = (message: string): T.ApiError => ({ message, kind: 'invalid' });
 const notFound = (message: string): T.ApiError => ({ message, kind: 'notFound' });
 
 /** What each kind of service stores. */
-const features: Record<T.TaskListKind, Pick<T.TaskList, 'dueTimes' | 'importance' | 'subtasks'>> = {
-  local: { dueTimes: true, importance: true, subtasks: true },
-  caldav: { dueTimes: true, importance: true, subtasks: true },
-  google: { dueTimes: false, importance: false, subtasks: true },
-  graph: { dueTimes: false, importance: true, subtasks: true },
-  ews: { dueTimes: false, importance: true, subtasks: false },
+const features: Record<T.TaskListKind, Pick<T.TaskList, 'dueTimes' | 'importance' | 'subtasks' | 'reorder'>> = {
+  local: { dueTimes: true, importance: true, subtasks: true, reorder: true },
+  caldav: { dueTimes: true, importance: true, subtasks: true, reorder: true },
+  google: { dueTimes: false, importance: false, subtasks: true, reorder: true },
+  graph: { dueTimes: false, importance: true, subtasks: true, reorder: false },
+  ews: { dueTimes: false, importance: true, subtasks: false, reorder: false },
 };
 
 type StoredList = Omit<T.TaskList, 'openCount'> & { sortOrder: number };

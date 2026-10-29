@@ -674,6 +674,13 @@ async fn todo_steps_and_tasks_trade_places() {
     let flights = remote_row(&fx, l1.id, "T1|S1");
     let pack = remote_row(&fx, l1.id, "T2");
 
+    // To Do keeps its own order: neither tasks nor steps can be moved.
+    assert!(!TaskListKind::Graph.features().reorder);
+    for (task, before) in [(pack.id, Some(trip.id)), (flights.id, None)] {
+        let moved = fx.engine.reorder_task(task, before).await;
+        assert!(matches!(moved, Err(Error::Invalid(_))), "{moved:?}");
+    }
+
     // A step becomes a task of its own, and a task a step of another.
     fx.engine
         .update_task(
