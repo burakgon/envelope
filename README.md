@@ -73,6 +73,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - **Unified inbox** across all accounts, plus per-account folders and Gmail labels (with colors), drag and drop to move or label. Create, rename, nest, recolor and delete folders and labels (Outlook categories too), and empty Trash and Spam.
 - **Conversations** threaded the way you expect, with quoted text and signatures folded away.
 - **Split inbox**: *People*, *Newsletters* and *Notifications* tabs, computed locally.
+- **VIPs**: the people who matter most get a mailbox of their own, a crown on their messages, `is:vip` in search, and can be the only mail that notifies.
 - **Instant full-text search** (SQLite FTS5) with operators — `from:`, `to:`, `subject:`, `has:attachment`, `is:unread`, `before:`, `after:` … — and natural-language search through AI if enabled. Search options write the query for you, `from:` and `to:` suggest people, recent searches are a keystroke away, and **saved searches** sit in the sidebar.
 - **Composer** with rich text (colors, sizes, alignment, inline pictures), attachments (drag and drop or paste), recipient autocomplete, spell checking, multiple identities and rich signatures, **templates**, **undo send**, **scheduled send** (with an outbox to review, send now or edit), forward as attachment, and drafts that sync to the server and open for editing on any device. It asks before sending to an address that looks wrong, or without the attachment the text mentions.
 - **Snooze**, star, archive, **mute**, report spam and *not spam*, **block senders**, bulk actions and **undo** for everything.
@@ -83,7 +84,7 @@ Desktop mail on Linux has long meant choosing between powerful-but-dated and pre
 - **End-to-end encryption** with OpenPGP that sets itself up: keys are created and exchanged with Autocrypt and found in the recipient's Web Key Directory, the lock in the composer turns on when everyone has a key, and messages show who signed them. Experts can import, export and verify keys — see [docs/ENCRYPTION.md](docs/ENCRYPTION.md).
 - **Offline-first**: read, search, triage and write without a connection; changes sync when you're back.
 - **Push mail** via IMAP IDLE, CONDSTORE/QRESYNC for fast resyncs, Gmail extensions (labels, thread ids, `X-GM-RAW` search) when talking to Gmail.
-- Desktop notifications with Archive and Mark as Read buttons — for all new mail, only mail from people, or nothing, per account — an unread badge, `mailto:` handling, **Save all** for attachments, and saved messages (`.eml`), calendar files (`.ics`) and contact cards (`.vcf`, `.csv`) open straight from your file manager.
+- Desktop notifications with Archive and Mark as Read buttons and the desktop's new-mail sound — for all new mail, only mail from people, only VIPs, or nothing, per account — an unread badge, `mailto:` handling, **Save all** for attachments, and saved messages (`.eml`), calendar files (`.ics`) and contact cards (`.vcf`, `.csv`) open straight from your file manager.
 
 ### Calendar
 - Day, work week, week, month and agenda views; mini month; per-calendar visibility and colors; a second time zone beside the hours.

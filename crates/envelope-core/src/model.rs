@@ -114,6 +114,8 @@ pub enum NotifyMode {
     All,
     /// Conversations with people: no newsletters or automatic notifications.
     People,
+    /// Mail from VIPs only.
+    Vips,
     /// Nothing.
     None,
 }
@@ -408,6 +410,8 @@ pub enum Mailbox {
     Folder { id: i64 },
     /// Starred threads across all accounts.
     Starred,
+    /// Conversations with mail from a VIP, across all accounts.
+    Vip,
     /// Snoozed threads.
     Snoozed,
     /// Sent conversations whose follow-up reminder came due without a reply.

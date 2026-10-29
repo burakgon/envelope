@@ -30,17 +30,21 @@ fn show(
     body: String,
     on_click: impl FnOnce(&AppHandle) + Send + 'static,
 ) {
-    show_with(app, summary, body, Vec::new(), move |app, _| on_click(app));
+    show_with(app, summary, body, Vec::new(), None, move |app, _| {
+        on_click(app)
+    });
 }
 
-/// Shows a notification with extra buttons (`(action id, label)`). Clicking
-/// the notification itself brings the window up and reports `"default"`;
-/// the buttons act without opening the window.
+/// Shows a notification with extra buttons (`(action id, label)`) and, if
+/// given, a sound of the desktop's sound theme. Clicking the notification
+/// itself brings the window up and reports `"default"`; the buttons act
+/// without opening the window.
 fn show_with(
     app: &AppHandle,
     summary: String,
     body: String,
     buttons: Vec<(&'static str, String)>,
+    sound: Option<&'static str>,
     on_action: impl FnOnce(&AppHandle, &str) + Send + 'static,
 ) {
     let app = app.clone();
@@ -54,6 +58,9 @@ fn show_with(
                 "io.github.burakgon.Envelope".into(),
             ))
             .action("default", &strings::get("native.notify.open", "Open"));
+        if let Some(sound) = sound {
+            n.sound_name(sound);
+        }
         for (id, label) in &buttons {
             n.action(id, label);
         }
@@ -120,7 +127,9 @@ pub fn new_mail(app: &AppHandle, account_id: i64, threads: &[ThreadSummary]) {
     } else {
         Vec::new()
     };
-    show_with(app, summary, body, buttons, move |app, action| {
+    // The sound theme's new-mail sound, unless turned off in Settings.
+    let sound = enabled(app, "notificationSound").then_some("message-new-email");
+    show_with(app, summary, body, buttons, sound, move |app, action| {
         let Some(state) = app.try_state::<AppState>() else {
             return;
         };
@@ -183,21 +192,28 @@ pub fn task_due(app: &AppHandle, task_id: i64, title: &str, due_at: i64) {
         "complete",
         strings::get("native.task.complete", "Mark as Done"),
     )];
-    show_with(app, title.to_string(), body, buttons, move |app, action| {
-        if action != "complete" {
-            let _ = app.emit("open-task", task_id);
-            return;
-        }
-        let Some(state) = app.try_state::<AppState>() else {
-            return;
-        };
-        let engine = state.engine.clone();
-        tauri::async_runtime::spawn(async move {
-            if let Err(e) = engine.complete_task(task_id, true).await {
-                tracing::warn!("completing task {task_id} from its notification failed: {e}");
+    show_with(
+        app,
+        title.to_string(),
+        body,
+        buttons,
+        None,
+        move |app, action| {
+            if action != "complete" {
+                let _ = app.emit("open-task", task_id);
+                return;
             }
-        });
-    });
+            let Some(state) = app.try_state::<AppState>() else {
+                return;
+            };
+            let engine = state.engine.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = engine.complete_task(task_id, true).await {
+                    tracing::warn!("completing task {task_id} from its notification failed: {e}");
+                }
+            });
+        },
+    );
 }
 
 pub fn reminder(app: &AppHandle, event_id: i64, title: &str, start: i64, location: Option<&str>) {

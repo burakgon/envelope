@@ -1688,6 +1688,13 @@ pub fn list_sql(
             wheres.push("t.flagged = 1".into());
             wheres.push(NOT_TRASH.into());
         }
+        Mailbox::Vip => {
+            wheres.push(format!(
+                "t.id IN (SELECT m.thread_id FROM messages m WHERE {})",
+                crate::vip::FROM_VIP
+            ));
+            wheres.push(NOT_TRASH.into());
+        }
         Mailbox::FollowUp => {
             wheres.push(
                 "t.id IN (SELECT m.thread_id FROM followups f

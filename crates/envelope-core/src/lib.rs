@@ -30,6 +30,7 @@ pub mod sieve;
 pub mod smtp;
 pub mod sync;
 pub mod tasks;
+pub mod vip;
 
 pub use engine::{AccountPatch, Engine, EventSink, Paths};
 pub use error::{Error, Result};

@@ -10,13 +10,15 @@ export interface SearchOptions {
   attachment: boolean;
   unread: boolean;
   starred: boolean;
+  /** From a VIP. */
+  vip: boolean;
   /** `7d`, `1m`, `1y` (newer than), or '' for any time. */
   within: string;
   /** A folder's path to search in, or '' for all mail. */
   folder: string;
 }
 
-export const noOptions: SearchOptions = { from: '', to: '', subject: '', words: '', attachment: false, unread: false, starred: false, within: '', folder: '' };
+export const noOptions: SearchOptions = { from: '', to: '', subject: '', words: '', attachment: false, unread: false, starred: false, vip: false, within: '', folder: '' };
 
 /** A value as an operator takes it: quoted when it holds spaces or quotes. */
 function value(text: string): string {
@@ -33,6 +35,7 @@ export function buildQuery(o: SearchOptions): string {
   if (o.attachment) parts.push('has:attachment');
   if (o.unread) parts.push('is:unread');
   if (o.starred) parts.push('is:starred');
+  if (o.vip) parts.push('is:vip');
   if (o.within) parts.push(`newer_than:${o.within}`);
   if (o.folder.trim()) parts.push(`in:${value(o.folder)}`);
   if (o.words.trim()) parts.push(o.words.trim());

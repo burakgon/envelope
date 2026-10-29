@@ -21,7 +21,8 @@
   import { cal } from '../stores/calendar.svelte';
   import type { ExtractedEvent } from '../api';
   import { fileIconKind } from '../utils/format';
-  import { CalendarPlus, Code, Eye, FileArrow, Filter, FolderDown, Forward, Image, Mail, More, Pen, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy, Ban } from '../icons';
+  import { CalendarPlus, Code, Eye, FileArrow, Filter, FolderDown, Forward, Image, Mail, More, Pen, Printer, Reply, ReplyAll, ShieldCheck, Star, Copy, Ban, Crown } from '../icons';
+  import { vips } from '../stores/vips.svelte';
   import { blockSender, isBlocked, unblock } from '../stores/rules.svelte';
   import { modal } from '../actions/modal';
 
@@ -172,6 +173,7 @@
       <div class="info">
         <div class="row1">
           <span class="name selectable" id="{uid}-from">{fromMe ? t('message.senderMe') : displayName(sender)}</span>
+          {#if !fromMe && vips.has(sender?.email)}<span class="vip" title={t('vip.badge')} aria-label={t('vip.badge')}><Crown size={13} /></span>{/if}
           {#if isDraft}<span class="draft-chip">{t('threadRow.draft')}</span>{/if}
           {#if sender && !fromMe && displayName(sender) !== sender.email}
             <span class="addr selectable">{sender.email}</span>
@@ -308,6 +310,11 @@
           };
           ui.open('settings', 'rules');
         }}><Filter size={15} />{t('message.createRule')}</button>
+      {#if vips.has(sender.email)}
+        <button class="menu-item" onclick={() => { menu = null; vips.set(sender!, false); }}><Crown size={15} />{t('vip.remove')}</button>
+      {:else}
+        <button class="menu-item" onclick={() => { menu = null; vips.set(sender!, true); }}><Crown size={15} />{t('vip.add')}</button>
+      {/if}
       {#if isBlocked(sender.email)}
         <button class="menu-item" onclick={() => { menu = null; unblock(sender!.email.toLowerCase()); }}><Ban size={15} />{t('message.unblockSender')}</button>
       {:else}
@@ -421,6 +428,12 @@
   .name {
     font-weight: 650;
     font-size: var(--text-md);
+  }
+  .vip {
+    flex-shrink: 0;
+    align-self: center;
+    display: inline-grid;
+    color: var(--amber-text);
   }
   .addr {
     color: var(--text-3);

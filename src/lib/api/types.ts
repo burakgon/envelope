@@ -28,7 +28,7 @@ export interface AccountConfig {
 }
 
 /** Which new mail of an account notifies: all of it, conversations with people (no newsletters or automatic notifications), or none. */
-export type NotifyMode = 'all' | 'people' | 'none';
+export type NotifyMode = 'all' | 'people' | 'vips' | 'none';
 
 /** How an Exchange account signs in: NTLM with a Basic fallback, or one of them. */
 export type ExchangeAuth = 'auto' | 'ntlm' | 'basic';
@@ -156,6 +156,8 @@ export type Mailbox =
   | { kind: 'unified'; role: FolderRole }
   | { kind: 'folder'; id: number }
   | { kind: 'starred' }
+  /** Conversations with mail from a VIP. */
+  | { kind: 'vip' }
   | { kind: 'snoozed' }
   /** Sent conversations with a follow-up reminder that came due without a reply. */
   | { kind: 'followUp' }
@@ -398,6 +400,13 @@ export interface ContactSummary {
 export interface ContactPage {
   total: number;
   items: ContactSummary[];
+}
+
+/** A sender whose mail matters most. */
+export interface Vip {
+  /** In lowercase. */
+  email: string;
+  name: string | null;
 }
 
 export interface ContactSuggestion {

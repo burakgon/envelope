@@ -24,6 +24,9 @@ export function createMockApi(): Api {
   let outboxSeq = 1;
   let sentSeq = 30_000;
   const outbox = new Map<number, { item: T.OutboxItem; draftId: number | null; data: T.DraftInput; timer: number }>();
+  // The demo's VIP: Maya, whose mail has a mailbox of its own.
+  const vips = new Map<string, T.Vip>([['maya@northwind.design', { email: 'maya@northwind.design', name: 'Maya Chen' }]]);
+  const fromVip = (m: T.MessageView) => vips.has(m.from?.email.toLowerCase() ?? '');
   let identities: T.Identity[] = data.accounts.map((a) => ({
     id: a.id, accountId: a.id, name: a.name, email: a.email, replyTo: null,
     signature: a.id === 1 ? '<p>— Alex<br><span style="color:#888">Product Lead · Lumen</span></p>' : null, isDefault: true,
@@ -168,7 +171,7 @@ export function createMockApi(): Api {
         return terms.every(({ not, key, value }) => {
           const since = ago(value);
           const hit =
-            key === 'is' ? (value === 'unread' ? !m.flags.seen : value === 'read' ? m.flags.seen : value === 'starred' ? m.flags.flagged || t.flagged : true)
+            key === 'is' ? (value === 'unread' ? !m.flags.seen : value === 'read' ? m.flags.seen : value === 'starred' ? m.flags.flagged || t.flagged : value.startsWith('vip') ? fromVip(m) : true)
             : key === 'has' ? !value.startsWith('attachment') || m.attachments.length > 0
             : key === 'from' ? who([m.from]).includes(value)
             : key === 'to' ? who(m.to).includes(value)
@@ -186,6 +189,9 @@ export function createMockApi(): Api {
   }
 
   function list(q: T.ThreadQuery): T.ThreadPage {
+    const trash = data.folders.filter((f) => f.role === 'trash' || f.role === 'junk').map((f) => f.id);
+    /** In Trash or Spam, or gone. */
+    const trashed = (t: T.ThreadSummary) => !t.folderIds.length || t.folderIds.some((f) => trash.includes(f));
     let items = threads.slice();
     const mb = q.mailbox;
     if (mb.kind === 'unified') {
@@ -198,13 +204,14 @@ export function createMockApi(): Api {
       if (f?.role === 'inbox') items = items.filter((t) => !t.snoozedUntil);
     } else if (mb.kind === 'starred') {
       items = items.filter((t) => t.flagged);
+    } else if (mb.kind === 'vip') {
+      items = items.filter((t) => !trashed(t) && messages.some((m) => m.threadId === t.id && fromVip(m)));
     } else if (mb.kind === 'snoozed') {
       items = items.filter((t) => t.snoozedUntil);
     } else if (mb.kind === 'followUp') {
       items = items.filter(inFollowUp).slice(0, 1);
     } else {
-      const trash = data.folders.filter((f) => f.role === 'trash' || f.role === 'junk').map((f) => f.id);
-      items = items.filter((t) => !t.folderIds.some((f) => trash.includes(f)) && t.folderIds.length > 0);
+      items = items.filter((t) => !trashed(t));
     }
     if (q.filter?.unread) items = items.filter((t) => t.unreadCount > 0);
     if (q.filter?.starred) items = items.filter((t) => t.flagged);
@@ -636,6 +643,13 @@ export function createMockApi(): Api {
         .map((c, i) => ({ name: c.name ?? null, email: c.email, score: 10 - i }));
     },
     identities: async () => structuredClone(identities),
+    vips: async () => [...vips.values()].sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email)),
+    setVip: async (email, name, on) => {
+      const key = email.trim().toLowerCase();
+      if (!key) return;
+      if (on) vips.set(key, { email: key, name: name?.trim() || vips.get(key)?.name || null });
+      else vips.delete(key);
+    },
     saveIdentity: async (i) => {
       if (i.id > 0) identities = identities.map((x) => (x.id === i.id ? i : x));
       else identities.push({ ...i, id: identities.length + 10 });

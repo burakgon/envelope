@@ -2,13 +2,14 @@
   import { mail } from '../stores/mail.svelte';
   import { t, type MessageKey, type Params } from '../i18n';
 
-  type Kind = 'zero' | 'search' | 'snoozed' | 'starred' | 'empty';
+  type Kind = 'zero' | 'search' | 'snoozed' | 'starred' | 'vip' | 'empty';
 
   const kind = $derived.by((): Kind => {
     if (mail.search) return 'search';
     if (mail.isInboxView) return 'zero';
     if (mail.mailbox.kind === 'snoozed') return 'snoozed';
     if (mail.mailbox.kind === 'starred') return 'starred';
+    if (mail.mailbox.kind === 'vip') return 'vip';
     return 'empty';
   });
 
@@ -18,6 +19,7 @@
     search: { title: 'emptyState.searchTitle', body: 'emptyState.searchBody', params: { operators: 'from:, has:attachment, after:2026-01-01' } },
     snoozed: { title: 'emptyState.snoozedTitle', body: 'emptyState.snoozedBody', params: { key: 'H' } },
     starred: { title: 'emptyState.starredTitle', body: 'emptyState.starredBody', params: { key: 'S' } },
+    vip: { title: 'vip.emptyTitle', body: 'vip.emptyBody' },
     empty: { title: 'emptyState.folderEmptyTitle', body: 'emptyState.folderEmptyBody' },
   };
 </script>

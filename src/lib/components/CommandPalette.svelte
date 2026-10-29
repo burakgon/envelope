@@ -18,9 +18,10 @@
     ListChecks, ListPlus,
     Check, AlarmClock,
     ShieldAlert, ShieldCheck,
-    Ban,
+    Ban, Crown,
     ChevronDown, ChevronUp, ChevronsUpDown,
   } from '../icons';
+  import { vips } from '../stores/vips.svelte';
   import { blockSender, senderOf } from '../stores/rules.svelte';
   import { modal } from '../actions/modal';
   import type Reader from './Reader.svelte';
@@ -76,6 +77,7 @@
     { id: 'inbox', label: t('mailbox.inbox'), group: 'goTo', icon: Inbox, hint: 'G I', run: () => mail.setMailbox({ kind: 'unified', role: 'inbox' }) },
     { id: 'starred', label: t('mailbox.starred'), group: 'goTo', icon: Star, hint: 'G S', run: () => mail.setMailbox({ kind: 'starred' }) },
     { id: 'snoozed', label: t('mailbox.snoozed'), group: 'goTo', icon: Clock, run: () => mail.setMailbox({ kind: 'snoozed' }) },
+    ...(vips.list.length ? [{ id: 'vips', label: t('mailbox.vip'), group: 'goTo', icon: Crown, run: () => mail.setMailbox({ kind: 'vip' }) } satisfies Command] : []),
     { id: 'drafts', label: t('mailbox.drafts'), group: 'goTo', icon: File, hint: 'G D', run: () => mail.setMailbox({ kind: 'unified', role: 'drafts' }) },
     { id: 'sent', label: t('mailbox.sent'), group: 'goTo', icon: Send, hint: 'G T', run: () => mail.setMailbox({ kind: 'unified', role: 'sent' }) },
     { id: 'all', label: t('mailbox.all'), group: 'goTo', icon: Mails, hint: 'G A', run: () => mail.setMailbox({ kind: 'everything' }) },
@@ -120,7 +122,7 @@
           mail.isSpam()
             ? { id: 'not-spam', label: t('palette.notSpam'), group: 'conversation', icon: ShieldCheck, hint: '!', keywords: t('palette.kw.notSpam'), run: () => mail.notSpam() }
             : { id: 'spam', label: t('palette.reportSpam'), group: 'conversation', icon: ShieldAlert, hint: '!', keywords: t('palette.kw.reportSpam'), run: () => mail.moveTo({ kind: 'junk' }) },
-          ...blockCommand(),
+          ...senderCommands(),
           ...readingCommands(),
           ...(mail.inFollowUp
             ? [
@@ -143,13 +145,17 @@
     ];
   }
 
-  /** "Block …" for the one conversation selected. */
-  function blockCommand(): Command[] {
+  /** "Block …" and "Add … to VIPs" for the one conversation selected. */
+  function senderCommands(): Command[] {
     const ids = mail.targets();
     const thread = ids.length === 1 ? (mail.items.find((th) => th.id === ids[0]) ?? (mail.detail?.thread.id === ids[0] ? mail.detail.thread : undefined)) : undefined;
     const sender = thread ? senderOf(thread) : null;
     if (!sender) return [];
-    return [{ id: 'block', label: t('palette.blockSender', { name: displayName(sender) }), group: 'conversation', icon: Ban, searchOnly: true, keywords: t('palette.kw.blockSender'), run: () => blockSender(sender) }];
+    const vip = vips.has(sender.email);
+    return [
+      { id: 'block', label: t('palette.blockSender', { name: displayName(sender) }), group: 'conversation', icon: Ban, searchOnly: true, keywords: t('palette.kw.blockSender'), run: () => blockSender(sender) },
+      { id: 'vip', label: t(vip ? 'vip.removeNamed' : 'vip.addNamed', { name: displayName(sender) }), group: 'conversation', icon: Crown, searchOnly: true, keywords: t('palette.kw.vip'), run: () => vips.set(sender, !vip) },
+    ];
   }
 
   function tomorrowMorning(): number {

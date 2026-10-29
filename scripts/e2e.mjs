@@ -867,6 +867,52 @@ await step('a follow-up reminder is done, or comes back later', async () => {
   }
 });
 
+await step('VIPs: their own mailbox, a crown, is:vip, and a list in Settings', async () => {
+  const p = await fresh();
+  try {
+    // The demo starts with Maya as a VIP.
+    const vipBox = p.locator('.sidebar .item', { hasText: 'VIPs' });
+    await vipBox.click();
+    await p.locator('.list h1', { hasText: 'VIPs' }).waitFor({ timeout: 5000 });
+    const subjects = async () => (await p.locator('.row .subject').allInnerTexts()).map((s) => s.trim()).sort();
+    await eventually(p, async () => (await subjects()).includes('New onboarding flow — first look'), async () => `the VIPs list has ${JSON.stringify(await subjects())}`);
+    if ((await subjects()).includes('Interview loop for Senior Rust Engineer')) throw new Error('Daniel is listed before he is a VIP');
+    // Daniel becomes one from his message's menu, and wears a crown.
+    await p.locator('.sidebar .item', { hasText: 'Inbox' }).first().click();
+    await p.locator('.row', { hasText: 'Interview loop for Senior Rust Engineer' }).click();
+    const card = p.locator('.card').filter({ has: p.locator('.row1 .name', { hasText: 'Daniel Okafor' }) });
+    await card.locator('.icon-btn[title="More"]').click();
+    await p.locator('.menu-item', { hasText: 'Add to VIPs' }).click();
+    await toast(p, 'Daniel Okafor is a VIP');
+    await card.locator('.row1 .vip').waitFor({ timeout: 5000 });
+    await vipBox.click();
+    await eventually(p, async () => (await subjects()).includes('Interview loop for Senior Rust Engineer'), async () => `the VIPs list has ${JSON.stringify(await subjects())}`);
+    // is:vip finds the same conversations.
+    const box = p.locator('.list .search input');
+    await box.fill('is:vip');
+    await box.press('Enter');
+    await eventually(
+      p,
+      async () => {
+        const found = await subjects();
+        return found.includes('New onboarding flow — first look') && found.includes('Interview loop for Senior Rust Engineer') && !found.includes('Photos from the weekend 📸') && !found.includes('Apartment viewing on Saturday');
+      },
+      async () => `is:vip found ${JSON.stringify(await subjects())}`,
+    );
+    // Settings → Notifications lists them, and removes one.
+    await p.keyboard.press('Escape');
+    await p.keyboard.press('Control+,');
+    await p.locator('.window .tab', { hasText: 'Notifications' }).click();
+    const daniel = p.locator('.blocked', { hasText: 'daniel' });
+    await daniel.locator('button', { hasText: 'Remove' }).click();
+    await toast(p, 'Daniel Okafor is no longer a VIP');
+    await daniel.waitFor({ state: 'detached', timeout: 5000 });
+    await p.locator('.blocked', { hasText: 'maya@northwind.design' }).waitFor({ timeout: 5000 });
+  } finally {
+    await p.close();
+  }
+});
+
 await step('blocking a sender moves their mail to Spam; Privacy unblocks', async () => {
   const p = await fresh();
   try {
@@ -1485,9 +1531,9 @@ await step('the search options write a query; results say where they are and the
     const box = p.locator('.list .search input');
     await p.locator('.list .search .opts').click();
     const panel = p.locator('.list .search .panel');
-    await panel.locator('label', { hasText: 'From' }).locator('input').fill('priya');
+    await panel.locator('label.field', { hasText: 'From' }).locator('input').fill('priya');
     await panel.locator('label', { hasText: 'Has attachment' }).locator('input').check();
-    await panel.locator('label', { hasText: 'Date' }).locator('select').selectOption({ label: 'Last 30 days' });
+    await panel.locator('label.field', { hasText: 'Date' }).locator('select').selectOption({ label: 'Last 30 days' });
     await panel.locator('button', { hasText: 'Search' }).click();
     await eventually(p, async () => (await box.inputValue()) === 'from:priya has:attachment newer_than:1m', async () => `the box reads "${await box.inputValue()}"`);
     const row = p.locator('.row', { hasText: 'Q4 roadmap — final review' });

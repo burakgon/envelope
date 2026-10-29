@@ -7,8 +7,9 @@
   import {
     AlertCircle, Archive, Calendar, ChevronDown, Clock, Compose, File, Folder as FolderIcon, Inbox, Mail,
     Mails, PanelLeft, Plus, Send, Settings, ShieldAlert, Spinner, Star, Tag, Trash, WifiOff, Flag, BookUser, UserPlus, Users, BellRing, ListChecks,
-    Bookmark, Pen,
+    Bookmark, Pen, Crown,
   } from '../icons';
+  import { vips } from '../stores/vips.svelte';
   import Popover from './Popover.svelte';
   import { deleteSearch, renameSearch, runSearch } from '../stores/searches.svelte';
   import type { SavedSearch } from '../stores/ui.svelte';
@@ -243,6 +244,7 @@
   const boxes = $derived<{ box: Mailbox; label: string; icon: typeof Mail; count?: number }[]>([
     { box: { kind: 'unified', role: 'inbox' }, label: mail.multiAccount ? t('mailbox.allInboxes') : t('mailbox.inbox'), icon: Inbox, count: unified.inbox },
     { box: { kind: 'starred' }, label: t('mailbox.starred'), icon: Star },
+    ...(vips.list.length ? [{ box: { kind: 'vip' } as Mailbox, label: t('mailbox.vip'), icon: Crown }] : []),
     { box: { kind: 'snoozed' }, label: t('mailbox.snoozed'), icon: Clock },
     ...(mail.followUpCount > 0 ? [{ box: { kind: 'followUp' } as Mailbox, label: t('mailbox.followUp'), icon: BellRing, count: mail.followUpCount }] : []),
     { box: { kind: 'unified', role: 'drafts' }, label: t('mailbox.drafts'), icon: File },
@@ -396,6 +398,11 @@
       <button class="item" class:active={mail.isMailbox({ kind: 'starred' })} onclick={() => go({ kind: 'starred' })}>
         <Star size={16} /><span class="name">{t('mailbox.starred')}</span>
       </button>
+      {#if vips.list.length || mail.isMailbox({ kind: 'vip' })}
+        <button class="item" class:active={mail.isMailbox({ kind: 'vip' })} onclick={() => go({ kind: 'vip' })}>
+          <Crown size={16} /><span class="name">{t('mailbox.vip')}</span>
+        </button>
+      {/if}
       <button class="item" class:active={mail.isMailbox({ kind: 'snoozed' })} onclick={() => go({ kind: 'snoozed' })}>
         <Clock size={16} /><span class="name">{t('mailbox.snoozed')}</span>
       </button>

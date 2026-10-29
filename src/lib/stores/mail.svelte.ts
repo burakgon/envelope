@@ -146,6 +146,8 @@ class Mail {
       }
       case 'starred':
         return t('mailbox.starred');
+      case 'vip':
+        return t('mailbox.vip');
       case 'snoozed':
         return t('mailbox.snoozed');
       case 'followUp':

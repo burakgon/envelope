@@ -145,6 +145,7 @@
       <select id="acct-notify" class="input" bind:value={config.notify}>
         <option value="all">{t('accountSettings.notifyAll')}</option>
         <option value="people">{t('accountSettings.notifyPeople')}</option>
+        <option value="vips">{t('accountSettings.notifyVips')}</option>
         <option value="none">{t('accountSettings.notifyNone')}</option>
       </select>
       <span class="hint">{t('accountSettings.notifyDesc')}</span>

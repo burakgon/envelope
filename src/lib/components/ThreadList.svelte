@@ -19,7 +19,9 @@
     Ban,
     BookmarkPlus,
     Sliders,
+    Crown,
   } from '../icons';
+  import { vips } from '../stores/vips.svelte';
   import { blockSender, senderOf } from '../stores/rules.svelte';
   import { displayName } from '../utils/format';
   import AccountAlerts from './AccountAlerts.svelte';
@@ -453,6 +455,8 @@
     {/if}
     {@const sender = ids.length === 1 ? senderOf(menu.thread) : null}
     {#if sender}
+      {@const vip = vips.has(sender.email)}
+      <button class="menu-item" onclick={() => { vips.set(sender, !vip); menu = null; }}><Crown size={15} /><span class="truncate">{t(vip ? 'vip.removeNamed' : 'vip.addNamed', { name: displayName(sender) })}</span></button>
       <button class="menu-item" onclick={() => { blockSender(sender); menu = null; }}><Ban size={15} /><span class="truncate">{t('threadList.blockSender', { name: displayName(sender) })}</span></button>
     {/if}
     {#if mail.inFollowUp}

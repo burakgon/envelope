@@ -125,6 +125,7 @@
           <label><input type="checkbox" bind:checked={options.attachment} /> {t('search.hasAttachment')}</label>
           <label><input type="checkbox" bind:checked={options.unread} /> {t('search.unread')}</label>
           <label><input type="checkbox" bind:checked={options.starred} /> {t('search.starred')}</label>
+          <label><input type="checkbox" bind:checked={options.vip} /> {t('search.vip')}</label>
         </div>
         <div class="actions">
           <button type="button" class="btn option" onclick={() => (options = { ...noOptions })}>{t('common.clear')}</button>

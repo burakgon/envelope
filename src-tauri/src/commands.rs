@@ -5,6 +5,7 @@ use envelope_core::mail_api::{MarkedRead, ThreadRef};
 use envelope_core::model::*;
 use envelope_core::oauth::{ClientConfig, Provider};
 use envelope_core::rules::{MailRule, RuleMatches, RuleUndo};
+use envelope_core::vip::Vip;
 use envelope_core::{AccountPatch, UndoToken};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
@@ -550,6 +551,21 @@ pub fn identity_save(state: State<'_, AppState>, identity: Identity) -> R<i64> {
 #[tauri::command]
 pub fn identity_delete(state: State<'_, AppState>, id: i64) -> R<()> {
     Ok(state.engine.delete_identity(id)?)
+}
+
+#[tauri::command]
+pub fn vips(state: State<'_, AppState>) -> R<Vec<Vip>> {
+    Ok(state.engine.vips()?)
+}
+
+#[tauri::command]
+pub fn vip_set(
+    state: State<'_, AppState>,
+    email: String,
+    name: Option<String>,
+    vip: bool,
+) -> R<()> {
+    Ok(state.engine.set_vip(&email, name.as_deref(), vip)?)
 }
 
 /// Metadata about a local file the user picked to attach.

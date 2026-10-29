@@ -20,9 +20,10 @@ const SCHEMA: &str = concat!(
     include_str!("schema.sql"),
     include_str!("contacts.sql"),
     include_str!("crypto.sql"),
-    include_str!("tasks.sql")
+    include_str!("tasks.sql"),
+    include_str!("vips.sql")
 );
-const SCHEMA_VERSION: i64 = 9;
+const SCHEMA_VERSION: i64 = 10;
 
 /// Steps from one schema version to the next, applied in order to older databases.
 const MIGRATIONS: &[(i64, &str)] = &[
@@ -56,6 +57,8 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (5, include_str!("crypto.sql")),
     // Task lists and tasks.
     (7, include_str!("tasks.sql")),
+    // VIP senders.
+    (10, include_str!("vips.sql")),
 ];
 
 /// Columns added to existing tables: (version, table, column, declaration).

@@ -89,6 +89,8 @@ export interface Settings {
   defaultTaskListId: number | null;
   templates: Template[];
   rules: MailRule[];
+  /** New-mail notifications play the desktop's new-mail sound. */
+  notificationSound: boolean;
   /** Searches kept in the sidebar. */
   savedSearches: SavedSearch[];
   /** The last searches made, newest first. */
@@ -130,6 +132,7 @@ export const defaultSettings: Settings = {
   secondTimeZone: 'UTC',
   defaultTaskListId: null,
   templates: [],
+  notificationSound: true,
   savedSearches: [],
   recentSearches: [],
   rules: [],

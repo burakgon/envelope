@@ -150,3 +150,4 @@ export { default as Merge } from '@lucide/svelte/icons/merge';
 export { default as Bookmark } from '@lucide/svelte/icons/bookmark';
 export { default as BookmarkPlus } from '@lucide/svelte/icons/bookmark-plus';
 export { default as Sliders } from '@lucide/svelte/icons/sliders-horizontal';
+export { default as Crown } from '@lucide/svelte/icons/crown';

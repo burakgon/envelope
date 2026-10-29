@@ -3,7 +3,7 @@
 //! Supported syntax (Gmail-like):
 //! `words`, `"exact phrase"`, `-exclude`, `a OR b`, `from:`, `to:`, `cc:`,
 //! `subject:`, `filename:`, `has:attachment`, `has:invite`, `is:unread`,
-//! `is:read`, `is:starred`, `is:draft`, `is:replied`, `in:<folder>`,
+//! `is:read`, `is:starred`, `is:draft`, `is:replied`, `is:vip`, `in:<folder>`,
 //! `label:<name>`, `before:YYYY-MM-DD`, `after:YYYY-MM-DD`, `older_than:7d`,
 //! `newer_than:2w`, `larger:5M`, `smaller:100K`.
 
@@ -242,6 +242,7 @@ pub fn compile(query: &str) -> Option<(String, Vec<Value>)> {
                     },
                     "is" => match value.to_ascii_lowercase().as_str() {
                         "unread" => (Some("(m.flags & 1) = 0".into()), None),
+                        "vip" | "vips" => (Some(crate::vip::FROM_VIP.into()), None),
                         "read" => (Some("(m.flags & 1) = 1".into()), None),
                         "starred" | "flagged" | "important" => (Some("(m.flags & 2) = 2".into()), None),
                         "draft" => (Some("(m.flags & 8) = 8".into()), None),
@@ -386,6 +387,13 @@ mod tests {
         assert!(sql.contains("m.date >= ?"));
         assert!(sql.contains("m.size > ?"));
         assert!(v.contains(&Value::Integer(2 * 1024 * 1024)));
+    }
+
+    #[test]
+    fn vips() {
+        let (sql, v) = compile("is:vip budget").unwrap();
+        assert!(sql.contains(crate::vip::FROM_VIP));
+        assert_eq!(v, [Value::Text("\"budget\"*".into())]);
     }
 
     #[test]

@@ -161,9 +161,11 @@ impl Engine {
                     .unwrap_or_default();
                 match mode {
                     NotifyMode::All => {}
-                    NotifyMode::People => {
-                        threads.retain(|t| t.category.as_deref().is_none_or(|c| c == "people"))
-                    }
+                    // A VIP's mail is people's mail, however it was sorted.
+                    NotifyMode::People => threads.retain(|t| {
+                        t.category.as_deref().is_none_or(|c| c == "people") || self.sent_by_vip(t)
+                    }),
+                    NotifyMode::Vips => threads.retain(|t| self.sent_by_vip(t)),
                     NotifyMode::None => threads.clear(),
                 }
                 if threads.is_empty() {

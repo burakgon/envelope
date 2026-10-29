@@ -9,6 +9,12 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Saved searches: Save search beside a search keeps it in the sidebar under a name, where a click runs it again; right-click, Shift+F10 or the Menu key renames or deletes it (with Undo).
 - Recent searches below the empty search box, and people from the address books and recent mail after `from:`, `to:` or `cc:`; the Down arrow goes into them.
 - Search results show the folder each conversation is in.
+- VIPs: Add to VIPs in a message's menu, a conversation's right-click menu, the command palette or on a contact's page. Their conversations are gathered under VIPs in the sidebar, a crown marks their messages, `is:vip` (and From a VIP in the search options) finds them, and Settings → Notifications lists them with Remove.
+- Notifications for mail from VIPs only, per account; with "Mail from people only", a VIP's mail notifies even when it was sorted as a newsletter.
+- New-mail notifications play the desktop's new-mail sound (Settings → Notifications → Sound).
+
+### Fixed
+- A few German texts (blocked senders, account alerts) addressed the reader as "du" instead of "Sie" like the rest.
 
 ## [0.4.0] — 2026-10-29
 

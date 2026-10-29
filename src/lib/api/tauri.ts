@@ -98,6 +98,8 @@ export function createTauriApi(): Api {
     outbox: () => invoke('outbox'),
     suggestContacts: (query) => invoke('suggest_contacts', { query }),
     identities: () => invoke('identities'),
+    vips: () => invoke('vips'),
+    setVip: (email, name, vip) => invoke('vip_set', { email, name, vip }),
     saveIdentity: (identity) => invoke('identity_save', { identity }),
     deleteIdentity: (id) => invoke('identity_delete', { id }),
 

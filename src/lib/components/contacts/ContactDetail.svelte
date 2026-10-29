@@ -9,7 +9,8 @@
   import { dateFormat, listDate } from '../../utils/format';
   import { t } from '../../i18n';
   import Avatar from '../Avatar.svelte';
-  import { Cake, Globe, Mail, MapPin, Pen, Phone, StickyNote, Trash } from '../../icons';
+  import { Cake, Crown, Globe, Mail, MapPin, Pen, Phone, StickyNote, Trash } from '../../icons';
+  import { vips } from '../../stores/vips.svelte';
 
   let { contact: c }: { contact: Contact } = $props();
 
@@ -17,6 +18,8 @@
   let confirmDelete = $state(false);
   const book = $derived(people.books.find((b) => b.id === c.bookId));
   const primary = $derived(c.emails[0]?.value ?? null);
+  /** A VIP: one of the contact's addresses is. */
+  const vip = $derived(c.emails.some((e) => vips.has(e.value)));
 
   onMount(async () => {
     const address = c.emails[0]?.value;
@@ -67,6 +70,9 @@
       <div class="actions">
         {#if primary}<button class="btn primary sm" onclick={() => write(primary)}><Mail size={15} />{t('contacts.sendEmail')}</button>{/if}
         {#if c.phones[0]}<button class="btn sm" onclick={() => api.openUrl(`tel:${c.phones[0].value.replace(/\s/g, '')}`)}><Phone size={15} />{t('contacts.call')}</button>{/if}
+        {#if c.emails.length}
+          <button class="btn sm vip" class:on={vip} aria-pressed={vip} title={t(vip ? 'vip.remove' : 'vip.add')} onclick={() => vips.setAll(c.name, c.emails.map((e) => e.value), !vip)}><Crown size={14} />{t('vip.badge')}</button>
+        {/if}
         {#if !book?.readOnly}
           <button class="btn sm" onclick={() => people.edit()}><Pen size={14} />{t('common.edit')}</button>
           {#if confirmDelete}
@@ -181,6 +187,10 @@
   }
   .actions .btn {
     gap: 6px;
+  }
+  .vip.on {
+    color: var(--amber-text);
+    background: var(--amber-soft);
   }
   .cards {
     max-width: 760px;

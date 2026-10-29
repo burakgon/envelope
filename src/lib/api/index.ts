@@ -97,6 +97,8 @@ export interface Api {
   outbox(): Promise<T.OutboxItem[]>;
   suggestContacts(query: string): Promise<T.ContactSuggestion[]>;
   identities(): Promise<T.Identity[]>;
+  vips(): Promise<T.Vip[]>;
+  setVip(email: string, name: string | null, vip: boolean): Promise<void>;
   saveIdentity(identity: T.Identity): Promise<number>;
   deleteIdentity(id: number): Promise<void>;
 

@@ -250,6 +250,8 @@ pub fn run() {
             commands::identities,
             commands::identity_save,
             commands::identity_delete,
+            commands::vips,
+            commands::vip_set,
             commands::file_info,
             commands::stash_file,
             commands::attachment_open,

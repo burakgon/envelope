@@ -172,7 +172,7 @@ const query = (o) => buildQuery({ ...noOptions, ...o });
 check('no options, no query', query({}), '');
 check('options in the engine\'s words', query({ from: 'maya', attachment: true, within: '1m', words: 'budget' }), 'from:maya has:attachment newer_than:1m budget');
 check('a value with spaces is quoted', query({ from: ' Maya Chen ', subject: 'Q3 "plan"' }), 'from:"Maya Chen" subject:"Q3 plan"');
-check('every option', query({ to: 'sam', unread: true, starred: true, folder: 'inbox' }), 'to:sam is:unread is:starred in:inbox');
+check('every option', query({ to: 'sam', unread: true, starred: true, vip: true, folder: 'inbox' }), 'to:sam is:unread is:starred is:vip in:inbox');
 check('a folder path with spaces', query({ folder: '[Gmail]/Sent Mail' }), 'in:"[Gmail]/Sent Mail"');
 check('an address being typed', addressAtEnd('budget from:ma'), { key: 'from', text: 'ma' });
 check('a negated one, just begun', addressAtEnd('-to:'), { key: 'to', text: '' });

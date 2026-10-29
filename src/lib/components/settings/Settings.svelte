@@ -14,6 +14,7 @@
   import RulesSettings from './RulesSettings.svelte';
   import { health } from '../../stores/accountHealth.svelte';
   import { blockedSenders, unblock } from '../../stores/rules.svelte';
+  import { vips } from '../../stores/vips.svelte';
   import Toggle from './Toggle.svelte';
   import Logo from '../Logo.svelte';
   import { modal } from '../../actions/modal';
@@ -470,6 +471,10 @@
             <Toggle label={t('settings.notifications.newMail')} checked={ui.settings.notifications} onchange={(v) => ui.set('notifications', v)} />
           </div>
           <div class="row">
+            <div class="txt"><b>{t('settings.notifications.sound')}</b><span>{t('settings.notifications.soundDesc')}</span></div>
+            <Toggle label={t('settings.notifications.sound')} checked={ui.settings.notificationSound} onchange={(v) => ui.set('notificationSound', v)} />
+          </div>
+          <div class="row">
             <div class="txt"><b>{t('settings.calendar.eventReminders')}</b><span>{t('settings.calendar.eventRemindersDesc')}</span></div>
             <Toggle label={t('settings.calendar.eventReminders')} checked={ui.settings.calendarNotifications} onchange={(v) => ui.set('calendarNotifications', v)} />
           </div>
@@ -477,6 +482,18 @@
             <div class="txt"><b>{t('tasks.settings.notifications')}</b><span>{t('tasks.settings.notificationsDesc')}</span></div>
             <Toggle checked={ui.settings.taskNotifications} label={t('tasks.settings.notifications')} onchange={(v) => ui.set('taskNotifications', v)} />
           </div>
+        </div>
+        <h3>{t('vip.settingsTitle')}</h3>
+        <p class="desc">{t('vip.settingsDesc')}</p>
+        <div class="group blocked-list">
+          {#each vips.list as v (v.email)}
+            <div class="blocked">
+              <span class="addr truncate selectable">{#if v.name}<b>{v.name}</b> · {/if}{v.email}</span>
+              <button class="btn sm" onclick={() => vips.set({ name: v.name, email: v.email }, false)}>{t('common.remove')}</button>
+            </div>
+          {:else}
+            <p class="desc none">{t('vip.none')}</p>
+          {/each}
         </div>
       {:else if ui.settingsTab === 'privacy'}
         <h2>{t('settings.tab.privacy')}</h2>
