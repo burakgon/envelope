@@ -71,7 +71,8 @@ interface Seed {
   done?: number;
   every?: number;
   source?: string;
-  subtasks?: [string, boolean][];
+  /** Title, done, and the day it is due (CalDAV subtasks can have their own). */
+  subtasks?: [string, boolean, number?][];
 }
 
 function add(listId: number, title: string, s: Seed = {}, parentId: number | null = null): Stored {
@@ -87,7 +88,7 @@ function add(listId: number, title: string, s: Seed = {}, parentId: number | nul
     position: siblings.length, pendingUntil: 0,
   };
   tasks.push(task);
-  for (const [subtitle, doneSub] of s.subtasks ?? []) add(listId, subtitle, { done: doneSub ? 1 : undefined }, task.id);
+  for (const [subtitle, doneSub, dueSub] of s.subtasks ?? []) add(listId, subtitle, { done: doneSub ? 1 : undefined, due: dueSub }, task.id);
   return task;
 }
 
@@ -125,7 +126,7 @@ add(4, 'Look over the Kraftwerk Studio offer', { due: 4 });
 add(4, 'Buy a birthday present for Mom', {
   due: 6,
   important: true,
-  subtasks: [['Order the photo book', true], ['Pick up the frame', false], ['Wrap it', false]],
+  subtasks: [['Order the photo book', true], ['Pick up the frame', false, 2], ['Wrap it', false]],
 });
 add(4, 'Online check-in for the Berlin flight', { due: [15, 9, 40], notes: 'Seat 12A · booking SKY7Q2' });
 add(4, 'Pay the October credit card bill', { done: 3 });

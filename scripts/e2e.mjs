@@ -24,11 +24,22 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}/`;
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const problems = [];
-page.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
-page.on('console', (m) => m.type() === 'error' && problems.push(`console error: ${m.text()}`));
-await page.addInitScript(() => sessionStorage.setItem('envelope.demo.banner', 'hidden'));
+/** A window of the demo, its problems reported; `clock` sets the time it starts at. */
+async function open(clock) {
+  const p = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  p.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
+  p.on('console', (m) => m.type() === 'error' && problems.push(`console error: ${m.text()}`));
+  // The app asks in dialogs of its own; the browser's are bare windows in WebKitGTK.
+  p.on('dialog', (d) => {
+    problems.push(`browser dialog: ${d.message()}`);
+    d.dismiss();
+  });
+  await p.addInitScript(() => sessionStorage.setItem('envelope.demo.banner', 'hidden'));
+  if (clock) await p.clock.install({ time: clock });
+  return p;
+}
+const page = await open();
 
 let failed = 0;
 async function step(name, run) {
@@ -131,6 +142,24 @@ await step('quick add understands a due date, a time and !', async () => {
   if (await page.locator('.quick input').inputValue()) throw new Error('quick add was not cleared');
 });
 
+await step('quick add keeps what is typed while a task is saved', async () => {
+  // The next task is typed right after Enter, before the first one comes back saved.
+  const held = await page.evaluate(() => {
+    const input = document.querySelector('.quick input');
+    const type = (value) => {
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    type('Buy milk');
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    type('Buy eggs');
+    return new Promise((resolve) => setTimeout(() => resolve(input.value), 300));
+  });
+  if (held !== 'Buy eggs') throw new Error(`quick add holds "${held}"`);
+  await page.locator('.tasks .task', { hasText: 'Buy milk' }).waitFor({ timeout: 5000 });
+  await page.locator('.quick input').fill('');
+});
+
 await step('a task is completed', async () => {
   // Due tomorrow, so it is in Upcoming.
   await page.locator('.sidebar .item', { hasText: 'Upcoming' }).click();
@@ -152,6 +181,81 @@ await step('t adds the open conversation to tasks', async () => {
   await toast.waitFor({ timeout: 5000 });
   await toast.locator('.action').click();
   await page.locator('.detail .source', { hasText: 'Q4 roadmap' }).waitFor({ timeout: 5000 });
+});
+
+await step('the keyboard acts on a subtask opened from the calendar', async () => {
+  // A subtask with a date of its own; in its list only its task has a row.
+  await page.locator('body').press('g');
+  await page.locator('body').press('c');
+  await page.locator('body').press('a');
+  await page.locator('.tchip', { hasText: 'Pick up the frame' }).first().locator('.open').click();
+  await page.locator('.detail .crumb', { hasText: 'Buy a birthday present for Mom' }).waitFor({ timeout: 5000 });
+  await page.locator('body').press('x');
+  await page.locator('.detail .head .check[aria-checked="true"]').waitFor({ timeout: 5000 });
+  const parent = page.locator('.tasks .task', { hasText: 'Buy a birthday present for Mom' });
+  await page.waitForTimeout(900);
+  if (await parent.evaluate((el) => el.classList.contains('done'))) throw new Error('X completed the task, not its subtask');
+});
+
+await step('subtask checks are reached and ticked from the keyboard', async () => {
+  await page.locator('.detail .crumb').click();
+  await page.locator('.detail textarea.title').focus();
+  for (let i = 0; i < 20; i++) {
+    await page.keyboard.press('Tab');
+    const label = await page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '');
+    if (label.includes('Wrap it')) break;
+  }
+  const check = page.locator('.detail .sub .check[aria-label*="Wrap it"]');
+  if (!(await check.evaluate((el) => el === document.activeElement))) throw new Error('Tab never reached the subtask\'s check');
+  await page.keyboard.press('Space');
+  await page.locator('.detail .sub .check[aria-label*="Wrap it"][aria-checked="true"]').waitFor({ timeout: 5000 });
+});
+
+await step('a confirmation and a password prompt ask in the app', async () => {
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+,');
+  await visible('.window[role="dialog"]');
+  await page.locator('.window .tab', { hasText: 'Accounts' }).click();
+  // Removing an account asks first: Escape says no and leaves the settings open, the red button yes.
+  const remove = page.locator('.acct .icon-btn[title="Remove account"]').first();
+  const ask = page.locator('[role="alertdialog"]');
+  await remove.click();
+  await ask.waitFor({ timeout: 5000 });
+  await page.keyboard.press('Escape');
+  await ask.waitFor({ state: 'detached', timeout: 5000 });
+  if (!(await page.locator('.window[role="dialog"]').count())) throw new Error('Escape closed the settings as well');
+  await remove.click();
+  await ask.locator('button.danger').click();
+  await page.locator('.toast', { hasText: 'Removed' }).first().waitFor({ timeout: 5000 });
+  // A new password goes into a masked field, and Enter answers.
+  await page.locator('.acct button', { hasText: 'Sign in again' }).nth(1).click();
+  await page.locator('[role="dialog"] input[type="password"]:focus').waitFor({ timeout: 5000 });
+  await page.keyboard.type('hunter2');
+  await page.keyboard.press('Enter');
+  await page.locator('.toast', { hasText: 'Signed in again' }).first().waitFor({ timeout: 5000 });
+  await page.keyboard.press('Escape');
+  await page.locator('.window[role="dialog"]').waitFor({ state: 'detached', timeout: 5000 });
+});
+
+await step('Today moves on at midnight', async () => {
+  const late = new Date();
+  late.setHours(23, 58, 0, 0);
+  const night = await open(late);
+  try {
+    await night.goto(url);
+    await night.locator('.row').first().waitFor({ state: 'visible', timeout: 5000 });
+    await night.locator('body').press('g');
+    await night.locator('body').press('k');
+    await night.locator('.sidebar .item', { hasText: 'Today' }).click();
+    // Due tomorrow, so in Today once the day has changed.
+    const tomorrow = night.locator('.tasks .task', { hasText: 'Prepare for the Q4 roadmap review' });
+    await night.locator('.tasks .task').first().waitFor({ timeout: 5000 });
+    if (await tomorrow.count()) throw new Error('a task due tomorrow is in Today before midnight');
+    await night.clock.fastForward('05:00');
+    await tomorrow.waitFor({ timeout: 5000 });
+  } finally {
+    await night.close();
+  }
 });
 
 await step('no page errors', async () => {
