@@ -4,6 +4,8 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-30
+
 ### Added
 - Search options under the search box (the sliders button beside it): from, to, subject, words, a period (the last week, month or year), the folder on screen (in its own account, with the new `account:` operator), and attachments, unread, starred or from a VIP. They write the query in the search language, so it can be read, changed and saved, and they open on the search in the box to change it.
 - Saved searches: Save search beside a search keeps it in the sidebar under a name, where a click runs it again; right-click, Shift+F10 or the Menu key renames or deletes it (with Undo).
@@ -171,7 +173,8 @@ All notable changes to Envelope are documented here. The format follows [Keep a 
 - Tray icon with the unread count, running in the background and starting at login (through the Background portal in Flatpak).
 - Packages: .deb, .rpm, AppImage, a Flatpak manifest and a PKGBUILD.
 
-[Unreleased]: https://github.com/burakgon/envelope/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/burakgon/envelope/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/burakgon/envelope/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/burakgon/envelope/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/burakgon/envelope/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/burakgon/envelope/compare/v0.1.1...v0.2.0

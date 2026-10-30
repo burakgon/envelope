@@ -94,6 +94,23 @@
     <color type="primary" scheme_preference="dark">#2a1f8f</color>
   </branding>
   <releases>
+    <release version="0.5.0" date="2026-10-30">
+      <description>
+        <p>Finding, sorting and trusting your mail: search that writes its own queries, the people and lists that matter one click away, S/MIME, and the layout you like in as many windows as you like.</p>
+        <ul>
+          <li>Search options that write the query, saved and recent searches, and people suggested as you type</li>
+          <li>VIPs with a mailbox of their own, and notifications for their mail only</li>
+          <li>Subscriptions: every newsletter and mailing list in one place, to unsubscribe from or clear out</li>
+          <li>Mail marked important shows a red mark, and the composer marks yours</li>
+          <li>S/MIME signed and encrypted mail is read, checked and sent, with certificates in Settings</li>
+          <li>Contact groups in Contacts and in the To and Cc fields</li>
+          <li>The reading pane on the right, below or off; single messages instead of conversations; other sort orders</li>
+          <li>Conversations and messages being written in windows of their own</li>
+          <li>Propose a new time for a meeting, and answer proposals</li>
+          <li>Birthdays and week numbers in the calendar, notification sounds, and a notice when a new version is out</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-10-29">
       <description>
         <p>Switching from other mail apps, staying organized, a calendar that repeats and travels, and an app that works from the keyboard and in half a screen.</p>
